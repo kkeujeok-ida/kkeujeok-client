@@ -1,0 +1,14 @@
+{
+  "@@locale": "en",
+  "productName": "Kkeujeok",
+  "library": "Library",
+  "settings": "Settings",
+  "openSidebar": "Open menu",
+  "language": "Language",
+  "languageSystem": "Follow system settings",
+  "languageKo": "한국어",
+  "languageEn": "English",
+  "privacyPolicy": "Privacy policy",
+  "privacyUnavailable": "The privacy policy address is not set.",
+  "privacyOpenFailed": "Couldn't open the privacy policy. Please try again."
+}

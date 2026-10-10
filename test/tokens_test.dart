@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/design_tokens/build/tokens.dart';
 import 'package:kkeujeok/ui/app.dart';
@@ -95,7 +96,10 @@ void main() {
   testWidgets('app shows Kkeujeok in Pretendard with Light tokens', (
     tester,
   ) async {
-    await tester.pumpWidget(const App());
+    tester.view.physicalSize = const Size(900, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(const ProviderScope(child: App()));
     final style = tester.widget<Text>(find.text('Kkeujeok')).style!;
     expect(style.fontFamily, 'Pretendard');
     expect(style.color, KkjLight.colorInkPrimary);

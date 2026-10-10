@@ -12,6 +12,11 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_riverpod: 3.4.3
+  flutter_localizations:
+    sdk: flutter
+  intl: 0.20.3
+  shared_preferences: 2.5.6
+  url_launcher: 6.3.3
 
 dev_dependencies:
   flutter_test:
@@ -19,6 +24,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
 
 flutter:
+  generate: true
   uses-material-design: true
   assets:
     - assets/fonts/OFL-Pretendard.txt
