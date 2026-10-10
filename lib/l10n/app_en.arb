@@ -10,5 +10,13 @@
   "languageEn": "English",
   "privacyPolicy": "Privacy policy",
   "privacyUnavailable": "The privacy policy address is not set.",
-  "privacyOpenFailed": "Couldn't open the privacy policy. Please try again."
+  "privacyOpenFailed": "Couldn't open the privacy policy. Please try again.",
+  "signInWithGoogle": "Sign in with Google",
+  "signingIn": "Signing in",
+  "driveNotice": "Your notes are saved in the Kkeujeok folder of your Google Drive",
+  "driveDeniedTitle": "Google Drive access was denied.",
+  "driveDeniedBody": "To save notes in the Kkeujeok folder of your Google Drive, you need to allow access. Kkeujeok can only see files it created.",
+  "requestAgain": "Request again",
+  "networkError": "Check your connection and try again",
+  "retry": "Try again"
 }

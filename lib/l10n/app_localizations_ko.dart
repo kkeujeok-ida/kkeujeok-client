@@ -41,4 +41,29 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get privacyOpenFailed => '개인정보처리방침을 열지 못했어요. 다시 시도해 주세요.';
+
+  @override
+  String get signInWithGoogle => 'Google로 로그인';
+
+  @override
+  String get signingIn => '로그인 중';
+
+  @override
+  String get driveNotice => '노트는 내 Google Drive의 Kkeujeok 폴더에 저장돼요';
+
+  @override
+  String get driveDeniedTitle => 'Google Drive 접근이 거부됐어요.';
+
+  @override
+  String get driveDeniedBody =>
+      '노트를 내 Google Drive의 Kkeujeok 폴더에 저장하려면 접근을 허용해야 해요. Kkeujeok이 만든 파일만 볼 수 있어요.';
+
+  @override
+  String get requestAgain => '다시 요청';
+
+  @override
+  String get networkError => '연결을 확인하고 다시 시도해 주세요';
+
+  @override
+  String get retry => '다시 시도';
 }

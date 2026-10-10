@@ -8,6 +8,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/design_tokens/build/tokens.dart';
 import 'package:kkeujeok/ui/app.dart';
+import 'package:kkeujeok/ui/providers.dart';
+
+import 'fake_auth_gateway.dart';
 
 // Same naming as Style Dictionary's name/camel:
 // components.pen-slot.selected-offset -> componentsPenSlotSelectedOffset.
@@ -99,7 +102,17 @@ void main() {
     tester.view.physicalSize = const Size(900, 600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(const ProviderScope(child: App()));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authGatewayProvider.overrideWithValue(
+            FakeAuthGateway(restored: true),
+          ),
+        ],
+        child: const App(),
+      ),
+    );
+    await tester.pumpAndSettle();
     final style = tester.widget<Text>(find.text('Kkeujeok')).style!;
     expect(style.fontFamily, 'Pretendard');
     expect(style.color, KkjLight.colorInkPrimary);

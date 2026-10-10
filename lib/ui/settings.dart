@@ -47,22 +47,14 @@ class SettingsScreen extends ConsumerWidget {
       LanguageChoice.en: l10n.languageEn,
     };
 
-    // Only an http(s) address with a host is opened; anything else is treated
-    // as not configured, so the item says why instead of failing on tap.
-    final parsed = Uri.tryParse(privacyUrl.trim());
-    final privacyUri =
-        parsed != null &&
-            (parsed.scheme == 'https' || parsed.scheme == 'http') &&
-            parsed.host.isNotEmpty
-        ? parsed
-        : null;
-    final hasPrivacy = privacyUri != null;
+    final uri = privacyUri(privacyUrl);
+    final hasPrivacy = uri != null;
 
     Future<void> openPrivacy() async {
       final messenger = ScaffoldMessenger.of(context);
       var ok = false;
       try {
-        ok = await ref.read(urlOpenerProvider)(privacyUri!);
+        ok = await ref.read(urlOpenerProvider)(uri!);
       } catch (_) {}
       if (!ok) {
         messenger.showSnackBar(SnackBar(content: Text(l10n.privacyOpenFailed)));
