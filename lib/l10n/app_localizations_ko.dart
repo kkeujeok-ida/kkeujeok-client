@@ -66,4 +66,26 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get retry => '다시 시도';
+
+  @override
+  String get logOut => '로그아웃';
+
+  @override
+  String get disconnect => '연결 해제';
+
+  @override
+  String get cancel => '취소';
+
+  @override
+  String get disconnectTitle => '연결을 해제할까요?';
+
+  @override
+  String get disconnectBody =>
+      '이 기기의 노트 사본과 로그인 정보가 지워져요. Drive의 노트 파일은 그대로 남아요.';
+
+  @override
+  String get disconnecting => '연결을 해제하는 중';
+
+  @override
+  String get disconnectDeleteFailed => '이 기기의 노트 사본을 지우지 못했어요. 다시 시도해 주세요.';
 }

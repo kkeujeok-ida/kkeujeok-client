@@ -51,6 +51,12 @@ cp config/dev.example.json config/dev.json
 문구는 `lib/l10n/app_{ko,en}.arb`에서만 온다. 고친 뒤 `flutter gen-l10n`을
 실행하고 생성물(`lib/l10n/app_localizations*.dart`)도 커밋한다.
 
+## 노트 데이터 디렉터리
+
+노트 사본은 앱 문서 디렉터리 아래 고정 이름 `notes`에 저장한다(웹의 IndexedDB
+`kkeujeok-notes`와 짝). 연결 해제는 이 디렉터리를 통째로 지우고, 로그아웃은
+그대로 둔다. 언어 같은 기기 설정은 `SharedPreferences`에 있어 둘 다 남는다.
+
 ## 자기 GCP 프로젝트에 디버그 SHA-1 등록
 
 프로덕션 OAuth 클라이언트에는 Play 앱 서명 키만 등록되어 있다. 디버그

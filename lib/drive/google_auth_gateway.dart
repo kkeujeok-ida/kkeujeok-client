@@ -77,6 +77,20 @@ class GoogleAuthGateway implements AuthGateway {
       return AuthOutcome.networkError;
     }
   }
+
+  @override
+  Future<void> signOut() async {
+    _client = null;
+    await _ready();
+    await GoogleSignIn.instance.signOut();
+  }
+
+  @override
+  Future<void> disconnect() async {
+    await _ready();
+    await GoogleSignIn.instance.disconnect();
+    _client = null;
+  }
 }
 
 /// Account chooser failed: only the user backing out is silent; an

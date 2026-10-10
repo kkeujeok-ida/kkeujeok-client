@@ -68,4 +68,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get retry => 'Try again';
+
+  @override
+  String get logOut => 'Log out';
+
+  @override
+  String get disconnect => 'Disconnect';
+
+  @override
+  String get cancel => 'Cancel';
+
+  @override
+  String get disconnectTitle => 'Disconnect?';
+
+  @override
+  String get disconnectBody =>
+      'The note copies and sign-in info on this device will be erased. The note files in your Drive stay as they are.';
+
+  @override
+  String get disconnecting => 'Disconnecting';
+
+  @override
+  String get disconnectDeleteFailed =>
+      'Couldn\'t erase the note copies on this device. Please try again.';
 }
