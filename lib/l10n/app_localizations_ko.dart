@@ -158,4 +158,13 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get strokeNotAdded => '획을 추가하지 못했어요.';
+
+  @override
+  String get undo => '실행 취소';
+
+  @override
+  String get redo => '다시 실행';
+
+  @override
+  String get historyNotApplied => '변경을 적용하지 못했어요.';
 }

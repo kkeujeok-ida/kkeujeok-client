@@ -47,5 +47,8 @@
   "colorBlack": "검정",
   "pageSemantics": "{n}페이지 / {total}, {orientation}",
   "handwriting": "손글씨",
-  "strokeNotAdded": "획을 추가하지 못했어요."
+  "strokeNotAdded": "획을 추가하지 못했어요.",
+  "undo": "실행 취소",
+  "redo": "다시 실행",
+  "historyNotApplied": "변경을 적용하지 못했어요."
 }

@@ -5,6 +5,7 @@ import '../drive/auth_gateway.dart';
 import '../drive/google_auth_gateway.dart';
 import '../model/ids.dart';
 import '../model/note.dart';
+import '../ops/history.dart';
 import '../ops/ops.dart';
 import '../storage/language_store.dart';
 import '../storage/new_note_defaults_store.dart';
@@ -57,6 +58,10 @@ final noteDataProvider = Provider<NoteData>((ref) => NoteData());
 final noteStoreProvider = Provider<NoteStore>(
   (ref) => NoteStore(ref.read(noteDataProvider)),
 );
+
+/// Undo/redo history per note id, for this app process only (never written
+/// to disk), so it survives moving between notes.
+final noteHistoriesProvider = Provider<Map<String, History>>((ref) => {});
 
 /// Overridden in main() with the opened preferences.
 final newNoteDefaultsStoreProvider = Provider<NewNoteDefaultsStore>(
@@ -252,6 +257,7 @@ class AuthNotifier extends Notifier<AuthState> {
     }
     try {
       await ref.read(noteDataProvider).clear();
+      ref.read(noteHistoriesProvider).clear(); // the notes are gone
     } catch (_) {
       return DisconnectResult.deleteFailed;
     }

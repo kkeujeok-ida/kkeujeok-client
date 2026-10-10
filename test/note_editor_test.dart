@@ -493,6 +493,282 @@ void main() {
     });
   });
 
+
+  group('undo / redo', () {
+    Map page() => decodeKkj(file.readAsBytesSync()).note!.pages.first;
+    Finder btn(String tip) => find.byTooltip(tip);
+    Map viewportPage(WidgetTester t) {
+      final w = find
+          .descendant(
+            of: find.byType(NoteEditor),
+            matching: find.byWidgetPredicate(
+              (w) => w is CustomPaint && w.painter is PagePainter,
+            ),
+          )
+          .evaluate()
+          .single
+          .widget as CustomPaint;
+      return (w.painter as PagePainter).page;
+    }
+    bool enabled(WidgetTester t, String tip) {
+      final f = t.getSemantics(btn(tip)).getSemanticsData().flagsCollection;
+      return f.isEnabled == Tristate.isTrue;
+    }
+
+    Future<void> tap(WidgetTester t, String tip) async {
+      await t.tap(btn(tip));
+      await settle(t);
+    }
+
+    testWidgets('buttons: after the pen slot, 48dp, disabled when empty', (
+      t,
+    ) async {
+      final h = t.ensureSemantics();
+      seed(_note());
+      await open(t);
+      expect(enabled(t, 'Undo'), isFalse);
+      expect(enabled(t, 'Redo'), isFalse);
+      for (final tip in ['Undo', 'Redo']) {
+        final s = t.getSize(btn(tip));
+        expect(s.width, greaterThanOrEqualTo(48));
+        expect(s.height, greaterThanOrEqualTo(48));
+      }
+      final slot = t.getRect(find.bySemanticsLabel('Pen, Black, width 2.0'));
+      expect(t.getRect(btn('Undo')).left, greaterThan(slot.right));
+      expect(
+        t.getRect(btn('Redo')).left,
+        greaterThan(t.getRect(btn('Undo')).left),
+      );
+      // Pressing a disabled button changes nothing.
+      final before = file.readAsBytesSync();
+      await tap(t, 'Undo');
+      expect(file.readAsBytesSync(), before);
+      h.dispose();
+    });
+
+    testWidgets('undo removes the stroke, redo brings it back', (t) async {
+      final h = t.ensureSemantics();
+      seed(_note());
+      await open(t);
+      await draw(t, line);
+      await draw(t, line.map((p) => (p.$1, p.$2 + 40, p.$3)).toList());
+      await settle(t);
+      final stroke2 = Map.of(elements().last as Map);
+      final p0 = page();
+      expect(enabled(t, 'Undo'), isTrue);
+      expect(enabled(t, 'Redo'), isFalse);
+
+      await tap(t, 'Undo');
+      var p1 = page();
+      expect(elements(), hasLength(1));
+      expect(p1['rev'], isNot(p0['rev']));
+      expect(p1['seq'], (p0['seq'] as int) + 1);
+      expect(enabled(t, 'Redo'), isTrue);
+
+      await tap(t, 'Redo');
+      final p2 = page();
+      expect(elements(), hasLength(2));
+      expect(elements().last, stroke2);
+      expect(p2['rev'], isNot(p1['rev']));
+      expect(p2['seq'], (p1['seq'] as int) + 1);
+      expect(enabled(t, 'Redo'), isFalse);
+      h.dispose();
+    });
+
+    testWidgets('a new stroke clears redo', (t) async {
+      final h = t.ensureSemantics();
+      seed(_note());
+      await open(t);
+      await draw(t, line);
+      await settle(t);
+      await tap(t, 'Undo');
+      expect(enabled(t, 'Redo'), isTrue);
+      await draw(t, line);
+      await settle(t);
+      expect(enabled(t, 'Redo'), isFalse);
+      expect(enabled(t, 'Undo'), isTrue);
+      h.dispose();
+    });
+
+    testWidgets('no effect while a stroke is in progress', (t) async {
+      seed(_note());
+      await open(t);
+      await draw(t, line);
+      await settle(t);
+      final before = file.readAsBytesSync();
+      await draw(t, line, up: false); // pen still down
+      final id = pointer;
+      final undo = t.getCenter(btn('Undo'));
+      final finger = await t.startGesture(undo, kind: PointerDeviceKind.touch);
+      await finger.up();
+      await settle(t);
+      expect(file.readAsBytesSync(), before);
+      t.binding.handlePointerEvent(
+        PointerUpEvent(
+          pointer: id,
+          kind: PointerDeviceKind.stylus,
+          position: onScreen(t, 250, 200),
+          timeStamp: const Duration(milliseconds: 100),
+        ),
+      );
+      await settle(t);
+      expect(elements(), hasLength(2)); // the stroke went on and was kept
+    });
+
+    testWidgets('queued saves end with the last state', (t) async {
+      seed(_note());
+      final gate = Completer<void>();
+      var calls = 0, active = 0, maxActive = 0;
+      final store = NoteStore(
+        data,
+        writeFile: (f, b) async {
+          calls++;
+          active++;
+          if (active > maxActive) maxActive = active;
+          if (calls == 1) await gate.future;
+          await f.writeAsBytes(b);
+          active--;
+        },
+      );
+      await open(t, store: store);
+      await draw(t, line);
+      await draw(t, line.map((p) => (p.$1, p.$2 + 40, p.$3)).toList());
+      await t.tap(btn('Undo'));
+      await t.pump();
+      await t.tap(btn('Undo'));
+      await t.pump();
+      await t.tap(btn('Redo'));
+      await t.pump();
+      gate.complete();
+      await settle(t);
+      expect(maxActive, 1);
+      expect(elements(), hasLength(1)); // two undone, one redone
+    });
+
+    testWidgets('history survives library round trip, not a new process', (
+      t,
+    ) async {
+      final h = t.ensureSemantics();
+      seed(_note());
+      await open(t);
+      await draw(t, line);
+      await settle(t);
+      await t.tap(find.byTooltip('Back to library'));
+      await settle(t);
+      await t.tap(find.text('Lecture'));
+      await settle(t);
+      expect(enabled(t, 'Undo'), isTrue);
+      await tap(t, 'Undo');
+      expect(elements(), isEmpty);
+
+      // A new app process: empty history, the file is as it was saved.
+      await t.pumpWidget(const SizedBox());
+      await open(t);
+      expect(enabled(t, 'Undo'), isFalse);
+      expect(enabled(t, 'Redo'), isFalse);
+      h.dispose();
+    });
+
+    testWidgets('a failed save leaves the screen undone, next save heals', (
+      t,
+    ) async {
+      seed(_note());
+      var fail = false;
+      final store = NoteStore(
+        data,
+        writeFile: (f, b) async {
+          if (fail) throw const FileSystemException('disk full');
+          await f.writeAsBytes(b);
+        },
+      );
+      await open(t, store: store);
+      await draw(t, line);
+      await settle(t);
+      fail = true;
+      await tap(t, 'Undo');
+      expect(find.text("Couldn't save to this device."), findsOneWidget);
+      expect(elements(), hasLength(1)); // file still has the stroke
+      fail = false;
+      await tap(t, 'Redo');
+      expect(elements(), hasLength(1));
+      await tap(t, 'Undo');
+      expect(elements(), isEmpty);
+    });
+
+    testWidgets('reopening after a failed save starts a fresh history', (
+      t,
+    ) async {
+      final h = t.ensureSemantics();
+      seed(_note());
+      final store = NoteStore(
+        data,
+        writeFile: (f, b) async =>
+            throw const FileSystemException('disk full'),
+      );
+      await open(t, store: store);
+      await draw(t, line);
+      await settle(t);
+      await t.tap(find.byTooltip('Back to library'));
+      await settle(t);
+      expect(find.byType(NoteEditor), findsNothing);
+      await t.tap(find.text('Lecture'));
+      await settle(t);
+      expect(enabled(t, 'Undo'), isFalse);
+      expect(viewportPage(t)['elements'], isEmpty);
+      expect(elements(), isEmpty);
+      h.dispose();
+    });
+
+    testWidgets('history is dropped when the note meta differs', (t) async {
+      final h = t.ensureSemantics();
+      seed(_note());
+      await open(t);
+      await draw(t, line);
+      await settle(t);
+      // Renamed on disk (as another writer would); leaving reloads the list.
+      final j = decodeKkj(file.readAsBytesSync()).note!.copyJson();
+      (j['meta'] as Map)['title'] = 'Renamed';
+      file.writeAsBytesSync(encodeKkj(Note.trusted(j)));
+      await t.tap(find.byTooltip('Back to library'));
+      await settle(t);
+      await t.tap(find.text('Renamed'));
+      await settle(t);
+      expect(find.byType(NoteEditor), findsOneWidget);
+      expect(enabled(t, 'Undo'), isFalse);
+      h.dispose();
+    });
+
+    testWidgets('undo while leaving does nothing', (t) async {
+      seed(_note());
+      final gate = Completer<void>();
+      var calls = 0;
+      final store = NoteStore(
+        data,
+        writeFile: (f, b) async {
+          if (++calls == 1) await gate.future;
+          await f.writeAsBytes(b);
+        },
+      );
+      await open(t, store: store);
+      await draw(t, line);
+      await t.tap(find.byTooltip('Back to library'));
+      await t.pump();
+      await t.tap(btn('Undo'));
+      await t.pump();
+      gate.complete();
+      await settle(t);
+      expect(find.byType(NoteEditor), findsNothing);
+      expect(elements(), hasLength(1));
+    });
+
+    testWidgets('Korean names', (t) async {
+      seed(_note());
+      await open(t, device: const [Locale('ko', 'KR')]);
+      expect(find.byTooltip('실행 취소'), findsOneWidget);
+      expect(find.byTooltip('다시 실행'), findsOneWidget);
+    });
+  });
+
   group('paint', () {
     const white = Color(0xFFFFFFFF);
     const lineColor = Color(0xFFC5CED8);

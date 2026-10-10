@@ -385,6 +385,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Couldn\'t add the stroke.'**
   String get strokeNotAdded;
+
+  /// No description provided for @undo.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get undo;
+
+  /// No description provided for @redo.
+  ///
+  /// In en, this message translates to:
+  /// **'Redo'**
+  String get redo;
+
+  /// No description provided for @historyNotApplied.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t apply that change.'**
+  String get historyNotApplied;
 }
 
 class _AppLocalizationsDelegate

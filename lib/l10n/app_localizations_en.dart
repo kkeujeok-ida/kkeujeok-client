@@ -161,4 +161,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get strokeNotAdded => 'Couldn\'t add the stroke.';
+
+  @override
+  String get undo => 'Undo';
+
+  @override
+  String get redo => 'Redo';
+
+  @override
+  String get historyNotApplied => 'Couldn\'t apply that change.';
 }

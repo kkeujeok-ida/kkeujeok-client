@@ -70,5 +70,8 @@
     }
   },
   "handwriting": "Handwriting",
-  "strokeNotAdded": "Couldn't add the stroke."
+  "strokeNotAdded": "Couldn't add the stroke.",
+  "undo": "Undo",
+  "redo": "Redo",
+  "historyNotApplied": "Couldn't apply that change."
 }

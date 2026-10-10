@@ -9,9 +9,20 @@ import 'library_fab.dart' show kkjShadow;
 /// The floating rounded bar: grip (inert, not in the a11y tree) | one pen
 /// slot. The slot is selected and does nothing yet (popover is Story 2.14).
 class PenToolbar extends StatelessWidget {
-  const PenToolbar({super.key, required this.pen});
+  const PenToolbar({
+    super.key,
+    required this.pen,
+    this.canUndo = false,
+    this.canRedo = false,
+    this.onUndo,
+    this.onRedo,
+  });
 
   final Pen pen;
+  final bool canUndo;
+  final bool canRedo;
+  final VoidCallback? onUndo;
+  final VoidCallback? onRedo;
 
   @override
   Widget build(BuildContext context) {
@@ -42,11 +53,55 @@ class PenToolbar extends StatelessWidget {
               excludeSemantics: true,
               child: _PenSlot(pen: pen),
             ),
+            const Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: KkjLight.componentsToolbarGroupGap,
+              ),
+              child: SizedBox(
+                width: 1,
+                height: 24,
+                child: ColoredBox(color: KkjLight.colorBorderHairline),
+              ),
+            ),
+            _HistoryButton(
+              icon: Icons.undo,
+              tooltip: l10n.undo,
+              onPressed: canUndo ? onUndo : null,
+            ),
+            _HistoryButton(
+              icon: Icons.redo,
+              tooltip: l10n.redo,
+              onPressed: canRedo ? onRedo : null,
+            ),
           ],
         ),
       ),
     );
   }
+}
+
+class _HistoryButton extends StatelessWidget {
+  const _HistoryButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: tooltip,
+    constraints: const BoxConstraints(
+      minWidth: KkjTokens.spacingHitMinAndroid,
+      minHeight: KkjTokens.spacingHitMinAndroid,
+    ),
+    icon: Icon(icon),
+    disabledColor: KkjLight.colorInkDisabled,
+    onPressed: onPressed,
+  );
 }
 
 class _Grip extends StatelessWidget {

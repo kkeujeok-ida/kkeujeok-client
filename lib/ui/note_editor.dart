@@ -31,7 +31,7 @@ const double _toolbarHeight =
     KkjLight.componentsPenSlotHitSize;
 
 class _NoteEditorState extends ConsumerState<NoteEditor> {
-  late final History _history = History(widget.note);
+  late final History _history = _sessionHistory();
   late final _store = ref.read(noteStoreProvider);
   final _cache = StrokePathCache();
   final _tick = ValueNotifier<int>(0);
@@ -49,6 +49,61 @@ class _NoteEditorState extends ConsumerState<NoteEditor> {
   PageViewport? _vp;
 
   Pen get _pen => defaultPenSlots.first;
+
+  /// The session's history for this note, unless the saved note differs
+  /// from it in any way (a failed save, another edit): then start fresh
+  /// rather than undo into state that is not on disk.
+  History _sessionHistory() {
+    final map = ref.read(noteHistoriesProvider);
+    final id = widget.note.noteId;
+    final h = map[id];
+    if (h != null && _same(h.note.copyJson(), widget.note.copyJson())) {
+      h.note = widget.note;
+      return h;
+    }
+    return map[id] = History(widget.note);
+  }
+
+  static bool _same(Object? a, Object? b) {
+    if (a is Map && b is Map) {
+      return a.length == b.length &&
+          a.keys.every((k) => b.containsKey(k) && _same(a[k], b[k]));
+    }
+    if (a is List && b is List) {
+      return a.length == b.length &&
+          Iterable<int>.generate(a.length).every((i) => _same(a[i], b[i]));
+    }
+    return a == b;
+  }
+
+  Ctx _ctx() => Ctx(
+    rev: newId(),
+    now: canonicalNow(DateTime.now()),
+    editedBy: deviceEditedBy,
+  );
+
+  /// Queues the history's current note for saving.
+  void _commit() {
+    _latest = _history.note;
+    _running ??= _drain().whenComplete(() => _running = null);
+  }
+
+  void _undo() => _replay(true);
+  void _redo() => _replay(false);
+
+  void _replay(bool undo) {
+    if (!mounted || _pointer != null || _leaving) return;
+    final depth = undo ? _history.undoDepth : _history.redoDepth;
+    if (depth == 0) return;
+    final err = undo ? _history.undo(_ctx()) : _history.redo(_ctx());
+    if (err != null) {
+      _snack(AppLocalizations.of(context).historyNotApplied);
+      return;
+    }
+    setState(() {});
+    _tick.value++;
+    _commit();
+  }
 
   Map<String, dynamic>? get _page {
     final pages = _history.note.pages;
@@ -136,17 +191,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor> {
     _points.clear();
     final err = _history.doOp(
       {'op': 'addStroke', 'pageId': pageId, 'stroke': stroke},
-      Ctx(
-        rev: newId(),
-        now: canonicalNow(DateTime.now()),
-        editedBy: deviceEditedBy,
-      ),
+      _ctx(),
     );
     setState(() {});
     _tick.value++;
     if (err == null) {
-      _latest = _history.note;
-      _running ??= _drain().whenComplete(() => _running = null);
+      _commit();
     } else {
       _snack(AppLocalizations.of(context).strokeNotAdded);
     }
@@ -280,7 +330,13 @@ class _NoteEditorState extends ConsumerState<NoteEditor> {
                         ),
                       ),
                     ),
-                    PenToolbar(pen: _pen),
+                    PenToolbar(
+                      pen: _pen,
+                      canUndo: _history.undoDepth > 0,
+                      canRedo: _history.redoDepth > 0,
+                      onUndo: _undo,
+                      onRedo: _redo,
+                    ),
                     const Expanded(child: SizedBox.shrink()),
                   ],
                 ),
