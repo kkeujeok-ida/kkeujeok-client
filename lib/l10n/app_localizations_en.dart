@@ -170,4 +170,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get historyNotApplied => 'Couldn\'t apply that change.';
+
+  @override
+  String get moreMenu => 'More';
+
+  @override
+  String get zoomOut => 'Zoom out';
+
+  @override
+  String get zoomIn => 'Zoom in';
+
+  @override
+  String zoomLevel(int percent) {
+    return 'Zoom $percent%';
+  }
+
+  @override
+  String get fitWidth => 'Fit width';
+
+  @override
+  String get fitPage => 'Fit page';
 }

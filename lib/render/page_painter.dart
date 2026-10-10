@@ -13,17 +13,85 @@ class PageViewport {
 
   Offset toPage(Offset local) => (local - offset) / scale;
 
+  static const zoomMin = 0.5;
+  static const zoomMax = 4.0;
+
+  static bool _ok(Size size, double w, double h, EdgeInsets pad) {
+    final aw = size.width - pad.horizontal, ah = size.height - pad.vertical;
+    return w.isFinite &&
+        h.isFinite &&
+        w > 0 &&
+        h > 0 &&
+        aw.isFinite &&
+        ah.isFinite &&
+        aw > 0 &&
+        ah > 0;
+  }
+
   /// The page fitted whole and centered in [size] with [pad] on every side.
   factory PageViewport.fit(Size size, double w, double h, EdgeInsets pad) {
+    if (!_ok(size, w, h, pad)) {
+      return PageViewport(1, Offset(pad.left, pad.top));
+    }
     final aw = size.width - pad.horizontal, ah = size.height - pad.vertical;
-    final ok = w.isFinite && h.isFinite && w > 0 && h > 0 && aw.isFinite &&
-        ah.isFinite && aw > 0 && ah > 0;
-    if (!ok) return PageViewport(1, Offset(pad.left, pad.top));
     final scale = (aw / w < ah / h ? aw / w : ah / h).clamp(0.01, 1e6);
     return PageViewport(
       scale,
       Offset(pad.left + (aw - w * scale) / 2, pad.top + (ah - h * scale) / 2),
     );
+  }
+
+  /// The page as wide as the padded area (scale kept in the zoom range),
+  /// centered across and with its top at the padded area's top.
+  factory PageViewport.fitWidth(Size size, double w, double h, EdgeInsets pad) {
+    if (!_ok(size, w, h, pad)) {
+      return PageViewport(1, Offset(pad.left, pad.top));
+    }
+    final aw = size.width - pad.horizontal;
+    final scale = (aw / w).clamp(zoomMin, zoomMax);
+    return PageViewport(
+      scale,
+      Offset(pad.left + (aw - w * scale) / 2, pad.top),
+    );
+  }
+
+  /// This scale with the offset moved into range. An axis where the page is
+  /// no larger than the padded area is centered; on a larger one the page
+  /// edge may not pass the padded area's edge. [extraBottom] is added below.
+  PageViewport clamped(
+    Size size,
+    double w,
+    double h,
+    EdgeInsets pad, {
+    double extraBottom = 0,
+  }) {
+    if (!_ok(size, w, h, pad)) return this;
+    double axis(double o, double len, double lo, double hi, double extra) {
+      final area = hi - lo;
+      if (len <= area) return lo + (area - len) / 2;
+      return o.clamp(hi - extra - len, lo);
+    }
+
+    return PageViewport(
+      scale,
+      Offset(
+        axis(offset.dx, w * scale, pad.left, size.width - pad.right, 0),
+        axis(
+          offset.dy,
+          h * scale,
+          pad.top,
+          size.height - pad.bottom,
+          extraBottom,
+        ),
+      ),
+    );
+  }
+
+  /// [newScale] (kept in the zoom range) with the page point under [focal]
+  /// staying under it. Not clamped to the page: call [clamped] after.
+  PageViewport zoomAbout(Offset focal, double newScale) {
+    final s = newScale.clamp(zoomMin, zoomMax);
+    return PageViewport(s, focal - toPage(focal) * s);
   }
 }
 
@@ -122,8 +190,11 @@ class PagePainter extends CustomPainter {
       ..scale(vp.scale)
       ..clipRect(Rect.fromLTWH(0, 0, w, h));
 
-    final bg = _bg ??=
-        pageBackground(page['background'] as String? ?? 'plain', w, h);
+    final bg = _bg ??= pageBackground(
+      page['background'] as String? ?? 'plain',
+      w,
+      h,
+    );
     canvas.drawRect(
       Rect.fromLTWH(0, 0, w, h),
       Paint()..color = parseColor(bg['paper']),

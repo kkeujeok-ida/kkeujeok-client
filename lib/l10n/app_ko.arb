@@ -50,5 +50,18 @@
   "strokeNotAdded": "획을 추가하지 못했어요.",
   "undo": "실행 취소",
   "redo": "다시 실행",
-  "historyNotApplied": "변경을 적용하지 못했어요."
+  "historyNotApplied": "변경을 적용하지 못했어요.",
+  "moreMenu": "더 보기",
+  "zoomOut": "축소",
+  "zoomIn": "확대",
+  "zoomLevel": "배율 {percent}%",
+  "@zoomLevel": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "fitWidth": "너비 맞춤",
+  "fitPage": "페이지 맞춤"
 }

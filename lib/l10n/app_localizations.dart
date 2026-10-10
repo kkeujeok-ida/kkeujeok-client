@@ -403,6 +403,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Couldn\'t apply that change.'**
   String get historyNotApplied;
+
+  /// No description provided for @moreMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'More'**
+  String get moreMenu;
+
+  /// No description provided for @zoomOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Zoom out'**
+  String get zoomOut;
+
+  /// No description provided for @zoomIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Zoom in'**
+  String get zoomIn;
+
+  /// No description provided for @zoomLevel.
+  ///
+  /// In en, this message translates to:
+  /// **'Zoom {percent}%'**
+  String zoomLevel(int percent);
+
+  /// No description provided for @fitWidth.
+  ///
+  /// In en, this message translates to:
+  /// **'Fit width'**
+  String get fitWidth;
+
+  /// No description provided for @fitPage.
+  ///
+  /// In en, this message translates to:
+  /// **'Fit page'**
+  String get fitPage;
 }
 
 class _AppLocalizationsDelegate

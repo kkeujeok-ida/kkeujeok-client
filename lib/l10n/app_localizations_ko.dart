@@ -167,4 +167,24 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get historyNotApplied => '변경을 적용하지 못했어요.';
+
+  @override
+  String get moreMenu => '더 보기';
+
+  @override
+  String get zoomOut => '축소';
+
+  @override
+  String get zoomIn => '확대';
+
+  @override
+  String zoomLevel(int percent) {
+    return '배율 $percent%';
+  }
+
+  @override
+  String get fitWidth => '너비 맞춤';
+
+  @override
+  String get fitPage => '페이지 맞춤';
 }

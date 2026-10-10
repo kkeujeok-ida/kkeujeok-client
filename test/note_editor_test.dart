@@ -6,6 +6,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/intl.dart';
+import 'package:kkeujeok/design_tokens/build/tokens.dart';
 import 'package:kkeujeok/model/kkj_codec.dart';
 import 'package:kkeujeok/model/note.dart';
 import 'package:kkeujeok/ops/ops.dart';
@@ -111,6 +112,53 @@ void main() {
   }
 
   var pointer = 100;
+
+  Future<void> ptr(WidgetTester t, PointerEvent e) async {
+    t.binding.handlePointerEvent(e);
+    await t.pump();
+  }
+
+  PointerDownEvent down(
+    int id,
+    Offset p,
+    int ms, {
+    PointerDeviceKind kind = PointerDeviceKind.touch,
+  }) => PointerDownEvent(
+    pointer: id,
+    kind: kind,
+    position: p,
+    pressureMin: 0,
+    pressureMax: 1,
+    pressure: 0.5,
+    timeStamp: Duration(milliseconds: ms),
+  );
+
+  PointerMoveEvent move(
+    int id,
+    Offset p,
+    int ms, {
+    PointerDeviceKind kind = PointerDeviceKind.touch,
+  }) => PointerMoveEvent(
+    pointer: id,
+    kind: kind,
+    position: p,
+    pressureMin: 0,
+    pressureMax: 1,
+    pressure: 0.5,
+    timeStamp: Duration(milliseconds: ms),
+  );
+
+  PointerUpEvent up(
+    int id,
+    Offset p,
+    int ms, {
+    PointerDeviceKind kind = PointerDeviceKind.touch,
+  }) => PointerUpEvent(
+    pointer: id,
+    kind: kind,
+    position: p,
+    timeStamp: Duration(milliseconds: ms),
+  );
 
   /// One stroke: down, moves, up. Each point is (x, y, pressure) in page pt.
   Future<void> draw(
@@ -333,13 +381,13 @@ void main() {
       await draw(t, const [
         (500, 400, 0.5),
         (580, 400, 0.5),
-        (650, 400, 0.5), // right of the 595 pt page
-        (700, 400, 0.5),
+        (598, 400, 0.5), // right of the 595 pt page
+        (600, 400, 0.5),
       ]);
       await settle(t);
       final pts = ((elements().single as Map)['points'] as List).cast<List>();
       expect(pts, hasLength(4));
-      expect(pts.last[0], closeTo(700, 0.01));
+      expect(pts.last[0], closeTo(600, 0.01));
     });
 
     testWidgets('a tap is a one-point stroke', (t) async {
@@ -368,22 +416,16 @@ void main() {
       expect(elements(), isEmpty);
     });
 
-    testWidgets('a second pointer is ignored while one draws', (t) async {
+    testWidgets('a late second finger is ignored while one draws', (t) async {
       seed(_note());
       await open(t);
-      final a = await t.startGesture(
-        onScreen(t, 100, 100),
-        kind: PointerDeviceKind.touch,
-      );
-      final b = await t.startGesture(
-        onScreen(t, 300, 300),
-        kind: PointerDeviceKind.touch,
-        pointer: 9,
-      );
-      await b.moveTo(onScreen(t, 320, 320));
-      await b.up();
-      await a.moveTo(onScreen(t, 150, 150));
-      await a.up();
+      final a = onScreen(t, 100, 100), b = onScreen(t, 300, 300);
+      await ptr(t, down(1, a, 0));
+      await ptr(t, down(9, b, 400));
+      await ptr(t, move(9, b + const Offset(20, 20), 410));
+      await ptr(t, up(9, b + const Offset(20, 20), 420));
+      await ptr(t, move(1, onScreen(t, 150, 150), 430));
+      await ptr(t, up(1, onScreen(t, 150, 150), 440));
       await settle(t);
       final els = elements();
       expect(els, hasLength(1)); // the second pointer made no stroke
@@ -493,23 +535,559 @@ void main() {
     });
   });
 
+  group('zoom and pan', () {
+    const gap = KkjTokens.spacing3;
+    const a0 = Offset(300, 300), b0 = Offset(400, 300);
+
+    /// Two fingers down 10 ms apart, then moved to [a1]/[b1].
+    Future<void> pinch(
+      WidgetTester t,
+      Offset a1,
+      Offset b1, {
+      Offset a = a0,
+      Offset b = b0,
+      bool release = true,
+    }) async {
+      await ptr(t, down(31, a, 0));
+      await ptr(t, down(32, b, 10));
+      await ptr(t, move(31, a1, 20));
+      await ptr(t, move(32, b1, 30));
+      if (release) {
+        await ptr(t, up(31, a1, 40));
+        await ptr(t, up(32, b1, 40));
+      }
+    }
+
+    Future<void> menu(WidgetTester t) async {
+      await t.tap(find.byTooltip('More'));
+      await t.pumpAndSettle();
+    }
+
+    IconButton iconButton(WidgetTester t, IconData icon) =>
+        t.widget<IconButton>(
+          find.ancestor(
+            of: find.byIcon(icon),
+            matching: find.byType(IconButton),
+          ),
+        );
+
+    testWidgets('opens fit to width, page top under the toolbar', (t) async {
+      seed(_note());
+      await open(t);
+      final vp = viewport(t);
+      expect(vp.scale, closeTo((900 - 2 * gap) / 595, 1e-9));
+      expect(
+        vp.offset.dy,
+        closeTo(t.getRect(find.byType(PenToolbar)).bottom + gap, 0.01),
+      );
+      expect(vp.offset.dx, closeTo(gap, 1e-9));
+    });
+
+    testWidgets('pinch keeps the point under the fingers, scale in range', (
+      t,
+    ) async {
+      seed(_note());
+      final before = file.readAsBytesSync();
+      await open(t);
+      final v0 = viewport(t);
+      final p0 = v0.toPage((a0 + b0) / 2);
+      await pinch(
+        t,
+        const Offset(300, 300),
+        const Offset(500, 300),
+        release: false,
+      );
+      final v1 = viewport(t);
+      expect(v1.scale, closeTo(v0.scale * 2, 1e-9));
+      // The fingers' center is now (400, 300).
+      final p1 = v1.toPage(const Offset(400, 300));
+      expect(p1.dx, closeTo(p0.dx, 1e-6));
+      expect(p1.dy, closeTo(p0.dy, 1e-6));
+      await ptr(t, up(31, const Offset(300, 300), 50));
+      await ptr(t, up(32, const Offset(500, 300), 50));
+      await settle(t);
+      expect(file.readAsBytesSync(), before); // no stroke, no save
+      expect(elements(), isEmpty);
+    });
+
+    testWidgets('scale is limited to 50%..400%', (t) async {
+      seed(_note());
+      await open(t);
+      await pinch(t, const Offset(100, 300), const Offset(800, 300));
+      expect(viewport(t).scale, PageViewport.zoomMax);
+      await pinch(t, const Offset(400, 300), const Offset(402, 300));
+      expect(viewport(t).scale, PageViewport.zoomMin);
+      // A page smaller than the area is centered.
+      expect(viewport(t).offset.dx, closeTo((900 - 595 * 0.5) / 2, 0.01));
+    });
+
+    testWidgets('second finger within 150 ms cancels the stroke', (t) async {
+      seed(_note());
+      final before = file.readAsBytesSync();
+      await open(t);
+      final s0 = viewport(t).scale;
+      await ptr(t, down(1, onScreen(t, 100, 100), 0));
+      await ptr(t, move(1, onScreen(t, 120, 110), 20));
+      await ptr(t, down(2, onScreen(t, 300, 300), 150)); // exactly 150 ms
+      await ptr(t, move(2, onScreen(t, 400, 300), 160)); // pinch
+      expect(viewport(t).scale, isNot(s0));
+      await ptr(t, up(1, onScreen(t, 120, 110), 170));
+      await ptr(t, up(2, onScreen(t, 400, 300), 170));
+      await settle(t);
+      expect(elements(), isEmpty);
+      expect(file.readAsBytesSync(), before);
+      // Not in the undo history either.
+      expect(iconButton(t, Icons.undo).onPressed, isNull);
+    });
+
+    testWidgets('a finger after 150 ms is ignored, the stroke is kept', (
+      t,
+    ) async {
+      seed(_note());
+      await open(t);
+      final s0 = viewport(t).scale;
+      await ptr(t, down(1, onScreen(t, 100, 100), 0));
+      await ptr(t, down(2, onScreen(t, 300, 300), 151));
+      await ptr(t, move(2, onScreen(t, 500, 300), 160));
+      await ptr(t, move(1, onScreen(t, 140, 120), 170));
+      await ptr(t, up(2, onScreen(t, 500, 300), 180));
+      await ptr(t, up(1, onScreen(t, 140, 120), 190));
+      await settle(t);
+      expect(viewport(t).scale, s0);
+      final pts = ((elements().single as Map)['points'] as List);
+      expect(pts, hasLength(2));
+    });
+
+    testWidgets('a stylus takes over from a touch stroke', (t) async {
+      seed(_note());
+      await open(t);
+      await ptr(t, down(1, onScreen(t, 100, 100), 0));
+      await ptr(t, move(1, onScreen(t, 120, 110), 20));
+      await draw(t, line); // stylus stroke while the finger is down
+      await ptr(t, up(1, onScreen(t, 120, 110), 400));
+      await settle(t);
+      final els = elements();
+      expect(els, hasLength(1)); // the touch stroke was dropped
+      final pts = ((els.single as Map)['points'] as List).cast<List>();
+      expect(pts.map((p) => p[2]), [0.2, 0.5, 0.9, 0.7]);
+    });
+
+    testWidgets('a stylus cancels a two-finger gesture', (t) async {
+      seed(_note());
+      await open(t);
+      await pinch(
+        t,
+        const Offset(300, 300),
+        const Offset(450, 300),
+        release: false,
+      );
+      final scaled = viewport(t).scale;
+      await draw(t, line);
+      await ptr(t, move(32, const Offset(700, 300), 500)); // not a pinch now
+      expect(viewport(t).scale, scaled);
+      await ptr(t, up(31, const Offset(300, 300), 510));
+      await ptr(t, up(32, const Offset(700, 300), 510));
+      await settle(t);
+      expect(elements(), hasLength(1));
+    });
+
+    testWidgets('one finger left after a gesture makes no input', (t) async {
+      seed(_note());
+      await open(t);
+      await pinch(
+        t,
+        const Offset(300, 300),
+        const Offset(450, 300),
+        release: false,
+      );
+      await ptr(t, up(32, const Offset(450, 300), 100));
+      final scaled = viewport(t);
+      await ptr(t, move(31, const Offset(320, 330), 110));
+      await ptr(t, move(31, const Offset(340, 360), 120));
+      expect(viewport(t).scale, scaled.scale);
+      expect(viewport(t).offset, scaled.offset);
+      await ptr(t, up(31, const Offset(340, 360), 130));
+      await settle(t);
+      expect(elements(), isEmpty);
+      // All contacts are up: a stroke works again.
+      await draw(t, line, kind: PointerDeviceKind.touch);
+      await settle(t);
+      expect(elements(), hasLength(1));
+    });
+
+    testWidgets('pan stops at the page edge, with toolbar room below', (
+      t,
+    ) async {
+      seed(_note());
+      await open(t);
+      // 2x first, so the page is larger than the area both ways.
+      await pinch(t, const Offset(300, 300), const Offset(500, 300));
+      final tb = t.getSize(find.byType(PenToolbar)).height;
+      final top = t.getRect(find.byType(PenToolbar)).bottom + gap;
+
+      await ptr(t, down(41, const Offset(300, 200), 0));
+      await ptr(t, down(42, const Offset(400, 200), 5));
+      // Drag far down: the page top stops under the toolbar.
+      await ptr(t, move(41, const Offset(300, 5000), 10));
+      await ptr(t, move(42, const Offset(400, 5000), 10));
+      expect(viewport(t).offset.dy, closeTo(top, 0.01));
+      // Drag far up: the page bottom stops a toolbar height above the edge.
+      await ptr(t, move(41, const Offset(300, -9000), 20));
+      await ptr(t, move(42, const Offset(400, -9000), 20));
+      final vp = viewport(t);
+      expect(
+        vp.offset.dy + 842 * vp.scale,
+        closeTo(700 - gap - (tb + gap), 0.01),
+      );
+      // Sideways, the page keeps its edge on screen.
+      await ptr(t, move(41, const Offset(-9000, 200), 30));
+      await ptr(t, move(42, const Offset(-8900, 200), 30));
+      final vx = viewport(t);
+      expect(vx.offset.dx + 595 * vx.scale, closeTo(900 - gap, 0.01));
+      await ptr(t, up(41, const Offset(-9000, 200), 40));
+      await ptr(t, up(42, const Offset(-8900, 200), 40));
+    });
+
+    testWidgets('menu: items, +/- about the center, % and limits', (t) async {
+      final h = t.ensureSemantics();
+      seed(_note());
+      await open(t);
+      await menu(t);
+      expect(find.text('Fit width'), findsOneWidget);
+      expect(find.text('Fit page'), findsOneWidget);
+      expect(find.byTooltip('Zoom out'), findsOneWidget);
+      expect(find.byTooltip('Zoom in'), findsOneWidget);
+      final s0 = viewport(t).scale;
+      expect(
+        find.bySemanticsLabel('Zoom ${(s0 * 100).round()}%'),
+        findsOneWidget,
+      );
+      expect(find.text('${(s0 * 100).round()}%'), findsOneWidget);
+
+      // 48 dp everywhere.
+      for (final f in [
+        find.byTooltip('Zoom out'),
+        find.byTooltip('Zoom in'),
+        find.byTooltip('More'),
+        find.widgetWithText(MenuItemButton, 'Fit width'),
+        find.widgetWithText(MenuItemButton, 'Fit page'),
+      ]) {
+        expect(t.getSize(f).width, greaterThanOrEqualTo(48));
+        expect(t.getSize(f).height, greaterThanOrEqualTo(48));
+      }
+
+      const center = Offset(450, 350);
+      final p = viewport(t).toPage(center);
+      await t.tap(find.byTooltip('Zoom in'));
+      await t.pumpAndSettle();
+      final v1 = viewport(t);
+      expect(v1.scale, closeTo(s0 * 1.25, 1e-9));
+      expect(find.byTooltip('Zoom in'), findsOneWidget); // menu stays open
+      expect(
+        find.bySemanticsLabel('Zoom ${(v1.scale * 100).round()}%'),
+        findsOneWidget,
+      );
+      expect(v1.toPage(center).dx, closeTo(p.dx, 1e-6));
+      expect(v1.toPage(center).dy, closeTo(p.dy, 1e-6));
+
+      // Up to the top: + is disabled at 400%.
+      for (
+        var i = 0;
+        i < 10 && iconButton(t, Icons.add).onPressed != null;
+        i++
+      ) {
+        await t.tap(find.byTooltip('Zoom in'));
+        await t.pumpAndSettle();
+      }
+      expect(viewport(t).scale, PageViewport.zoomMax);
+      expect(find.text('400%'), findsOneWidget);
+      expect(iconButton(t, Icons.add).onPressed, isNull);
+      h.dispose();
+    });
+
+    testWidgets('minus disables at 50%', (t) async {
+      seed(_note());
+      await open(t);
+      await pinch(t, const Offset(400, 300), const Offset(402, 300));
+      await menu(t);
+      expect(viewport(t).scale, PageViewport.zoomMin);
+      expect(find.text('50%'), findsOneWidget);
+      expect(iconButton(t, Icons.remove).onPressed, isNull);
+    });
+
+    testWidgets('fit width / fit page stay fit when the screen changes', (
+      t,
+    ) async {
+      seed(_note());
+      await open(t);
+      await pinch(t, const Offset(400, 300), const Offset(402, 300));
+      await menu(t);
+      await t.tap(find.text('Fit page'));
+      await t.pumpAndSettle();
+      final vp = viewport(t);
+      expect(vp.scale, lessThan(1.0)); // 842 pt in ~700 dp
+      expect(
+        vp.offset.dy + 842 * vp.scale,
+        lessThanOrEqualTo(700 - gap + 1e-6),
+      );
+
+      t.view.physicalSize = const Size(600, 900);
+      await t.pumpAndSettle();
+      final fitted = viewport(t);
+      expect(fitted.scale, isNot(vp.scale));
+      expect(fitted.offset.dy + 842 * fitted.scale, lessThanOrEqualTo(900));
+
+      await menu(t);
+      await t.tap(find.text('Fit width'));
+      await t.pumpAndSettle();
+      expect(viewport(t).scale, closeTo((600 - 2 * gap) / 595, 1e-9));
+      t.view.physicalSize = const Size(800, 900);
+      await t.pumpAndSettle();
+      expect(viewport(t).scale, closeTo((800 - 2 * gap) / 595, 1e-9));
+
+      // After a zoom step the scale is not re-fitted.
+      await menu(t);
+      await t.tap(find.byTooltip('Zoom in'));
+      await t.pumpAndSettle();
+      final z = viewport(t).scale;
+      t.view.physicalSize = const Size(700, 900);
+      await t.pumpAndSettle();
+      expect(viewport(t).scale, z);
+    });
+
+    testWidgets('writing at zoom stores page points', (t) async {
+      seed(_note());
+      await open(t);
+      await pinch(t, const Offset(300, 300), const Offset(500, 300));
+      expect(viewport(t).scale, greaterThan(2.5));
+      await draw(t, const [(100, 100, 0.5), (130, 120, 0.5), (160, 100, 0.5)]);
+      await settle(t);
+      final st = elements().single as Map;
+      final pts = (st['points'] as List).cast<List>();
+      expect(pts.first[0], closeTo(100, 0.01));
+      expect(pts[1][1], closeTo(120, 0.01));
+      expect(st['width'], 2); // pt width; drawn at width * scale
+    });
+
+    testWidgets('no animation: the menu changes the zoom in one frame', (
+      t,
+    ) async {
+      seed(_note());
+      await open(t);
+      await menu(t);
+      final s0 = viewport(t).scale;
+      // With animation the first frame has not reached the target.
+      await t.tap(find.byTooltip('Zoom in'));
+      await t.pump();
+      expect(viewport(t).scale, closeTo(s0, 1e-6));
+      await t.pumpAndSettle();
+      final s1 = viewport(t).scale;
+      expect(s1, closeTo(s0 * 1.25, 1e-9));
+
+      t.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(t.platformDispatcher.clearAccessibilityFeaturesTestValue);
+      await t.pump();
+      await t.tap(find.byTooltip('Zoom in'));
+      await t.pump();
+      expect(viewport(t).scale, closeTo(s1 * 1.25, 1e-9));
+    });
+
+    testWidgets('Korean names', (t) async {
+      final h = t.ensureSemantics();
+      seed(_note());
+      await open(t, device: const [Locale('ko', 'KR')]);
+      await t.tap(find.byTooltip('더 보기'));
+      await t.pumpAndSettle();
+      expect(find.byTooltip('축소'), findsOneWidget);
+      expect(find.byTooltip('확대'), findsOneWidget);
+      expect(find.text('너비 맞춤'), findsOneWidget);
+      expect(find.text('페이지 맞춤'), findsOneWidget);
+      final pct = (viewport(t).scale * 100).round();
+      expect(find.bySemanticsLabel('배율 $pct%'), findsOneWidget);
+      h.dispose();
+    });
+
+    testWidgets('resize while free keeps the page inside the clamp', (t) async {
+      seed(_note());
+      await open(t);
+      await pinch(t, const Offset(300, 300), const Offset(500, 300));
+      // Drag the page to its far bottom, then shrink the screen.
+      await ptr(t, down(41, const Offset(300, 200), 0));
+      await ptr(t, down(42, const Offset(400, 200), 5));
+      await ptr(t, move(41, const Offset(300, -9000), 10));
+      await ptr(t, move(42, const Offset(400, -9000), 10));
+      await ptr(t, up(41, const Offset(300, -9000), 20));
+      await ptr(t, up(42, const Offset(400, -9000), 20));
+      final s = viewport(t).scale;
+      t.view.physicalSize = const Size(600, 500);
+      await t.pumpAndSettle();
+      final vp = viewport(t);
+      final tb = t.getRect(find.byType(PenToolbar));
+      expect(vp.scale, s);
+      expect(vp.offset.dy, lessThanOrEqualTo(tb.bottom + gap + 1e-6));
+      expect(
+        vp.offset.dy + 842 * s,
+        greaterThanOrEqualTo(500 - gap - (tb.height + gap) - 1e-6),
+      );
+      expect(vp.offset.dx, lessThanOrEqualTo(gap + 1e-6));
+      expect(vp.offset.dx + 595 * s, greaterThanOrEqualTo(600 - gap - 1e-6));
+    });
+
+    testWidgets('cancel of a gesture pointer: no stroke, then input works', (
+      t,
+    ) async {
+      seed(_note());
+      await open(t);
+      await pinch(
+        t,
+        const Offset(300, 300),
+        const Offset(450, 300),
+        release: false,
+      );
+      await ptr(
+        t,
+        PointerCancelEvent(
+          pointer: 32,
+          kind: PointerDeviceKind.touch,
+          position: const Offset(450, 300),
+          timeStamp: const Duration(milliseconds: 50),
+        ),
+      );
+      await ptr(t, up(31, const Offset(300, 300), 60));
+      await settle(t);
+      expect(elements(), isEmpty);
+      await draw(t, line, kind: PointerDeviceKind.touch);
+      await settle(t);
+      expect(elements(), hasLength(1));
+    });
+
+    testWidgets('first finger off the page, second within 150 ms: pinch', (
+      t,
+    ) async {
+      seed(_note());
+      await open(t);
+      final s0 = viewport(t).scale;
+      await ptr(t, down(1, const Offset(5, 400), 0)); // gray margin
+      await ptr(t, down(2, const Offset(300, 400), 100));
+      await ptr(t, move(2, const Offset(600, 400), 110));
+      expect(viewport(t).scale, isNot(s0));
+      await ptr(t, up(1, const Offset(5, 400), 120));
+      await ptr(t, up(2, const Offset(600, 400), 120));
+      await settle(t);
+      expect(elements(), isEmpty);
+    });
+
+    testWidgets('two quick + taps end at 1.25 squared', (t) async {
+      seed(_note());
+      await open(t);
+      await menu(t);
+      final s0 = viewport(t).scale;
+      await t.tap(find.byTooltip('Zoom in'));
+      await t.pump();
+      await t.tap(find.byTooltip('Zoom in'));
+      await t.pumpAndSettle();
+      expect(viewport(t).scale, closeTo(s0 * 1.25 * 1.25, 1e-9));
+    });
+
+    testWidgets('a touch during a zoom animation maps with the target', (
+      t,
+    ) async {
+      seed(_note());
+      await open(t);
+      await menu(t);
+      await t.tap(find.byTooltip('Zoom in'));
+      await t.pump(); // animation running
+      const at = Offset(200, 400);
+      await ptr(t, down(1, at, 0));
+      await ptr(t, up(1, at, 10));
+      await settle(t);
+      final want = viewport(t).toPage(at);
+      final pts = ((elements().single as Map)['points'] as List).cast<List>();
+      expect(pts, hasLength(1));
+      expect(pts.first[0], closeTo(want.dx, 0.01));
+      expect(pts.first[1], closeTo(want.dy, 0.01));
+    });
+
+    testWidgets('a finger left down is never ink after the stylus ends', (
+      t,
+    ) async {
+      seed(_note());
+      await open(t);
+      await ptr(t, down(1, onScreen(t, 100, 100), 0));
+      await draw(t, line); // stylus takes over, the finger stays down
+      await settle(t);
+      await ptr(t, down(2, onScreen(t, 300, 300), 1000));
+      await ptr(t, move(2, onScreen(t, 340, 320), 1010));
+      await ptr(t, up(2, onScreen(t, 340, 320), 1020));
+      await ptr(t, up(1, onScreen(t, 100, 100), 1030));
+      await settle(t);
+      expect(elements(), hasLength(1)); // the stylus stroke only
+    });
+
+    test('PageViewport: fitWidth, clamped, zoomAbout', () {
+      const size = Size(900, 700);
+      const pad = EdgeInsets.fromLTRB(12, 80, 12, 12);
+      final fw = PageViewport.fitWidth(size, 595, 842, pad);
+      expect(fw.scale, closeTo(876 / 595, 1e-9));
+      expect(fw.offset.dx, closeTo(12, 1e-9));
+      expect(fw.offset.dy, 80);
+      expect(
+        PageViewport.fitWidth(const Size(60, 700), 595, 842, pad).scale,
+        PageViewport.zoomMin,
+      );
+      expect(
+        PageViewport.fitWidth(const Size(9000, 700), 100, 100, pad).scale,
+        PageViewport.zoomMax,
+      );
+
+      // Large axis: edges stop at the padding; extra room below.
+      const near = PageViewport(2, Offset(500, 500));
+      final c = near.clamped(size, 595, 842, pad, extraBottom: 60);
+      expect(c.offset.dx, closeTo(12, 1e-9));
+      expect(c.offset.dy, 80);
+      const farAway = PageViewport(2, Offset(-9000, -9000));
+      final far = farAway.clamped(size, 595, 842, pad, extraBottom: 60);
+      expect(far.offset.dx + 595 * 2, closeTo(900 - 12, 1e-9));
+      expect(far.offset.dy + 842 * 2, closeTo(700 - 12 - 60, 1e-9));
+      // Small axis: centered, whatever the offset.
+      const tiny = PageViewport(0.5, Offset(-300, 700));
+      final small = tiny.clamped(size, 595, 842, pad);
+      expect(small.offset.dx, closeTo((900 - 595 * 0.5) / 2, 1e-9));
+      expect(small.offset.dy, closeTo(80 + (608 - 842 * 0.5) / 2, 1e-9));
+
+      // zoomAbout keeps the point under the focal; the scale is cut.
+      const v = PageViewport(1.5, Offset(30, 60));
+      const f = Offset(400, 300);
+      final z = v.zoomAbout(f, 3);
+      expect(z.scale, 3);
+      final a = v.toPage(f), b = z.toPage(f);
+      expect(b.dx, closeTo(a.dx, 1e-9));
+      expect(b.dy, closeTo(a.dy, 1e-9));
+      expect(v.zoomAbout(f, 99).scale, PageViewport.zoomMax);
+      expect(v.zoomAbout(f, 0.01).scale, PageViewport.zoomMin);
+    });
+  });
 
   group('undo / redo', () {
     Map page() => decodeKkj(file.readAsBytesSync()).note!.pages.first;
     Finder btn(String tip) => find.byTooltip(tip);
     Map viewportPage(WidgetTester t) {
-      final w = find
-          .descendant(
-            of: find.byType(NoteEditor),
-            matching: find.byWidgetPredicate(
-              (w) => w is CustomPaint && w.painter is PagePainter,
-            ),
-          )
-          .evaluate()
-          .single
-          .widget as CustomPaint;
+      final w =
+          find
+                  .descendant(
+                    of: find.byType(NoteEditor),
+                    matching: find.byWidgetPredicate(
+                      (w) => w is CustomPaint && w.painter is PagePainter,
+                    ),
+                  )
+                  .evaluate()
+                  .single
+                  .widget
+              as CustomPaint;
       return (w.painter as PagePainter).page;
     }
+
     bool enabled(WidgetTester t, String tip) {
       final f = t.getSemantics(btn(tip)).getSemanticsData().flagsCollection;
       return f.isEnabled == Tristate.isTrue;
@@ -702,8 +1280,7 @@ void main() {
       seed(_note());
       final store = NoteStore(
         data,
-        writeFile: (f, b) async =>
-            throw const FileSystemException('disk full'),
+        writeFile: (f, b) async => throw const FileSystemException('disk full'),
       );
       await open(t, store: store);
       await draw(t, line);
