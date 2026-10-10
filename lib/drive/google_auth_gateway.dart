@@ -1,18 +1,23 @@
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../storage/session_hint.dart';
 import 'auth_gateway.dart';
 
 const driveFileScope = 'https://www.googleapis.com/auth/drive.file';
 const _scopes = [driveFileScope];
 
 /// `google_sign_in` 7.x behind [AuthGateway]. Access tokens are fetched, used
-/// as a "granted?" check and dropped: nothing is stored anywhere.
+/// as a "granted?" check and dropped: no token is stored anywhere. Only a
+/// "signed in" flag ([SessionHint]) is kept, so launching needs no Google UI.
 class GoogleAuthGateway implements AuthGateway {
   GoogleAuthGateway({
     this.serverClientId = const String.fromEnvironment(
       'GOOGLE_SERVER_CLIENT_ID',
     ),
-  });
+    SessionHint? hint,
+  }) : _hint = hint ?? SessionHint(null);
+
+  final SessionHint _hint;
 
   /// The web OAuth client ID, which Android's Credential Manager requires.
   final String serverClientId;
@@ -31,21 +36,11 @@ class GoogleAuthGateway implements AuthGateway {
     }
   }
 
+  /// Opens signed in when this device was signed in before. Google is not
+  /// asked: the lightweight sign-in would flash its sheet on every launch, and
+  /// the Drive token is only needed later, when something calls Drive.
   @override
-  Future<bool> restore() async {
-    try {
-      await _ready();
-      final account = await GoogleSignIn.instance
-          .attemptLightweightAuthentication();
-      if (account == null) return false;
-      final client = account.authorizationClient;
-      if (await client.authorizationForScopes(_scopes) == null) return false;
-      _client = client;
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
+  Future<bool> restore() async => _hint.signedIn;
 
   @override
   Future<AuthOutcome> signIn() async {
@@ -70,6 +65,7 @@ class GoogleAuthGateway implements AuthGateway {
       final client = _client ?? GoogleSignIn.instance.authorizationClient;
       await client.authorizationForScopes(_scopes) ??
           await client.authorizeScopes(_scopes);
+      await _hint.set(true);
       return AuthOutcome.granted;
     } on GoogleSignInException catch (e) {
       return accessFailure(e.code, '${e.description} ${e.details}');
@@ -81,6 +77,7 @@ class GoogleAuthGateway implements AuthGateway {
   @override
   Future<void> signOut() async {
     _client = null;
+    await _hint.set(false); // the session ends here even if Google errors
     await _ready();
     await GoogleSignIn.instance.signOut();
   }
@@ -90,6 +87,7 @@ class GoogleAuthGateway implements AuthGateway {
     await _ready();
     await GoogleSignIn.instance.disconnect();
     _client = null;
+    await _hint.set(false);
   }
 }
 
