@@ -4,9 +4,40 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kkeujeok/model/kkj_codec.dart';
+import 'package:kkeujeok/model/note.dart';
+import 'package:kkeujeok/model/note_title.dart';
 import 'package:kkeujeok/model/number.dart';
+import 'package:kkeujeok/ops/history.dart';
+import 'package:kkeujeok/ops/ops.dart';
 
 typedef Case = Map<String, dynamic>;
+
+Note _note(Object? json) {
+  final r = Note.parse(json);
+  if (r.note == null) throw FormatException('note is ${r.status.name}');
+  return r.note!;
+}
+
+// write then read, through the real file bytes.
+Map<String, dynamic> _roundTrip(Object? input) {
+  final r = decodeKkj(encodeKkj(_note((input as Map)['note'])));
+  return {'note': r.note!.copyJson()};
+}
+
+Map<String, dynamic> _opOutput(OpResult r) => r.error != null
+    ? {'error': r.error}
+    : {'note': r.note!.copyJson(), 'inverse': r.inverse};
+
+void _same(Object? actual, Object? expected) =>
+    expect(actual, equals(expected)); // == on numbers: 1 equals 1.0
+
+// Rules whose fixtures exist but whose code lands in a later story. The file
+// must still be there; a rule not named here and without a runner fails.
+const pendingRules = <String, String>{
+  'stroke.outline.pen': 'Story 2.5',
+  'page.background': 'Story 2.5',
+};
 
 // Rule id -> how to judge one case. A new spec rule adds one line here.
 final runners = <String, void Function(Case)>{
@@ -30,7 +61,90 @@ final runners = <String, void Function(Case)>{
       reason: 'got $out, expected $expected',
     );
   },
+  'note.roundTrip': (c) => _same(_roundTrip(c['input']), c['expected']),
+  'note.unknownFields': (c) => _same(_roundTrip(c['input']), c['expected']),
+  'note.formatVersion': (c) {
+    final input = c['input'] as Map<String, dynamic>;
+    final List<int> bytes;
+    if (input.containsKey('json')) {
+      bytes = gzip.encode(utf8.encode(jsonEncode(input['json'])));
+    } else if (input.containsKey('text')) {
+      bytes = gzip.encode(utf8.encode(input['text'] as String));
+    } else {
+      bytes = base64Decode(input['gzipBase64'] as String);
+    }
+    final r = decodeKkj(bytes);
+    _same({
+      'result': r.status.name,
+      'writable': r.writable,
+      if (r.note != null) 'note': r.note!.copyJson(),
+    }, c['expected']);
+  },
+  'note.title': (c) {
+    final input = c['input'] as Map<String, dynamic>;
+    final t = normalizeTitle(
+      input['title'] as String,
+      (input['existingTitles'] as List).cast<String>(),
+    );
+    _same(
+      t == null ? {'ok': false, 'reason': 'tooLong'} : {'ok': true, 'title': t},
+      c['expected'],
+    );
+  },
+  'ops.createNote': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    _same(
+      _opOutput(
+        createNote(
+          title: i['title'] as String,
+          existingTitles: (i['existingTitles'] as List).cast<String>(),
+          background: i['background'] as String,
+          orientation: i['orientation'] as String,
+          noteId: i['noteId'] as String,
+          pageId: i['pageId'] as String,
+          pageRev: i['pageRev'] as String,
+          metaRev: i['metaRev'] as String,
+          orderRev: i['orderRev'] as String,
+          now: i['now'] as String,
+          editedBy: i['editedBy'] as String,
+        ),
+      ),
+      c['expected'],
+    );
+  },
+  'ops.addStroke': _runOp,
+  'ops.removeStroke': _runOp,
+  'ops.undoRedo': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final h = History(_note(i['note']));
+    final errors = <String?>[];
+    for (final s in (i['steps'] as List).cast<Map<String, dynamic>>()) {
+      final ctx = Ctx.fromJson(s['ctx'] as Map<String, dynamic>);
+      errors.add(switch (s['kind']) {
+        'do' => h.doOp(s['op'] as Map<String, dynamic>, ctx),
+        'undo' => h.undo(ctx),
+        'redo' => h.redo(ctx),
+        final k => throw FormatException('unknown step kind $k'),
+      });
+    }
+    _same({
+      'note': h.note.copyJson(),
+      'undoDepth': h.undoDepth,
+      'redoDepth': h.redoDepth,
+      'errors': errors,
+    }, c['expected']);
+  },
 };
+
+void _runOp(Case c) {
+  final i = c['input'] as Map<String, dynamic>;
+  final r = applyOp(
+    _note(i['note']),
+    i['op'] as Map<String, dynamic>,
+    Ctx.fromJson(i['ctx'] as Map<String, dynamic>),
+  );
+  _same(_opOutput(r), c['expected']);
+}
 
 final _sep = Platform.pathSeparator;
 
@@ -48,10 +162,14 @@ Map<String, List<Case>> loadFixtures(String dir) {
     );
   }
   final fixtures = <String, List<Case>>{};
+  final seenPending = <String>{};
   final files = [
     for (final e in Directory(dir).listSync())
       e.path.split(RegExp(r'[/\\]')).last,
-  ]..sort();
+  ];
+  // test/tools holds the committed generator scripts, not fixtures.
+  if (Directory('$dir${_sep}tools').existsSync()) files.remove('tools');
+  files.sort();
   for (final file in files) {
     if (file == 'README.md') continue;
     StateError bad(String why) => StateError('Bad fixture $file: $why');
@@ -59,7 +177,11 @@ Map<String, List<Case>> loadFixtures(String dir) {
     // otherwise be skipped without a word.
     if (!file.endsWith('.json')) throw bad('not a "<rule id>.json" file');
     final id = file.substring(0, file.length - '.json'.length);
-    if (!_ruleId.hasMatch(id)) throw bad('file name is not a rule id');
+    // spec/README allows one dot, but the 2.2 fixture stroke.outline.pen has
+    // two; the pending rules are named exactly, so they are let through.
+    if (!pendingRules.containsKey(id) && !_ruleId.hasMatch(id)) {
+      throw bad('file name is not a rule id');
+    }
     final Object? data;
     try {
       data = jsonDecode(File('$dir$_sep$file').readAsStringSync());
@@ -88,6 +210,10 @@ Map<String, List<Case>> loadFixtures(String dir) {
         throw bad('case "$name" needs both "input" and "expected"');
       }
     }
+    if (pendingRules.containsKey(id)) {
+      seenPending.add(id);
+      continue;
+    }
     if (!runners.containsKey(id)) {
       throw StateError(
         'Fixture $file has no test: rule "$id" is not implemented in the Android client. '
@@ -96,7 +222,8 @@ Map<String, List<Case>> loadFixtures(String dir) {
     }
     fixtures[id] = cases.cast<Case>();
   }
-  for (final id in runners.keys) {
+  for (final id in [...runners.keys, ...pendingRules.keys]) {
+    if (seenPending.contains(id)) continue;
     if (!fixtures.containsKey(id)) {
       throw StateError('Fixture file missing: $dir$_sep$id.json');
     }

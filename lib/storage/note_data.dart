@@ -16,12 +16,15 @@ class NoteData {
 
   final DocumentsDir _documents;
 
+  /// The note data directory (it may not exist yet).
+  Future<Directory> notesDir() async {
+    final root = await _documents();
+    return Directory('${root.path}${Platform.pathSeparator}$noteDataDirName');
+  }
+
   /// Deletes the note data directory. Nothing stored yet is not an error.
   Future<void> clear() async {
-    final root = await _documents();
-    final dir = Directory(
-      '${root.path}${Platform.pathSeparator}$noteDataDirName',
-    );
+    final dir = await notesDir();
     try {
       if (await dir.exists()) await dir.delete(recursive: true);
     } on PathNotFoundException {
