@@ -41,5 +41,11 @@
   "cannotOpen": "열 수 없음",
   "addNote": "새로 만들기",
   "closeMenu": "메뉴 닫기",
-  "loadFailed": "목록을 불러오지 못했어요"
+  "loadFailed": "목록을 불러오지 못했어요",
+  "backToLibrary": "서재로",
+  "penSlotLabel": "펜, {color}, 두께 {width}",
+  "colorBlack": "검정",
+  "pageSemantics": "{n}페이지 / {total}, {orientation}",
+  "handwriting": "손글씨",
+  "strokeNotAdded": "획을 추가하지 못했어요."
 }

@@ -136,4 +136,26 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get loadFailed => '목록을 불러오지 못했어요';
+
+  @override
+  String get backToLibrary => '서재로';
+
+  @override
+  String penSlotLabel(String color, String width) {
+    return '펜, $color, 두께 $width';
+  }
+
+  @override
+  String get colorBlack => '검정';
+
+  @override
+  String pageSemantics(int n, int total, String orientation) {
+    return '$n페이지 / $total, $orientation';
+  }
+
+  @override
+  String get handwriting => '손글씨';
+
+  @override
+  String get strokeNotAdded => '획을 추가하지 못했어요.';
 }

@@ -14,7 +14,7 @@ import 'package:kkeujeok/storage/new_note_defaults_store.dart';
 import 'package:kkeujeok/storage/note_data.dart';
 import 'package:kkeujeok/storage/note_store.dart';
 import 'package:kkeujeok/ui/library_fab.dart';
-import 'package:kkeujeok/ui/note_editor_stub.dart';
+import 'package:kkeujeok/ui/note_editor.dart';
 import 'package:kkeujeok/ui/providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -147,7 +147,7 @@ void main() {
       expect(fabItem, findsNothing);
       // The header holds the title only.
       expect(find.text('Library'), findsOneWidget);
-      expect(find.byType(NoteEditorStub), findsNothing);
+      expect(find.byType(NoteEditor), findsNothing);
     });
 
     testWidgets('Korean strings', (t) async {
@@ -206,7 +206,7 @@ void main() {
       await t.binding.handlePopRoute();
       await t.pumpAndSettle();
       expect(fabItem, findsNothing);
-      expect(find.byType(NoteEditorStub), findsNothing);
+      expect(find.byType(NoteEditor), findsNothing);
     });
 
     testWidgets('the item opens the sheet', (t) async {
@@ -281,7 +281,7 @@ void main() {
       await t.tap(find.text('Create'));
       await settle(t);
 
-      expect(find.byType(NoteEditorStub), findsOneWidget);
+      expect(find.byType(NoteEditor), findsOneWidget);
       expect(find.text('Algorithms'), findsOneWidget);
 
       final dirs = notes.listSync().whereType<Directory>().toList();
@@ -302,9 +302,9 @@ void main() {
       expect(sp.getString('newNoteOrientation'), 'landscape');
 
       // Back to the library: the note is listed.
-      await t.tap(find.byTooltip('Back'));
+      await t.tap(find.byTooltip('Back to library'));
       await settle(t);
-      expect(find.byType(NoteEditorStub), findsNothing);
+      expect(find.byType(NoteEditor), findsNothing);
       expect(find.text('Algorithms'), findsOneWidget);
       expect(find.text('New note'), findsNothing); // no empty card any more
     });
@@ -374,7 +374,7 @@ void main() {
 
       expect(find.text("Couldn't save to this device."), findsOneWidget);
       expect(find.byType(TextField), findsOneWidget); // sheet is still open
-      expect(find.byType(NoteEditorStub), findsNothing);
+      expect(find.byType(NoteEditor), findsNothing);
       expect(notes.existsSync(), isFalse); // no folder, not even the root
       final sp = await SharedPreferences.getInstance();
       expect(sp.getString('newNoteBackground'), isNull);
@@ -382,7 +382,7 @@ void main() {
       fail = false;
       await t.tap(find.text('Create'));
       await settle(t);
-      expect(find.byType(NoteEditorStub), findsOneWidget);
+      expect(find.byType(NoteEditor), findsOneWidget);
       expect(sp.getString('newNoteBackground'), 'lined');
     });
 
@@ -443,7 +443,7 @@ void main() {
       await settle(t);
       await t.tap(find.text('Open me'));
       await settle(t);
-      expect(find.byType(NoteEditorStub), findsOneWidget);
+      expect(find.byType(NoteEditor), findsOneWidget);
     });
 
     testWidgets('phone width has 2 columns, a tablet more', (t) async {
@@ -480,7 +480,7 @@ void main() {
       expect(style.color, const Color(0xFFB4B2AC)); // ink-disabled
       await t.tap(find.text("Can't open").first);
       await settle(t);
-      expect(find.byType(NoteEditorStub), findsNothing);
+      expect(find.byType(NoteEditor), findsNothing);
       expect(fileOf(1).readAsBytesSync(), before1);
       expect(fileOf(2).readAsBytesSync(), before2);
     });
@@ -652,7 +652,7 @@ void main() {
       await t.tapAt(c);
       await t.tapAt(c);
       await settle(t);
-      expect(find.byType(NoteEditorStub, skipOffstage: false), findsOneWidget);
+      expect(find.byType(NoteEditor, skipOffstage: false), findsOneWidget);
     });
 
     testWidgets('a second tap does not open a second sheet', (t) async {

@@ -7,9 +7,10 @@ import 'package:intl/intl.dart';
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
 import '../model/note.dart';
+import '../render/page_painter.dart';
 import 'library_fab.dart';
 import 'new_note_sheet.dart';
-import 'note_editor_stub.dart';
+import 'note_editor.dart';
 import 'providers.dart';
 
 const double _phoneMaxWidth = 600; // dp: below this the grid has 2 columns
@@ -43,7 +44,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   Future<void> _push(Note note) => Navigator.of(
     context,
-  ).push(MaterialPageRoute<void>(builder: (_) => NoteEditorStub(note: note)));
+  ).push(MaterialPageRoute<void>(builder: (_) => NoteEditor(note: note)));
 
   Future<void> _newNote() => _guarded(() async {
     // A created note is already in the list; no reload needed.
@@ -169,8 +170,8 @@ BoxDecoration _coverBox({Color? border}) => BoxDecoration(
       : null,
 );
 
-/// The 3:4 thumbnail place. No stroke rendering yet (Story 2.5 fills it), so
-/// it is the blank first page, kept in its own proportions inside the card.
+/// The 3:4 thumbnail place: the first page, drawn by the same painter as the
+/// writing screen, kept in its own proportions inside the card.
 class _Thumb extends StatelessWidget {
   const _Thumb({this.page, this.disabled = false, this.child});
 
@@ -198,13 +199,13 @@ class _Thumb extends StatelessWidget {
                       child: AspectRatio(
                         aspectRatio: w / h,
                         child: DecoratedBox(
+                          position: DecorationPosition.foreground,
                           decoration: BoxDecoration(
-                            color:
-                                KkjLight.componentsCoverCardFallbackBackground,
                             border: Border.all(
                               color: KkjLight.componentsCoverCardFallbackBorder,
                             ),
                           ),
+                          child: _PageThumb(page: page!),
                         ),
                       ),
                     ),
@@ -212,6 +213,27 @@ class _Thumb extends StatelessWidget {
       ),
     );
   }
+}
+
+class _PageThumb extends StatefulWidget {
+  const _PageThumb({required this.page});
+
+  final Map<String, dynamic> page;
+
+  @override
+  State<_PageThumb> createState() => _PageThumbState();
+}
+
+class _PageThumbState extends State<_PageThumb> {
+  final _cache = StrokePathCache();
+
+  @override
+  Widget build(BuildContext context) => RepaintBoundary(
+    child: CustomPaint(
+      size: Size.infinite,
+      painter: PagePainter(page: widget.page, cache: _cache),
+    ),
+  );
 }
 
 class _NoteCard extends StatelessWidget {

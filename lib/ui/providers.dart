@@ -101,7 +101,7 @@ int _compare(LibraryEntry a, LibraryEntry b) {
 
 // ponytail: the Android model name needs a device-info plugin; one constant
 // until a story adds it.
-const _editedBy = 'Android';
+const deviceEditedBy = 'Android';
 
 class LibraryNotifier extends AsyncNotifier<List<LibraryEntry>> {
   @override
@@ -153,7 +153,7 @@ class LibraryNotifier extends AsyncNotifier<List<LibraryEntry>> {
       metaRev: newId(),
       orderRev: newId(),
       now: canonicalNow(DateTime.now()),
-      editedBy: _editedBy,
+      editedBy: deviceEditedBy,
     );
     final note = r.note;
     if (note == null) throw NoteSaveException(r.error ?? 'could not create');

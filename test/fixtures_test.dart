@@ -10,6 +10,8 @@ import 'package:kkeujeok/model/note_title.dart';
 import 'package:kkeujeok/model/number.dart';
 import 'package:kkeujeok/ops/history.dart';
 import 'package:kkeujeok/ops/ops.dart';
+import 'package:kkeujeok/render/page_background.dart';
+import 'package:kkeujeok/render/stroke_outline.dart';
 
 typedef Case = Map<String, dynamic>;
 
@@ -31,13 +33,6 @@ Map<String, dynamic> _opOutput(OpResult r) => r.error != null
 
 void _same(Object? actual, Object? expected) =>
     expect(actual, equals(expected)); // == on numbers: 1 equals 1.0
-
-// Rules whose fixtures exist but whose code lands in a later story. The file
-// must still be there; a rule not named here and without a runner fails.
-const pendingRules = <String, String>{
-  'stroke.outline.pen': 'Story 2.5',
-  'page.background': 'Story 2.5',
-};
 
 // Rule id -> how to judge one case. A new spec rule adds one line here.
 final runners = <String, void Function(Case)>{
@@ -114,6 +109,44 @@ final runners = <String, void Function(Case)>{
   },
   'ops.addStroke': _runOp,
   'ops.removeStroke': _runOp,
+  'stroke.outline.pen': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final t = c['tolerance'];
+    if (t is! num) {
+      throw const FormatException(
+        'stroke.outline.pen needs a top-level "tolerance" number',
+      );
+    }
+    final tol = t.toDouble();
+    final got = strokeOutline(
+      (i['width'] as num).toDouble(),
+      i['usePressure'] as bool,
+      i['points'] as List,
+    );
+    final want = (c['expected'] as Map)['polygon'] as List;
+    expect(got.length, want.length, reason: 'polygon point count');
+    for (var k = 0; k < got.length; k++) {
+      for (var d = 0; d < 2; d++) {
+        final e = ((want[k] as List)[d] as num).toDouble();
+        expect(
+          (got[k][d] - e).abs() <= tol + 1e-9,
+          isTrue,
+          reason: 'point $k[$d]: got ${got[k][d]}, expected $e',
+        );
+      }
+    }
+  },
+  'page.background': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    _same(
+      pageBackground(
+        i['background'] as String,
+        i['width'] as num,
+        i['height'] as num,
+      ),
+      c['expected'],
+    );
+  },
   'ops.undoRedo': (c) {
     final i = c['input'] as Map<String, dynamic>;
     final h = History(_note(i['note']));
@@ -151,7 +184,9 @@ final _sep = Platform.pathSeparator;
 // `flutter test` runs with the package root as the working directory.
 final sharedDir = '${Directory.current.parent.path}${_sep}test';
 
-final _ruleId = RegExp(r'^[a-z][a-z0-9]*\.[a-z][A-Za-z0-9]*$');
+final _ruleId = RegExp(
+  r'^[a-z][a-z0-9]*\.[a-z][A-Za-z0-9]*(\.[a-z][A-Za-z0-9]*)?$',
+);
 
 Map<String, List<Case>> loadFixtures(String dir) {
   if (!Directory(dir).existsSync()) {
@@ -162,7 +197,6 @@ Map<String, List<Case>> loadFixtures(String dir) {
     );
   }
   final fixtures = <String, List<Case>>{};
-  final seenPending = <String>{};
   final files = [
     for (final e in Directory(dir).listSync())
       e.path.split(RegExp(r'[/\\]')).last,
@@ -177,9 +211,7 @@ Map<String, List<Case>> loadFixtures(String dir) {
     // otherwise be skipped without a word.
     if (!file.endsWith('.json')) throw bad('not a "<rule id>.json" file');
     final id = file.substring(0, file.length - '.json'.length);
-    // spec/README allows one dot, but the 2.2 fixture stroke.outline.pen has
-    // two; the pending rules are named exactly, so they are let through.
-    if (!pendingRules.containsKey(id) && !_ruleId.hasMatch(id)) {
+    if (!_ruleId.hasMatch(id)) {
       throw bad('file name is not a rule id');
     }
     final Object? data;
@@ -210,20 +242,22 @@ Map<String, List<Case>> loadFixtures(String dir) {
         throw bad('case "$name" needs both "input" and "expected"');
       }
     }
-    if (pendingRules.containsKey(id)) {
-      seenPending.add(id);
-      continue;
-    }
     if (!runners.containsKey(id)) {
       throw StateError(
         'Fixture $file has no test: rule "$id" is not implemented in the Android client. '
         'Add it to `runners` in test/fixtures_test.dart.',
       );
     }
-    fixtures[id] = cases.cast<Case>();
+    // A top-level `tolerance` rides along with each case.
+    fixtures[id] = [
+      for (final c in cases.cast<Case>())
+        if (data.containsKey('tolerance'))
+          {...c, 'tolerance': data['tolerance']}
+        else
+          c,
+    ];
   }
-  for (final id in [...runners.keys, ...pendingRules.keys]) {
-    if (seenPending.contains(id)) continue;
+  for (final id in runners.keys) {
     if (!fixtures.containsKey(id)) {
       throw StateError('Fixture file missing: $dir$_sep$id.json');
     }
@@ -353,6 +387,17 @@ void main() {
       expect(
         () => run({'name': 'a', 'input': null, 'expected': 0}),
         throwsMessage('JSON numbers'),
+      );
+    });
+
+    test('stroke.outline.pen case without a tolerance', () {
+      expect(
+        () => runners['stroke.outline.pen']!({
+          'name': 'a',
+          'input': {'width': 2, 'usePressure': true, 'points': []},
+          'expected': {'polygon': []},
+        }),
+        throwsMessage('tolerance'),
       );
     });
 

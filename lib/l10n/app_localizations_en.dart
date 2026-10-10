@@ -139,4 +139,26 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get loadFailed => 'Couldn\'t load your notes';
+
+  @override
+  String get backToLibrary => 'Back to library';
+
+  @override
+  String penSlotLabel(String color, String width) {
+    return 'Pen, $color, width $width';
+  }
+
+  @override
+  String get colorBlack => 'Black';
+
+  @override
+  String pageSemantics(int n, int total, String orientation) {
+    return 'Page $n of $total, $orientation';
+  }
+
+  @override
+  String get handwriting => 'Handwriting';
+
+  @override
+  String get strokeNotAdded => 'Couldn\'t add the stroke.';
 }

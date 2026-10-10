@@ -41,5 +41,34 @@
   "cannotOpen": "Can't open",
   "addNote": "Create new",
   "closeMenu": "Close menu",
-  "loadFailed": "Couldn't load your notes"
+  "loadFailed": "Couldn't load your notes",
+  "backToLibrary": "Back to library",
+  "penSlotLabel": "Pen, {color}, width {width}",
+  "@penSlotLabel": {
+    "placeholders": {
+      "color": {
+        "type": "String"
+      },
+      "width": {
+        "type": "String"
+      }
+    }
+  },
+  "colorBlack": "Black",
+  "pageSemantics": "Page {n} of {total}, {orientation}",
+  "@pageSemantics": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "orientation": {
+        "type": "String"
+      }
+    }
+  },
+  "handwriting": "Handwriting",
+  "strokeNotAdded": "Couldn't add the stroke."
 }

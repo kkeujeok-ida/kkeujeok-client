@@ -349,6 +349,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Couldn\'t load your notes'**
   String get loadFailed;
+
+  /// No description provided for @backToLibrary.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to library'**
+  String get backToLibrary;
+
+  /// No description provided for @penSlotLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Pen, {color}, width {width}'**
+  String penSlotLabel(String color, String width);
+
+  /// No description provided for @colorBlack.
+  ///
+  /// In en, this message translates to:
+  /// **'Black'**
+  String get colorBlack;
+
+  /// No description provided for @pageSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'Page {n} of {total}, {orientation}'**
+  String pageSemantics(int n, int total, String orientation);
+
+  /// No description provided for @handwriting.
+  ///
+  /// In en, this message translates to:
+  /// **'Handwriting'**
+  String get handwriting;
+
+  /// No description provided for @strokeNotAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t add the stroke.'**
+  String get strokeNotAdded;
 }
 
 class _AppLocalizationsDelegate
