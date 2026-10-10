@@ -42,4 +42,30 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get privacyOpenFailed =>
       'Couldn\'t open the privacy policy. Please try again.';
+
+  @override
+  String get signInWithGoogle => 'Sign in with Google';
+
+  @override
+  String get signingIn => 'Signing in';
+
+  @override
+  String get driveNotice =>
+      'Your notes are saved in the Kkeujeok folder of your Google Drive';
+
+  @override
+  String get driveDeniedTitle => 'Google Drive access was denied.';
+
+  @override
+  String get driveDeniedBody =>
+      'To save notes in the Kkeujeok folder of your Google Drive, you need to allow access. Kkeujeok can only see files it created.';
+
+  @override
+  String get requestAgain => 'Request again';
+
+  @override
+  String get networkError => 'Check your connection and try again';
+
+  @override
+  String get retry => 'Try again';
 }

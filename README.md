@@ -40,6 +40,9 @@ cp config/dev.example.json config/dev.json
 `config/dev.json`은 `.gitignore`에 들어 있다. 값이 비어 있어도 앱은
 실행된다.
 
+- `GOOGLE_SERVER_CLIENT_ID`: GCP 프로젝트의 **웹** OAuth 클라이언트 ID.
+  Android의 Google 로그인(`google_sign_in` 7.x, Credential Manager)이
+  `serverClientId`로 요구한다. 비어 있으면 로그인이 구성 오류로 실패한다.
 - `PRIVACY_URL`: 웹 `/privacy` 주소(예: `https://<도메인>/privacy`). 비어 있으면
   설정의 개인정보처리방침 항목이 비활성화되고 이유를 안내한다.
 
@@ -75,6 +78,10 @@ cp config/dev.example.json config/dev.json
    넣는다.
 4. 사용자 인증 정보 → OAuth 클라이언트 ID → **Android**를 만든다. 패키지
    이름은 `com.kkeujeok.app`, SHA-1은 1번 값이다.
+5. 같은 프로젝트에 **웹 애플리케이션** OAuth 클라이언트를 하나 더 만들고 그
+   ID를 `config/dev.json`의 `GOOGLE_SERVER_CLIENT_ID`에 넣는다.
+6. 동의 화면의 범위에 `.../auth/drive.file`을 추가한다. 앱이 요청하는 권한은
+   이것뿐이다.
 
 키스토어와 `key.properties`는 커밋하지 않는다.
 

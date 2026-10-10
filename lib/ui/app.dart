@@ -5,6 +5,7 @@ import '../l10n/app_localizations.dart';
 import '../storage/language_store.dart';
 import 'providers.dart';
 import 'shell.dart';
+import 'sign_in.dart';
 
 // Generated from kkeujeok-web/design_tokens (symlinked as lib/design_tokens).
 // The only place colours, type and spacing come from.
@@ -97,7 +98,20 @@ class App extends ConsumerWidget {
       supportedLocales: AppLocalizations.supportedLocales,
       localeListResolutionCallback: (locales, _) =>
           resolveLocale(LanguageChoice.system, locales),
-      home: const Shell(),
+      home: const _Gate(),
     );
   }
+}
+
+/// Only a signed-in user reaches the shell; everyone else sees sign-in.
+class _Gate extends ConsumerWidget {
+  const _Gate();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) =>
+      switch (ref.watch(authProvider).phase) {
+        AuthPhase.signedIn => const Shell(),
+        AuthPhase.checking => const Scaffold(),
+        _ => const SignInScreen(),
+      };
 }

@@ -6,10 +6,13 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kkeujeok/drive/auth_gateway.dart';
 import 'package:kkeujeok/storage/language_store.dart';
 import 'package:kkeujeok/ui/app.dart';
 import 'package:kkeujeok/ui/providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'fake_auth_gateway.dart';
 
 Set<String> arbKeys(String lang) {
   final json = jsonDecode(
@@ -25,6 +28,7 @@ Future<LanguageStore> pumpApp(
   List<Locale> device = const [Locale('en', 'US')],
   String privacyUrl = '',
   Future<bool> Function(Uri)? openUrl,
+  AuthGateway? auth,
 }) async {
   tester.view.physicalSize = Size(width, 700);
   tester.view.devicePixelRatio = 1;
@@ -39,6 +43,10 @@ Future<LanguageStore> pumpApp(
     ProviderScope(
       overrides: [
         languageStoreProvider.overrideWithValue(store),
+        // Shell tests start from a signed-in user.
+        authGatewayProvider.overrideWithValue(
+          auth ?? FakeAuthGateway(restored: true),
+        ),
         privacyUrlProvider.overrideWithValue(privacyUrl),
         if (openUrl != null) urlOpenerProvider.overrideWithValue(openUrl),
       ],

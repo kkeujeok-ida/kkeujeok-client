@@ -163,6 +163,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Couldn\'t open the privacy policy. Please try again.'**
   String get privacyOpenFailed;
+
+  /// No description provided for @signInWithGoogle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with Google'**
+  String get signInWithGoogle;
+
+  /// No description provided for @signingIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Signing in'**
+  String get signingIn;
+
+  /// No description provided for @driveNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Your notes are saved in the Kkeujeok folder of your Google Drive'**
+  String get driveNotice;
+
+  /// No description provided for @driveDeniedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Drive access was denied.'**
+  String get driveDeniedTitle;
+
+  /// No description provided for @driveDeniedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'To save notes in the Kkeujeok folder of your Google Drive, you need to allow access. Kkeujeok can only see files it created.'**
+  String get driveDeniedBody;
+
+  /// No description provided for @requestAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Request again'**
+  String get requestAgain;
+
+  /// No description provided for @networkError.
+  ///
+  /// In en, this message translates to:
+  /// **'Check your connection and try again'**
+  String get networkError;
+
+  /// No description provided for @retry.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get retry;
 }
 
 class _AppLocalizationsDelegate

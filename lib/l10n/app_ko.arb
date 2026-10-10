@@ -10,5 +10,13 @@
   "languageEn": "English",
   "privacyPolicy": "개인정보처리방침",
   "privacyUnavailable": "개인정보처리방침 주소가 설정되지 않았어요.",
-  "privacyOpenFailed": "개인정보처리방침을 열지 못했어요. 다시 시도해 주세요."
+  "privacyOpenFailed": "개인정보처리방침을 열지 못했어요. 다시 시도해 주세요.",
+  "signInWithGoogle": "Google로 로그인",
+  "signingIn": "로그인 중",
+  "driveNotice": "노트는 내 Google Drive의 Kkeujeok 폴더에 저장돼요",
+  "driveDeniedTitle": "Google Drive 접근이 거부됐어요.",
+  "driveDeniedBody": "노트를 내 Google Drive의 Kkeujeok 폴더에 저장하려면 접근을 허용해야 해요. Kkeujeok이 만든 파일만 볼 수 있어요.",
+  "requestAgain": "다시 요청",
+  "networkError": "연결을 확인하고 다시 시도해 주세요",
+  "retry": "다시 시도"
 }
