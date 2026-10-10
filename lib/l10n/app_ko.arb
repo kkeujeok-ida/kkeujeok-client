@@ -18,5 +18,12 @@
   "driveDeniedBody": "노트를 내 Google Drive의 Kkeujeok 폴더에 저장하려면 접근을 허용해야 해요. Kkeujeok이 만든 파일만 볼 수 있어요.",
   "requestAgain": "다시 요청",
   "networkError": "연결을 확인하고 다시 시도해 주세요",
-  "retry": "다시 시도"
+  "retry": "다시 시도",
+  "logOut": "로그아웃",
+  "disconnect": "연결 해제",
+  "cancel": "취소",
+  "disconnectTitle": "연결을 해제할까요?",
+  "disconnectBody": "이 기기의 노트 사본과 로그인 정보가 지워져요. Drive의 노트 파일은 그대로 남아요.",
+  "disconnecting": "연결을 해제하는 중",
+  "disconnectDeleteFailed": "이 기기의 노트 사본을 지우지 못했어요. 다시 시도해 주세요."
 }

@@ -25,4 +25,11 @@ abstract interface class AuthGateway {
 
   /// Asks for the Drive permission again for the account already chosen.
   Future<AuthOutcome> requestAccess();
+
+  /// Ends the session. Notes on the device are not touched. Throws when the
+  /// plugin fails; the caller still treats the session as ended.
+  Future<void> signOut();
+
+  /// Revokes the Drive grant for this app. Throws unless it was revoked.
+  Future<void> disconnect();
 }

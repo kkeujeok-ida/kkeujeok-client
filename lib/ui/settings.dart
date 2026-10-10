@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
 import '../storage/language_store.dart';
+import 'disconnect_dialog.dart';
 import 'providers.dart';
 
 /// A row with a 48dp minimum touch target.
@@ -34,7 +35,6 @@ class _Row extends StatelessWidget {
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
-  // Logout and disconnect join here in Story 1.13; hidden until then.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
@@ -60,6 +60,39 @@ class SettingsScreen extends ConsumerWidget {
         messenger.showSnackBar(SnackBar(content: Text(l10n.privacyOpenFailed)));
       }
     }
+
+    final signedIn = ref.watch(authProvider).phase == AuthPhase.signedIn;
+
+    // The sign-in screen replaces the shell underneath; drop what is above it.
+    Future<void> logOut() async {
+      final nav = Navigator.of(context);
+      await ref.read(authProvider.notifier).signOut();
+      nav.popUntil((r) => r.isFirst);
+    }
+
+    Future<void> disconnect() async {
+      final nav = Navigator.of(context);
+      final done = await showDialog<bool>(
+        context: context,
+        builder: (_) => const DisconnectDialog(),
+      );
+      if (done == true) nav.popUntil((r) => r.isFirst);
+    }
+
+    Widget action(String label, VoidCallback onTap, {Color? color}) =>
+        Semantics(
+          button: true,
+          label: label,
+          excludeSemantics: true,
+          onTap: onTap,
+          child: _Row(
+            onTap: onTap,
+            child: Text(
+              label,
+              style: theme.textTheme.bodyMedium?.copyWith(color: color),
+            ),
+          ),
+        );
 
     return Scaffold(
       appBar: AppBar(
@@ -129,6 +162,11 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
           ),
+          if (signedIn) ...[
+            Divider(color: theme.colorScheme.outlineVariant),
+            action(l10n.logOut, logOut),
+            action(l10n.disconnect, disconnect, color: theme.colorScheme.error),
+          ],
         ],
       ),
     );

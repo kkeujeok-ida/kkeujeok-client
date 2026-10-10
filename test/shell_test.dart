@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/drive/auth_gateway.dart';
 import 'package:kkeujeok/storage/language_store.dart';
+import 'package:kkeujeok/storage/note_data.dart';
 import 'package:kkeujeok/ui/app.dart';
 import 'package:kkeujeok/ui/providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -29,6 +30,7 @@ Future<LanguageStore> pumpApp(
   String privacyUrl = '',
   Future<bool> Function(Uri)? openUrl,
   AuthGateway? auth,
+  NoteData? noteData,
 }) async {
   tester.view.physicalSize = Size(width, 700);
   tester.view.devicePixelRatio = 1;
@@ -46,6 +48,13 @@ Future<LanguageStore> pumpApp(
         // Shell tests start from a signed-in user.
         authGatewayProvider.overrideWithValue(
           auth ?? FakeAuthGateway(restored: true),
+        ),
+        // Never touch the real documents directory.
+        noteDataProvider.overrideWithValue(
+          noteData ??
+              NoteData(
+                () async => Directory.systemTemp.createTemp('kkj-notes-'),
+              ),
         ),
         privacyUrlProvider.overrideWithValue(privacyUrl),
         if (openUrl != null) urlOpenerProvider.overrideWithValue(openUrl),
@@ -176,7 +185,7 @@ void main() {
   });
 
   group('settings', () {
-    testWidgets('lists language and privacy only', (t) async {
+    testWidgets('lists language, privacy, log out and disconnect', (t) async {
       await pumpApp(t);
       await t.tap(find.text('Settings'));
       await t.pumpAndSettle();
@@ -185,8 +194,8 @@ void main() {
       expect(find.text('한국어'), findsOneWidget);
       expect(find.text('English'), findsOneWidget);
       expect(find.text('Privacy policy'), findsOneWidget);
-      expect(find.textContaining('Log out'), findsNothing);
-      expect(find.textContaining('Disconnect'), findsNothing);
+      expect(find.text('Log out'), findsOneWidget);
+      expect(find.text('Disconnect'), findsOneWidget);
     });
 
     testWidgets('choosing Korean switches at once and is remembered', (

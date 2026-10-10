@@ -211,6 +211,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Try again'**
   String get retry;
+
+  /// No description provided for @logOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Log out'**
+  String get logOut;
+
+  /// No description provided for @disconnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect'**
+  String get disconnect;
+
+  /// No description provided for @cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get cancel;
+
+  /// No description provided for @disconnectTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect?'**
+  String get disconnectTitle;
+
+  /// No description provided for @disconnectBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The note copies and sign-in info on this device will be erased. The note files in your Drive stay as they are.'**
+  String get disconnectBody;
+
+  /// No description provided for @disconnecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnecting'**
+  String get disconnecting;
+
+  /// No description provided for @disconnectDeleteFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t erase the note copies on this device. Please try again.'**
+  String get disconnectDeleteFailed;
 }
 
 class _AppLocalizationsDelegate
