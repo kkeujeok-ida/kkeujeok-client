@@ -8,7 +8,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/drive/auth_gateway.dart';
 import 'package:kkeujeok/storage/language_store.dart';
+import 'package:kkeujeok/storage/new_note_defaults_store.dart';
 import 'package:kkeujeok/storage/note_data.dart';
+import 'package:kkeujeok/storage/note_store.dart';
 import 'package:kkeujeok/ui/app.dart';
 import 'package:kkeujeok/ui/providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -31,16 +33,23 @@ Future<LanguageStore> pumpApp(
   Future<bool> Function(Uri)? openUrl,
   AuthGateway? auth,
   NoteData? noteData,
+  NoteStore? noteStore,
+  double textScale = 1,
 }) async {
   tester.view.physicalSize = Size(width, 700);
   tester.view.devicePixelRatio = 1;
+  tester.platformDispatcher.textScaleFactorTestValue = textScale;
   tester.platformDispatcher.localesTestValue = device;
   addTearDown(() {
     tester.view.reset();
     tester.platformDispatcher.clearLocalesTestValue();
+    tester.platformDispatcher.clearTextScaleFactorTestValue();
   });
   SharedPreferences.setMockInitialValues(prefs);
-  final store = LanguageStore(await SharedPreferences.getInstance());
+  final sp = await SharedPreferences.getInstance();
+  final store = LanguageStore(sp);
+  final tmp = Directory.systemTemp.createTempSync('kkj-notes-');
+  final data = noteData ?? NoteData(() async => tmp);
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -50,11 +59,10 @@ Future<LanguageStore> pumpApp(
           auth ?? FakeAuthGateway(restored: true),
         ),
         // Never touch the real documents directory.
-        noteDataProvider.overrideWithValue(
-          noteData ??
-              NoteData(
-                () async => Directory.systemTemp.createTemp('kkj-notes-'),
-              ),
+        noteDataProvider.overrideWithValue(data),
+        if (noteStore != null) noteStoreProvider.overrideWithValue(noteStore),
+        newNoteDefaultsStoreProvider.overrideWithValue(
+          NewNoteDefaultsStore(sp),
         ),
         privacyUrlProvider.overrideWithValue(privacyUrl),
         if (openUrl != null) urlOpenerProvider.overrideWithValue(openUrl),

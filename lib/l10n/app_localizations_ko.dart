@@ -88,4 +88,52 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get disconnectDeleteFailed => '이 기기의 노트 사본을 지우지 못했어요. 다시 시도해 주세요.';
+
+  @override
+  String get newNote => '새 노트';
+
+  @override
+  String get create => '만들기';
+
+  @override
+  String get noteTitle => '제목';
+
+  @override
+  String get pageBackground => '페이지 배경';
+
+  @override
+  String get backgroundPlain => '무지';
+
+  @override
+  String get backgroundLined => '줄';
+
+  @override
+  String get backgroundGrid => '모눈';
+
+  @override
+  String get backgroundDot => '점';
+
+  @override
+  String get pageOrientation => '페이지 방향';
+
+  @override
+  String get orientationPortrait => '세로';
+
+  @override
+  String get orientationLandscape => '가로';
+
+  @override
+  String get noteSaveFailed => '이 기기에 저장하지 못했어요.';
+
+  @override
+  String get cannotOpen => '열 수 없음';
+
+  @override
+  String get addNote => '새로 만들기';
+
+  @override
+  String get closeMenu => '메뉴 닫기';
+
+  @override
+  String get loadFailed => '목록을 불러오지 못했어요';
 }

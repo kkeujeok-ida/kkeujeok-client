@@ -91,4 +91,52 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get disconnectDeleteFailed =>
       'Couldn\'t erase the note copies on this device. Please try again.';
+
+  @override
+  String get newNote => 'New note';
+
+  @override
+  String get create => 'Create';
+
+  @override
+  String get noteTitle => 'Title';
+
+  @override
+  String get pageBackground => 'Page background';
+
+  @override
+  String get backgroundPlain => 'Plain';
+
+  @override
+  String get backgroundLined => 'Lined';
+
+  @override
+  String get backgroundGrid => 'Grid';
+
+  @override
+  String get backgroundDot => 'Dot';
+
+  @override
+  String get pageOrientation => 'Page orientation';
+
+  @override
+  String get orientationPortrait => 'Portrait';
+
+  @override
+  String get orientationLandscape => 'Landscape';
+
+  @override
+  String get noteSaveFailed => 'Couldn\'t save to this device.';
+
+  @override
+  String get cannotOpen => 'Can\'t open';
+
+  @override
+  String get addNote => 'Create new';
+
+  @override
+  String get closeMenu => 'Close menu';
+
+  @override
+  String get loadFailed => 'Couldn\'t load your notes';
 }

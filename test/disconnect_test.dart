@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/storage/language_store.dart';
 import 'package:kkeujeok/storage/note_data.dart';
+import 'package:kkeujeok/storage/note_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'fake_auth_gateway.dart';
@@ -45,6 +46,9 @@ void main() {
         auth: g,
         prefs: {'language': 'en'},
         noteData: noteData ?? NoteData(() async => docs),
+        // The library reads the folder too; keep it off the NoteData whose
+        // calls these tests count.
+        noteStore: NoteStore(NoteData(() async => docs)),
       );
 
   // Real file IO does not advance under the fake clock: let it finish first.

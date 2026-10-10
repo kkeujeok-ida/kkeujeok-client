@@ -25,5 +25,21 @@
   "disconnectTitle": "연결을 해제할까요?",
   "disconnectBody": "이 기기의 노트 사본과 로그인 정보가 지워져요. Drive의 노트 파일은 그대로 남아요.",
   "disconnecting": "연결을 해제하는 중",
-  "disconnectDeleteFailed": "이 기기의 노트 사본을 지우지 못했어요. 다시 시도해 주세요."
+  "disconnectDeleteFailed": "이 기기의 노트 사본을 지우지 못했어요. 다시 시도해 주세요.",
+  "newNote": "새 노트",
+  "create": "만들기",
+  "noteTitle": "제목",
+  "pageBackground": "페이지 배경",
+  "backgroundPlain": "무지",
+  "backgroundLined": "줄",
+  "backgroundGrid": "모눈",
+  "backgroundDot": "점",
+  "pageOrientation": "페이지 방향",
+  "orientationPortrait": "세로",
+  "orientationLandscape": "가로",
+  "noteSaveFailed": "이 기기에 저장하지 못했어요.",
+  "cannotOpen": "열 수 없음",
+  "addNote": "새로 만들기",
+  "closeMenu": "메뉴 닫기",
+  "loadFailed": "목록을 불러오지 못했어요"
 }

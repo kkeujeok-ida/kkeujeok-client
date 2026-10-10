@@ -253,6 +253,102 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Couldn\'t erase the note copies on this device. Please try again.'**
   String get disconnectDeleteFailed;
+
+  /// No description provided for @newNote.
+  ///
+  /// In en, this message translates to:
+  /// **'New note'**
+  String get newNote;
+
+  /// No description provided for @create.
+  ///
+  /// In en, this message translates to:
+  /// **'Create'**
+  String get create;
+
+  /// No description provided for @noteTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Title'**
+  String get noteTitle;
+
+  /// No description provided for @pageBackground.
+  ///
+  /// In en, this message translates to:
+  /// **'Page background'**
+  String get pageBackground;
+
+  /// No description provided for @backgroundPlain.
+  ///
+  /// In en, this message translates to:
+  /// **'Plain'**
+  String get backgroundPlain;
+
+  /// No description provided for @backgroundLined.
+  ///
+  /// In en, this message translates to:
+  /// **'Lined'**
+  String get backgroundLined;
+
+  /// No description provided for @backgroundGrid.
+  ///
+  /// In en, this message translates to:
+  /// **'Grid'**
+  String get backgroundGrid;
+
+  /// No description provided for @backgroundDot.
+  ///
+  /// In en, this message translates to:
+  /// **'Dot'**
+  String get backgroundDot;
+
+  /// No description provided for @pageOrientation.
+  ///
+  /// In en, this message translates to:
+  /// **'Page orientation'**
+  String get pageOrientation;
+
+  /// No description provided for @orientationPortrait.
+  ///
+  /// In en, this message translates to:
+  /// **'Portrait'**
+  String get orientationPortrait;
+
+  /// No description provided for @orientationLandscape.
+  ///
+  /// In en, this message translates to:
+  /// **'Landscape'**
+  String get orientationLandscape;
+
+  /// No description provided for @noteSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save to this device.'**
+  String get noteSaveFailed;
+
+  /// No description provided for @cannotOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t open'**
+  String get cannotOpen;
+
+  /// No description provided for @addNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Create new'**
+  String get addNote;
+
+  /// No description provided for @closeMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'Close menu'**
+  String get closeMenu;
+
+  /// No description provided for @loadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load your notes'**
+  String get loadFailed;
 }
 
 class _AppLocalizationsDelegate

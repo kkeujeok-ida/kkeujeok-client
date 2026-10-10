@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
+import 'library.dart';
 import 'settings.dart';
 
 const double expandedMinWidth = 840; // dp: sidebar expanded at or above
@@ -47,11 +48,11 @@ class _ShellState extends State<Shell> {
       onSettings: _openSettings,
     );
 
-    // The library area stays empty until later stories fill it.
-    final library = Semantics(
-      label: l10n.library,
-      container: true,
-      child: const SizedBox.expand(),
+    final library = LibraryScreen(
+      // Phone: keep the header clear of the floating menu button.
+      headerStartInset: expanded || collapsed
+          ? 0
+          : KkjTokens.spacingHitMinAndroid,
     );
 
     final Widget body;
@@ -92,7 +93,7 @@ class _ShellState extends State<Shell> {
     } else {
       body = Stack(
         children: [
-          library,
+          Positioned.fill(child: library),
           PositionedDirectional(
             top: KkjTokens.spacing2,
             start: KkjTokens.spacing2,

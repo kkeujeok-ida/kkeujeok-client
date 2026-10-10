@@ -68,6 +68,8 @@ class NoteStore {
   /// this client cannot read, so it is never overwritten.
   Future<void> write(Note note) => _locked(note.noteId, () async {
     File? tmp;
+    // Folders this call made, removed again (if still empty) on failure.
+    Directory? created, createdRoot;
     try {
       final file = await _working(note.noteId);
       tmp = File('${file.path}.tmp');
@@ -77,16 +79,31 @@ class NoteStore {
           !decodeKkj(await file.readAsBytes()).writable) {
         throw NoteSaveException('existing file is not readable by this client');
       }
+      if (!await file.parent.exists()) {
+        created = file.parent;
+        if (!await file.parent.parent.exists()) {
+          createdRoot = file.parent.parent;
+        }
+      }
       await file.parent.create(recursive: true);
       await _writeFile(tmp, encodeKkj(note));
       await tmp.rename(file.path);
     } on NoteSaveException {
       rethrow;
     } catch (e) {
-      try {
-        if (tmp != null && await tmp.exists()) await tmp.delete();
-      } catch (_) {
-        // Best effort; read() cleans it up later.
+      // Each step on its own: one failing must not skip the others. Best
+      // effort; read() cleans a leftover temp file up later.
+      for (final undo in <Future<void> Function()>[
+        () async {
+          final t = tmp;
+          if (t != null && await t.exists()) await t.delete();
+        },
+        () async => created?.delete(), // fails (kept) unless empty
+        () async => createdRoot?.delete(),
+      ]) {
+        try {
+          await undo();
+        } catch (_) {}
       }
       throw NoteSaveException('could not write note', e);
     }

@@ -25,5 +25,21 @@
   "disconnectTitle": "Disconnect?",
   "disconnectBody": "The note copies and sign-in info on this device will be erased. The note files in your Drive stay as they are.",
   "disconnecting": "Disconnecting",
-  "disconnectDeleteFailed": "Couldn't erase the note copies on this device. Please try again."
+  "disconnectDeleteFailed": "Couldn't erase the note copies on this device. Please try again.",
+  "newNote": "New note",
+  "create": "Create",
+  "noteTitle": "Title",
+  "pageBackground": "Page background",
+  "backgroundPlain": "Plain",
+  "backgroundLined": "Lined",
+  "backgroundGrid": "Grid",
+  "backgroundDot": "Dot",
+  "pageOrientation": "Page orientation",
+  "orientationPortrait": "Portrait",
+  "orientationLandscape": "Landscape",
+  "noteSaveFailed": "Couldn't save to this device.",
+  "cannotOpen": "Can't open",
+  "addNote": "Create new",
+  "closeMenu": "Close menu",
+  "loadFailed": "Couldn't load your notes"
 }
