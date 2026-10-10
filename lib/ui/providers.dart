@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../drive/auth_gateway.dart';
 import '../drive/google_auth_gateway.dart';
 import '../storage/language_store.dart';
+import '../storage/session_hint.dart';
 import '../storage/note_data.dart';
 
 /// Overridden in main() with the opened preferences.
@@ -38,7 +39,12 @@ final urlOpenerProvider = Provider<Future<bool> Function(Uri)>(
 );
 
 /// The sign-in plugin behind its interface; widget tests override it.
-final authGatewayProvider = Provider<AuthGateway>((ref) => GoogleAuthGateway());
+/// Whether this device was signed in (a flag, never a token).
+final sessionHintProvider = Provider<SessionHint>((ref) => SessionHint(null));
+
+final authGatewayProvider = Provider<AuthGateway>(
+  (ref) => GoogleAuthGateway(hint: ref.read(sessionHintProvider)),
+);
 
 /// The note data directory remover; tests point it at a temp directory.
 final noteDataProvider = Provider<NoteData>((ref) => NoteData());
