@@ -37,8 +37,16 @@ flutter build apk --debug --dart-define-from-file=config/dev.json
 cp config/dev.example.json config/dev.json
 ```
 
-`config/dev.json`은 `.gitignore`에 들어 있다. 키 이름은 로그인 스토리에서
-확정되며, 그 전에는 값이 비어 있어도 앱이 실행된다.
+`config/dev.json`은 `.gitignore`에 들어 있다. 값이 비어 있어도 앱은
+실행된다.
+
+- `PRIVACY_URL`: 웹 `/privacy` 주소(예: `https://<도메인>/privacy`). 비어 있으면
+  설정의 개인정보처리방침 항목이 비활성화되고 이유를 안내한다.
+
+## 문구(다국어)
+
+문구는 `lib/l10n/app_{ko,en}.arb`에서만 온다. 고친 뒤 `flutter gen-l10n`을
+실행하고 생성물(`lib/l10n/app_localizations*.dart`)도 커밋한다.
 
 ## 자기 GCP 프로젝트에 디버그 SHA-1 등록
 

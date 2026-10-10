@@ -1,0 +1,14 @@
+{
+  "@@locale": "ko",
+  "productName": "Kkeujeok",
+  "library": "서재",
+  "settings": "설정",
+  "openSidebar": "메뉴 열기",
+  "language": "언어",
+  "languageSystem": "시스템 설정 따름",
+  "languageKo": "한국어",
+  "languageEn": "English",
+  "privacyPolicy": "개인정보처리방침",
+  "privacyUnavailable": "개인정보처리방침 주소가 설정되지 않았어요.",
+  "privacyOpenFailed": "개인정보처리방침을 열지 못했어요. 다시 시도해 주세요."
+}

@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../l10n/app_localizations.dart';
+import '../storage/language_store.dart';
+import 'providers.dart';
+import 'shell.dart';
 
 // Generated from kkeujeok-web/design_tokens (symlinked as lib/design_tokens).
 // The only place colours, type and spacing come from.
@@ -39,6 +45,7 @@ ThemeData lightTheme() {
     useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: KkjLight.colorSurfaceBase,
+    disabledColor: KkjLight.colorInkDisabled,
     fontFamily: KkjTokens.typographyBodyFontFamily,
     textTheme: TextTheme(
       titleLarge: _text(
@@ -73,27 +80,24 @@ ThemeData lightTheme() {
   );
 }
 
-class App extends StatelessWidget {
+class App extends ConsumerWidget {
   const App({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final choice = ref.watch(languageProvider);
     return MaterialApp(
-      title: 'Kkeujeok',
+      onGenerateTitle: (c) => AppLocalizations.of(c).productName,
       theme: lightTheme(),
-      home: Builder(
-        builder: (context) => Scaffold(
-          body: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(KkjTokens.spacing5),
-              child: Text(
-                'Kkeujeok',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-            ),
-          ),
-        ),
-      ),
+      // An explicit choice wins; "system" is resolved from the device list.
+      locale: choice == LanguageChoice.system
+          ? null
+          : resolveLocale(choice, null),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      localeListResolutionCallback: (locales, _) =>
+          resolveLocale(LanguageChoice.system, locales),
+      home: const Shell(),
     );
   }
 }
