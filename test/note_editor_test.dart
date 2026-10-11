@@ -291,7 +291,7 @@ void main() {
       final h = t.ensureSemantics();
       seed(_note());
       await open(t, device: const [Locale('ko', 'KR')]);
-      expect(find.byTooltip('서재로'), findsOneWidget);
+      expect(find.byTooltip('Notes로'), findsOneWidget);
       expect(find.bySemanticsLabel('펜, 검정, 두께 2.0'), findsOneWidget);
       expect(find.bySemanticsLabel('1페이지 / 1, 세로'), findsOneWidget);
       h.dispose();

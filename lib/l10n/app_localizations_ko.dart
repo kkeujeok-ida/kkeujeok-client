@@ -13,7 +13,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get productName => 'Kkeujeok';
 
   @override
-  String get library => '서재';
+  String get library => 'Notes';
 
   @override
   String get settings => '설정';
@@ -138,7 +138,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get loadFailed => '목록을 불러오지 못했어요';
 
   @override
-  String get backToLibrary => '서재로';
+  String get backToLibrary => 'Notes로';
 
   @override
   String penSlotLabel(String color, String width) {

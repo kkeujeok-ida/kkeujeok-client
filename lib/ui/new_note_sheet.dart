@@ -136,120 +136,130 @@ class _NewNoteSheetState extends ConsumerState<_NewNoteSheet> {
           ),
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(KkjTokens.spacing5),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Semantics(
-                  header: true,
-                  child: Text(l10n.newNote, style: theme.textTheme.titleLarge),
-                ),
-                const SizedBox(height: KkjTokens.spacing4),
-                TextField(
-                  controller: _title,
-                  enabled: !_saving,
-                  maxLength: maxTitleLength,
-                  maxLengthEnforcement: MaxLengthEnforcement.enforced,
-                  inputFormatters: const [_CodePointLimit(maxTitleLength)],
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _create(),
-                  style: theme.textTheme.bodyMedium,
-                  decoration: InputDecoration(
-                    labelText: l10n.noteTitle,
-                    labelStyle: const TextStyle(
-                      color: KkjLight.componentsInputPlaceholder,
-                    ),
-                    counterText: '',
-                    border: border,
-                    enabledBorder: border,
-                    focusedBorder: border.copyWith(
-                      borderSide: const BorderSide(
-                        color: KkjLight.colorAccent,
-                        width: 2,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: KkjTokens.spacing4),
-                _BackgroundGroup(
-                  title: l10n.pageBackground,
-                  value: _background,
-                  options: backgrounds,
-                  landscape: _orientation == 'landscape',
-                  enabled: !_saving,
-                  onChanged: (v) => setState(() => _background = v),
-                ),
-                const SizedBox(height: KkjTokens.spacing3),
-                _Group(
-                  title: l10n.pageOrientation,
-                  value: _orientation,
-                  options: orientations,
-                  enabled: !_saving,
-                  onChanged: (v) => setState(() => _orientation = v),
-                ),
-                if (_failed) ...[
-                  const SizedBox(height: KkjTokens.spacing3),
+            // The sheet fills more than half of the screen.
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: MediaQuery.sizeOf(context).height * 0.6,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
                   Semantics(
-                    liveRegion: true,
+                    header: true,
                     child: Text(
-                      l10n.noteSaveFailed,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: KkjLight.colorStatusError,
+                      l10n.newNote,
+                      style: theme.textTheme.titleLarge,
+                    ),
+                  ),
+                  const SizedBox(height: KkjTokens.spacing4),
+                  TextField(
+                    controller: _title,
+                    enabled: !_saving,
+                    maxLength: maxTitleLength,
+                    maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                    inputFormatters: const [_CodePointLimit(maxTitleLength)],
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _create(),
+                    style: theme.textTheme.bodyMedium,
+                    decoration: InputDecoration(
+                      labelText: l10n.noteTitle,
+                      labelStyle: const TextStyle(
+                        color: KkjLight.componentsInputPlaceholder,
+                      ),
+                      counterText: '',
+                      border: border,
+                      enabledBorder: border,
+                      focusedBorder: border.copyWith(
+                        borderSide: const BorderSide(
+                          color: KkjLight.colorAccent,
+                          width: 2,
+                        ),
                       ),
                     ),
                   ),
-                ],
-                const SizedBox(height: KkjTokens.spacing5),
-                Wrap(
-                  alignment: WrapAlignment.end,
-                  spacing: KkjTokens.spacing3,
-                  runSpacing: KkjTokens.spacing3,
-                  children: [
-                    OutlinedButton(
-                      onPressed: _saving
-                          ? null
-                          : () => Navigator.of(context).pop(),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: KkjLight.componentsButtonSecondaryText,
-                        backgroundColor:
-                            KkjLight.componentsButtonSecondaryBackground,
-                        side: const BorderSide(
-                          color: KkjLight.componentsButtonSecondaryBorder,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            KkjLight.componentsButtonSecondaryRounded,
-                          ),
-                        ),
-                        minimumSize: const Size(
-                          KkjTokens.spacingHitMinAndroid,
-                          KkjTokens.spacingControlHeightAndroid,
-                        ),
-                      ),
-                      child: Text(l10n.cancel),
-                    ),
-                    FilledButton(
-                      onPressed: _saving ? null : _create,
-                      style: FilledButton.styleFrom(
-                        foregroundColor: KkjLight.componentsButtonPrimaryText,
-                        backgroundColor:
-                            KkjLight.componentsButtonPrimaryBackground,
-                        disabledBackgroundColor: KkjLight.colorInkDisabled,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            KkjLight.componentsButtonPrimaryRounded,
-                          ),
-                        ),
-                        minimumSize: const Size(
-                          KkjTokens.spacingHitMinAndroid,
-                          KkjTokens.spacingControlHeightAndroid,
+                  const SizedBox(height: KkjTokens.spacing4),
+                  _BackgroundGroup(
+                    title: l10n.pageBackground,
+                    value: _background,
+                    options: backgrounds,
+                    landscape: _orientation == 'landscape',
+                    enabled: !_saving,
+                    onChanged: (v) => setState(() => _background = v),
+                  ),
+                  const SizedBox(height: KkjTokens.spacing3),
+                  _Group(
+                    title: l10n.pageOrientation,
+                    value: _orientation,
+                    options: orientations,
+                    enabled: !_saving,
+                    onChanged: (v) => setState(() => _orientation = v),
+                  ),
+                  if (_failed) ...[
+                    const SizedBox(height: KkjTokens.spacing3),
+                    Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        l10n.noteSaveFailed,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: KkjLight.colorStatusError,
                         ),
                       ),
-                      child: Text(l10n.create),
                     ),
                   ],
-                ),
-              ],
+                  const SizedBox(height: KkjTokens.spacing5),
+                  Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: KkjTokens.spacing3,
+                    runSpacing: KkjTokens.spacing3,
+                    children: [
+                      OutlinedButton(
+                        onPressed: _saving
+                            ? null
+                            : () => Navigator.of(context).pop(),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor:
+                              KkjLight.componentsButtonSecondaryText,
+                          backgroundColor:
+                              KkjLight.componentsButtonSecondaryBackground,
+                          side: const BorderSide(
+                            color: KkjLight.componentsButtonSecondaryBorder,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              KkjLight.componentsButtonSecondaryRounded,
+                            ),
+                          ),
+                          minimumSize: const Size(
+                            KkjTokens.spacingHitMinAndroid,
+                            KkjTokens.spacingControlHeightAndroid,
+                          ),
+                        ),
+                        child: Text(l10n.cancel),
+                      ),
+                      FilledButton(
+                        onPressed: _saving ? null : _create,
+                        style: FilledButton.styleFrom(
+                          foregroundColor: KkjLight.componentsButtonPrimaryText,
+                          backgroundColor:
+                              KkjLight.componentsButtonPrimaryBackground,
+                          disabledBackgroundColor: KkjLight.colorInkDisabled,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              KkjLight.componentsButtonPrimaryRounded,
+                            ),
+                          ),
+                          minimumSize: const Size(
+                            KkjTokens.spacingHitMinAndroid,
+                            KkjTokens.spacingControlHeightAndroid,
+                          ),
+                        ),
+                        child: Text(l10n.create),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -356,7 +366,7 @@ class _BackgroundGroup extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final pageW = landscape ? _h : _w, pageH = landscape ? _w : _h;
-    const long = 96.0;
+    const long = 132.0;
     final size = landscape
         ? Size(long, long * pageH / pageW)
         : Size(long * pageW / pageH, long);

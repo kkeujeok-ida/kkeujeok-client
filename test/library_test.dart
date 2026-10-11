@@ -154,7 +154,7 @@ void main() {
       await pumpApp(t, noteData: data, device: const [Locale('ko', 'KR')]);
       await settle(t);
       expect(find.text('새 노트'), findsOneWidget);
-      expect(find.text('서재'), findsOneWidget);
+      expect(find.text('Notes'), findsOneWidget);
     });
   });
 
