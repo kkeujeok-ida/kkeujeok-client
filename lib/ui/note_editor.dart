@@ -36,6 +36,14 @@ const double _toolbarHeight =
 /// contact is up; a stylus/mouse is the one exception and takes over.
 enum _Mode { none, touchStroke, touchIdle, gesture, ignored, pen }
 
+/// True once a stylus has been seen (hover or contact) in this app run: from
+/// then on a finger never draws, it only pinches and pans. A device that has a
+/// pen is a pen device; fingers and palms must not leave ink next to it.
+bool _stylusSeen = false;
+
+@visibleForTesting
+void resetStylusSeen() => _stylusSeen = false;
+
 /// What the view does when the screen size changes.
 enum _Fit { width, page, free }
 
@@ -290,13 +298,18 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
         _firstId = e.pointer;
         _firstDown = e.timeStamp;
         final p = _vp!.toPage(e.localPosition);
-        if (_inPage(p)) {
+        if (!_stylusSeen && _inPage(p)) {
           _mode = _Mode.touchStroke;
           _begin(e, p);
         } else {
-          _mode = _Mode.touchIdle;
+          _mode = _Mode
+              .touchIdle; // pen mode or off page: a finger only moves the view
         }
-      case _Mode.touchStroke || _Mode.touchIdle:
+      case _Mode.touchIdle:
+        // Nothing is being drawn, so a second finger starts the gesture
+        // whenever it lands.
+        if (_touches.length == 2) _startGesture(_firstId, e.pointer);
+      case _Mode.touchStroke:
         if (_touches.length == 2 && e.timeStamp - _firstDown <= _secondFinger) {
           _discardStroke();
           _startGesture(_firstId, e.pointer);
@@ -306,7 +319,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     }
   }
 
+  void _hover(PointerHoverEvent e) {
+    if (e.kind == PointerDeviceKind.stylus) _stylusSeen = true;
+  }
+
   void _penDown(PointerDownEvent e) {
+    if (e.kind == PointerDeviceKind.stylus) _stylusSeen = true;
     if (_mode == _Mode.pen) return;
     // A stylus or mouse takes over: touch stroke and gesture are dropped.
     // Fingers still down stay in [_touches], so they never turn into ink.
@@ -507,6 +525,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                     child: Listener(
                       behavior: HitTestBehavior.opaque,
                       onPointerDown: _down,
+                      onPointerHover: _hover,
                       onPointerMove: _move,
                       onPointerUp: _up,
                       onPointerCancel: _cancel,

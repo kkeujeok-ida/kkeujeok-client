@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -11,6 +14,9 @@ import 'ui/providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Full screen by default: no status bar or navigation bar over the page. A
+  // swipe from an edge shows them for a moment and they hide again.
+  unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky));
   SharedPreferences? prefs;
   try {
     prefs = await SharedPreferences.getInstance();

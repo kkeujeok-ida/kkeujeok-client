@@ -49,6 +49,7 @@ void main() {
   late File file;
 
   setUp(() {
+    resetStylusSeen();
     docs = Directory.systemTemp.createTempSync('kkj-edit-');
     data = NoteData(() async => docs);
     file = File('${docs.path}/$noteDataDirName/${_id(1)}/working.kkj');
@@ -1574,16 +1575,16 @@ void main() {
 
     PenPreviewPainter preview(WidgetTester t) =>
         (t
-                    .widget<CustomPaint>(
-                      find.descendant(
-                        of: find.byType(PenEditDialog),
-                        matching: find.byWidgetPredicate(
-                          (w) => w is CustomPaint && w.painter is PenPreviewPainter,
-                        ),
-                      ),
-                    )
-                    .painter!
-                as PenPreviewPainter);
+                .widget<CustomPaint>(
+                  find.descendant(
+                    of: find.byType(PenEditDialog),
+                    matching: find.byWidgetPredicate(
+                      (w) => w is CustomPaint && w.painter is PenPreviewPainter,
+                    ),
+                  ),
+                )
+                .painter!
+            as PenPreviewPainter);
 
     testWidgets('re-tap opens popover: title, switch on, preview', (t) async {
       final h = t.ensureSemantics();
@@ -1629,10 +1630,12 @@ void main() {
       expect(els, hasLength(2));
       expect(els[0]['usePressure'], isTrue); // existing stroke unchanged
       expect(els[1]['usePressure'], isFalse);
-      expect(
-        (els[1]['points'] as List).map((p) => (p as List)[2]),
-        [0.2, 0.5, 0.9, 0.7],
-      );
+      expect((els[1]['points'] as List).map((p) => (p as List)[2]), [
+        0.2,
+        0.5,
+        0.9,
+        0.7,
+      ]);
     });
 
     testWidgets('a stored false applies to a new session', (t) async {
@@ -1688,12 +1691,7 @@ void main() {
       final id = ++pointer;
       await ptr(
         t,
-        down(
-          id,
-          onScreen(t, 100, 100),
-          0,
-          kind: PointerDeviceKind.stylus,
-        ),
+        down(id, onScreen(t, 100, 100), 0, kind: PointerDeviceKind.stylus),
       );
       await t.tap(slot);
       await t.pump();
@@ -1716,6 +1714,72 @@ void main() {
       expect(find.text('펜'), findsOneWidget);
       expect(find.bySemanticsLabel('필압 반영'), findsOneWidget);
       h.dispose();
+    });
+  });
+  group('pen mode', () {
+    testWidgets('no stylus seen yet: a finger draws', (t) async {
+      seed(_note());
+      await open(t);
+      await draw(t, line, kind: PointerDeviceKind.touch);
+      await settle(t);
+      expect(elements(), hasLength(1));
+    });
+
+    testWidgets('after a stylus stroke a finger makes no stroke', (t) async {
+      seed(_note());
+      await open(t);
+      await draw(t, line); // stylus
+      await settle(t);
+      expect(elements(), hasLength(1));
+      await draw(t, const [
+        (300, 300, 0.5),
+        (340, 320, 0.5),
+        (380, 340, 0.5),
+      ], kind: PointerDeviceKind.touch);
+      await settle(t);
+      expect(elements(), hasLength(1), reason: 'the finger left no ink');
+    });
+
+    testWidgets('a hovering stylus is enough: a finger makes no stroke', (
+      t,
+    ) async {
+      seed(_note());
+      await open(t);
+      final pos = onScreen(t, 200, 200);
+      final pen = await t.createGesture(kind: PointerDeviceKind.stylus);
+      await pen.addPointer(location: pos);
+      await pen.moveTo(pos + const Offset(10, 10)); // hover, not down
+      await t.pump();
+      await draw(t, line, kind: PointerDeviceKind.touch);
+      await settle(t);
+      expect(elements(), isEmpty);
+      await pen.removePointer();
+    });
+
+    testWidgets('in pen mode two fingers still pinch, however late', (t) async {
+      seed(_note());
+      await open(t);
+      await draw(t, line); // stylus: pen mode on
+      await settle(t);
+      final s0 = viewport(t).scale;
+      final c = t.getCenter(find.byType(NoteEditor));
+      final a = await t.startGesture(
+        c - const Offset(40, 0),
+        kind: PointerDeviceKind.touch,
+      );
+      await t.pump(const Duration(milliseconds: 600)); // well after 150 ms
+      final b = await t.startGesture(
+        c + const Offset(40, 0),
+        kind: PointerDeviceKind.touch,
+      );
+      await a.moveBy(const Offset(-60, 0));
+      await b.moveBy(const Offset(60, 0));
+      await t.pump();
+      await a.up();
+      await b.up();
+      await settle(t);
+      expect(viewport(t).scale, greaterThan(s0));
+      expect(elements(), hasLength(1), reason: 'only the stylus stroke');
     });
   });
 }

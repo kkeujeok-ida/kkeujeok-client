@@ -6,6 +6,7 @@ import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
 import '../model/note.dart';
 import '../model/note_title.dart';
+import '../render/page_background.dart';
 import 'providers.dart';
 
 /// Creates a note from the sheet. Resolves to the new note, or null when the
@@ -170,10 +171,11 @@ class _NewNoteSheetState extends ConsumerState<_NewNoteSheet> {
                   ),
                 ),
                 const SizedBox(height: KkjTokens.spacing4),
-                _Group(
+                _BackgroundGroup(
                   title: l10n.pageBackground,
                   value: _background,
                   options: backgrounds,
+                  landscape: _orientation == 'landscape',
                   enabled: !_saving,
                   onChanged: (v) => setState(() => _background = v),
                 ),
@@ -325,4 +327,148 @@ class _Group extends StatelessWidget {
       ],
     );
   }
+}
+
+/// The page backgrounds as small page previews, so the choice is seen rather
+/// than read. Each tile is one semantic node (label, selected) of at least
+/// 48dp; the preview follows the chosen orientation.
+class _BackgroundGroup extends StatelessWidget {
+  const _BackgroundGroup({
+    required this.title,
+    required this.value,
+    required this.options,
+    required this.landscape,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final String title;
+  final String value;
+  final Map<String, String> options;
+  final bool landscape;
+  final bool enabled;
+  final ValueChanged<String> onChanged;
+
+  // A4 in pt; the preview keeps the page's proportions.
+  static const _w = 595.0, _h = 842.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final pageW = landscape ? _h : _w, pageH = landscape ? _w : _h;
+    const long = 96.0;
+    final size = landscape
+        ? Size(long, long * pageH / pageW)
+        : Size(long * pageW / pageH, long);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: theme.textTheme.bodySmall),
+        const SizedBox(height: KkjTokens.spacing2),
+        Wrap(
+          spacing: KkjTokens.spacing3,
+          runSpacing: KkjTokens.spacing3,
+          children: [
+            for (final e in options.entries)
+              Semantics(
+                inMutuallyExclusiveGroup: true,
+                selected: e.key == value,
+                enabled: enabled,
+                label: e.value,
+                excludeSemantics: true,
+                onTap: enabled ? () => onChanged(e.key) : null,
+                child: InkWell(
+                  onTap: enabled ? () => onChanged(e.key) : null,
+                  borderRadius: BorderRadius.circular(
+                    KkjLight.componentsInputRounded,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(KkjTokens.spacing1),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: size.width + 4,
+                          height: size.height + 4,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: e.key == value
+                                  ? KkjLight.colorAccent
+                                  : KkjLight.componentsInputBorder,
+                              width: e.key == value ? 2 : 1,
+                            ),
+                            borderRadius: BorderRadius.circular(
+                              KkjTokens.roundedSm,
+                            ),
+                          ),
+                          child: CustomPaint(
+                            size: size,
+                            painter: _BackgroundPreviewPainter(
+                              e.key,
+                              pageW,
+                              pageH,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: KkjTokens.spacing1),
+                        Text(
+                          e.value,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: e.key == value
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Paints the `page.background` rule scaled to the preview. Hairlines are kept
+/// at least one logical pixel so they stay visible at thumbnail size.
+class _BackgroundPreviewPainter extends CustomPainter {
+  _BackgroundPreviewPainter(this.kind, this.pageW, this.pageH);
+  final String kind;
+  final double pageW, pageH;
+
+  static Color _hex(String h) =>
+      Color(0xFF000000 | int.parse(h.substring(1), radix: 16));
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final bg = pageBackground(kind, pageW, pageH);
+    final k = size.width / pageW;
+    canvas.clipRect(Offset.zero & size);
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = _hex(bg['paper'] as String),
+    );
+    final line = Paint()
+      ..color = _hex(bg['lineColor'] as String)
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+    for (final l in bg['lines'] as List) {
+      canvas.drawLine(
+        Offset((l[0] as num) * k, (l[1] as num) * k),
+        Offset((l[2] as num) * k, (l[3] as num) * k),
+        line,
+      );
+    }
+    final dot = Paint()..color = _hex(bg['dotColor'] as String);
+    for (final d in bg['dots'] as List) {
+      canvas.drawCircle(Offset((d[0] as num) * k, (d[1] as num) * k), 1, dot);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BackgroundPreviewPainter old) =>
+      old.kind != kind || old.pageW != pageW || old.pageH != pageH;
 }
