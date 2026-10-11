@@ -67,5 +67,14 @@
   "penEditTitle": "펜",
   "usePressure": "필압 반영",
   "syncLogExport": "동기화 로그 내보내기",
-  "syncLogExportFailed": "로그를 내보내지 못했어요"
+  "syncLogExportFailed": "로그를 내보내지 못했어요",
+  "drivePreparing": "Drive 준비 중",
+  "rootMissingTitle": "Drive의 Kkeujeok 폴더를 찾을 수 없어요",
+  "rootMissingBody": "폴더가 삭제되었거나 휴지통에 있어요. 새로 만들면 이 기기의 노트가 다시 올라가요. 그동안 노트는 계속 쓸 수 있어요.",
+  "rootMissingCreate": "새로 만들기",
+  "rootMissingLater": "나중에",
+  "rootMissingSignOut": "로그아웃",
+  "driveReauth": "다시 로그인해 주세요",
+  "driveReauthAction": "다시 로그인",
+  "drivePrepareFailed": "Drive를 준비하지 못했어요"
 }

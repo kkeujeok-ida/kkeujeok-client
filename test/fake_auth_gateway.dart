@@ -56,6 +56,16 @@ class FakeAuthGateway implements AuthGateway {
     return _requests.length > 1 ? _requests.removeAt(0) : _requests.first;
   }
 
+  /// What [accessToken] answers; null = no token.
+  String? token = 'test-token';
+
+  @override
+  Future<String?> accessToken() async =>
+      tokenError ? throw StateError('plugin failed') : token;
+
+  /// [accessToken] throws (a transient failure) instead of answering.
+  bool tokenError = false;
+
   @override
   Future<void> signOut() async {
     signOutCalls++;

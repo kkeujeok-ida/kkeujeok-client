@@ -93,6 +93,13 @@ class GoogleAuthGateway implements AuthGateway {
   }
 
   @override
+  Future<String?> accessToken() async {
+    await _ready(); // throws on a plugin failure: not "no grant"
+    final client = _client ?? GoogleSignIn.instance.authorizationClient;
+    return (await client.authorizationForScopes(_scopes))?.accessToken;
+  }
+
+  @override
   Future<void> signOut() async {
     _client = null;
     _account = null;

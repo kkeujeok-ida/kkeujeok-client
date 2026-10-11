@@ -202,4 +202,32 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get syncLogExportFailed => 'Couldn\'t export the log';
+
+  @override
+  String get drivePreparing => 'Preparing Drive';
+
+  @override
+  String get rootMissingTitle => 'Can\'t find the Kkeujeok folder in Drive';
+
+  @override
+  String get rootMissingBody =>
+      'The folder was deleted or is in the trash. If you create a new one, the notes on this device are uploaded again. You can keep writing in the meantime.';
+
+  @override
+  String get rootMissingCreate => 'Create new';
+
+  @override
+  String get rootMissingLater => 'Later';
+
+  @override
+  String get rootMissingSignOut => 'Log out';
+
+  @override
+  String get driveReauth => 'Please sign in again';
+
+  @override
+  String get driveReauthAction => 'Sign in again';
+
+  @override
+  String get drivePrepareFailed => 'Couldn\'t prepare Drive';
 }

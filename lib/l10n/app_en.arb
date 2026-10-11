@@ -90,5 +90,14 @@
   "penEditTitle": "Pen",
   "usePressure": "Use pressure",
   "syncLogExport": "Export sync log",
-  "syncLogExportFailed": "Couldn't export the log"
+  "syncLogExportFailed": "Couldn't export the log",
+  "drivePreparing": "Preparing Drive",
+  "rootMissingTitle": "Can't find the Kkeujeok folder in Drive",
+  "rootMissingBody": "The folder was deleted or is in the trash. If you create a new one, the notes on this device are uploaded again. You can keep writing in the meantime.",
+  "rootMissingCreate": "Create new",
+  "rootMissingLater": "Later",
+  "rootMissingSignOut": "Log out",
+  "driveReauth": "Please sign in again",
+  "driveReauthAction": "Sign in again",
+  "drivePrepareFailed": "Couldn't prepare Drive"
 }

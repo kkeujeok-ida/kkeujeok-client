@@ -38,6 +38,12 @@ abstract interface class AuthGateway {
   /// Asks for the Drive permission again for the account already chosen.
   Future<AuthOutcome> requestAccess();
 
+  /// A Drive access token for one call. Null means no grant (the caller
+  /// needs the person to sign in again); a transient plugin or network
+  /// failure throws, so it is not mistaken for a missing grant. Never
+  /// stored or logged by the caller; asked again for every call.
+  Future<String?> accessToken();
+
   /// Ends the session. Notes on the device are not touched. Throws when the
   /// plugin fails; the caller still treats the session as ended.
   Future<void> signOut();

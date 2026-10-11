@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
 import '../storage/language_store.dart';
+import 'library.dart' show libraryRouteObserver;
 import 'providers.dart';
 import 'shell.dart';
 import 'sign_in.dart';
@@ -98,6 +99,7 @@ class App extends ConsumerWidget {
       supportedLocales: AppLocalizations.supportedLocales,
       localeListResolutionCallback: (locales, _) =>
           resolveLocale(LanguageChoice.system, locales),
+      navigatorObservers: [libraryRouteObserver],
       home: const _Gate(),
     );
   }

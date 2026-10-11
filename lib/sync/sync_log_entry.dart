@@ -29,7 +29,7 @@ Map<String, Object?> checkLogEntry(Object? entry) {
   }
 
   for (final f in ['at', 'event', ...?spec?.map((f) => f.$1)]) {
-    if (entry.containsKey(f) && !_valid(f, entry[f])) {
+    if (entry.containsKey(f) && !_valid(f, entry[f], entry['event'])) {
       return {'ok': false, 'reason': 'badValue', 'field': f};
     }
   }
@@ -59,6 +59,7 @@ const _events = <String, List<(String, bool)>>{
     ('reason', false),
   ],
   'pageTokenRejected': [],
+  'duplicatesCleaned': [('count', true)],
 };
 
 final _at = RegExp(
@@ -86,7 +87,7 @@ const _classes = {
 bool _int(Object? v, int min, int max) =>
     v is num && v.isFinite && v == v.truncateToDouble() && v >= min && v <= max;
 
-bool _valid(String field, Object? v) => switch (field) {
+bool _valid(String field, Object? v, Object? event) => switch (field) {
   'at' => v is String && _at.hasMatch(v),
   'event' => v is String && _events.containsKey(v),
   'noteId' || 'rev' => v is String && _uuid.hasMatch(v),
@@ -99,6 +100,6 @@ bool _valid(String field, Object? v) => switch (field) {
   'attempt' => _int(v, 1, 7),
   'delayMs' => _int(v, 0, 32000),
   'round' => _int(v, 1, 3),
-  'count' => _int(v, 0, 1 << 53),
+  'count' => _int(v, event == 'duplicatesCleaned' ? 1 : 0, 1 << 53),
   _ => false,
 };

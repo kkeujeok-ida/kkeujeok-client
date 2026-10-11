@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kkeujeok/drive/duplicates.dart';
 import 'package:kkeujeok/model/kkj_codec.dart';
 import 'package:kkeujeok/model/note.dart';
 import 'package:kkeujeok/model/note_title.dart';
@@ -12,6 +13,7 @@ import 'package:kkeujeok/ops/history.dart';
 import 'package:kkeujeok/ops/ops.dart';
 import 'package:kkeujeok/render/page_background.dart';
 import 'package:kkeujeok/render/stroke_outline.dart';
+import 'package:kkeujeok/sync/error_class.dart';
 import 'package:kkeujeok/sync/has_unsent.dart';
 import 'package:kkeujeok/sync/sync_log_entry.dart';
 
@@ -153,6 +155,14 @@ final runners = <String, void Function(Case)>{
     hasUnsentRule((c['input'] as Map).cast<String, Object?>()),
     c['expected'],
   ),
+  'drive.duplicates': (c) => _same(
+    driveDuplicatesRule((c['input'] as Map).cast<String, Object?>()),
+    c['expected'],
+  ),
+  'sync.errorClass': (c) => _same(
+    errorClassRule((c['input'] as Map).cast<String, Object?>()),
+    c['expected'],
+  ),
   'synclog.entry': (c) =>
       _same(checkLogEntry((c['input'] as Map)['entry']), c['expected']),
   'ops.undoRedo': (c) {
@@ -191,11 +201,9 @@ void _runOp(Case c) {
 // needs a valid fixture file and must not have a runner yet: when its story
 // adds the runner, the entry has to go (a stale entry fails the run).
 const pendingRules = {
-  'drive.duplicates',
   'drive.fileName',
   'drive.listSummary',
   'sync.backoff',
-  'sync.errorClass',
   'sync.stateMachine',
   'sync.uploadKind',
   'sync.verifyPlan',

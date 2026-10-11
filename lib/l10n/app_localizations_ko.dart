@@ -199,4 +199,32 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get syncLogExportFailed => '로그를 내보내지 못했어요';
+
+  @override
+  String get drivePreparing => 'Drive 준비 중';
+
+  @override
+  String get rootMissingTitle => 'Drive의 Kkeujeok 폴더를 찾을 수 없어요';
+
+  @override
+  String get rootMissingBody =>
+      '폴더가 삭제되었거나 휴지통에 있어요. 새로 만들면 이 기기의 노트가 다시 올라가요. 그동안 노트는 계속 쓸 수 있어요.';
+
+  @override
+  String get rootMissingCreate => '새로 만들기';
+
+  @override
+  String get rootMissingLater => '나중에';
+
+  @override
+  String get rootMissingSignOut => '로그아웃';
+
+  @override
+  String get driveReauth => '다시 로그인해 주세요';
+
+  @override
+  String get driveReauthAction => '다시 로그인';
+
+  @override
+  String get drivePrepareFailed => 'Drive를 준비하지 못했어요';
 }

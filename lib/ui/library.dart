@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../design_tokens/build/tokens.dart';
+import '../drive/root_folder.dart' show RootStatus;
 import '../l10n/app_localizations.dart';
 import '../model/note.dart';
 import '../render/page_painter.dart';
@@ -27,7 +28,119 @@ class LibraryScreen extends ConsumerStatefulWidget {
   ConsumerState<LibraryScreen> createState() => _LibraryScreenState();
 }
 
-class _LibraryScreenState extends ConsumerState<LibraryScreen> {
+/// Told by the app's navigator when a route over the library is popped, so
+/// a deferred "root missing" question is asked then.
+final libraryRouteObserver = RouteObserver<ModalRoute<void>>();
+
+class _LibraryScreenState extends ConsumerState<LibraryScreen>
+    with WidgetsBindingObserver, RouteAware {
+  bool _dialogOpen = false;
+  bool _missingWaiting = false; // asked while another route was on top
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // Already known to be missing (an earlier library): ask at once.
+      if (ref.read(rootFolderProvider).status == RootStatus.missing) {
+        _askMissing();
+      } else {
+        ref.read(rootFolderProvider.notifier).check();
+      }
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route != null && !identical(route, _route)) {
+      libraryRouteObserver.unsubscribe(this);
+      _route = route;
+      libraryRouteObserver.subscribe(this, route);
+    }
+  }
+
+  ModalRoute<void>? _route;
+
+  /// A route that covered the library (settings, a sheet, a dialog, the
+  /// editor) was popped.
+  @override
+  void didPopNext() {
+    if (!_missingWaiting) return;
+    _missingWaiting = false;
+    // The navigator is locked while it notifies: ask after this frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          ref.read(rootFolderProvider).status == RootStatus.missing) {
+        _askMissing();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    libraryRouteObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState s) {
+    if (s == AppLifecycleState.resumed && mounted) {
+      ref.read(rootFolderProvider.notifier).checkForeground();
+    }
+  }
+
+  /// The missing-root dialog: one at a time, only over the library (not
+  /// over an open note), never after dispose.
+  Future<void> _askMissing() async {
+    if (!mounted || _dialogOpen) return;
+    if (ModalRoute.of(context)?.isCurrent != true) {
+      _missingWaiting = true;
+      return;
+    }
+    _dialogOpen = true;
+    try {
+      final l10n = AppLocalizations.of(context);
+      final choice = await showDialog<_MissingChoice>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(l10n.rootMissingTitle),
+          content: Text(l10n.rootMissingBody),
+          actions: [
+            FilledButton(
+              autofocus: true,
+              onPressed: () => Navigator.of(ctx).pop(_MissingChoice.create),
+              child: Text(l10n.rootMissingCreate),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(_MissingChoice.later),
+              child: Text(l10n.rootMissingLater),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(_MissingChoice.signOut),
+              child: Text(l10n.rootMissingSignOut),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      switch (choice) {
+        case _MissingChoice.create:
+          ref.read(rootFolderProvider.notifier).recreate();
+        case _MissingChoice.signOut:
+          ref.read(authProvider.notifier).signOut();
+        case _MissingChoice.later || null:
+          break; // asked again at the next foreground
+      }
+    } finally {
+      _dialogOpen = false;
+    }
+  }
+
   // One sheet or editor route at a time: a second tap while one is opening
   // or open would stack another (and could create a duplicate note).
   bool _busy = false;
@@ -42,9 +155,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     }
   }
 
-  Future<void> _push(Note note) => Navigator.of(
-    context,
-  ).push(MaterialPageRoute<void>(builder: (_) => NoteEditor(note: note)));
+  Future<void> _push(Note note) => Navigator.of(context)
+      .push(MaterialPageRoute<void>(builder: (_) => NoteEditor(note: note)));
 
   Future<void> _newNote() => _guarded(() async {
     // A created note is already in the list; no reload needed.
@@ -64,11 +176,34 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final async = ref.watch(libraryProvider);
+    final root = ref.watch(rootFolderProvider);
+    ref.listen(rootFolderProvider, (_, next) {
+      if (next.status == RootStatus.missing) _askMissing();
+    });
     final failed = async.hasError && !async.hasValue;
     final entries = async.value ?? const <LibraryEntry>[];
     final cards = <Widget>[
+      if (root.status == RootStatus.failed)
+        switch (root.errorClass) {
+          'backoff' => _ErrorCard(
+            message: l10n.networkError,
+            onRetry: () => ref.read(rootFolderProvider.notifier).check(),
+          ),
+          'reauth' => _ErrorCard(
+            message: l10n.driveReauth,
+            actionLabel: l10n.driveReauthAction,
+            onRetry: () => ref.read(rootFolderProvider.notifier).signInAgain(),
+          ),
+          _ => _ErrorCard(
+            message: l10n.drivePrepareFailed,
+            onRetry: () => ref.read(rootFolderProvider.notifier).check(),
+          ),
+        },
       if (failed)
-        _ErrorCard(onRetry: () => ref.read(libraryProvider.notifier).reload())
+        _ErrorCard(
+          message: l10n.loadFailed,
+          onRetry: () => ref.read(libraryProvider.notifier).reload(),
+        )
       else if (async.hasValue && entries.isEmpty)
         _NewNoteCard(onTap: _newNote),
       for (final e in entries)
@@ -98,6 +233,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   ),
                 ),
               ),
+              if (root.status == RootStatus.preparing) const _Preparing(),
               Expanded(child: _Grid(children: cards)),
             ],
           ),
@@ -344,8 +480,14 @@ class _NewNoteCard extends StatelessWidget {
 /// Shown instead of the empty-library card when the folder could not be
 /// listed.
 class _ErrorCard extends StatelessWidget {
-  const _ErrorCard({required this.onRetry});
+  const _ErrorCard({
+    required this.message,
+    required this.onRetry,
+    this.actionLabel,
+  });
 
+  final String message;
+  final String? actionLabel;
   final VoidCallback onRetry;
 
   @override
@@ -357,10 +499,47 @@ class _ErrorCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(l10n.loadFailed, style: Theme.of(context).textTheme.bodyMedium),
+          Text(message, style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: KkjTokens.spacing3),
-          FilledButton(onPressed: onRetry, child: Text(l10n.retry)),
+          FilledButton(
+            onPressed: onRetry,
+            child: Text(actionLabel ?? l10n.retry),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+enum _MissingChoice { create, later, signOut }
+
+/// "Drive 준비 중" under the header while the root folder is being prepared.
+class _Preparing extends StatelessWidget {
+  const _Preparing();
+
+  @override
+  Widget build(BuildContext context) {
+    final label = AppLocalizations.of(context).drivePreparing;
+    return Semantics(
+      liveRegion: true,
+      container: true,
+      label: label,
+      excludeSemantics: true,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: KkjTokens.spacing5,
+          vertical: KkjTokens.spacing2,
+        ),
+        child: Row(
+          children: [
+            const SizedBox.square(
+              dimension: KkjTokens.spacing4,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: KkjTokens.spacing3),
+            Text(label, style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
       ),
     );
   }

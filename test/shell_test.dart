@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/drive/auth_gateway.dart';
 import 'package:kkeujeok/storage/language_store.dart';
@@ -36,6 +37,8 @@ Future<LanguageStore> pumpApp(
   NoteData? noteData,
   NoteStore? noteStore,
   double textScale = 1,
+  List<Override> overrides = const [],
+  bool settle = true, // false: a spinner animates and never settles
 }) async {
   tester.view.physicalSize = Size(width, 700);
   tester.view.devicePixelRatio = 1;
@@ -68,11 +71,12 @@ Future<LanguageStore> pumpApp(
         penSlotsStoreProvider.overrideWithValue(PenSlotsStore(sp)),
         privacyUrlProvider.overrideWithValue(privacyUrl),
         if (openUrl != null) urlOpenerProvider.overrideWithValue(openUrl),
+        ...overrides,
       ],
       child: const App(),
     ),
   );
-  await tester.pumpAndSettle();
+  settle ? await tester.pumpAndSettle() : await tester.pump();
   return store;
 }
 

@@ -463,6 +463,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Couldn\'t export the log'**
   String get syncLogExportFailed;
+
+  /// No description provided for @drivePreparing.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing Drive'**
+  String get drivePreparing;
+
+  /// No description provided for @rootMissingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t find the Kkeujeok folder in Drive'**
+  String get rootMissingTitle;
+
+  /// No description provided for @rootMissingBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The folder was deleted or is in the trash. If you create a new one, the notes on this device are uploaded again. You can keep writing in the meantime.'**
+  String get rootMissingBody;
+
+  /// No description provided for @rootMissingCreate.
+  ///
+  /// In en, this message translates to:
+  /// **'Create new'**
+  String get rootMissingCreate;
+
+  /// No description provided for @rootMissingLater.
+  ///
+  /// In en, this message translates to:
+  /// **'Later'**
+  String get rootMissingLater;
+
+  /// No description provided for @rootMissingSignOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Log out'**
+  String get rootMissingSignOut;
+
+  /// No description provided for @driveReauth.
+  ///
+  /// In en, this message translates to:
+  /// **'Please sign in again'**
+  String get driveReauth;
+
+  /// No description provided for @driveReauthAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in again'**
+  String get driveReauthAction;
+
+  /// No description provided for @drivePrepareFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t prepare Drive'**
+  String get drivePrepareFailed;
 }
 
 class _AppLocalizationsDelegate

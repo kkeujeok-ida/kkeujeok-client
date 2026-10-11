@@ -259,6 +259,43 @@ class NoteStore {
     }
   }
 
+  /// Forgets the Drive file of one note: `sync.json` becomes pending with no
+  /// fileId, base, pendingVerify, resumableSession, createIntent or
+  /// lastError; conflicts, unsent sidecars and unknown keys stay. Only
+  /// `sync.json` is written (under the note's lock), so a newer edit of the
+  /// working copy is never touched, and the note need not be readable.
+  /// Throws [NoteSaveException]; a note without a folder is skipped.
+  Future<void> resetSync(String noteId) async {
+    final dir = (await _working(noteId)).parent;
+    await _locked(noteId, () async {
+      final tmp = File('${_in(dir, syncFileName)}.tmp');
+      try {
+        if (!await dir.exists()) return;
+        SyncInfo? old;
+        try {
+          old = SyncInfo.fromJson(
+            jsonDecode(await File(_in(dir, syncFileName)).readAsString()),
+          );
+        } catch (_) {}
+        final next = SyncInfo(
+          conflicts: old?.conflicts ?? const [],
+          unsentSidecars: old?.unsentSidecars ?? const [],
+          extra: old?.extra ?? const {},
+        );
+        await _writeFile(tmp, utf8.encode(jsonEncode(next.toJson())));
+        await tmp.rename(_in(dir, syncFileName));
+        try {
+          await _dropOrphanBases(dir, null);
+        } catch (_) {}
+      } catch (e) {
+        try {
+          if (await tmp.exists()) await tmp.delete();
+        } catch (_) {}
+        throw NoteSaveException('could not reset sync state', e);
+      }
+    });
+  }
+
   /// Never throws. A missing or broken `sync.json` is "none": state
   /// `pending`, no base, and no base file is removed. Otherwise only the
   /// base it names is read and the others are removed. Leftover temp files

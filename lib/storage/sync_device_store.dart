@@ -78,6 +78,24 @@ class SyncDevice {
     'createIntents': createIntents,
   };
 
+  /// The cached root id and the pending create intents replaced. The
+  /// `.conflicts` cache goes with a root that changed.
+  SyncDevice withRoot(
+    String? id,
+    List<Map<String, Object?>> intents, {
+    bool forgetConflicts = false,
+  }) => SyncDevice(
+    sub: sub,
+    email: email,
+    rootFolderId: id,
+    conflictsFolderId: !forgetConflicts && id == rootFolderId
+        ? conflictsFolderId
+        : null,
+    pageToken: pageToken,
+    createIntents: intents,
+    extra: extra,
+  );
+
   SyncDevice withAccount(String sub, String email) => SyncDevice(
     sub: sub,
     email: email,
