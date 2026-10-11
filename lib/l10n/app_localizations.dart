@@ -439,6 +439,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Fit page'**
   String get fitPage;
+
+  /// No description provided for @penEditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pen'**
+  String get penEditTitle;
+
+  /// No description provided for @usePressure.
+  ///
+  /// In en, this message translates to:
+  /// **'Use pressure'**
+  String get usePressure;
 }
 
 class _AppLocalizationsDelegate

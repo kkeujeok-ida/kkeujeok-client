@@ -190,4 +190,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get fitPage => 'Fit page';
+
+  @override
+  String get penEditTitle => 'Pen';
+
+  @override
+  String get usePressure => 'Use pressure';
 }

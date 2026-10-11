@@ -5,12 +5,14 @@ import '../drive/auth_gateway.dart';
 import '../drive/google_auth_gateway.dart';
 import '../model/ids.dart';
 import '../model/note.dart';
+import '../model/pen.dart';
 import '../ops/history.dart';
 import '../ops/ops.dart';
 import '../storage/language_store.dart';
 import '../storage/new_note_defaults_store.dart';
 import '../storage/note_data.dart';
 import '../storage/note_store.dart';
+import '../storage/pen_slots_store.dart';
 import '../storage/session_hint.dart';
 
 /// Overridden in main() with the opened preferences.
@@ -66,6 +68,30 @@ final noteHistoriesProvider = Provider<Map<String, History>>((ref) => {});
 /// Overridden in main() with the opened preferences.
 final newNoteDefaultsStoreProvider = Provider<NewNoteDefaultsStore>(
   (ref) => NewNoteDefaultsStore(null),
+);
+
+/// Overridden in main() with the opened preferences.
+final penSlotsStoreProvider = Provider<PenSlotsStore>(
+  (ref) => PenSlotsStore(null),
+);
+
+/// The pen slots the toolbar and the editor share.
+class PenSlotsNotifier extends Notifier<List<Pen>> {
+  @override
+  List<Pen> build() => ref.read(penSlotsStoreProvider).read();
+
+  /// Applies at once; the next stroke uses it. A failed save keeps the value
+  /// for this session.
+  Future<void> setUsePressure(int index, bool value) async {
+    if (index < 0 || index >= state.length) return;
+    final next = [...state]..[index] = state[index].withUsePressure(value);
+    state = next;
+    await ref.read(penSlotsStoreProvider).write(next);
+  }
+}
+
+final penSlotsProvider = NotifierProvider<PenSlotsNotifier, List<Pen>>(
+  PenSlotsNotifier.new,
 );
 
 /// One row of the library: a readable note, or one that cannot be opened

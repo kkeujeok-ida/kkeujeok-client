@@ -187,4 +187,10 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get fitPage => '페이지 맞춤';
+
+  @override
+  String get penEditTitle => '펜';
+
+  @override
+  String get usePressure => '필압 반영';
 }

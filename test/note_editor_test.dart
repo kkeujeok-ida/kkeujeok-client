@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' show Tristate;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/intl.dart';
 import 'package:kkeujeok/design_tokens/build/tokens.dart';
@@ -16,6 +18,7 @@ import 'package:kkeujeok/storage/note_data.dart';
 import 'package:kkeujeok/storage/note_store.dart';
 import 'package:kkeujeok/ui/note_editor.dart';
 import 'package:kkeujeok/ui/pen_toolbar.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'shell_test.dart' show pumpApp;
 
@@ -1548,6 +1551,171 @@ void main() {
       expect(p.getBounds(), want.getBounds());
       c.keepOnly({});
       expect(identical(c.pathOf(s), p), isFalse);
+    });
+  });
+
+  group('pen pressure toggle', () {
+    final slot = find.descendant(
+      of: find.byType(PenToolbar),
+      matching: find.byType(InkResponse),
+    );
+    final off = jsonEncode([
+      {'color': '#000000', 'width': 2.0, 'usePressure': false},
+    ]);
+
+    Future<void> openPopover(WidgetTester t) async {
+      await t.tap(slot);
+      await settle(t);
+      expect(find.byType(PenEditDialog), findsOneWidget);
+    }
+
+    Future<String?> stored() async =>
+        (await SharedPreferences.getInstance()).getString('penSlots');
+
+    PenPreviewPainter preview(WidgetTester t) =>
+        (t
+                    .widget<CustomPaint>(
+                      find.descendant(
+                        of: find.byType(PenEditDialog),
+                        matching: find.byWidgetPredicate(
+                          (w) => w is CustomPaint && w.painter is PenPreviewPainter,
+                        ),
+                      ),
+                    )
+                    .painter!
+                as PenPreviewPainter);
+
+    testWidgets('re-tap opens popover: title, switch on, preview', (t) async {
+      final h = t.ensureSemantics();
+      seed(_note());
+      await open(t);
+      await openPopover(t);
+      expect(find.text('Pen'), findsOneWidget);
+      expect(find.text('Use pressure'), findsOneWidget);
+      expect(t.widget<Switch>(find.byType(Switch)).value, isTrue);
+      expect(preview(t).pen.usePressure, isTrue);
+      final sw = t.getSemantics(find.bySemanticsLabel('Use pressure'));
+      expect(sw.getSemanticsData().flagsCollection.isToggled, Tristate.isTrue);
+      expect(
+        t.getSize(find.bySemanticsLabel('Use pressure')).height,
+        greaterThanOrEqualTo(48),
+      );
+      h.dispose();
+    });
+
+    testWidgets('off: saved at once, flat preview, next stroke false', (
+      t,
+    ) async {
+      seed(_note());
+      await open(t);
+      await draw(t, line); // one stroke made with pressure on
+      await settle(t);
+      await openPopover(t);
+      final pressureOnPoly = preview(t).polygon;
+      await t.tap(find.text('Use pressure'));
+      await t.pump();
+      expect(jsonDecode((await stored())!)[0]['usePressure'], isFalse);
+      expect(t.widget<Switch>(find.byType(Switch)).value, isFalse);
+      final flat = preview(t);
+      expect(flat.pen.usePressure, isFalse);
+      expect(flat.polygon, isNot(pressureOnPoly));
+      // Closing keeps the change.
+      await t.sendKeyEvent(LogicalKeyboardKey.escape);
+      await settle(t);
+      expect(find.byType(PenEditDialog), findsNothing);
+      await draw(t, line);
+      await settle(t);
+      final els = elements().cast<Map<String, dynamic>>();
+      expect(els, hasLength(2));
+      expect(els[0]['usePressure'], isTrue); // existing stroke unchanged
+      expect(els[1]['usePressure'], isFalse);
+      expect(
+        (els[1]['points'] as List).map((p) => (p as List)[2]),
+        [0.2, 0.5, 0.9, 0.7],
+      );
+    });
+
+    testWidgets('a stored false applies to a new session', (t) async {
+      seed(_note());
+      await pumpApp(t, noteData: data, prefs: {'penSlots': off});
+      await settle(t);
+      await t.tap(find.text('Lecture'));
+      await settle(t);
+      await draw(t, line);
+      await settle(t);
+      expect((elements().single as Map)['usePressure'], isFalse);
+      await openPopover(t);
+      expect(t.widget<Switch>(find.byType(Switch)).value, isFalse);
+    });
+
+    testWidgets('a corrupt stored value falls back to the default pen', (
+      t,
+    ) async {
+      seed(_note());
+      await pumpApp(t, noteData: data, prefs: {'penSlots': '{"x":1}'});
+      await settle(t);
+      await t.tap(find.text('Lecture'));
+      await settle(t);
+      await draw(t, line);
+      await settle(t);
+      expect((elements().single as Map)['usePressure'], isTrue);
+    });
+
+    testWidgets('barrier tap closes, change kept, focus on the slot', (
+      t,
+    ) async {
+      seed(_note());
+      await open(t);
+      await openPopover(t);
+      await t.tap(find.text('Use pressure'));
+      await t.pump();
+      await t.tapAt(const Offset(5, 400));
+      await settle(t);
+      expect(find.byType(PenEditDialog), findsNothing);
+      expect(jsonDecode((await stored())!)[0]['usePressure'], isFalse);
+      final ink = t.widget<InkResponse>(
+        find.descendant(
+          of: find.byType(PenToolbar),
+          matching: find.byType(InkResponse),
+        ),
+      );
+      expect(ink.focusNode!.hasPrimaryFocus, isTrue);
+    });
+
+    testWidgets('no popover while a stylus is down', (t) async {
+      seed(_note());
+      await open(t);
+      final id = ++pointer;
+      await ptr(
+        t,
+        down(
+          id,
+          onScreen(t, 100, 100),
+          0,
+          kind: PointerDeviceKind.stylus,
+        ),
+      );
+      await t.tap(slot);
+      await t.pump();
+      expect(find.byType(PenEditDialog), findsNothing);
+      await ptr(
+        t,
+        up(id, onScreen(t, 100, 100), 10, kind: PointerDeviceKind.stylus),
+      );
+      await t.tap(slot);
+      await settle(t);
+      expect(find.byType(PenEditDialog), findsOneWidget);
+    });
+
+    testWidgets('Korean strings', (t) async {
+      final h = t.ensureSemantics();
+      seed(_note());
+      await open(t, device: const [Locale('ko', 'KR')]);
+      await t.tap(slot);
+      await settle(t);
+      expect(find.text('펜'), findsOneWidget);
+      expect(find.bySemanticsLabel('필압 반영'), findsOneWidget);
+      h.dispose();
     });
   });
 }

@@ -78,7 +78,19 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   )..addListener(_animate);
   PageViewport? _from, _to;
 
-  Pen get _pen => defaultPenSlots.first;
+  final _slotFocus = FocusNode();
+
+  Pen get _pen => ref.read(penSlotsProvider).first;
+
+  /// Opens the pen popover; not while a stroke or a gesture is going on.
+  Future<void> _editPen() async {
+    if (_leaving || _pointer != null || _mode != _Mode.none) return;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => const PenEditDialog(),
+    );
+    if (mounted) _slotFocus.requestFocus();
+  }
 
   /// The session's history for this note, unless the saved note differs
   /// from it in any way (a failed save, another edit): then start fresh
@@ -144,6 +156,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   void dispose() {
     _anim.dispose();
     _tick.dispose();
+    _slotFocus.dispose();
     super.dispose();
   }
 
@@ -543,7 +556,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                           ),
                         ),
                         PenToolbar(
-                          pen: _pen,
+                          pen: ref.watch(penSlotsProvider).first,
+                          onPenTap: _editPen,
+                          slotFocus: _slotFocus,
                           canUndo: _history.undoDepth > 0,
                           canRedo: _history.redoDepth > 0,
                           onUndo: _undo,

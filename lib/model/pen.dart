@@ -11,6 +11,19 @@ class Pen {
   final double width; // pt
   final bool usePressure;
   final String colorNameKey; // maps to a ko/en color name in the UI
+
+  Pen withUsePressure(bool v) => Pen(
+    color: color,
+    width: width,
+    usePressure: v,
+    colorNameKey: colorNameKey,
+  );
+
+  Map<String, Object> toJson() => {
+    'color': color,
+    'width': width,
+    'usePressure': usePressure,
+  };
 }
 
 const defaultPen = Pen(
@@ -20,5 +33,5 @@ const defaultPen = Pen(
   colorNameKey: 'black',
 );
 
-/// The slot list (one slot now; Story 2.14 and Epic 5 extend it).
+/// The slot list (one slot now; Epic 5 extends it).
 const defaultPenSlots = <Pen>[defaultPen];

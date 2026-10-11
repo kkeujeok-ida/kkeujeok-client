@@ -63,5 +63,7 @@
     }
   },
   "fitWidth": "너비 맞춤",
-  "fitPage": "페이지 맞춤"
+  "fitPage": "페이지 맞춤",
+  "penEditTitle": "펜",
+  "usePressure": "필압 반영"
 }

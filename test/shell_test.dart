@@ -11,6 +11,7 @@ import 'package:kkeujeok/storage/language_store.dart';
 import 'package:kkeujeok/storage/new_note_defaults_store.dart';
 import 'package:kkeujeok/storage/note_data.dart';
 import 'package:kkeujeok/storage/note_store.dart';
+import 'package:kkeujeok/storage/pen_slots_store.dart';
 import 'package:kkeujeok/ui/app.dart';
 import 'package:kkeujeok/ui/providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -64,6 +65,7 @@ Future<LanguageStore> pumpApp(
         newNoteDefaultsStoreProvider.overrideWithValue(
           NewNoteDefaultsStore(sp),
         ),
+        penSlotsStoreProvider.overrideWithValue(PenSlotsStore(sp)),
         privacyUrlProvider.overrideWithValue(privacyUrl),
         if (openUrl != null) urlOpenerProvider.overrideWithValue(openUrl),
       ],

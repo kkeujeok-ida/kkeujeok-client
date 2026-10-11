@@ -1,13 +1,19 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
 import '../model/pen.dart';
 import '../render/page_painter.dart' show parseColor;
+import '../render/stroke_outline.dart';
 import 'library_fab.dart' show kkjShadow;
+import 'providers.dart';
 
 /// The floating rounded bar: grip (inert, not in the a11y tree) | one pen
-/// slot. The slot is selected and does nothing yet (popover is Story 2.14).
+/// slot. Tapping the selected slot opens the pen edit popover.
 class PenToolbar extends StatelessWidget {
   const PenToolbar({
     super.key,
@@ -16,6 +22,8 @@ class PenToolbar extends StatelessWidget {
     this.canRedo = false,
     this.onUndo,
     this.onRedo,
+    this.onPenTap,
+    this.slotFocus,
   });
 
   final Pen pen;
@@ -23,6 +31,8 @@ class PenToolbar extends StatelessWidget {
   final bool canRedo;
   final VoidCallback? onUndo;
   final VoidCallback? onRedo;
+  final VoidCallback? onPenTap;
+  final FocusNode? slotFocus;
 
   @override
   Widget build(BuildContext context) {
@@ -50,8 +60,18 @@ class PenToolbar extends StatelessWidget {
               label: l10n.penSlotLabel(color, pen.width.toStringAsFixed(1)),
               button: true,
               selected: true,
+              onTap: onPenTap,
               excludeSemantics: true,
-              child: _PenSlot(pen: pen),
+              child: InkResponse(
+                focusNode: slotFocus,
+                onTap: onPenTap,
+                containedInkWell: true,
+                highlightShape: BoxShape.rectangle,
+                borderRadius: BorderRadius.circular(
+                  KkjLight.componentsToolbarRounded,
+                ),
+                child: _PenSlot(pen: pen),
+              ),
             ),
             const Padding(
               padding: EdgeInsets.symmetric(
@@ -217,4 +237,143 @@ class _NibPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_NibPainter old) => old.color != color;
+}
+
+/// The pen edit popover: tool name, "use pressure" switch, preview stroke.
+/// Reads and writes slot [index] through [penSlotsProvider]; the canvas below
+/// gets no input while it is open.
+class PenEditDialog extends ConsumerWidget {
+  const PenEditDialog({super.key, this.index = 0});
+
+  final int index;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final pen = ref.watch(penSlotsProvider)[index];
+    final on = pen.usePressure;
+    void toggle(bool v) =>
+        ref.read(penSlotsProvider.notifier).setUsePressure(index, v);
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () =>
+            Navigator.of(context).maybePop(),
+      },
+      child: Dialog(
+        backgroundColor: KkjLight.componentsPopoverBackground,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(KkjLight.componentsPopoverRounded),
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: Padding(
+            padding: const EdgeInsets.all(KkjLight.componentsPopoverPadding),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Semantics(
+                  header: true,
+                  child: Text(
+                    l10n.penEditTitle,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                const SizedBox(height: KkjTokens.spacing3),
+                Semantics(
+                  container: true,
+                  label: l10n.usePressure,
+                  toggled: on,
+                  onTap: () => toggle(!on),
+                  excludeSemantics: true,
+                  child: InkWell(
+                    onTap: () => toggle(!on),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minHeight: KkjTokens.spacingHitMinAndroid,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(child: Text(l10n.usePressure)),
+                          IgnorePointer(
+                            child: Switch(value: on, onChanged: toggle),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: KkjTokens.spacing3),
+                ExcludeSemantics(
+                  child: SizedBox(
+                    height: 64,
+                    child: CustomPaint(
+                      painter: PenPreviewPainter(pen),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+const _previewW = 280.0, _previewH = 64.0, _previewScale = 3.0;
+const _previewAmp = 12.0, _previewMargin = 24.0; // margin: room for the caps
+
+/// A wave stroke whose pressure rises and falls, drawn through
+/// [strokeOutline] with the pen's `usePressure`; flat when it is off. Built in
+/// a fixed box and scaled to the paint size, clipped to it.
+class PenPreviewPainter extends CustomPainter {
+  PenPreviewPainter(this.pen) : polygon = _polygon(pen);
+
+  final Pen pen;
+  final List<List<double>> polygon;
+
+  static List<List<double>> _polygon(Pen pen) {
+    const n = 40;
+    final pts = [
+      for (var i = 0; i <= n; i++)
+        [
+          _previewMargin + (_previewW - 2 * _previewMargin) * i / n,
+          _previewH / 2 + _previewAmp * math.sin(2 * math.pi * i / n),
+          0.1 + 0.8 * math.sin(math.pi * i / n),
+          i * 10,
+        ],
+    ];
+    // A radius is at most 1.75x half the width: keep it inside the box.
+    final w = math.min(
+      pen.width * _previewScale,
+      math.min(
+        (_previewH / 2 - 2 - _previewAmp) / 0.875,
+        (_previewMargin - 2) / 0.875,
+      ),
+    );
+    return strokeOutline(w, pen.usePressure, pts);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = math.min(size.width / _previewW, size.height / _previewH);
+    canvas
+      ..clipRect(Offset.zero & size)
+      ..translate(
+        (size.width - _previewW * s) / 2,
+        (size.height - _previewH * s) / 2,
+      )
+      ..scale(s);
+    canvas.drawPath(
+      outlinePath(polygon),
+      Paint()..color = parseColor(pen.color),
+    );
+  }
+
+  @override
+  bool shouldRepaint(PenPreviewPainter old) =>
+      old.pen.usePressure != pen.usePressure ||
+      old.pen.color != pen.color ||
+      old.pen.width != pen.width;
 }
