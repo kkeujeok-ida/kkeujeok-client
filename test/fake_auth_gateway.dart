@@ -12,6 +12,7 @@ class FakeAuthGateway implements AuthGateway {
     this.signOutHangs = false,
     List<bool> disconnects = const [true],
     this.disconnectHangs = false,
+    this.signInAccount,
   }) : _signIns = [...signIns],
        _requests = [...requests],
        _disconnects = [...disconnects];
@@ -25,6 +26,12 @@ class FakeAuthGateway implements AuthGateway {
   final bool signOutFails;
   final bool signOutHangs;
   final bool disconnectHangs;
+
+  /// What [account] becomes when a sign-in is granted.
+  final AuthAccount? signInAccount;
+
+  @override
+  AuthAccount? account;
   int requestCalls = 0;
   int signOutCalls = 0;
   int disconnectCalls = 0;
@@ -38,7 +45,9 @@ class FakeAuthGateway implements AuthGateway {
   @override
   Future<AuthOutcome> signIn() async {
     signInCalls++;
-    return _signIns.length > 1 ? _signIns.removeAt(0) : _signIns.first;
+    final o = _signIns.length > 1 ? _signIns.removeAt(0) : _signIns.first;
+    if (o == AuthOutcome.granted) account = signInAccount;
+    return o;
   }
 
   @override
@@ -50,6 +59,7 @@ class FakeAuthGateway implements AuthGateway {
   @override
   Future<void> signOut() async {
     signOutCalls++;
+    account = null;
     if (signOutHangs) return Completer<void>().future;
     if (signOutFails) throw StateError('signOut failed');
   }
@@ -57,6 +67,7 @@ class FakeAuthGateway implements AuthGateway {
   @override
   Future<void> disconnect() async {
     disconnectCalls++;
+    account = null;
     if (disconnectHangs) return Completer<void>().future;
     final ok = _disconnects.length > 1
         ? _disconnects.removeAt(0)

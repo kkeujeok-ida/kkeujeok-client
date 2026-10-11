@@ -43,6 +43,38 @@ void main() {
     });
   });
 
+  group('account', () {
+    test('is remembered with the flag and forgotten with it', () async {
+      final h = await hint();
+      expect(h.account, isNull);
+      await h.set(true);
+      await h.setAccount('sub-1', 'a@example.com');
+      expect(h.account, (sub: 'sub-1', email: 'a@example.com'));
+      await h.set(false);
+      expect(h.account, isNull);
+    });
+
+    test('restore brings the account back, not a token', () async {
+      final h = await hint({
+        'signedIn': true,
+        'accountSub': 'sub-1',
+        'accountEmail': 'a@example.com',
+      });
+      final g = GoogleAuthGateway(hint: h);
+      expect(g.account, isNull);
+      expect(await g.restore(), isTrue);
+      expect(g.account!.sub, 'sub-1');
+      expect(g.account!.email, 'a@example.com');
+    });
+
+    test('a signed-out hint restores no account', () async {
+      final h = await hint({'accountSub': 's', 'accountEmail': 'e'});
+      final g = GoogleAuthGateway(hint: h);
+      expect(await g.restore(), isFalse);
+      expect(g.account, isNull);
+    });
+  });
+
   group('launch asks Google nothing', () {
     test('restore follows the hint and never touches the plugin', () async {
       // The plugin is not available in tests: any call to it would throw.

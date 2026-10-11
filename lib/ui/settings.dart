@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -30,6 +32,70 @@ class _Row extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// [Export sync log]: writes the log to a file and opens the share sheet.
+/// A tap while one export runs is ignored.
+class _ExportLogRow extends ConsumerStatefulWidget {
+  const _ExportLogRow();
+
+  @override
+  ConsumerState<_ExportLogRow> createState() => _ExportLogRowState();
+}
+
+class _ExportLogRowState extends ConsumerState<_ExportLogRow> {
+  bool _busy = false;
+
+  Future<void> _export() async {
+    if (_busy) return;
+    // Everything the export needs is read before the first await.
+    final log = ref.read(syncLogProvider);
+    final version = ref.read(appVersionProvider);
+    final exportDir = ref.read(exportDirProvider);
+    final share = ref.read(logSharerProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    final failed = AppLocalizations.of(context).syncLogExportFailed;
+    setState(() => _busy = true);
+    File? file;
+    try {
+      file = await log.exportJsonl(
+        appVersion: await version(),
+        now: DateTime.now(),
+        into: await exportDir(),
+      );
+      await share(file);
+    } catch (_) {
+      if (mounted) messenger.showSnackBar(SnackBar(content: Text(failed)));
+    } finally {
+      try {
+        await file?.delete(); // the log's own file stays; this is a copy
+      } catch (_) {}
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final label = AppLocalizations.of(context).syncLogExport;
+    final onTap = _busy ? null : _export;
+    return Semantics(
+      button: true,
+      enabled: !_busy,
+      label: label,
+      excludeSemantics: true,
+      onTap: onTap,
+      child: _Row(
+        onTap: onTap,
+        child: Text(
+          label,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: _busy ? theme.disabledColor : null,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class SettingsScreen extends ConsumerWidget {
@@ -162,6 +228,7 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
           ),
+          const _ExportLogRow(),
           if (signedIn) ...[
             Divider(color: theme.colorScheme.outlineVariant),
             action(l10n.logOut, logOut),

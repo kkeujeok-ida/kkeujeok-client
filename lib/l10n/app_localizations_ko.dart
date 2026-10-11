@@ -193,4 +193,10 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get usePressure => '필압 반영';
+
+  @override
+  String get syncLogExport => '동기화 로그 내보내기';
+
+  @override
+  String get syncLogExportFailed => '로그를 내보내지 못했어요';
 }

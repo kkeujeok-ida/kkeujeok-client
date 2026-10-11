@@ -196,4 +196,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get usePressure => 'Use pressure';
+
+  @override
+  String get syncLogExport => 'Export sync log';
+
+  @override
+  String get syncLogExportFailed => 'Couldn\'t export the log';
 }

@@ -88,5 +88,7 @@
   "fitWidth": "Fit width",
   "fitPage": "Fit page",
   "penEditTitle": "Pen",
-  "usePressure": "Use pressure"
+  "usePressure": "Use pressure",
+  "syncLogExport": "Export sync log",
+  "syncLogExportFailed": "Couldn't export the log"
 }

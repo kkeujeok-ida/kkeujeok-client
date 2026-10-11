@@ -1,8 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 
 import '../model/kkj_codec.dart';
 import '../model/note.dart';
+import '../sync/has_unsent.dart';
 import 'note_data.dart';
+import 'sync_info.dart';
 
 /// A save did not happen. The previous file and the in-memory note are intact.
 class NoteSaveException implements Exception {
@@ -19,6 +22,17 @@ final _uuid = RegExp(
 );
 
 const workingFileName = 'working.kkj';
+const syncFileName = 'sync.json';
+final _baseName = RegExp(r'^base\.(.+)\.kkj$');
+final _pathSep = RegExp(r'[/\\]');
+
+/// What [NoteStore.readSync] knows about one note's sync files.
+typedef SyncRead = ({
+  SyncInfo info,
+  Note? base,
+  bool hasUnsent,
+  SyncState state,
+});
 
 Future<void> _defaultWrite(File f, List<int> bytes) async {
   final out = await f.open(mode: FileMode.write);
@@ -31,13 +45,31 @@ Future<void> _defaultWrite(File f, List<int> bytes) async {
 }
 
 /// Working copies at `notes/<noteId>/working.kkj`, written via a temp file
-/// and rename so an interrupted save leaves the previous version.
+/// and rename so an interrupted save leaves the previous version. With
+/// [commitSync] the folder also holds the base copy and `sync.json`.
 class NoteStore {
-  NoteStore(this._data, {Future<void> Function(File, List<int>)? writeFile})
-    : _writeFile = writeFile ?? _defaultWrite;
+  NoteStore(
+    this._data, {
+    Future<void> Function(File, List<int>)? writeFile,
+    this.onWrite,
+    this.onStep,
+  }) : _writeFile = writeFile ?? _defaultWrite;
 
   final NoteData _data;
   final Future<void> Function(File, List<int>) _writeFile;
+
+  /// Called after every successful save; its failure is swallowed.
+  final Future<void> Function()? onWrite;
+
+  /// Test hook: called right after each file of [commitSync] is renamed
+  /// (`working`, `base`, `sync`). Throwing from it simulates a crash there.
+  final Future<void> Function(String step)? onStep;
+
+  Future<void> _notify() async {
+    try {
+      await onWrite?.call();
+    } catch (_) {}
+  }
 
   Future<File> _working(String noteId) async {
     if (!_uuid.hasMatch(noteId)) {
@@ -49,6 +81,9 @@ class NoteStore {
       '${Platform.pathSeparator}$workingFileName',
     );
   }
+
+  static String _in(Directory d, String name) =>
+      '${d.path}${Platform.pathSeparator}$name';
 
   // Per-note chain so a save, a read and a list never touch the same temp file
   // at once.
@@ -65,49 +100,243 @@ class NoteStore {
   }
 
   /// Throws [NoteSaveException] for every failure; refuses a folder whose file
-  /// this client cannot read, so it is never overwritten.
-  Future<void> write(Note note) => _locked(note.noteId, () async {
-    File? tmp;
-    // Folders this call made, removed again (if still empty) on failure.
-    Directory? created, createdRoot;
-    try {
-      final file = await _working(note.noteId);
-      tmp = File('${file.path}.tmp');
-      // ponytail: re-reads the existing file on every save; cache the verdict
-      // if large pages make this slow.
-      if (await file.exists() &&
-          !decodeKkj(await file.readAsBytes()).writable) {
-        throw NoteSaveException('existing file is not readable by this client');
-      }
-      if (!await file.parent.exists()) {
-        created = file.parent;
-        if (!await file.parent.parent.exists()) {
-          createdRoot = file.parent.parent;
+  /// this client cannot read, so it is never overwritten. Writes the working
+  /// copy only: base and `sync.json` are not touched.
+  Future<void> write(Note note) async {
+    await _locked(note.noteId, () async {
+      File? tmp;
+      // Folders this call made, removed again (if still empty) on failure.
+      Directory? created, createdRoot;
+      try {
+        final file = await _working(note.noteId);
+        tmp = File('${file.path}.tmp');
+        // ponytail: re-reads the existing file on every save; cache the verdict
+        // if large pages make this slow.
+        if (await file.exists() &&
+            !decodeKkj(await file.readAsBytes()).writable) {
+          throw NoteSaveException(
+            'existing file is not readable by this client',
+          );
         }
+        if (!await file.parent.exists()) {
+          created = file.parent;
+          if (!await file.parent.parent.exists()) {
+            createdRoot = file.parent.parent;
+          }
+        }
+        await file.parent.create(recursive: true);
+        await _writeFile(tmp, encodeKkj(note));
+        await tmp.rename(file.path);
+      } on NoteSaveException {
+        rethrow;
+      } catch (e) {
+        // Each step on its own: one failing must not skip the others. Best
+        // effort; read() cleans a leftover temp file up later.
+        for (final undo in <Future<void> Function()>[
+          () async {
+            final t = tmp;
+            if (t != null && await t.exists()) await t.delete();
+          },
+          () async => created?.delete(), // fails (kept) unless empty
+          () async => createdRoot?.delete(),
+        ]) {
+          try {
+            await undo();
+          } catch (_) {}
+        }
+        throw NoteSaveException('could not write note', e);
       }
-      await file.parent.create(recursive: true);
-      await _writeFile(tmp, encodeKkj(note));
-      await tmp.rename(file.path);
-    } on NoteSaveException {
-      rethrow;
-    } catch (e) {
-      // Each step on its own: one failing must not skip the others. Best
-      // effort; read() cleans a leftover temp file up later.
-      for (final undo in <Future<void> Function()>[
-        () async {
-          final t = tmp;
-          if (t != null && await t.exists()) await t.delete();
-        },
-        () async => created?.delete(), // fails (kept) unless empty
-        () async => createdRoot?.delete(),
-      ]) {
+    });
+    await _notify();
+  }
+
+  /// Writes the three files of one note as a group: working copy, base copy
+  /// (`base.<baseHeadRevisionId>.kkj`), then `sync.json`, the commit marker.
+  /// Each goes to a temp file and is renamed. A [base] of null keeps the
+  /// base file [info] names (it must exist). Throws [NoteSaveException]; the
+  /// previous `sync.json` stays when it does.
+  ///
+  /// A base file is never overwritten in place while the committed
+  /// `sync.json` names it (a crash mid-way would corrupt the base it trusts):
+  /// the same [SyncInfo.baseHeadRevisionId] with a different [base] fails;
+  /// callers use a new id for a new base.
+  Future<void> commitSync(Note working, Note? base, SyncInfo info) async {
+    await _locked(working.noteId, () async {
+      final tmps = <File>[];
+      try {
+        final workingFile = await _working(working.noteId);
+        final dir = workingFile.parent;
+        final id = info.baseHeadRevisionId;
+        if (id != null && !revisionIdPattern.hasMatch(id)) {
+          throw NoteSaveException('baseHeadRevisionId is not a valid id');
+        }
+        if (id == null && base != null) {
+          throw NoteSaveException('a base needs a baseHeadRevisionId');
+        }
+        if (base != null && base.noteId != working.noteId) {
+          throw NoteSaveException('base belongs to another note');
+        }
+        if (await workingFile.exists() &&
+            !decodeKkj(await workingFile.readAsBytes()).writable) {
+          throw NoteSaveException(
+            'existing file is not readable by this client',
+          );
+        }
+        final baseFile = id == null ? null : File(_in(dir, 'base.$id.kkj'));
+        if (base == null && baseFile != null && !await baseFile.exists()) {
+          throw NoteSaveException('the base file is missing');
+        }
+        var writeBase = base != null;
+        if (writeBase && baseFile != null && await baseFile.exists()) {
+          final committed = await _committedBaseId(dir);
+          if (committed == id) {
+            final cur = decodeKkj(await baseFile.readAsBytes()).note;
+            if (cur == null ||
+                jsonEncode(cur.toJson()) != jsonEncode(base.toJson())) {
+              throw NoteSaveException(
+                'base $id is committed already with other content',
+              );
+            }
+            writeBase = false; // identical: nothing to write
+          }
+        }
+        await dir.create(recursive: true);
+
+        Future<void> put(File f, List<int> bytes, String step) async {
+          final t = File('${f.path}.tmp');
+          tmps.add(t);
+          await _writeFile(t, bytes);
+          await t.rename(f.path);
+          tmps.remove(t);
+          await onStep?.call(step);
+        }
+
+        await put(workingFile, encodeKkj(working), 'working');
+        if (writeBase) await put(baseFile!, encodeKkj(base!), 'base');
+        await put(
+          File(_in(dir, syncFileName)),
+          utf8.encode(jsonEncode(info.toJson())),
+          'sync',
+        );
         try {
-          await undo();
+          await _dropOrphanBases(dir, id);
+        } catch (_) {} // already committed; readSync cleans up later
+      } on NoteSaveException {
+        rethrow;
+      } catch (e) {
+        for (final t in tmps) {
+          try {
+            if (await t.exists()) await t.delete();
+          } catch (_) {}
+        }
+        throw NoteSaveException('could not write sync state', e);
+      }
+    });
+    await _notify();
+  }
+
+  /// The base id the `sync.json` on disk names; null when there is none or
+  /// it is not valid.
+  Future<String?> _committedBaseId(Directory dir) async {
+    try {
+      return SyncInfo.fromJson(
+        jsonDecode(await File(_in(dir, syncFileName)).readAsString()),
+      )?.baseHeadRevisionId;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Best effort: a file that cannot be deleted is left for the next call.
+  Future<void> _dropOrphanBases(Directory dir, String? keep) async {
+    await for (final e in dir.list()) {
+      final m = _baseName.firstMatch(e.path.split(_pathSep).last);
+      if (e is File && m != null && m.group(1) != keep) {
+        try {
+          await e.delete();
         } catch (_) {}
       }
-      throw NoteSaveException('could not write note', e);
     }
-  });
+  }
+
+  /// Never throws. A missing or broken `sync.json` is "none": state
+  /// `pending`, no base, and no base file is removed. Otherwise only the
+  /// base it names is read and the others are removed. Leftover temp files
+  /// are always removed.
+  Future<SyncRead> readSync(String noteId) async {
+    const none = (
+      info: SyncInfo(),
+      base: null,
+      hasUnsent: true,
+      state: SyncState.pending,
+    );
+    try {
+      final dir = (await _working(noteId)).parent;
+      return await _locked(noteId, () async {
+        if (!await dir.exists()) return none;
+        try {
+          await for (final e in dir.list()) {
+            if (e is File && e.path.endsWith('.tmp')) {
+              try {
+                await e.delete();
+              } catch (_) {}
+            }
+          }
+        } catch (_) {}
+        SyncInfo? info;
+        try {
+          info = SyncInfo.fromJson(
+            jsonDecode(await File(_in(dir, syncFileName)).readAsString()),
+          );
+        } catch (_) {}
+        if (info != null) {
+          try {
+            await _dropOrphanBases(dir, info.baseHeadRevisionId);
+          } catch (_) {}
+        }
+        info ??= const SyncInfo();
+
+        Note? readNote(String name) {
+          try {
+            final r = decodeKkj(File(_in(dir, name)).readAsBytesSync());
+            return r.note?.noteId == noteId ? r.note : null;
+          } catch (_) {
+            return null;
+          }
+        }
+
+        final id = info.baseHeadRevisionId;
+        final base = id == null ? null : readNote('base.$id.kkj');
+        final working = readNote(workingFileName);
+        Map<String, Object?> s(Note n) => {
+          'orderRev': n.orderRev,
+          'metaRev': n.metaRev,
+          'pages': n.pages,
+        };
+        // A working copy that cannot be read (missing, corrupt, newer
+        // version, other note) is never "safe": unsent, pending.
+        final unsent =
+            working == null ||
+            hasUnsentRule({
+                  'base': base == null ? null : s(base),
+                  'working': s(working),
+                  'pendingVerify': info.pendingVerify,
+                  'unsentSidecars': info.unsentSidecars,
+                })['hasUnsent'] !=
+                false;
+        return (
+          info: info,
+          base: base,
+          hasUnsent: unsent,
+          state: working == null || (info.state == SyncState.synced && unsent)
+              ? SyncState.pending
+              : info.state,
+        );
+      });
+    } catch (_) {
+      return none;
+    }
+  }
 
   /// Null when there is no working copy for [noteId]. Removes a leftover temp
   /// file from an interrupted save. A file that cannot be read, or whose

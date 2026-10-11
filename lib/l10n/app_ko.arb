@@ -65,5 +65,7 @@
   "fitWidth": "너비 맞춤",
   "fitPage": "페이지 맞춤",
   "penEditTitle": "펜",
-  "usePressure": "필압 반영"
+  "usePressure": "필압 반영",
+  "syncLogExport": "동기화 로그 내보내기",
+  "syncLogExportFailed": "로그를 내보내지 못했어요"
 }

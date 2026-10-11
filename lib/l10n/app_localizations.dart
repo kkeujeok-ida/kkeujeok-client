@@ -451,6 +451,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Use pressure'**
   String get usePressure;
+
+  /// No description provided for @syncLogExport.
+  ///
+  /// In en, this message translates to:
+  /// **'Export sync log'**
+  String get syncLogExport;
+
+  /// No description provided for @syncLogExportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t export the log'**
+  String get syncLogExportFailed;
 }
 
 class _AppLocalizationsDelegate

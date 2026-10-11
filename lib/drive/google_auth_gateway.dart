@@ -22,6 +22,11 @@ class GoogleAuthGateway implements AuthGateway {
   /// The web OAuth client ID, which Android's Credential Manager requires.
   final String serverClientId;
 
+  AuthAccount? _account;
+
+  @override
+  AuthAccount? get account => _account;
+
   Future<void>? _init;
   GoogleSignInAuthorizationClient? _client; // holds id and email only
 
@@ -40,7 +45,12 @@ class GoogleAuthGateway implements AuthGateway {
   /// asked: the lightweight sign-in would flash its sheet on every launch, and
   /// the Drive token is only needed later, when something calls Drive.
   @override
-  Future<bool> restore() async => _hint.signedIn;
+  Future<bool> restore() async {
+    if (!_hint.signedIn) return false;
+    final a = _hint.account; // stored by the last granted sign-in
+    if (a != null) _account = AuthAccount(sub: a.sub, email: a.email);
+    return true;
+  }
 
   @override
   Future<AuthOutcome> signIn() async {
@@ -50,12 +60,18 @@ class GoogleAuthGateway implements AuthGateway {
         scopeHint: _scopes,
       );
       _client = account.authorizationClient;
+      _account = AuthAccount(sub: account.id, email: account.email);
     } on GoogleSignInException catch (e) {
       return signInFailure(e.code);
     } catch (_) {
       return AuthOutcome.networkError;
     }
-    return requestAccess();
+    final r = await requestAccess();
+    if (r != AuthOutcome.granted) {
+      _client = null; // no half-signed-in account
+      _account = null;
+    }
+    return r;
   }
 
   @override
@@ -66,6 +82,8 @@ class GoogleAuthGateway implements AuthGateway {
       await client.authorizationForScopes(_scopes) ??
           await client.authorizeScopes(_scopes);
       await _hint.set(true);
+      final a = _account;
+      if (a != null) await _hint.setAccount(a.sub, a.email);
       return AuthOutcome.granted;
     } on GoogleSignInException catch (e) {
       return accessFailure(e.code, '${e.description} ${e.details}');
@@ -77,6 +95,7 @@ class GoogleAuthGateway implements AuthGateway {
   @override
   Future<void> signOut() async {
     _client = null;
+    _account = null;
     await _hint.set(false); // the session ends here even if Google errors
     await _ready();
     await GoogleSignIn.instance.signOut();
@@ -87,6 +106,7 @@ class GoogleAuthGateway implements AuthGateway {
     await _ready();
     await GoogleSignIn.instance.disconnect();
     _client = null;
+    _account = null;
     await _hint.set(false);
   }
 }

@@ -13,9 +13,21 @@ enum AuthOutcome {
   networkError,
 }
 
+/// The signed-in Google account: its stable `sub` and e-mail. Never a token.
+class AuthAccount {
+  const AuthAccount({required this.sub, required this.email});
+  final String sub;
+  final String email;
+}
+
 /// The only door to the Google sign-in plugin, so widgets and state can be
 /// tested with a fake and plugin changes stay in one place.
 abstract interface class AuthGateway {
+  /// The account chosen by the last successful [signIn] in this process;
+  /// null when none, or after [signOut] and [disconnect]. A relaunch that
+  /// only restores the session does not know it.
+  AuthAccount? get account;
+
   /// Lightweight sign-in on relaunch. True only when an account is signed in
   /// and Drive access was granted earlier; never shows UI, never throws.
   Future<bool> restore();

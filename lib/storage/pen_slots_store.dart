@@ -57,7 +57,9 @@ class PenSlotsStore {
   static Pen _pen(Object? e) {
     final m = e as Map;
     final color = m['color'], width = m['width'], up = m['usePressure'];
-    if (color is! String || !_hex.hasMatch(color)) throw const FormatException();
+    if (color is! String || !_hex.hasMatch(color)) {
+      throw const FormatException();
+    }
     if (width is! num || !(width >= 0.5 && width <= 10)) {
       throw const FormatException();
     }

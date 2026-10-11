@@ -12,6 +12,8 @@ import 'package:kkeujeok/ops/history.dart';
 import 'package:kkeujeok/ops/ops.dart';
 import 'package:kkeujeok/render/page_background.dart';
 import 'package:kkeujeok/render/stroke_outline.dart';
+import 'package:kkeujeok/sync/has_unsent.dart';
+import 'package:kkeujeok/sync/sync_log_entry.dart';
 
 typedef Case = Map<String, dynamic>;
 
@@ -147,6 +149,12 @@ final runners = <String, void Function(Case)>{
       c['expected'],
     );
   },
+  'sync.hasUnsent': (c) => _same(
+    hasUnsentRule((c['input'] as Map).cast<String, Object?>()),
+    c['expected'],
+  ),
+  'synclog.entry': (c) =>
+      _same(checkLogEntry((c['input'] as Map)['entry']), c['expected']),
   'ops.undoRedo': (c) {
     final i = c['input'] as Map<String, dynamic>;
     final h = History(_note(i['note']));
@@ -179,6 +187,20 @@ void _runOp(Case c) {
   _same(_opOutput(r), c['expected']);
 }
 
+// Rules whose fixture exists but whose client code is a later story's. Each
+// needs a valid fixture file and must not have a runner yet: when its story
+// adds the runner, the entry has to go (a stale entry fails the run).
+const pendingRules = {
+  'drive.duplicates',
+  'drive.fileName',
+  'drive.listSummary',
+  'sync.backoff',
+  'sync.errorClass',
+  'sync.stateMachine',
+  'sync.uploadKind',
+  'sync.verifyPlan',
+};
+
 final _sep = Platform.pathSeparator;
 
 // `flutter test` runs with the package root as the working directory.
@@ -188,7 +210,10 @@ final _ruleId = RegExp(
   r'^[a-z][a-z0-9]*\.[a-z][A-Za-z0-9]*(\.[a-z][A-Za-z0-9]*)?$',
 );
 
-Map<String, List<Case>> loadFixtures(String dir) {
+Map<String, List<Case>> loadFixtures(
+  String dir, {
+  Set<String> pending = pendingRules,
+}) {
   if (!Directory(dir).existsSync()) {
     throw StateError(
       'Fixture folder not found: $dir\n'
@@ -197,6 +222,7 @@ Map<String, List<Case>> loadFixtures(String dir) {
     );
   }
   final fixtures = <String, List<Case>>{};
+  final seen = <String>{}; // rule ids of every valid fixture file
   final files = [
     for (final e in Directory(dir).listSync())
       e.path.split(RegExp(r'[/\\]')).last,
@@ -242,12 +268,14 @@ Map<String, List<Case>> loadFixtures(String dir) {
         throw bad('case "$name" needs both "input" and "expected"');
       }
     }
-    if (!runners.containsKey(id)) {
+    if (!runners.containsKey(id) && !pending.contains(id)) {
       throw StateError(
         'Fixture $file has no test: rule "$id" is not implemented in the Android client. '
         'Add it to `runners` in test/fixtures_test.dart.',
       );
     }
+    seen.add(id);
+    if (!runners.containsKey(id)) continue; // pending: valid, not run yet
     // A top-level `tolerance` rides along with each case.
     fixtures[id] = [
       for (final c in cases.cast<Case>())
@@ -260,6 +288,17 @@ Map<String, List<Case>> loadFixtures(String dir) {
   for (final id in runners.keys) {
     if (!fixtures.containsKey(id)) {
       throw StateError('Fixture file missing: $dir$_sep$id.json');
+    }
+  }
+  for (final id in pending) {
+    if (runners.containsKey(id)) {
+      throw StateError(
+        'Rule "$id" has a runner: remove it from pendingRules in '
+        'test/fixtures_test.dart.',
+      );
+    }
+    if (!seen.contains(id)) {
+      throw StateError('Pending fixture missing: $dir$_sep$id.json');
     }
   }
   return fixtures;
@@ -376,6 +415,71 @@ void main() {
         () => loadWith({'constructor.json': good}),
         throwsMessage('not a rule id'),
       );
+    });
+
+    group('pendingRules', () {
+      // A copy of the real fixture folder, changed by [edit].
+      Map<String, List<Case>> loadCopy(
+        void Function(Directory) edit, {
+        Set<String>? pending,
+      }) {
+        final dir = Directory.systemTemp.createTempSync('kkj-fixtures-');
+        try {
+          for (final e in Directory(sharedDir).listSync()) {
+            if (e is File) {
+              e.copySync('${dir.path}$_sep${e.uri.pathSegments.last}');
+            }
+          }
+          edit(dir);
+          return pending == null
+              ? loadFixtures(dir.path)
+              : loadFixtures(dir.path, pending: pending);
+        } finally {
+          dir.deleteSync(recursive: true);
+        }
+      }
+
+      test('the real folder passes, pending rules are listed', () {
+        expect(pendingRules, contains('sync.backoff'));
+        expect(loadCopy((_) {}), isNot(contains('sync.backoff')));
+      });
+
+      test('a pending rule whose file is gone fails', () {
+        expect(
+          () => loadCopy(
+            (d) => File('${d.path}${_sep}sync.backoff.json').deleteSync(),
+          ),
+          throwsMessage('Pending fixture missing'),
+        );
+      });
+
+      test('a pending rule that has a runner fails', () {
+        expect(
+          () => loadCopy((_) {}, pending: {...pendingRules, 'sync.hasUnsent'}),
+          throwsMessage('remove it from pendingRules'),
+        );
+      });
+
+      test('a pending rule with an invalid file fails', () {
+        expect(
+          () => loadCopy(
+            (d) =>
+                File('${d.path}${_sep}sync.backoff.json')
+                    .writeAsStringSync('{ not json'),
+          ),
+          throwsMessage('not valid JSON'),
+        );
+      });
+
+      test('a rule that is neither run nor pending still fails', () {
+        expect(
+          () => loadCopy(
+            (_) {},
+            pending: {...pendingRules}..remove('sync.backoff'),
+          ),
+          throwsMessage('has no test'),
+        );
+      });
     });
 
     test('number.round2 case with non-number values', () {

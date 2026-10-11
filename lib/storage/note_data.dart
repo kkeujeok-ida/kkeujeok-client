@@ -16,6 +16,10 @@ class NoteData {
 
   final DocumentsDir _documents;
 
+  /// The app documents directory. The device state and the sync log live
+  /// here, outside [notesDir], so clearing the notes leaves the log.
+  Future<Directory> rootDir() => _documents();
+
   /// The note data directory (it may not exist yet).
   Future<Directory> notesDir() async {
     final root = await _documents();

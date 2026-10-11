@@ -45,6 +45,8 @@ class Note {
   }
 
   String get noteId => _json['noteId'] as String;
+  String get orderRev => _json['orderRev'] as String;
+  String get metaRev => _json['metaRev'] as String;
   String get title => (_json['meta'] as Map)['title'] as String;
 
   /// Do not modify.
