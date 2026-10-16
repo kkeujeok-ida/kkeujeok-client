@@ -226,7 +226,24 @@ void _runOp(Case c) {
 // Rules whose fixture exists but whose client code is a later story's. Each
 // needs a valid fixture file and must not have a runner yet: when its story
 // adds the runner, the entry has to go (a stale entry fails the run).
-const pendingRules = <String>{};
+const pendingRules = <String>{
+  'merge.page3way',
+  'merge.staleSeq',
+  'merge.seqAfterMerge',
+  'merge.conflictSidecar',
+  'merge.order',
+  'merge.meta',
+  'merge.unknownFields',
+  'merge.formatVersion',
+  'merge.resolve',
+  'merge.keepBothConverge',
+  'merge.requeue',
+  'merge.undoDrop',
+  'version.list',
+  'version.keepForever',
+  'ops.restoreNote',
+  'ops.restorePage',
+};
 
 final _sep = Platform.pathSeparator;
 

@@ -45,9 +45,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       // Already known to be missing (an earlier library): ask at once.
-      if (ref.read(rootFolderProvider).status == RootStatus.missing) {
+      final status = ref.read(rootFolderProvider).status;
+      if (status == RootStatus.missing) {
         _askMissing();
       } else {
+        // `ref.listen` does not fire for a value that is already there: a
+        // root that is ready at the first build opens the upload gate here.
+        if (status == RootStatus.ready) {
+          unawaited(ref.read(uploadCoordinatorProvider).rootReady());
+        }
         ref.read(rootFolderProvider.notifier).check();
       }
     });

@@ -70,7 +70,7 @@ void main() {
     expect(r.method, 'POST');
     expect(r.uri.path, '/upload/drive/v3/files');
     expect(r.uri.queryParameters['uploadType'], 'multipart');
-    expect(r.uri.queryParameters['fields'], 'id,headRevisionId');
+    expect(r.uri.queryParameters['fields'], 'id,headRevisionId,md5Checksum');
     expect(r.headers.value('authorization'), 'Bearer tok');
     expect(r.headers.contentType?.mimeType, 'multipart/related');
     expect(r.text, contains('"name":"a.kkj"'));
@@ -222,4 +222,23 @@ void main() {
       );
     },
   );
+
+  test('the multipart boundary is random and not in the body', () async {
+    reply = jsonEncode({'id': 'N1', 'headRevisionId': 'R1'});
+    // Content that looks like the old fixed boundary changes nothing.
+    final tricky = utf8.encode('--kkeujeok-multipart-boundary--');
+    await client().uploadSimple(metadata: {'name': 'a'}, bytes: tricky);
+    await client().uploadSimple(metadata: {'name': 'a'}, bytes: tricky);
+    String b(_Req r) =>
+        RegExp(r'boundary=(\S+)')
+            .firstMatch(r.headers.contentType.toString())!
+            .group(1)!;
+    expect(b(seen[0]), isNot(b(seen[1])));
+    for (final r in seen) {
+      final boundary = b(r);
+      expect(boundary, startsWith('kkj-'));
+      expect('--$boundary'.allMatches(r.text).length, 3); // 2 parts and the end
+      expect('--$boundary--'.allMatches(r.text).length, 1);
+    }
+  });
 }

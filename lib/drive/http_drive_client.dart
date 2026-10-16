@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'drive_client.dart';
 
 const _defaultFields = 'id,name,parents,appProperties,createdTime,trashed';
-const _upFields = 'id,headRevisionId';
+const _upFields = 'id,headRevisionId,md5Checksum';
 
 /// Drive v3 REST over `dart:io`. The HTTP client, base URL and token come
 /// from the caller, so tests point it at a local server. Throws only
@@ -44,6 +45,7 @@ class HttpDriveClient implements DriveClient {
     String? contentType,
     Map<String, String> headers = const {},
     Set<int> accept = const {},
+    bool follow = true,
   }) async {
     try {
       final t = await token();
@@ -54,6 +56,7 @@ class HttpDriveClient implements DriveClient {
       try {
         final req = await client.openUrl(method, uri).timeout(timeout);
         req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $t');
+        req.followRedirects = follow;
         headers.forEach(req.headers.set);
         if (contentType != null) {
           req.headers.set(HttpHeaders.contentTypeHeader, contentType);
@@ -223,7 +226,7 @@ class HttpDriveClient implements DriveClient {
     required Map<String, Object?> metadata,
     required List<int> bytes,
   }) async {
-    const boundary = 'kkeujeok-multipart-boundary';
+    final boundary = _boundary(bytes, jsonEncode(metadata));
     final b = BytesBuilder(copy: false)
       ..add(
         utf8.encode(
@@ -243,6 +246,30 @@ class HttpDriveClient implements DriveClient {
       contentType: 'multipart/related; boundary=$boundary',
     );
     return _file(_json(r.body), fileId);
+  }
+
+  /// A random boundary that does not occur in the body.
+  static String _boundary(List<int> bytes, String json) {
+    final rnd = Random.secure();
+    while (true) {
+      final b =
+          'kkj-${List.generate(24, (_) => rnd.nextInt(16).toRadixString(16)).join()}';
+      final needle = utf8.encode(b);
+      if (!json.contains(b) && !_contains(bytes, needle)) return b;
+    }
+  }
+
+  static bool _contains(List<int> hay, List<int> needle) {
+    final first = needle.first;
+    for (var i = 0; i + needle.length <= hay.length; i++) {
+      if (hay[i] != first) continue;
+      var j = 1;
+      while (j < needle.length && hay[i + j] == needle[j]) {
+        j++;
+      }
+      if (j == needle.length) return true;
+    }
+    return false;
   }
 
   @override
@@ -282,6 +309,7 @@ class HttpDriveClient implements DriveClient {
       body: chunk ?? const <int>[],
       headers: {HttpHeaders.contentRangeHeader: range},
       accept: const {308},
+      follow: false, // 308 here means "resume incomplete"
     );
     if (r.status == 308) {
       final m = RegExp(r'bytes=0-(\d+)').firstMatch(r.headers['range'] ?? '');

@@ -178,4 +178,21 @@ void main() {
     await open.clear(noteId);
     expect(await open.read(), isNull);
   });
+
+  test(
+    'rootReady: the first call is app start, later calls only upload',
+    () async {
+      await env.save(makeNote());
+      await open.set(noteId);
+      await coordinator.rootReady(); // first: app start clears the stale marker
+      expect(await open.read(), isNull);
+      expect(env.info.state, SyncState.synced);
+
+      await open.set(noteId);
+      await env.save(makeNote(rev: 2));
+      await coordinator.rootReady(); // later: the open note is left alone
+      expect(await open.read(), noteId);
+      expect(env.drive.uploads, hasLength(1));
+    },
+  );
 }

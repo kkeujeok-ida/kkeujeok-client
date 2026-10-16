@@ -74,14 +74,21 @@ class StubMerge implements MergeStep {
 
 /// Everything one uploader test needs, over a temp folder and a [FakeDrive].
 class UploadEnv {
-  UploadEnv._(this.docs, this.data, this.store, this.device, this.log);
+  UploadEnv._(
+    this.docs,
+    this.data,
+    this.store,
+    this.device,
+    this.log,
+    this.drive,
+  );
 
   final Directory docs;
   final NoteData data;
   final NoteStore store;
   final SyncDeviceStore device;
   final SyncLog log;
-  final drive = FakeDrive();
+  final FakeDrive drive;
   late final FakeItem root;
 
   bool allowed = true;
@@ -91,7 +98,7 @@ class UploadEnv {
   double jitter = 0.5;
   Future<List<int>?> Function(Map<String, dynamic>, int, int)? thumbnail;
 
-  static Future<UploadEnv> create() async {
+  static Future<UploadEnv> create({FakeDrive? drive}) async {
     final docs = Directory.systemTemp.createTempSync('kkj-upload-');
     addTearDown(() => docs.deleteSync(recursive: true));
     final data = NoteData(() async => docs);
@@ -102,6 +109,7 @@ class UploadEnv {
       NoteStore(data),
       SyncDeviceStore(data),
       SyncLog(data.rootDir, () => t = t.add(const Duration(seconds: 1))),
+      drive ?? FakeDrive(),
     );
     env.root = env.drive.seed(kkeujeokId: 'root');
     await env.device.write(

@@ -247,6 +247,10 @@ final openNoteProvider = Provider<OpenNote>(
   (ref) => OpenNote(ref.read(noteDataProvider).rootDir),
 );
 
+final uploadLeaseProvider = Provider<UploadLease>(
+  (ref) => UploadLease(ref.read(noteDataProvider), DateTime.now),
+);
+
 final noteUploaderProvider = Provider<NoteUploader>(
   (ref) => NoteUploader(
     store: ref.read(noteStoreProvider),
@@ -259,6 +263,7 @@ final noteUploaderProvider = Provider<NoteUploader>(
     sleep: Future<void>.delayed,
     jitter: Random().nextDouble,
     thumbnail: renderThumbnail,
+    heartbeat: ref.read(uploadLeaseProvider).renew,
   ),
 );
 
@@ -268,7 +273,7 @@ final uploadCoordinatorProvider = Provider<UploadCoordinator>(
     store: ref.read(noteStoreProvider),
     uploader: ref.read(noteUploaderProvider),
     openNote: ref.read(openNoteProvider),
-    lease: UploadLease(ref.read(noteDataProvider), DateTime.now),
+    lease: ref.read(uploadLeaseProvider),
     log: ref.read(syncLogProvider),
     allowed: () async => ref.read(uploadsAllowedProvider),
     online: ref.read(networkProbeProvider),

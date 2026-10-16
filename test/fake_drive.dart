@@ -100,6 +100,10 @@ class FakeDrive implements DriveClient {
   /// Every upload request (simple, or the start of a session).
   final List<FakeUpload> uploads = [];
 
+  /// Number of last chunks that are answered with 308 and all bytes
+  /// received, without finishing the upload.
+  int withholdFinishes = 0;
+
   /// Status an expired session answers with (404 or 410).
   int expiredStatus = 404;
 
@@ -249,7 +253,7 @@ class FakeDrive implements DriveClient {
     }
     _applyMetadata(i, m);
     _addRevision(i, bytes);
-    return _file(i, 'id,headRevisionId');
+    return _file(i, 'id,headRevisionId,md5Checksum');
   }
 
   @override
@@ -260,9 +264,8 @@ class FakeDrive implements DriveClient {
     Iterable<FakeItem> m = items.where(
       (i) => i.visible && !i.deleted && !i.trashed && !(lagging && i.lagging),
     );
-    final prop = RegExp(
-      r"key='kkeujeokId' and value='((?:\\.|[^'\\])*)'",
-    ).firstMatch(q);
+    final prop = RegExp(r"key='kkeujeokId' and value='((?:\\.|[^'\\])*)'")
+        .firstMatch(q);
     final parent = RegExp(r"^'((?:\\.|[^'\\])*)' in parents").firstMatch(q);
     String un(String s) =>
         s.replaceAllMapped(RegExp(r'\\(.)'), (x) => x.group(1)!);
@@ -387,6 +390,10 @@ class FakeDrive implements DriveClient {
         return ResumableResult(received: s.received.length);
       }
       s.received.addAll(chunk);
+    }
+    if (s.received.length >= s.size && withholdFinishes > 0) {
+      withholdFinishes--; // all bytes there, yet no file in the answer
+      return ResumableResult(received: s.size);
     }
     if (s.received.length >= s.size) {
       s.done = _write(s.fileId, s.metadata, s.received);

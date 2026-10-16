@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import '../storage/note_data.dart';
 import '../storage/note_store.dart';
@@ -8,9 +9,16 @@ import 'open_note.dart';
 import 'sync_log.dart';
 import 'sync_rules.dart';
 
-/// A per-note `upload.lease` file: exclusive create, stale after
-/// [staleAfter], so the app and the WorkManager task never upload one note
-/// together.
+/// A per-note `upload.lease` file (`<owner token>:<milliseconds>`), so the
+/// app and the WorkManager task never upload one note together.
+///
+/// - Created exclusively; its content is then put in place by temp file and
+///   rename. In the moment between, the file is empty: an empty or
+///   unreadable lease counts by its file time, so it is fresh.
+/// - Stale after [staleAfter] without [renew]. A stale lease is moved aside
+///   (only one contender succeeds) and taken over only when what was moved
+///   is what was judged stale.
+/// - Only the owner token releases or renews it.
 class UploadLease {
   UploadLease(
     this._data,
@@ -21,6 +29,8 @@ class UploadLease {
   final NoteData _data;
   final DateTime Function() _clock;
   final Duration staleAfter;
+  final _held = <String, String>{};
+  static final _random = Random.secure();
 
   Future<File> _file(String noteId) async {
     final root = await _data.notesDir();
@@ -28,37 +38,104 @@ class UploadLease {
     return File('${root.path}$s$noteId${s}upload.lease');
   }
 
+  static String _newToken() =>
+      List.generate(16, (_) => _random.nextInt(16).toRadixString(16)).join();
+
+  Future<String?> _text(File f) async {
+    try {
+      return await f.readAsString();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  ({String token, int ms})? _parse(String? text) {
+    final m = RegExp(r'^([0-9a-f]{16}):(\d+)$').firstMatch(text ?? '');
+    return m == null ? null : (token: m.group(1)!, ms: int.parse(m.group(2)!));
+  }
+
+  Future<void> _put(File f, String token) async {
+    final tmp = File('${f.path}.$token.tmp');
+    await tmp.writeAsString('$token:${_clock().millisecondsSinceEpoch}');
+    await tmp.rename(f.path);
+  }
+
+  Future<bool> _fresh(File f, String? text) async {
+    final p = _parse(text);
+    if (p != null) {
+      return _clock().difference(DateTime.fromMillisecondsSinceEpoch(p.ms)) <
+          staleAfter;
+    }
+    try {
+      return DateTime.now().difference(await f.lastModified()) < staleAfter;
+    } catch (_) {
+      return true; // cannot tell: leave it alone
+    }
+  }
+
   /// False when another holder has a fresh lease (or the note has no
   /// folder). Never throws.
   Future<bool> acquire(String noteId) async {
     try {
       final f = await _file(noteId);
-      for (var i = 0; i < 2; i++) {
+      final token = _newToken();
+      for (var i = 0; i < 3; i++) {
         try {
           await f.create(exclusive: true);
-          await f.writeAsString('${_clock().millisecondsSinceEpoch}');
+          await _put(f, token);
+          _held[noteId] = token;
           return true;
         } on FileSystemException {
-          if (!await f.exists()) return false; // no folder
-          int? t;
+          if (!await f.exists()) {
+            if (!await f.parent.exists()) return false; // no folder
+            continue; // released meanwhile
+          }
+          final judged = await _text(f);
+          if (await _fresh(f, judged)) return false;
+          final aside = File('${f.path}.$token.stale');
           try {
-            t = int.tryParse(await f.readAsString());
-          } catch (_) {}
-          final age = t == null
-              ? staleAfter
-              : _clock().difference(DateTime.fromMillisecondsSinceEpoch(t));
-          if (age < staleAfter) return false;
-          await f.delete(); // stale: taken over, once
+            await f.rename(aside.path);
+          } on FileSystemException {
+            continue; // someone else moved it first
+          }
+          final moved = await _text(aside);
+          if (moved != judged) {
+            // A live lease was taken by mistake: put it back if free.
+            try {
+              if (await f.exists()) {
+                await aside.delete();
+              } else {
+                await aside.rename(f.path);
+              }
+            } catch (_) {}
+            return false;
+          }
+          await aside.delete();
         }
       }
     } catch (_) {}
     return false;
   }
 
+  Future<bool> _mine(File f, String noteId) async {
+    final t = _held[noteId];
+    return t != null && _parse(await _text(f))?.token == t;
+  }
+
+  /// Keeps the lease fresh while a long upload runs. Never throws.
+  Future<void> renew(String noteId) async {
+    try {
+      final f = await _file(noteId);
+      if (await _mine(f, noteId)) await _put(f, _held[noteId]!);
+    } catch (_) {}
+  }
+
+  /// Frees the lease, only when this holder owns it. Never throws.
   Future<void> release(String noteId) async {
     try {
       final f = await _file(noteId);
-      if (await f.exists()) await f.delete();
+      if (await _mine(f, noteId)) await f.delete();
+      _held.remove(noteId);
     } catch (_) {}
   }
 }
@@ -86,6 +163,7 @@ class UploadCoordinator {
   final Future<bool> Function() online;
 
   /// Asks WorkManager for one task that runs when the network is there.
+  /// Never throws for the caller's sake: failures are swallowed here.
   final Future<void> Function() schedule;
 
   /// Set by the open editor: waits until its save queue is on disk.
@@ -93,8 +171,23 @@ class UploadCoordinator {
 
   bool _started = false;
 
+  Future<void> _schedule() async {
+    try {
+      await schedule();
+    } catch (_) {}
+  }
+
   // `backoff` is the class of a note whose 7 network retries ran out.
   static const _retryClasses = {'backoff', 'quota', 'reauth', 'fatal'};
+
+  // These end the same way again until a merge engine exists (Story 3.3), so
+  // they are retried once per app process, not at every trigger.
+  static const _retryOnce = {
+    'mergeUnavailable',
+    'verifyExhausted',
+    'sessionLost',
+  };
+  final _retried = <String>{};
 
   Future<bool> _needsUpload(String noteId) async {
     final s = await store.readSync(noteId);
@@ -106,15 +199,23 @@ class UploadCoordinator {
     try {
       if (!await _needsUpload(noteId)) return;
       if (!await allowed() || !await online()) {
-        await schedule();
+        await _schedule();
         return;
       }
-      if (!await lease.acquire(noteId)) return;
+      if (!await lease.acquire(noteId)) {
+        // Another holder is uploading it, or its lease is not stale yet: the
+        // trigger is not dropped, a task comes back later.
+        await _schedule();
+        return;
+      }
       try {
-        if (recover) {
-          await uploader.resume(noteId);
-        } else {
-          await uploader.upload(noteId);
+        final o = recover
+            ? await uploader.resume(noteId)
+            : await uploader.upload(noteId);
+        if (o == UploadOutcome.failed &&
+            (await store.readSync(noteId)).info.lastError?['class'] ==
+                'backoff') {
+          await _schedule(); // try again when the network is back
         }
       } finally {
         await lease.release(noteId);
@@ -130,6 +231,7 @@ class UploadCoordinator {
       final open = includeOpen ? null : await openNote.read();
       for (final id in await store.ids()) {
         if (id == open) continue;
+        await _retry(id);
         await _one(id, recover: recover);
       }
     } catch (_) {}
@@ -167,22 +269,17 @@ class UploadCoordinator {
   Future<void> rootReady() => _started ? uploadUnsent() : appStarted();
 
   /// Back to the foreground: notes in `error` of a class that can recover
-  /// get `retry`, then unsent notes go (the open one stays).
-  Future<void> foreground() async {
-    try {
-      for (final id in await store.ids()) {
-        await _retry(id);
-      }
-    } catch (_) {}
-    await _all(includeOpen: false);
-  }
+  /// get `retry` (as at every other upload trigger), then unsent notes go
+  /// (the open one stays).
+  Future<void> foreground() => _all(includeOpen: false);
 
   Future<void> _retry(String noteId) async {
     try {
       final s = await store.readSync(noteId);
       if (s.info.state != SyncState.error) return;
-      final cls = s.info.lastError?['class'];
-      if (!_retryClasses.contains(cls)) return; // deleted, unreadable: never
+      final err = s.info.lastError;
+      if (!_retryClasses.contains(err?['class'])) return; // deleted etc.
+      if (_retryOnce.contains(err?['reason']) && !_retried.add(noteId)) return;
       var moved = false;
       await store.updateSync(noteId, (cur) {
         final t = cur.state == SyncState.error

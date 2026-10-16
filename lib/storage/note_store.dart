@@ -22,6 +22,10 @@ final _uuid = RegExp(
 );
 
 const workingFileName = 'working.kkj';
+
+/// The message of the [NoteSaveException] `updateSync` throws for a
+/// `sync.json` that is there but cannot be read.
+const syncUnreadableMessage = 'sync.json is unreadable';
 const syncFileName = 'sync.json';
 final _baseName = RegExp(r'^base\.(.+)\.kkj$');
 final _pathSep = RegExp(r'[/\\]');
@@ -316,16 +320,31 @@ class NoteStore {
         if (!await dir.exists()) {
           throw NoteSaveException('the note has no folder');
         }
-        SyncInfo old = const SyncInfo();
-        try {
-          old =
-              SyncInfo.fromJson(
-                jsonDecode(await File(_in(dir, syncFileName)).readAsString()),
-              ) ??
-              old;
-        } catch (_) {}
-        final next = change(old);
-        final id = next.baseHeadRevisionId;
+        // No file is "none". A file that is there but cannot be read is
+        // never replaced by an empty record: that would drop the fileId and
+        // the base. The caller logs the failure.
+        var old = const SyncInfo();
+        final syncF = File(_in(dir, syncFileName));
+        if (await syncF.exists()) {
+          SyncInfo? read;
+          try {
+            read = SyncInfo.fromJson(jsonDecode(await syncF.readAsString()));
+          } catch (_) {}
+          if (read == null) throw NoteSaveException(syncUnreadableMessage);
+          old = read;
+        }
+        var next = change(old);
+        var id = next.baseHeadRevisionId;
+        // The base file the old record names is gone and no new base comes:
+        // forget it (as readSync does) so the note recovers instead of
+        // failing every commit.
+        if (base == null &&
+            id != null &&
+            id == old.baseHeadRevisionId &&
+            !await File(_in(dir, 'base.$id.kkj')).exists()) {
+          next = next.copyWith(baseHeadRevisionId: null);
+          id = null;
+        }
         if (id != null && !revisionIdPattern.hasMatch(id)) {
           throw NoteSaveException('baseHeadRevisionId is not a valid id');
         }
@@ -373,14 +392,13 @@ class NoteStore {
           await _dropOrphanBases(dir, id);
         } catch (_) {}
         committed = next;
-      } on NoteSaveException {
-        rethrow;
       } catch (e) {
         for (final t in tmps) {
           try {
             if (await t.exists()) await t.delete();
           } catch (_) {}
         }
+        if (e is NoteSaveException) rethrow;
         throw NoteSaveException('could not write sync state', e);
       }
     });

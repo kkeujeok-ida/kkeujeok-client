@@ -40,12 +40,17 @@ final _timestamp = RegExp(
 const maxCoverBytes = 116;
 
 /// `drive.listSummary` (`write` and `read`).
-Map<String, Object?> listSummaryRule(Map<String, Object?> input) =>
-    switch (input['op']) {
+Map<String, Object?> listSummaryRule(Map<String, Object?> input) {
+  try {
+    return switch (input['op']) {
       'write' => _write(input),
       'read' => _read(input),
       _ => _bad,
     };
+  } catch (_) {
+    return _bad; // a note or a file of the wrong shape: never an exception
+  }
+}
 
 Map<String, Object?> _write(Map<String, Object?> input) {
   final note = input['note'] as Map;
@@ -58,6 +63,10 @@ Map<String, Object?> _write(Map<String, Object?> input) {
   }
   final id = note['noteId'] as String;
   final pages = (note['pages'] as List).cast<Map>();
+  bool size(Object? v) => v is num && v.isFinite && v > 0;
+  for (final p in pages) {
+    if (!size(p['width']) || !size(p['height'])) return _bad;
+  }
   final cover = meta['coverId'];
   final order = input['order'];
   Map? first = pages.isEmpty ? null : pages.first;

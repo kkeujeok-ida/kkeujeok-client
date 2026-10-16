@@ -492,13 +492,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     if (_leaving) return;
     _leaving = true;
     _finish();
-    await _running;
-    final f = _failed;
-    if (f != null) {
-      try {
-        await _store.write(f); // one last try; leave either way
-      } catch (_) {}
-    }
+    // Every queued save is on disk before the route is gone, so the upload
+    // the library starts after the pop reads the last stroke.
+    await _flush();
     if (mounted) Navigator.of(context).pop();
   }
 

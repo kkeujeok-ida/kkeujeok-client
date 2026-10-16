@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Drive calls (HttpClient) need it in release builds too; debug adds it. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="Kkeujeok"
         android:localeConfig="@xml/locales_config"

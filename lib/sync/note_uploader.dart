@@ -68,6 +68,7 @@ class NoteUploader {
     required this.sleep,
     required this.jitter,
     this.thumbnail,
+    this.heartbeat,
   });
 
   final NoteStore store;
@@ -90,6 +91,10 @@ class NoteUploader {
   /// cannot be drawn (the thumbnail is then not written).
   final Future<List<int>?> Function(Map<String, dynamic> page, int w, int h)?
   thumbnail;
+
+  /// Called before every Drive call and between chunks: keeps the upload
+  /// lease of the note fresh while a long upload runs.
+  final Future<void> Function(String noteId)? heartbeat;
 
   final _chains = <String, Future<void>>{};
 
@@ -205,8 +210,16 @@ class NoteUploader {
     } on _Failure catch (f) {
       await _fail(noteId, f);
       return UploadOutcome.failed;
-    } on NoteSaveException {
-      await _fail(noteId, _Failure('fatal', reason: 'localWrite'));
+    } on NoteSaveException catch (e) {
+      await _fail(
+        noteId,
+        _Failure(
+          'fatal',
+          reason: e.message == syncUnreadableMessage
+              ? 'syncUnreadable'
+              : 'localWrite',
+        ),
+      );
       return UploadOutcome.failed;
     }
   }
@@ -235,14 +248,24 @@ class NoteUploader {
   /// One Drive call with the retry rules of `sync.errorClass` and
   /// `sync.backoff`. A [DriveError] for which [pass] is true is rethrown as
   /// it is.
+  ///
+  /// [beforeRetry] runs after each wait, before the call is repeated: it can
+  /// find that the failed call did happen (a lost answer) and return its
+  /// result instead.
   Future<T> _call<T>(
     String noteId,
     Future<T> Function() fn, {
     bool Function(DriveError)? pass,
+    Future<T?> Function()? beforeRetry,
   }) async {
     var attempt = 0;
     while (true) {
       try {
+        await heartbeat?.call(noteId);
+        if (attempt > 0 && beforeRetry != null) {
+          final done = await beforeRetry();
+          if (done != null) return done;
+        }
         return await fn();
       } on DriveError catch (e) {
         if (pass != null && pass(e)) rethrow;
@@ -508,18 +531,21 @@ class NoteUploader {
     final hint = summary['thumbnail'] as Map?;
     List<int>? png;
     if (hint != null && thumbnail != null && snapshot.pages.isNotEmpty) {
-      final first = snapshot.pages.first;
       try {
         png = await thumbnail!(
-          first,
+          snapshot.pages.first,
           hint['width'] as int,
           hint['height'] as int,
         );
       } catch (_) {
         png = null;
       }
+      // Over the limit of `drive-layout` it is not written at all.
       if (png != null && png.length > maxThumbnailBytes) png = null;
     }
+    // ponytail: with no thumbnail (render failed, too big, no pages) an update
+    // sends no `contentHints`, so Drive keeps the previous thumbnail while
+    // the name and properties are new. Drive has no way to delete a hint.
     final metadata = <String, Object?>{
       'name': summary['name'],
       'appProperties': {...props},
@@ -548,7 +574,9 @@ class NoteUploader {
         resumableSession: null,
       ),
     );
-    final kind = uploadKindRule({'size': bytes.length})['kind'] as String;
+    // The whole multipart body counts, the metadata with its thumbnail too.
+    final total = bytes.length + utf8.encode(jsonEncode(metadata)).length;
+    final kind = uploadKindRule({'size': total})['kind'] as String;
     await log.append('uploadStarted', {'noteId': noteId, 'kind': kind});
     final DriveFile file;
     if (kind == 'simple') {
@@ -559,12 +587,19 @@ class NoteUploader {
           metadata: metadata,
           bytes: bytes,
         ),
+        // A create whose answer was lost may have happened: look for the
+        // file by its kkeujeokId before creating another.
+        beforeRetry: fileId != null ? null : () => _adopt(noteId),
       );
     } else {
       file = await _resumable(noteId, fileId, metadata, bytes);
     }
     final head = file.headRevisionId;
     if (head == null) throw _Failure('fatal', reason: 'noRevisionId');
+    final theirs = file.md5Checksum;
+    if (theirs != null && theirs != sum) {
+      throw _Failure('fatal', reason: 'md5Mismatch');
+    }
     await log.append('uploadFinished', {'noteId': noteId, 'revisionId': head});
     await _commit(
       noteId,
@@ -581,6 +616,33 @@ class NoteUploader {
     return (fileId: file.id, ours: head, note: snapshot);
   }
 
+  /// The earliest file with this note's kkeujeokId (with its head), or null.
+  /// Duplicates are counted in the log; merging them is Story 3.1.
+  Future<DriveFile?> _adopt(String noteId) async {
+    final found = await _all(noteId, kkeujeokIdQuery(noteId));
+    if (found.isEmpty) return null;
+    if (found.length > 1) {
+      await log.append('duplicatesCleaned', {'count': found.length - 1});
+    }
+    final keep =
+        driveDuplicatesRule({
+              'kkeujeokId': noteId,
+              'items': [
+                for (final f in found)
+                  {
+                    'id': f.id,
+                    'createdTime': f.createdTime ?? '9999-12-31T23:59:59.999Z',
+                  },
+              ],
+            })['keep']
+            as String;
+    final head = await _call(
+      noteId,
+      () => drive.get(keep, fields: 'headRevisionId'),
+    );
+    return DriveFile(id: keep, headRevisionId: head.headRevisionId);
+  }
+
   Future<DriveFile> _resumable(
     String noteId,
     String? fileId,
@@ -589,51 +651,55 @@ class NoteUploader {
   ) async {
     bool gone(DriveError e) =>
         e.kind == 'http' && (e.status == 404 || e.status == 410);
+    final size = bytes.length;
     for (var start = 0; start < 3; start++) {
       final uri = await _call(
         noteId,
         () => drive.startResumable(
           fileId: fileId,
           metadata: metadata,
-          size: bytes.length,
+          size: size,
         ),
       );
       await _commit(
         noteId,
-        (c) => c.copyWith(resumableSession: {'uri': uri, 'size': bytes.length}),
+        (c) => c.copyWith(resumableSession: {'uri': uri, 'size': size}),
       );
-      var offset = 0;
+      var offset = 0; // what Drive holds
+      var stalled = 0;
       try {
-        while (true) {
-          final end = offset + resumableChunk > bytes.length
-              ? bytes.length
-              : offset + resumableChunk;
-          final chunk = bytes.sublist(offset, end);
-          final from = offset;
-          final r = await _call(
+        while (stalled < 3) {
+          final r = await _call<ResumableResult>(
             noteId,
-            () => drive.putResumable(uri, bytes.length, from, chunk),
+            () {
+              final end = offset + resumableChunk > size
+                  ? size
+                  : offset + resumableChunk;
+              return drive.putResumable(
+                uri,
+                size,
+                offset,
+                bytes.sublist(offset, end),
+              );
+            },
             pass: gone,
+            // A chunk that timed out may have arrived: ask where Drive is.
+            beforeRetry: () async {
+              final q = await drive.putResumable(uri, size, 0, null);
+              offset = q.received;
+              return q.file == null ? null : q;
+            },
           );
           if (r.file != null) return r.file!;
-          // 308: Drive holds [received] bytes; continue from there.
-          offset = r.received > offset ? r.received : end;
-          if (offset >= bytes.length) {
-            // Everything was sent but Drive did not answer with the file:
-            // ask once how far it got.
-            final q = await _call(
-              noteId,
-              () => drive.putResumable(uri, bytes.length, 0, null),
-              pass: gone,
-            );
-            if (q.file != null) return q.file!;
-            throw const DriveError('parse');
-          }
+          // 308: Drive holds [received] bytes, never trusted past that.
+          if (r.received >= size) break; // all sent, no file: new session
+          stalled = r.received > offset ? 0 : stalled + 1;
+          offset = r.received;
         }
       } on DriveError catch (e) {
         if (!gone(e)) rethrow;
-        // The session is gone: again from byte 0 with a new one.
       }
+      // The session is gone or went nowhere: again from byte 0.
     }
     throw _Failure('fatal', reason: 'sessionLost');
   }
@@ -666,6 +732,10 @@ class NoteUploader {
           'round': round,
         });
         if (!p.containsKey('error')) return p;
+        // The listing may not have caught up: wait before asking again,
+        // without using a backoff attempt.
+        final w = backoffRule({'attempt': 1, 'jitter': jitter()});
+        await sleep(Duration(milliseconds: (w['delayMs'] as int?) ?? 1000));
       }
       throw const DriveError('network');
     });
@@ -721,6 +791,12 @@ class NoteUploader {
       committed: () =>
           log.append('baseAdvanced', {'noteId': noteId, 'revisionId': ours}),
     );
+    // An edit may have landed between the read above and the commit: look
+    // again, now that the base is the uploaded note.
+    final after = (await store.read(noteId))?.note;
+    if (after != null && _differs(uploaded, after)) {
+      await _commit(noteId, (c) => c, event: 'edit');
+    }
   }
 }
 
