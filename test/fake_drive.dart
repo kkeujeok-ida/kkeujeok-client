@@ -1,5 +1,8 @@
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:kkeujeok/drive/drive_client.dart';
+import 'package:kkeujeok/drive/note_summary.dart';
+import 'package:kkeujeok/model/kkj_codec.dart';
+import 'package:kkeujeok/model/note.dart';
 
 class FakeRevision {
   FakeRevision(this.id, this.modifiedTime, this.bytes);
@@ -18,10 +21,12 @@ class FakeItem {
     required this.createdTime,
     this.trashed = false,
     this.visible = true,
+    this.mimeType,
   });
 
   final String id;
   String name;
+  String? mimeType;
   List<String> parents;
   final Map<String, String> appProperties;
   final String createdTime;
@@ -107,6 +112,18 @@ class FakeDrive implements DriveClient {
   /// Status an expired session answers with (404 or 410).
   int expiredStatus = 404;
 
+  /// Every change Drive reports, oldest first: the file id and whether it
+  /// was removed. A page token is an index into this list.
+  final List<(String, bool)> changeLog = [];
+
+  /// Number of the next `changes.list` calls that answer [rejectStatus]
+  /// (a rejected page token).
+  int rejectChanges = 0;
+  int rejectStatus = 410;
+
+  /// Changes per `changes.list` page.
+  int changesPageSize = 1000;
+
   /// Failures to throw: popped by the next call whose name starts with the
   /// key (`list`, `create`, `get`, `update`, `upload`, `resumable`,
   /// `revisions`, `media`).
@@ -138,8 +155,10 @@ class FakeDrive implements DriveClient {
     String? createdTime,
     bool trashed = false,
     bool visible = true,
+    String? mimeType,
   }) {
     final i = FakeItem(
+      mimeType: mimeType,
       id: _id(),
       name: name,
       parents: [...parents],
@@ -202,6 +221,7 @@ class FakeDrive implements DriveClient {
       headRevisionId: asked('headRevisionId') ? i.headRevisionId : null,
       md5Checksum: asked('md5Checksum') ? i.md5Checksum : null,
       modifiedTime: i.modifiedTime,
+      mimeType: i.mimeType,
     );
   }
 
@@ -209,7 +229,53 @@ class FakeDrive implements DriveClient {
     final r = FakeRevision('R${++_rev}', _time(), [...bytes]);
     i.revisions.add(r);
     i.modifiedTime = r.modifiedTime;
+    changeLog.add((i.id, false));
     return r;
+  }
+
+  /// A note another device made, with the summary an upload writes (or none).
+  FakeItem foreignNote(
+    Note note, {
+    required String parent,
+    bool summary = true,
+    List<int>? bytes,
+  }) {
+    final data = bytes ?? encodeKkj(note);
+    final sum = crypto.md5.convert(data).toString();
+    final w = listSummaryRule({
+      'op': 'write',
+      'note': note.copyJson(),
+      'md5': sum,
+    });
+    final props = (w['appProperties'] as Map).cast<String, Object?>();
+    final i = FakeItem(
+      id: _id(),
+      name: w['name'] as String,
+      parents: [parent],
+      appProperties: {
+        'kkeujeokId': note.noteId,
+        if (summary)
+          for (final e in props.entries)
+            if (e.value != null) e.key: '${e.value}',
+      },
+      createdTime: _time(),
+      mimeType: noteMimeType,
+    );
+    items.add(i);
+    _addRevision(i, data);
+    return i;
+  }
+
+  /// Another device deletes the file for good.
+  void removeForeign(FakeItem item) {
+    item.deleted = true;
+    changeLog.add((item.id, true));
+  }
+
+  /// Another device trashes or restores the file.
+  void trashForeign(FakeItem item, {bool trashed = true}) {
+    item.trashed = trashed;
+    changeLog.add((item.id, false));
   }
 
   void _applyMetadata(FakeItem i, Map<String, Object?> m) {
@@ -239,6 +305,7 @@ class FakeDrive implements DriveClient {
         parents: [...(m['parents'] as List).cast<String>()],
         appProperties: {},
         createdTime: _time(),
+        mimeType: m['mimeType'] as String?,
       );
       if (lagLists > 0) {
         i.lagging = true;
@@ -275,6 +342,8 @@ class FakeDrive implements DriveClient {
     } else if (parent != null) {
       final v = un(parent.group(1)!);
       m = m.where((i) => i.parents.contains(v));
+    } else if (q == noteTreeQuery) {
+      m = m.where((i) => i.mimeType == noteMimeType);
     } else {
       throw StateError('unsupported q: $q');
     }
@@ -299,12 +368,14 @@ class FakeDrive implements DriveClient {
           '${e.key}': '${e.value}',
       },
       createdTime: _time(),
+      mimeType: metadata['mimeType'] as String?,
     );
     if (lagLists > 0) {
       i.lagging = true;
       _lagLeft = lagLists;
     }
     items.add(i);
+    changeLog.add((i.id, false));
     after?.call('create');
     return _file(i);
   }
@@ -334,6 +405,7 @@ class FakeDrive implements DriveClient {
     if (addParents != null) i.parents.add(addParents);
     if (removeParents != null) i.parents.remove(removeParents);
     if (trashed != null) i.trashed = trashed;
+    changeLog.add((i.id, false));
     after?.call('update:$id:$what');
     return _file(i);
   }
@@ -419,5 +491,38 @@ class FakeDrive implements DriveClient {
     final r = i?.revisions.where((r) => r.id == revisionId).firstOrNull;
     if (r == null) throw const DriveError('http', status: 404);
     return [...r.bytes];
+  }
+
+  @override
+  Future<String> getStartPageToken() async {
+    _enter('changes:start');
+    return '${changeLog.length}';
+  }
+
+  @override
+  Future<ChangesPage> listChanges(String pageToken) async {
+    _enter('changes:$pageToken');
+    if (rejectChanges > 0) {
+      rejectChanges--;
+      throw DriveError('http', status: rejectStatus);
+    }
+    final from = int.tryParse(pageToken);
+    if (from == null || from < 0 || from > changeLog.length) {
+      throw const DriveError('http', status: 410);
+    }
+    final to = from + changesPageSize;
+    final out = <DriveChange>[];
+    for (final (id, removed) in changeLog.skip(from).take(changesPageSize)) {
+      final i = items.where((x) => x.id == id && x.visible).firstOrNull;
+      if (i == null) continue;
+      out.add(
+        removed || i.deleted
+            ? DriveChange(id, removed: true)
+            : DriveChange(id, file: _file(i, noteFileFields)),
+      );
+    }
+    return to < changeLog.length
+        ? ChangesPage(out, nextPageToken: '$to')
+        : ChangesPage(out, newStartPageToken: '${changeLog.length}');
   }
 }

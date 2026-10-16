@@ -10,6 +10,8 @@ import '../drive/root_folder.dart' show RootStatus;
 import '../l10n/app_localizations.dart';
 import '../model/note.dart';
 import '../render/page_painter.dart';
+import '../sync/note_receiver.dart';
+import '../sync/receive_scheduler.dart';
 import 'library_fab.dart';
 import 'new_note_sheet.dart';
 import 'note_editor.dart';
@@ -38,10 +40,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   bool _dialogOpen = false;
   bool _missingWaiting = false; // asked while another route was on top
 
+  // Remote changes: at root ready, on return to the foreground, every 20 s
+  // while in the foreground (Story 3.13).
+  late final ReceiveScheduler _receive = ReceiveScheduler(
+    check: () => ref.read(noteReceiverProvider).check(),
+  );
+  Timer? _scanTimer;
+  bool _showScan = false; // the scan took longer than 1,000 ms
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _receive.resume();
+    if (ref.read(receiveStateProvider).scanning) _watchScan(true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       // Already known to be missing (an earlier library): ask at once.
@@ -53,6 +65,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         // root that is ready at the first build opens the upload gate here.
         if (status == RootStatus.ready) {
           unawaited(ref.read(uploadCoordinatorProvider).rootReady());
+          _receive.kick(force: true);
         }
         ref.read(rootFolderProvider.notifier).check();
       }
@@ -89,6 +102,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   @override
   void dispose() {
+    _receive.dispose();
+    _scanTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     libraryRouteObserver.unsubscribe(this);
     super.dispose();
@@ -101,8 +116,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     if (s == AppLifecycleState.resumed) {
       ref.read(rootFolderProvider.notifier).checkForeground();
       unawaited(coordinator.foreground());
+      _receive.resume();
+      _receive.kick();
     } else if (s == AppLifecycleState.paused) {
+      _receive.pause();
       unawaited(coordinator.appBackgrounded());
+    }
+  }
+
+  /// The grey placeholder shows only when a scan lasts over 1,000 ms.
+  void _watchScan(bool scanning) {
+    _scanTimer?.cancel();
+    if (scanning) {
+      _scanTimer = Timer(const Duration(milliseconds: 1000), () {
+        if (mounted) setState(() => _showScan = true);
+      });
+    } else if (_showScan && mounted) {
+      setState(() => _showScan = false);
     }
   }
 
@@ -198,8 +228,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       if (next.status == RootStatus.ready && prev?.status != RootStatus.ready) {
         // The upload gate just opened: app start recovery, then what waited.
         unawaited(ref.read(uploadCoordinatorProvider).rootReady());
+        _receive.kick(force: true);
       }
     });
+    final recv = ref.watch(receiveStateProvider);
+    ref.listen(receiveStateProvider.select((r) => r.version), (_, _) {
+      ref.read(libraryProvider.notifier).reload();
+    });
+    ref.listen(receiveStateProvider.select((r) => r.scanning), (_, next) {
+      _watchScan(next);
+    });
+    final local = {
+      for (final e in async.value ?? const <LibraryEntry>[]) e.noteId,
+    };
+    final remote = [
+      for (final c in recv.cards)
+        if (!local.contains(c.noteId)) c,
+    ];
     final failed = async.hasError && !async.hasValue;
     final entries = async.value ?? const <LibraryEntry>[];
     final cards = <Widget>[
@@ -224,11 +269,24 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           message: l10n.loadFailed,
           onRetry: () => ref.read(libraryProvider.notifier).reload(),
         )
-      else if (async.hasValue && entries.isEmpty)
+      else if (async.hasValue &&
+          entries.isEmpty &&
+          remote.isEmpty &&
+          !recv.scanning)
         _NewNoteCard(onTap: _newNote),
+      if (_showScan && recv.scanning) ...const [
+        _ScanPlaceholder(),
+        _ScanPlaceholder(),
+      ],
+      for (final c in remote)
+        _RemoteNoteCard(card: c, receiving: recv.receiving.contains(c.noteId)),
       for (final e in entries)
         e.readable
-            ? _NoteCard(entry: e, onTap: () => _open(e.note!))
+            ? _NoteCard(
+                entry: e,
+                receiving: recv.receiving.contains(e.noteId),
+                onTap: () => _open(e.note!),
+              )
             : const _UnreadableCard(),
     ];
 
@@ -392,11 +450,135 @@ class _PageThumbState extends State<_PageThumb> {
   );
 }
 
+/// Arrow-down and "receiving" on a card whose note is being received.
+class _ReceivingBadge extends StatelessWidget {
+  const _ReceivingBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final style = TextStyle(
+      fontFamily: KkjLight.componentsBadgeTextFontFamily,
+      fontSize: KkjLight.componentsBadgeTextFontSize,
+      fontWeight: KkjLight.componentsBadgeTextFontWeight,
+      height:
+          KkjLight.componentsBadgeTextLineHeight /
+          KkjLight.componentsBadgeTextFontSize,
+      color: KkjLight.componentsBadgeNeutralText,
+    );
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: KkjLight.componentsBadgeNeutralBackground,
+        borderRadius: BorderRadius.circular(KkjLight.componentsBadgeRounded),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: KkjTokens.spacing2,
+          vertical: KkjTokens.spacing1,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.arrow_downward,
+              size: KkjLight.componentsBadgeTextFontSize,
+              color: KkjLight.componentsBadgeNeutralText,
+            ),
+            const SizedBox(width: KkjTokens.spacing1),
+            Text(AppLocalizations.of(context).receiving, style: style),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A card thumbnail with the badge in its corner while [receiving].
+class _CardThumb extends StatelessWidget {
+  const _CardThumb({required this.thumb, required this.receiving});
+
+  final Widget thumb;
+  final bool receiving;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    children: [
+      thumb,
+      if (receiving)
+        const PositionedDirectional(
+          top: KkjTokens.spacing2,
+          end: KkjTokens.spacing2,
+          child: _ReceivingBadge(),
+        ),
+    ],
+  );
+}
+
+/// The grey 3:4 place of a card while the tree is scanned.
+class _ScanPlaceholder extends StatelessWidget {
+  const _ScanPlaceholder();
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: AppLocalizations.of(context).scanningNotes,
+    excludeSemantics: true,
+    child: const _Thumb(child: SizedBox.expand()),
+  );
+}
+
+/// A note that exists on Drive but is not downloaded yet: the card is drawn
+/// from its summary (title and date, no thumbnail).
+class _RemoteNoteCard extends StatelessWidget {
+  const _RemoteNoteCard({required this.card, required this.receiving});
+
+  final RemoteCard card;
+  final bool receiving;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final at = card.modifiedAt == null
+        ? null
+        : DateTime.tryParse(card.modifiedAt!);
+    final date = at == null
+        ? null
+        : DateFormat.yMd(
+            Localizations.localeOf(context).toString(),
+          ).format(at.toLocal());
+    return Semantics(
+      label: card.title,
+      value: receiving ? AppLocalizations.of(context).receiving : date,
+      excludeSemantics: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _CardThumb(
+            thumb: const _Thumb(child: SizedBox.expand()),
+            receiving: receiving,
+          ),
+          const SizedBox(height: KkjTokens.spacing2),
+          Text(
+            card.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelMedium,
+          ),
+          if (date != null) Text(date, style: theme.textTheme.bodySmall),
+        ],
+      ),
+    );
+  }
+}
+
 class _NoteCard extends StatelessWidget {
-  const _NoteCard({required this.entry, required this.onTap});
+  const _NoteCard({
+    required this.entry,
+    required this.onTap,
+    this.receiving = false,
+  });
 
   final LibraryEntry entry;
   final VoidCallback onTap;
+  final bool receiving;
 
   @override
   Widget build(BuildContext context) {
@@ -410,7 +592,9 @@ class _NoteCard extends StatelessWidget {
     return Semantics(
       button: true,
       label: note.title,
-      value: date, // no date text and no semantics date when unknown
+      value: receiving
+          ? AppLocalizations.of(context).receiving
+          : date, // no date text and no semantics date when unknown
       excludeSemantics: true,
       onTap: onTap,
       child: InkWell(
@@ -421,7 +605,10 @@ class _NoteCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _Thumb(page: note.pages.isEmpty ? null : note.pages.first),
+            _CardThumb(
+              thumb: _Thumb(page: note.pages.isEmpty ? null : note.pages.first),
+              receiving: receiving,
+            ),
             const SizedBox(height: KkjTokens.spacing2),
             Text(
               note.title,

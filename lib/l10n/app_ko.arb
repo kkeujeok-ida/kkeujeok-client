@@ -76,5 +76,8 @@
   "rootMissingSignOut": "로그아웃",
   "driveReauth": "다시 로그인해 주세요",
   "driveReauthAction": "다시 로그인",
-  "drivePrepareFailed": "Drive를 준비하지 못했어요"
+  "drivePrepareFailed": "Drive를 준비하지 못했어요",
+  "receiving": "받는 중",
+  "receivingLatest": "최신 내용 받는 중",
+  "scanningNotes": "노트 확인 중"
 }

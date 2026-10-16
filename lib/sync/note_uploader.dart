@@ -16,6 +16,7 @@ import 'error_class.dart';
 import 'has_unsent.dart';
 import 'merge.dart';
 import 'merge_step.dart';
+import 'note_chain.dart';
 import 'sync_log.dart';
 import 'sync_rules.dart';
 
@@ -73,11 +74,13 @@ class NoteUploader {
     required this.jitter,
     this.thumbnail,
     this.heartbeat,
+    NoteChain? chain,
     DateTime Function()? clock,
     String Function()? newRev,
     this.editedBy = mid.deviceEditedBy,
   }) : _clock = clock ?? DateTime.now,
-       _newRev = newRev ?? mid.newId;
+       _newRev = newRev ?? mid.newId,
+       _chain = chain ?? NoteChain();
 
   final NoteStore store;
   final DriveClient drive;
@@ -109,17 +112,11 @@ class NoteUploader {
   final String Function() _newRev;
   final String editedBy;
 
-  final _chains = <String, Future<void>>{};
+  /// Shared with the receiver: one run per note at a time.
+  final NoteChain _chain;
 
-  Future<T> _chained<T>(String noteId, Future<T> Function() body) {
-    final run = (_chains[noteId] ?? Future<void>.value()).then((_) => body());
-    final done = run.then<void>((_) {}, onError: (Object _) {});
-    _chains[noteId] = done;
-    done.whenComplete(() {
-      if (identical(_chains[noteId], done)) _chains.remove(noteId);
-    });
-    return run;
-  }
+  Future<T> _chained<T>(String noteId, Future<T> Function() body) =>
+      _chain.run(noteId, body);
 
   /// Uploads [noteId] when it has unsent changes or an unfinished upload.
   Future<UploadOutcome> upload(String noteId) =>

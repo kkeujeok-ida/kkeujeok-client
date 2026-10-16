@@ -230,4 +230,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get drivePrepareFailed => 'Couldn\'t prepare Drive';
+
+  @override
+  String get receiving => 'Receiving';
+
+  @override
+  String get receivingLatest => 'Receiving the latest version';
+
+  @override
+  String get scanningNotes => 'Checking your notes';
 }

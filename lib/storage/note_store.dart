@@ -175,78 +175,144 @@ class NoteStore {
   /// the same [SyncInfo.baseHeadRevisionId] with a different [base] fails;
   /// callers use a new id for a new base.
   Future<void> commitSync(Note working, Note? base, SyncInfo info) async {
-    await _locked(working.noteId, () async {
+    await _locked(working.noteId, () => _commitLocked(working, base, info));
+    await _notify();
+  }
+
+  /// [commitSync] for a note received from Drive: under the note's lock the
+  /// stored working copy must still be [expected] (null: there is none), else
+  /// nothing is written and the answer is false. [change] gets the
+  /// `sync.json` read under the same lock and returns the one to commit.
+  /// Throws [NoteSaveException] like [commitSync].
+  Future<bool> commitReceive(
+    String noteId, {
+    required Note? expected,
+    required Note working,
+    required Note base,
+    required SyncInfo Function(SyncInfo current) change,
+  }) async {
+    var done = false;
+    final dir = (await _working(noteId)).parent;
+    await _locked(noteId, () async {
+      final file = File(_in(dir, workingFileName));
+      if (await file.exists()) {
+        final cur = decodeKkj(await file.readAsBytes()).note;
+        if (expected == null ||
+            cur == null ||
+            jsonEncode(cur.toJson()) != jsonEncode(expected.toJson())) {
+          return;
+        }
+      } else if (expected != null) {
+        return;
+      }
+      await _commitLocked(working, base, change(await _loadSyncStrict(dir)));
+      done = true;
+    });
+    if (done) await _notify();
+    return done;
+  }
+
+  /// A downloaded file this client cannot read, kept byte for byte as the
+  /// working copy of a note that has none (so it is never replaced), with
+  /// [info] as its `sync.json`. False, nothing written, when a working copy
+  /// exists. Throws [NoteSaveException].
+  Future<bool> storeUnreadable(
+    String noteId,
+    List<int> bytes,
+    SyncInfo info,
+  ) async {
+    var done = false;
+    final dir = (await _working(noteId)).parent;
+    await _locked(noteId, () async {
       final tmps = <File>[];
       try {
-        final workingFile = await _working(working.noteId);
-        final dir = workingFile.parent;
-        final id = info.baseHeadRevisionId;
-        if (id != null && !revisionIdPattern.hasMatch(id)) {
-          throw NoteSaveException('baseHeadRevisionId is not a valid id');
-        }
-        if (id == null && base != null) {
-          throw NoteSaveException('a base needs a baseHeadRevisionId');
-        }
-        if (base != null && base.noteId != working.noteId) {
-          throw NoteSaveException('base belongs to another note');
-        }
-        if (await workingFile.exists() &&
-            !decodeKkj(await workingFile.readAsBytes()).writable) {
-          throw NoteSaveException(
-            'existing file is not readable by this client',
-          );
-        }
-        final baseFile = id == null ? null : File(_in(dir, 'base.$id.kkj'));
-        if (base == null && baseFile != null && !await baseFile.exists()) {
-          throw NoteSaveException('the base file is missing');
-        }
-        var writeBase = base != null;
-        if (writeBase && baseFile != null && await baseFile.exists()) {
-          final committed = await _committedBaseId(dir);
-          if (committed == id) {
-            final cur = decodeKkj(await baseFile.readAsBytes()).note;
-            if (cur == null ||
-                jsonEncode(cur.toJson()) != jsonEncode(base.toJson())) {
-              throw NoteSaveException(
-                'base $id is committed already with other content',
-              );
-            }
-            writeBase = false; // identical: nothing to write
-          }
-        }
+        final file = File(_in(dir, workingFileName));
+        if (await file.exists()) return;
         await dir.create(recursive: true);
-
-        Future<void> put(File f, List<int> bytes, String step) async {
-          final t = File('${f.path}.tmp');
-          tmps.add(t);
-          await _writeFile(t, bytes);
-          await t.rename(f.path);
-          tmps.remove(t);
-          await onStep?.call(step);
-        }
-
-        await put(workingFile, encodeKkj(working), 'working');
-        if (writeBase) await put(baseFile!, encodeKkj(base!), 'base');
-        await put(
+        await _put(file, bytes, tmps);
+        await _put(
           File(_in(dir, syncFileName)),
           utf8.encode(jsonEncode(info.toJson())),
-          'sync',
+          tmps,
         );
-        try {
-          await _dropOrphanBases(dir, id);
-        } catch (_) {} // already committed; readSync cleans up later
-      } on NoteSaveException {
-        rethrow;
+        done = true;
       } catch (e) {
-        for (final t in tmps) {
-          try {
-            if (await t.exists()) await t.delete();
-          } catch (_) {}
-        }
-        throw NoteSaveException('could not write sync state', e);
+        await _cleanTmps(tmps);
+        throw NoteSaveException('could not write the file', e);
       }
     });
-    await _notify();
+    if (done) await _notify();
+    return done;
+  }
+
+  Future<void> _commitLocked(Note working, Note? base, SyncInfo info) async {
+    final tmps = <File>[];
+    try {
+      final workingFile = await _working(working.noteId);
+      final dir = workingFile.parent;
+      final id = info.baseHeadRevisionId;
+      if (id != null && !revisionIdPattern.hasMatch(id)) {
+        throw NoteSaveException('baseHeadRevisionId is not a valid id');
+      }
+      if (id == null && base != null) {
+        throw NoteSaveException('a base needs a baseHeadRevisionId');
+      }
+      if (base != null && base.noteId != working.noteId) {
+        throw NoteSaveException('base belongs to another note');
+      }
+      if (await workingFile.exists() &&
+          !decodeKkj(await workingFile.readAsBytes()).writable) {
+        throw NoteSaveException('existing file is not readable by this client');
+      }
+      final baseFile = id == null ? null : File(_in(dir, 'base.$id.kkj'));
+      if (base == null && baseFile != null && !await baseFile.exists()) {
+        throw NoteSaveException('the base file is missing');
+      }
+      var writeBase = base != null;
+      if (writeBase && baseFile != null && await baseFile.exists()) {
+        final committed = await _committedBaseId(dir);
+        if (committed == id) {
+          final cur = decodeKkj(await baseFile.readAsBytes()).note;
+          if (cur == null ||
+              jsonEncode(cur.toJson()) != jsonEncode(base.toJson())) {
+            throw NoteSaveException(
+              'base $id is committed already with other content',
+            );
+          }
+          writeBase = false; // identical: nothing to write
+        }
+      }
+      await dir.create(recursive: true);
+
+      Future<void> put(File f, List<int> bytes, String step) async {
+        final t = File('${f.path}.tmp');
+        tmps.add(t);
+        await _writeFile(t, bytes);
+        await t.rename(f.path);
+        tmps.remove(t);
+        await onStep?.call(step);
+      }
+
+      await put(workingFile, encodeKkj(working), 'working');
+      if (writeBase) await put(baseFile!, encodeKkj(base!), 'base');
+      await put(
+        File(_in(dir, syncFileName)),
+        utf8.encode(jsonEncode(info.toJson())),
+        'sync',
+      );
+      try {
+        await _dropOrphanBases(dir, id);
+      } catch (_) {} // already committed; readSync cleans up later
+    } on NoteSaveException {
+      rethrow;
+    } catch (e) {
+      for (final t in tmps) {
+        try {
+          if (await t.exists()) await t.delete();
+        } catch (_) {}
+      }
+      throw NoteSaveException('could not write sync state', e);
+    }
   }
 
   /// The base id the `sync.json` on disk names; null when there is none or

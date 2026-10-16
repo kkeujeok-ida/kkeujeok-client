@@ -227,4 +227,13 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get drivePrepareFailed => 'Drive를 준비하지 못했어요';
+
+  @override
+  String get receiving => '받는 중';
+
+  @override
+  String get receivingLatest => '최신 내용 받는 중';
+
+  @override
+  String get scanningNotes => '노트 확인 중';
 }

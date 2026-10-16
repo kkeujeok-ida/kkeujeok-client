@@ -113,6 +113,16 @@ class SyncDevice {
 
   static const _keep = Object();
 
+  SyncDevice withPageToken(String? token) => SyncDevice(
+    sub: sub,
+    email: email,
+    rootFolderId: rootFolderId,
+    conflictsFolderId: conflictsFolderId,
+    pageToken: token,
+    createIntents: createIntents,
+    extra: extra,
+  );
+
   SyncDevice withAccount(String sub, String email) => SyncDevice(
     sub: sub,
     email: email,

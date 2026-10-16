@@ -7,6 +7,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/intl.dart';
 import 'package:kkeujeok/design_tokens/build/tokens.dart';
@@ -23,6 +24,8 @@ import 'package:kkeujeok/ui/note_editor.dart';
 import 'package:kkeujeok/ui/pen_toolbar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'fake_receiver.dart';
+import 'package:kkeujeok/sync/note_receiver.dart';
 import 'shell_test.dart' show pumpApp;
 
 String _id(int n) =>
@@ -89,8 +92,15 @@ void main() {
     WidgetTester t, {
     NoteStore? store,
     List<Locale> device = const [Locale('en', 'US')],
+    List<Override> overrides = const [],
   }) async {
-    await pumpApp(t, noteData: data, noteStore: store, device: device);
+    await pumpApp(
+      t,
+      noteData: data,
+      noteStore: store,
+      device: device,
+      overrides: overrides,
+    );
     await settle(t);
     await t.tap(find.text('Lecture'));
     await settle(t);
@@ -1843,6 +1853,39 @@ void main() {
       ], kind: PointerDeviceKind.touch);
       await settle(t);
       expect(elements(), hasLength(1), reason: 'the finger left no ink');
+    });
+
+    testWidgets('a note being received takes no stroke; a stroke after it '
+        'was received draws; opening asks the receiver once', (t) async {
+      seed(_note());
+      final rec = RecReceiver();
+      await open(t, overrides: [noteReceiverProvider.overrideWithValue(rec)]);
+      expect(rec.opened, [_id(1)]);
+      rec.state.value = ReceiveState(receiving: {_id(1)});
+      await t.pump();
+      await draw(t, line);
+      await settle(t);
+      expect(elements(), isEmpty, reason: 'no stroke while receiving');
+      rec.state.value = const ReceiveState();
+      await t.pump();
+      await draw(t, line);
+      await settle(t);
+      expect(elements(), hasLength(1));
+    });
+
+    testWidgets('after 1,000 ms of receiving the editor says so', (t) async {
+      seed(_note());
+      final rec = RecReceiver();
+      await open(t, overrides: [noteReceiverProvider.overrideWithValue(rec)]);
+      rec.state.value = ReceiveState(receiving: {_id(1)});
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 900));
+      expect(find.text('Receiving the latest version'), findsNothing);
+      await t.pump(const Duration(milliseconds: 200));
+      expect(find.text('Receiving the latest version'), findsOneWidget);
+      rec.state.value = const ReceiveState();
+      await t.pump();
+      expect(find.text('Receiving the latest version'), findsNothing);
     });
 
     testWidgets('a hovering stylus is enough: a finger makes no stroke', (

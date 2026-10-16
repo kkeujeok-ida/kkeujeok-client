@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/gestures.dart';
@@ -180,7 +181,28 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     // A sync result for this note is merged into this queue and history.
     _hosts.register(widget.note.noteId, _host);
     _loadLastSeen();
+    // Asks Drive whether the note is current (not awaited: never blocks
+    // opening).
+    unawaited(ref.read(noteReceiverProvider).noteOpened(widget.note.noteId));
+    if (_receiving) _watchReceiving(true);
   }
+
+  Timer? _latestTimer;
+  bool _showLatest = false; // received for over 1,000 ms
+
+  void _watchReceiving(bool on) {
+    _latestTimer?.cancel();
+    if (on) {
+      _latestTimer = Timer(const Duration(milliseconds: 1000), () {
+        if (mounted) setState(() => _showLatest = true);
+      });
+    } else if (_showLatest && mounted) {
+      setState(() => _showLatest = false);
+    }
+  }
+
+  bool get _receiving =>
+      ref.read(receiveStateProvider).receiving.contains(widget.note.noteId);
 
   Future<void> _loadLastSeen() async {
     try {
@@ -237,6 +259,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   @override
   void dispose() {
+    _latestTimer?.cancel();
     if (_coordinator.flushOpen == _flush) _coordinator.flushOpen = null;
     _hosts.unregister(widget.note.noteId, _host);
     _openNote.clear(widget.note.noteId);
@@ -415,6 +438,11 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   }
 
   void _begin(PointerDownEvent e, Offset page) {
+    // The note is being received: no stroke (Story 3.13).
+    if (_receiving) {
+      _mode = _Mode.ignored;
+      return;
+    }
     _pointer = e.pointer;
     _t0 = e.timeStamp;
     _points
@@ -583,6 +611,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     final landscape =
         page != null && (page['width'] as num) > (page['height'] as num);
     final title = Theme.of(context).textTheme.labelMedium;
+    ref.listen(
+      receiveStateProvider.select(
+        (r) => r.receiving.contains(widget.note.noteId),
+      ),
+      (_, on) => _watchReceiving(on),
+    );
 
     return Semantics(
       scopesRoute: true,
@@ -635,6 +669,35 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                             ),
                     ),
                   ),
+                  if (_showLatest)
+                    Positioned(
+                      bottom: pad.bottom + gap,
+                      left: pad.left + gap,
+                      right: pad.right + gap,
+                      child: Semantics(
+                        liveRegion: true,
+                        child: Center(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: KkjLight.componentsBadgeNeutralBackground,
+                              borderRadius: BorderRadius.circular(
+                                KkjLight.componentsBadgeRounded,
+                              ),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: KkjTokens.spacing3,
+                                vertical: KkjTokens.spacing1,
+                              ),
+                              child: Text(
+                                l10n.receivingLatest,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   Positioned(
                     top: pad.top + gap,
                     left: pad.left + gap,

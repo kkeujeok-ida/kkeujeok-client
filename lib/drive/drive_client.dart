@@ -25,6 +25,8 @@ class DriveFile {
     this.headRevisionId,
     this.md5Checksum,
     this.modifiedTime,
+    this.mimeType,
+    this.thumbnailLink,
   });
 
   final String id;
@@ -42,6 +44,27 @@ class DriveFile {
 
   /// Canonical timestamp or null.
   final String? modifiedTime;
+  final String? mimeType;
+  final String? thumbnailLink;
+}
+
+/// One entry of `changes.list`: [file] is null for a removed file.
+class DriveChange {
+  const DriveChange(this.fileId, {this.removed = false, this.file});
+
+  final String fileId;
+  final bool removed;
+  final DriveFile? file;
+}
+
+/// One page of `changes.list`: [nextPageToken] while more follow, else
+/// [newStartPageToken] is the token to save.
+class ChangesPage {
+  const ChangesPage(this.changes, {this.nextPageToken, this.newStartPageToken});
+
+  final List<DriveChange> changes;
+  final String? nextPageToken;
+  final String? newStartPageToken;
 }
 
 /// One entry of `revisions.list` (`id`, `modifiedTime`).
@@ -120,7 +143,24 @@ abstract interface class DriveClient {
 
   /// `revisions.get` with `alt=media`.
   Future<List<int>> downloadRevision(String fileId, String revisionId);
+
+  /// `changes.getStartPageToken`.
+  Future<String> getStartPageToken();
+
+  /// One page of `changes.list`. HTTP 400, 404 or 410 is a rejected token.
+  Future<ChangesPage> listChanges(String pageToken);
 }
+
+/// `mimeType` of a note file.
+const noteMimeType = 'application/vnd.kkeujeok.kkj';
+
+/// The file fields a receive reads (listing and changes).
+const noteFileFields =
+    'id,name,parents,appProperties,createdTime,trashed,headRevisionId,'
+    'md5Checksum,modifiedTime,mimeType,thumbnailLink';
+
+/// `q` for every live note file (the tree scan of spec `sync`).
+const noteTreeQuery = "trashed=false and mimeType='$noteMimeType'";
 
 /// `q` for one `kkeujeokId` (spec `drive-layout` "Finding").
 String kkeujeokIdQuery(String id) =>

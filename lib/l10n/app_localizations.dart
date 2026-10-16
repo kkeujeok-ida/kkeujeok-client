@@ -517,6 +517,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Couldn\'t prepare Drive'**
   String get drivePrepareFailed;
+
+  /// No description provided for @receiving.
+  ///
+  /// In en, this message translates to:
+  /// **'Receiving'**
+  String get receiving;
+
+  /// No description provided for @receivingLatest.
+  ///
+  /// In en, this message translates to:
+  /// **'Receiving the latest version'**
+  String get receivingLatest;
+
+  /// No description provided for @scanningNotes.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking your notes'**
+  String get scanningNotes;
 }
 
 class _AppLocalizationsDelegate

@@ -99,5 +99,8 @@
   "rootMissingSignOut": "Log out",
   "driveReauth": "Please sign in again",
   "driveReauthAction": "Sign in again",
-  "drivePrepareFailed": "Couldn't prepare Drive"
+  "drivePrepareFailed": "Couldn't prepare Drive",
+  "receiving": "Receiving",
+  "receivingLatest": "Receiving the latest version",
+  "scanningNotes": "Checking your notes"
 }

@@ -151,6 +151,8 @@ class HttpDriveClient implements DriveClient {
         headRevisionId: m['headRevisionId'] as String?,
         md5Checksum: m['md5Checksum'] as String?,
         modifiedTime: m['modifiedTime'] as String?,
+        mimeType: m['mimeType'] as String?,
+        thumbnailLink: m['thumbnailLink'] as String?,
       );
     } catch (_) {
       throw const DriveError('parse');
@@ -359,4 +361,55 @@ class HttpDriveClient implements DriveClient {
           {'alt': 'media'},
         ),
       )).body;
+
+  @override
+  Future<String> getStartPageToken() async {
+    final t = (await _send(
+      'GET',
+      _uri('/drive/v3/changes/startPageToken', {'spaces': 'drive'}),
+    ))['startPageToken'];
+    if (t is! String || t.isEmpty) throw const DriveError('parse');
+    return t;
+  }
+
+  @override
+  Future<ChangesPage> listChanges(String pageToken) async {
+    final m = await _send(
+      'GET',
+      _uri('/drive/v3/changes', {
+        'pageToken': pageToken,
+        'spaces': 'drive',
+        'pageSize': '1000',
+        'includeRemoved': 'true',
+        'restrictToMyDrive': 'true',
+        'fields':
+            'nextPageToken,newStartPageToken,changes(fileId,removed,file($noteFileFields))',
+      }),
+    );
+    final list = m['changes'];
+    final next = m['nextPageToken'], start = m['newStartPageToken'];
+    if (list is! List ||
+        (next != null && next is! String) ||
+        (start != null && start is! String)) {
+      throw const DriveError('parse');
+    }
+    final out = <DriveChange>[];
+    for (final c in list) {
+      if (c is! Map || c['fileId'] is! String) throw const DriveError('parse');
+      final file = c['file'];
+      out.add(
+        DriveChange(
+          c['fileId'] as String,
+          removed: c['removed'] == true,
+          file: file is Map ? _file(file, c['fileId'] as String) : null,
+        ),
+      );
+    }
+    if (next == null && start == null) throw const DriveError('parse');
+    return ChangesPage(
+      out,
+      nextPageToken: next as String?,
+      newStartPageToken: start as String?,
+    );
+  }
 }

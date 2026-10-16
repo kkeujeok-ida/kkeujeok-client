@@ -26,6 +26,8 @@ import '../storage/session_hint.dart';
 import '../storage/sync_device_store.dart';
 import '../sync/background_upload.dart';
 import '../sync/merge_step.dart';
+import '../sync/note_chain.dart';
+import '../sync/note_receiver.dart';
 import '../sync/note_uploader.dart';
 import '../sync/open_note.dart';
 import '../sync/sync_log.dart';
@@ -259,8 +261,12 @@ final uploadLeaseProvider = Provider<UploadLease>(
   (ref) => UploadLease(ref.read(noteDataProvider), DateTime.now),
 );
 
+/// One run per note at a time, shared by uploads and receives.
+final noteChainProvider = Provider<NoteChain>((ref) => NoteChain());
+
 final noteUploaderProvider = Provider<NoteUploader>(
   (ref) => NoteUploader(
+    chain: ref.read(noteChainProvider),
     store: ref.read(noteStoreProvider),
     drive: ref.read(driveClientProvider),
     device: ref.read(syncDeviceStoreProvider),
@@ -274,6 +280,46 @@ final noteUploaderProvider = Provider<NoteUploader>(
     heartbeat: ref.read(uploadLeaseProvider).renew,
   ),
 );
+
+/// Receives remote changes (Story 3.13): app start, foreground, 20 s poll.
+final noteReceiverProvider = Provider<NoteReceiver>((ref) {
+  final r = NoteReceiver(
+    store: ref.read(noteStoreProvider),
+    drive: ref.read(driveClientProvider),
+    device: ref.read(syncDeviceStoreProvider),
+    log: ref.read(syncLogProvider),
+    merge: ref.read(mergeStepProvider),
+    hosts: ref.read(mergeHostsProvider),
+    allowed: () async => ref.read(uploadsAllowedProvider),
+    online: ref.read(networkProbeProvider),
+    account: () => ref.read(authGatewayProvider).account,
+    sleep: Future<void>.delayed,
+    jitter: Random().nextDouble,
+    chain: ref.read(noteChainProvider),
+  );
+  ref.onDispose(r.dispose);
+  return r;
+});
+
+/// The receiver's state for the library and the editor.
+class ReceiveStateNotifier extends Notifier<ReceiveState> {
+  @override
+  ReceiveState build() {
+    final r = ref.watch(noteReceiverProvider);
+    void follow() {
+      if (ref.mounted) state = r.state.value;
+    }
+
+    r.state.addListener(follow);
+    ref.onDispose(() => r.state.removeListener(follow));
+    return r.state.value;
+  }
+}
+
+final receiveStateProvider =
+    NotifierProvider<ReceiveStateNotifier, ReceiveState>(
+      ReceiveStateNotifier.new,
+    );
 
 /// Upload triggers: note closed, background, app start, foreground.
 final uploadCoordinatorProvider = Provider<UploadCoordinator>(
