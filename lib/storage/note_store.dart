@@ -296,6 +296,98 @@ class NoteStore {
     });
   }
 
+  /// Changes one note's `sync.json` (and its base copy) without touching the
+  /// working copy. [change] gets the `sync.json` read under the note's lock,
+  /// so no snapshot taken earlier can overwrite a newer write. [base], when
+  /// given, becomes `base.<id>.kkj` for the [SyncInfo.baseHeadRevisionId] that
+  /// [change] returns; it is written before `sync.json`, the commit marker.
+  /// Returns what was committed. Throws [NoteSaveException]; the previous
+  /// `sync.json` stays when it does.
+  Future<SyncInfo> updateSync(
+    String noteId,
+    SyncInfo Function(SyncInfo current) change, {
+    Note? base,
+  }) async {
+    final dir = (await _working(noteId)).parent;
+    late SyncInfo committed;
+    await _locked(noteId, () async {
+      final tmps = <File>[];
+      try {
+        if (!await dir.exists()) {
+          throw NoteSaveException('the note has no folder');
+        }
+        SyncInfo old = const SyncInfo();
+        try {
+          old =
+              SyncInfo.fromJson(
+                jsonDecode(await File(_in(dir, syncFileName)).readAsString()),
+              ) ??
+              old;
+        } catch (_) {}
+        final next = change(old);
+        final id = next.baseHeadRevisionId;
+        if (id != null && !revisionIdPattern.hasMatch(id)) {
+          throw NoteSaveException('baseHeadRevisionId is not a valid id');
+        }
+        if (id == null && base != null) {
+          throw NoteSaveException('a base needs a baseHeadRevisionId');
+        }
+        if (base != null && base.noteId != noteId) {
+          throw NoteSaveException('base belongs to another note');
+        }
+        final baseFile = id == null ? null : File(_in(dir, 'base.$id.kkj'));
+        if (base == null && baseFile != null && !await baseFile.exists()) {
+          throw NoteSaveException('the base file is missing');
+        }
+        Future<void> put(File f, List<int> bytes) async {
+          final t = File('${f.path}.tmp');
+          tmps.add(t);
+          await _writeFile(t, bytes);
+          await t.rename(f.path);
+          tmps.remove(t);
+        }
+
+        if (base != null && baseFile != null) {
+          var write = true;
+          if (await baseFile.exists() && await _committedBaseId(dir) == id) {
+            final cur = decodeKkj(await baseFile.readAsBytes()).note;
+            if (cur == null ||
+                jsonEncode(cur.toJson()) != jsonEncode(base.toJson())) {
+              throw NoteSaveException(
+                'base $id is committed already with other content',
+              );
+            }
+            write = false;
+          }
+          if (write) {
+            await put(baseFile, encodeKkj(base));
+            await onStep?.call('base');
+          }
+        }
+        await put(
+          File(_in(dir, syncFileName)),
+          utf8.encode(jsonEncode(next.toJson())),
+        );
+        await onStep?.call('sync');
+        try {
+          await _dropOrphanBases(dir, id);
+        } catch (_) {}
+        committed = next;
+      } on NoteSaveException {
+        rethrow;
+      } catch (e) {
+        for (final t in tmps) {
+          try {
+            if (await t.exists()) await t.delete();
+          } catch (_) {}
+        }
+        throw NoteSaveException('could not write sync state', e);
+      }
+    });
+    await _notify();
+    return committed;
+  }
+
   /// Never throws. A missing or broken `sync.json` is "none": state
   /// `pending`, no base, and no base file is removed. Otherwise only the
   /// base it names is read and the others are removed. Leftover temp files
@@ -394,6 +486,17 @@ class NoteStore {
         return const NoteReadResult(ReadStatus.unreadable);
       }
     });
+  }
+
+  /// The ids of the note folders, without reading any file.
+  Future<List<String>> ids() async {
+    final root = await _data.notesDir();
+    if (!await root.exists()) return const [];
+    return [
+      await for (final e in root.list())
+        if (e is Directory && _uuid.hasMatch(e.path.split(_pathSep).last))
+          e.path.split(_pathSep).last,
+    ];
   }
 
   /// One entry per note folder that has a working copy; the id is the folder

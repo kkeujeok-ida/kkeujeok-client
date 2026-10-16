@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/drive/duplicates.dart';
+import 'package:kkeujeok/drive/note_summary.dart';
 import 'package:kkeujeok/model/kkj_codec.dart';
 import 'package:kkeujeok/model/note.dart';
 import 'package:kkeujeok/model/note_title.dart';
@@ -16,6 +17,7 @@ import 'package:kkeujeok/render/stroke_outline.dart';
 import 'package:kkeujeok/sync/error_class.dart';
 import 'package:kkeujeok/sync/has_unsent.dart';
 import 'package:kkeujeok/sync/sync_log_entry.dart';
+import 'package:kkeujeok/sync/sync_rules.dart';
 
 typedef Case = Map<String, dynamic>;
 
@@ -165,6 +167,30 @@ final runners = <String, void Function(Case)>{
   ),
   'synclog.entry': (c) =>
       _same(checkLogEntry((c['input'] as Map)['entry']), c['expected']),
+  'sync.uploadKind': (c) => _same(
+    uploadKindRule((c['input'] as Map).cast<String, Object?>()),
+    c['expected'],
+  ),
+  'sync.verifyPlan': (c) => _same(
+    verifyPlanRule((c['input'] as Map).cast<String, Object?>()),
+    c['expected'],
+  ),
+  'sync.backoff': (c) => _same(
+    backoffRule((c['input'] as Map).cast<String, Object?>()),
+    c['expected'],
+  ),
+  'sync.stateMachine': (c) => _same(
+    stateMachineRule((c['input'] as Map).cast<String, Object?>()),
+    c['expected'],
+  ),
+  'drive.fileName': (c) => _same(
+    driveFileNameRule((c['input'] as Map).cast<String, Object?>()),
+    c['expected'],
+  ),
+  'drive.listSummary': (c) => _same(
+    listSummaryRule((c['input'] as Map).cast<String, Object?>()),
+    c['expected'],
+  ),
   'ops.undoRedo': (c) {
     final i = c['input'] as Map<String, dynamic>;
     final h = History(_note(i['note']));
@@ -200,14 +226,7 @@ void _runOp(Case c) {
 // Rules whose fixture exists but whose client code is a later story's. Each
 // needs a valid fixture file and must not have a runner yet: when its story
 // adds the runner, the entry has to go (a stale entry fails the run).
-const pendingRules = {
-  'drive.fileName',
-  'drive.listSummary',
-  'sync.backoff',
-  'sync.stateMachine',
-  'sync.uploadKind',
-  'sync.verifyPlan',
-};
+const pendingRules = <String>{};
 
 final _sep = Platform.pathSeparator;
 
@@ -426,10 +445,13 @@ void main() {
     });
 
     group('pendingRules', () {
+      const later = 'x.later';
+      final laterFile = fixture(later, [one]);
+
       // A copy of the real fixture folder, changed by [edit].
       Map<String, List<Case>> loadCopy(
         void Function(Directory) edit, {
-        Set<String>? pending,
+        required Set<String> pending,
       }) {
         final dir = Directory.systemTemp.createTempSync('kkj-fixtures-');
         try {
@@ -439,52 +461,49 @@ void main() {
             }
           }
           edit(dir);
-          return pending == null
-              ? loadFixtures(dir.path)
-              : loadFixtures(dir.path, pending: pending);
+          return loadFixtures(dir.path, pending: pending);
         } finally {
           dir.deleteSync(recursive: true);
         }
       }
 
-      test('the real folder passes, pending rules are listed', () {
-        expect(pendingRules, contains('sync.backoff'));
-        expect(loadCopy((_) {}), isNot(contains('sync.backoff')));
+      void put(Directory d, String text) =>
+          File('${d.path}${_sep}x.later.json').writeAsStringSync(text);
+
+      test('the real folder passes with nothing pending', () {
+        expect(pendingRules, isEmpty);
+        expect(loadCopy((_) {}, pending: pendingRules), isNotEmpty);
+      });
+
+      test('a pending rule with a valid file and no runner passes', () {
+        final f = loadCopy((d) => put(d, laterFile), pending: {later});
+        expect(f, isNot(contains(later)));
       });
 
       test('a pending rule whose file is gone fails', () {
         expect(
-          () => loadCopy(
-            (d) => File('${d.path}${_sep}sync.backoff.json').deleteSync(),
-          ),
+          () => loadCopy((_) {}, pending: {later}),
           throwsMessage('Pending fixture missing'),
         );
       });
 
       test('a pending rule that has a runner fails', () {
         expect(
-          () => loadCopy((_) {}, pending: {...pendingRules, 'sync.hasUnsent'}),
+          () => loadCopy((_) {}, pending: {'sync.hasUnsent'}),
           throwsMessage('remove it from pendingRules'),
         );
       });
 
       test('a pending rule with an invalid file fails', () {
         expect(
-          () => loadCopy(
-            (d) =>
-                File('${d.path}${_sep}sync.backoff.json')
-                    .writeAsStringSync('{ not json'),
-          ),
+          () => loadCopy((d) => put(d, '{ not json'), pending: {later}),
           throwsMessage('not valid JSON'),
         );
       });
 
       test('a rule that is neither run nor pending still fails', () {
         expect(
-          () => loadCopy(
-            (_) {},
-            pending: {...pendingRules}..remove('sync.backoff'),
-          ),
+          () => loadCopy((d) => put(d, laterFile), pending: {}),
           throwsMessage('has no test'),
         );
       });

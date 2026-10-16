@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'drive_client.dart';
 
 const _defaultFields = 'id,name,parents,appProperties,createdTime,trashed';
+const _upFields = 'id,headRevisionId';
 
 /// Drive v3 REST over `dart:io`. The HTTP client, base URL and token come
 /// from the caller, so tests point it at a local server. Throws only
@@ -15,23 +17,34 @@ class HttpDriveClient implements DriveClient {
     required this.token,
     Uri? baseUrl,
     this.timeout = const Duration(seconds: 30),
+    this.transferTimeout = const Duration(minutes: 2),
   }) : _base = baseUrl ?? Uri.parse('https://www.googleapis.com');
 
   final HttpClient Function() httpClient;
   final Future<String?> Function() token;
   final Uri _base;
+
+  /// Longest a connection or a JSON call may take.
   final Duration timeout;
+
+  /// Longest an upload or download body may take.
+  final Duration transferTimeout;
 
   Uri _uri(String path, Map<String, String> query) => _base.replace(
     path: '${_base.path == '/' ? '' : _base.path}$path',
     queryParameters: query,
   );
 
-  Future<Map<String, Object?>> _send(
+  /// One request. A status outside 2xx is a [DriveError] unless it is in
+  /// [accept]. Answer headers are keyed in lower case.
+  Future<({int status, Map<String, String> headers, List<int> body})> _request(
     String method,
-    Uri uri, [
-    Map<String, Object?>? body,
-  ]) async {
+    Uri uri, {
+    List<int>? body,
+    String? contentType,
+    Map<String, String> headers = const {},
+    Set<int> accept = const {},
+  }) async {
     try {
       final t = await token();
       if (t == null || t.isEmpty) {
@@ -41,28 +54,30 @@ class HttpDriveClient implements DriveClient {
       try {
         final req = await client.openUrl(method, uri).timeout(timeout);
         req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $t');
-        if (body != null) {
-          req.headers.contentType = ContentType.json;
-          req.add(utf8.encode(jsonEncode(body)));
+        headers.forEach(req.headers.set);
+        if (contentType != null) {
+          req.headers.set(HttpHeaders.contentTypeHeader, contentType);
         }
-        final res = await req.close().timeout(timeout);
-        final text = await utf8.decodeStream(res).timeout(timeout);
-        if (res.statusCode < 200 || res.statusCode > 299) {
+        if (body != null) {
+          req.contentLength = body.length;
+          req.add(body);
+        }
+        final res = await req.close().timeout(transferTimeout);
+        final all = await res
+            .fold<BytesBuilder>(BytesBuilder(copy: false), (b, c) => b..add(c))
+            .timeout(transferTimeout);
+        final bytes = all.takeBytes();
+        final status = res.statusCode;
+        if ((status < 200 || status > 299) && !accept.contains(status)) {
           throw DriveError(
             'http',
-            status: res.statusCode,
-            reason: _reason(text),
+            status: status,
+            reason: _reason(utf8.decode(bytes, allowMalformed: true)),
           );
         }
-        try {
-          final json = jsonDecode(text);
-          if (json is Map) {
-            return {for (final e in json.entries) '${e.key}': e.value};
-          }
-        } on FormatException {
-          // falls through to parse
-        }
-        throw const DriveError('parse');
+        final h = <String, String>{};
+        res.headers.forEach((k, v) => h[k.toLowerCase()] = v.join(','));
+        return (status: status, headers: h, body: bytes);
       } finally {
         client.close(force: true);
       }
@@ -73,6 +88,31 @@ class HttpDriveClient implements DriveClient {
       throw const DriveError('network');
     }
   }
+
+  static Map<String, Object?> _json(List<int> body) {
+    try {
+      final json = jsonDecode(utf8.decode(body));
+      if (json is Map) {
+        return {for (final e in json.entries) '${e.key}': e.value};
+      }
+    } catch (_) {
+      // falls through to parse
+    }
+    throw const DriveError('parse');
+  }
+
+  Future<Map<String, Object?>> _send(
+    String method,
+    Uri uri, [
+    Map<String, Object?>? body,
+  ]) async => _json(
+    (await _request(
+      method,
+      uri,
+      body: body == null ? null : utf8.encode(jsonEncode(body)),
+      contentType: body == null ? null : 'application/json',
+    )).body,
+  );
 
   /// First `error.errors[].reason`, or the OAuth-style `error` string.
   static String? _reason(String text) {
@@ -88,13 +128,14 @@ class HttpDriveClient implements DriveClient {
     return null;
   }
 
-  static DriveFile _file(Object? json) {
+  /// [fallbackId] stands in when the answer has no `id` (an update).
+  static DriveFile _file(Object? json, [String? fallbackId]) {
     try {
       final m = json as Map;
       final props = m['appProperties'];
       final parents = m['parents'];
       return DriveFile(
-        id: m['id'] as String,
+        id: (m['id'] ?? fallbackId) as String,
         name: m['name'] as String?,
         parents: [if (parents is List) ...parents.whereType<String>()],
         appProperties: {
@@ -104,6 +145,9 @@ class HttpDriveClient implements DriveClient {
         },
         createdTime: m['createdTime'] as String?,
         trashed: m['trashed'] == true,
+        headRevisionId: m['headRevisionId'] as String?,
+        md5Checksum: m['md5Checksum'] as String?,
+        modifiedTime: m['modifiedTime'] as String?,
       );
     } catch (_) {
       throw const DriveError('parse');
@@ -166,4 +210,125 @@ class HttpDriveClient implements DriveClient {
       {'trashed': ?trashed},
     ),
   );
+
+  Uri _upload(String type, String? fileId) => _uri(
+    '/upload/drive/v3/files'
+    '${fileId == null ? '' : '/${Uri.encodeComponent(fileId)}'}',
+    {'uploadType': type, 'fields': _upFields},
+  );
+
+  @override
+  Future<DriveFile> uploadSimple({
+    String? fileId,
+    required Map<String, Object?> metadata,
+    required List<int> bytes,
+  }) async {
+    const boundary = 'kkeujeok-multipart-boundary';
+    final b = BytesBuilder(copy: false)
+      ..add(
+        utf8.encode(
+          '--$boundary\r\n'
+          'Content-Type: application/json; charset=UTF-8\r\n\r\n'
+          '${jsonEncode(metadata)}\r\n'
+          '--$boundary\r\n'
+          'Content-Type: application/octet-stream\r\n\r\n',
+        ),
+      )
+      ..add(bytes)
+      ..add(utf8.encode('\r\n--$boundary--'));
+    final r = await _request(
+      fileId == null ? 'POST' : 'PATCH',
+      _upload('multipart', fileId),
+      body: b.takeBytes(),
+      contentType: 'multipart/related; boundary=$boundary',
+    );
+    return _file(_json(r.body), fileId);
+  }
+
+  @override
+  Future<String> startResumable({
+    String? fileId,
+    required Map<String, Object?> metadata,
+    required int size,
+  }) async {
+    final r = await _request(
+      fileId == null ? 'POST' : 'PATCH',
+      _upload('resumable', fileId),
+      body: utf8.encode(jsonEncode(metadata)),
+      contentType: 'application/json; charset=UTF-8',
+      headers: {
+        'X-Upload-Content-Type': 'application/octet-stream',
+        'X-Upload-Content-Length': '$size',
+      },
+    );
+    final loc = r.headers['location'];
+    if (loc == null || loc.isEmpty) throw const DriveError('parse');
+    return loc;
+  }
+
+  @override
+  Future<ResumableResult> putResumable(
+    String uri,
+    int size,
+    int offset,
+    List<int>? chunk,
+  ) async {
+    final range = chunk == null
+        ? 'bytes */$size'
+        : 'bytes $offset-${offset + chunk.length - 1}/$size';
+    final r = await _request(
+      'PUT',
+      Uri.parse(uri),
+      body: chunk ?? const <int>[],
+      headers: {HttpHeaders.contentRangeHeader: range},
+      accept: const {308},
+    );
+    if (r.status == 308) {
+      final m = RegExp(r'bytes=0-(\d+)').firstMatch(r.headers['range'] ?? '');
+      return ResumableResult(
+        received: m == null ? 0 : int.parse(m.group(1)!) + 1,
+      );
+    }
+    return ResumableResult(file: _file(_json(r.body)));
+  }
+
+  @override
+  Future<List<DriveRevision>> listRevisions(String fileId) async {
+    final out = <DriveRevision>[];
+    String? pageToken;
+    do {
+      final m = await _send(
+        'GET',
+        _uri('/drive/v3/files/${Uri.encodeComponent(fileId)}/revisions', {
+          'fields': 'nextPageToken,revisions(id,modifiedTime)',
+          'pageSize': '1000',
+          'pageToken': ?pageToken,
+        }),
+      );
+      final list = m['revisions'];
+      final next = m['nextPageToken'];
+      if (list is! List || (next != null && next is! String)) {
+        throw const DriveError('parse');
+      }
+      for (final r in list) {
+        if (r is! Map || r['id'] is! String || r['modifiedTime'] is! String) {
+          throw const DriveError('parse');
+        }
+        out.add(DriveRevision(r['id'] as String, r['modifiedTime'] as String));
+      }
+      pageToken = next as String?;
+    } while (pageToken != null);
+    return out;
+  }
+
+  @override
+  Future<List<int>> downloadRevision(String fileId, String revisionId) async =>
+      (await _request(
+        'GET',
+        _uri(
+          '/drive/v3/files/${Uri.encodeComponent(fileId)}/revisions/'
+          '${Uri.encodeComponent(revisionId)}',
+          {'alt': 'media'},
+        ),
+      )).body;
 }

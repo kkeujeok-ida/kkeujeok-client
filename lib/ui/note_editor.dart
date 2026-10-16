@@ -55,6 +55,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     with SingleTickerProviderStateMixin {
   late final History _history = _sessionHistory();
   late final _store = ref.read(noteStoreProvider);
+  late final _openNote = ref.read(openNoteProvider);
+  late final _coordinator = ref.read(uploadCoordinatorProvider);
   final _cache = StrokePathCache();
   final _tick = ValueNotifier<int>(0);
 
@@ -161,7 +163,31 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   }
 
   @override
+  void initState() {
+    super.initState();
+    // No upload of this note while it is open; a background upload asks the
+    // queue to reach the disk first.
+    _openNote.set(widget.note.noteId);
+    _coordinator.flushOpen = _flush;
+  }
+
+  /// Waits until every queued save is on disk (one more try for a failed
+  /// one). Never throws.
+  Future<void> _flush() async {
+    try {
+      await _running;
+      final f = _failed;
+      if (f != null) {
+        await _store.write(f);
+        _failed = null;
+      }
+    } catch (_) {}
+  }
+
+  @override
   void dispose() {
+    if (_coordinator.flushOpen == _flush) _coordinator.flushOpen = null;
+    _openNote.clear(widget.note.noteId);
     _anim.dispose();
     _tick.dispose();
     _slotFocus.dispose();

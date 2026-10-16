@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -89,8 +90,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState s) {
-    if (s == AppLifecycleState.resumed && mounted) {
+    if (!mounted) return;
+    final coordinator = ref.read(uploadCoordinatorProvider);
+    if (s == AppLifecycleState.resumed) {
       ref.read(rootFolderProvider.notifier).checkForeground();
+      unawaited(coordinator.foreground());
+    } else if (s == AppLifecycleState.paused) {
+      unawaited(coordinator.appBackgrounded());
     }
   }
 
@@ -161,15 +167,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   Future<void> _newNote() => _guarded(() async {
     // A created note is already in the list; no reload needed.
     final note = await showNewNoteSheet(context);
-    if (note != null && mounted) await _afterEditor(_push(note));
+    if (note != null && mounted) await _afterEditor(_push(note), note);
   });
 
-  Future<void> _open(Note note) => _guarded(() => _afterEditor(_push(note)));
+  Future<void> _open(Note note) =>
+      _guarded(() => _afterEditor(_push(note), note));
 
-  /// The list is read again when the person comes back from the editor.
-  Future<void> _afterEditor(Future<void> route) async {
+  /// The list is read again when the person comes back from the editor, and
+  /// the closed note is uploaded (never blocking: not awaited).
+  Future<void> _afterEditor(Future<void> route, Note note) async {
     await route;
-    if (mounted) ref.read(libraryProvider.notifier).reload();
+    if (!mounted) return;
+    ref.read(libraryProvider.notifier).reload();
+    unawaited(ref.read(uploadCoordinatorProvider).noteClosed(note.noteId));
   }
 
   @override
@@ -177,8 +187,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final l10n = AppLocalizations.of(context);
     final async = ref.watch(libraryProvider);
     final root = ref.watch(rootFolderProvider);
-    ref.listen(rootFolderProvider, (_, next) {
+    ref.listen(rootFolderProvider, (prev, next) {
       if (next.status == RootStatus.missing) _askMissing();
+      if (next.status == RootStatus.ready && prev?.status != RootStatus.ready) {
+        // The upload gate just opened: app start recovery, then what waited.
+        unawaited(ref.read(uploadCoordinatorProvider).rootReady());
+      }
     });
     final failed = async.hasError && !async.hasValue;
     final entries = async.value ?? const <LibraryEntry>[];

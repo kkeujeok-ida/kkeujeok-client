@@ -9,6 +9,7 @@ import 'storage/language_store.dart';
 import 'storage/new_note_defaults_store.dart';
 import 'storage/pen_slots_store.dart';
 import 'storage/session_hint.dart';
+import 'sync/background_upload.dart';
 import 'ui/app.dart';
 import 'ui/providers.dart';
 
@@ -22,6 +23,12 @@ Future<void> main() async {
     prefs = await SharedPreferences.getInstance();
   } catch (_) {
     // Falls back to "follow system" for this session.
+  }
+  try {
+    // The task that uploads when a network returns (Android WorkManager).
+    await initBackgroundUpload();
+  } catch (_) {
+    // Uploads still run from the app's own triggers.
   }
   runApp(
     ProviderScope(

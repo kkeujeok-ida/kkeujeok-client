@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -23,7 +24,13 @@ import '../storage/note_store.dart';
 import '../storage/pen_slots_store.dart';
 import '../storage/session_hint.dart';
 import '../storage/sync_device_store.dart';
+import '../sync/background_upload.dart';
+import '../sync/merge_step.dart';
+import '../sync/note_uploader.dart';
+import '../sync/open_note.dart';
 import '../sync/sync_log.dart';
+import '../sync/thumbnail.dart';
+import '../sync/upload_coordinator.dart';
 
 /// Overridden in main() with the opened preferences.
 final languageStoreProvider = Provider<LanguageStore>(
@@ -214,9 +221,59 @@ final rootFolderProvider =
       RootFolderNotifier.new,
     );
 
-/// Uploads (Story 3.11) run only while the root is ready.
+/// Uploads run only while the root is ready.
 final uploadsAllowedProvider = Provider<bool>(
   (ref) => ref.watch(rootFolderProvider).status == RootStatus.ready,
+);
+
+/// Story 3.3 overrides this with the real merge; until then a version that
+/// is not ours is never merged and the note stays in `error`.
+final mergeStepProvider = Provider<MergeStep>(
+  (ref) => const UnavailableMergeStep(),
+);
+
+/// False only while the device is known to be offline.
+final networkProbeProvider = Provider<Future<bool> Function()>(
+  (ref) => deviceOnline,
+);
+
+/// Asks WorkManager for a task that uploads when a network is there.
+final backgroundSchedulerProvider = Provider<Future<void> Function()>(
+  (ref) => scheduleBackgroundUpload,
+);
+
+/// The note the editor has open.
+final openNoteProvider = Provider<OpenNote>(
+  (ref) => OpenNote(ref.read(noteDataProvider).rootDir),
+);
+
+final noteUploaderProvider = Provider<NoteUploader>(
+  (ref) => NoteUploader(
+    store: ref.read(noteStoreProvider),
+    drive: ref.read(driveClientProvider),
+    device: ref.read(syncDeviceStoreProvider),
+    log: ref.read(syncLogProvider),
+    merge: ref.read(mergeStepProvider),
+    allowed: () async => ref.read(uploadsAllowedProvider),
+    online: ref.read(networkProbeProvider),
+    sleep: Future<void>.delayed,
+    jitter: Random().nextDouble,
+    thumbnail: renderThumbnail,
+  ),
+);
+
+/// Upload triggers: note closed, background, app start, foreground.
+final uploadCoordinatorProvider = Provider<UploadCoordinator>(
+  (ref) => UploadCoordinator(
+    store: ref.read(noteStoreProvider),
+    uploader: ref.read(noteUploaderProvider),
+    openNote: ref.read(openNoteProvider),
+    lease: UploadLease(ref.read(noteDataProvider), DateTime.now),
+    log: ref.read(syncLogProvider),
+    allowed: () async => ref.read(uploadsAllowedProvider),
+    online: ref.read(networkProbeProvider),
+    schedule: ref.read(backgroundSchedulerProvider),
+  ),
 );
 
 /// Hands an exported log file to the system share sheet.

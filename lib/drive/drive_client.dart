@@ -22,6 +22,9 @@ class DriveFile {
     this.appProperties = const {},
     this.createdTime,
     this.trashed = false,
+    this.headRevisionId,
+    this.md5Checksum,
+    this.modifiedTime,
   });
 
   final String id;
@@ -32,6 +35,31 @@ class DriveFile {
   /// Canonical timestamp (`YYYY-MM-DDTHH:mm:ss.sssZ`) or null.
   final String? createdTime;
   final bool trashed;
+
+  /// Id of the newest revision, when asked for.
+  final String? headRevisionId;
+  final String? md5Checksum;
+
+  /// Canonical timestamp or null.
+  final String? modifiedTime;
+}
+
+/// One entry of `revisions.list` (`id`, `modifiedTime`).
+class DriveRevision {
+  const DriveRevision(this.id, this.modifiedTime);
+
+  final String id;
+  final String modifiedTime;
+}
+
+/// Answer of one resumable `PUT`: [file] is set when the upload finished
+/// (200 or 201); otherwise [received] is the number of bytes Drive holds
+/// (308).
+class ResumableResult {
+  const ResumableResult({this.received = 0, this.file});
+
+  final int received;
+  final DriveFile? file;
 }
 
 /// One page of a listing; [nextPageToken] is null on the last one.
@@ -61,6 +89,37 @@ abstract interface class DriveClient {
     String? removeParents,
     bool? trashed,
   });
+
+  /// One `multipart` upload (`fields=id,headRevisionId`). Creates when
+  /// [fileId] is null, else replaces the content of [fileId]. [metadata] is
+  /// the JSON part; an update never carries `parents`.
+  Future<DriveFile> uploadSimple({
+    String? fileId,
+    required Map<String, Object?> metadata,
+    required List<int> bytes,
+  });
+
+  /// Starts a resumable session with the same metadata; returns its URI.
+  Future<String> startResumable({
+    String? fileId,
+    required Map<String, Object?> metadata,
+    required int size,
+  });
+
+  /// One `PUT` of a session. A null [chunk] asks how far it got
+  /// (`Content-Range: bytes */size`). HTTP 404 or 410 is a [DriveError].
+  Future<ResumableResult> putResumable(
+    String uri,
+    int size,
+    int offset,
+    List<int>? chunk,
+  );
+
+  /// Every revision of [fileId] (all pages, `pageSize=1000`).
+  Future<List<DriveRevision>> listRevisions(String fileId);
+
+  /// `revisions.get` with `alt=media`.
+  Future<List<int>> downloadRevision(String fileId, String revisionId);
 }
 
 /// `q` for one `kkeujeokId` (spec `drive-layout` "Finding").

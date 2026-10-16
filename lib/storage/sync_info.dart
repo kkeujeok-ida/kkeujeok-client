@@ -139,6 +139,43 @@ class SyncInfo {
     }
   }
 
+  static const _keep = Object();
+
+  /// A copy with the given fields replaced. The nullable fields can be set to
+  /// null; a field left out is kept.
+  SyncInfo copyWith({
+    Object? fileId = _keep,
+    Object? baseHeadRevisionId = _keep,
+    SyncState? state,
+    Object? pendingVerify = _keep,
+    Object? resumableSession = _keep,
+    Object? createIntent = _keep,
+    List<JsonMap>? conflicts,
+    List<JsonMap>? unsentSidecars,
+    Object? lastError = _keep,
+  }) => SyncInfo(
+    fileId: identical(fileId, _keep) ? this.fileId : fileId as String?,
+    baseHeadRevisionId: identical(baseHeadRevisionId, _keep)
+        ? this.baseHeadRevisionId
+        : baseHeadRevisionId as String?,
+    state: state ?? this.state,
+    pendingVerify: identical(pendingVerify, _keep)
+        ? this.pendingVerify
+        : pendingVerify as JsonMap?,
+    resumableSession: identical(resumableSession, _keep)
+        ? this.resumableSession
+        : resumableSession as JsonMap?,
+    createIntent: identical(createIntent, _keep)
+        ? this.createIntent
+        : createIntent as JsonMap?,
+    conflicts: conflicts ?? this.conflicts,
+    unsentSidecars: unsentSidecars ?? this.unsentSidecars,
+    lastError: identical(lastError, _keep)
+        ? this.lastError
+        : lastError as JsonMap?,
+    extra: extra,
+  );
+
   JsonMap toJson() => {
     ...extra,
     'fileId': fileId,
