@@ -535,6 +535,114 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Checking your notes'**
   String get scanningNotes;
+
+  /// No description provided for @accountMismatchTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed in with a different account'**
+  String get accountMismatchTitle;
+
+  /// No description provided for @accountMismatchBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Account {email} has {count, plural, =1{1 change} other{{count} changes}} that weren\'t sent.'**
+  String accountMismatchBody(String email, int count);
+
+  /// No description provided for @accountMismatchBodyUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t check whether account {email} has changes that weren\'t sent. Discarding may lose them.'**
+  String accountMismatchBodyUnknown(String email);
+
+  /// No description provided for @accountMismatchBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Go back to the previous account'**
+  String get accountMismatchBack;
+
+  /// No description provided for @accountMismatchDownload.
+  ///
+  /// In en, this message translates to:
+  /// **'Save as files'**
+  String get accountMismatchDownload;
+
+  /// No description provided for @accountMismatchDiscard.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard {count, plural, =1{1 change} other{{count} changes}} from the previous account'**
+  String accountMismatchDiscard(int count);
+
+  /// No description provided for @accountMismatchDiscardUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard changes from the previous account'**
+  String get accountMismatchDiscardUnknown;
+
+  /// No description provided for @discardAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Press again to discard'**
+  String get discardAgain;
+
+  /// No description provided for @accountMismatchDownloadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save the files. Please try again.'**
+  String get accountMismatchDownloadFailed;
+
+  /// No description provided for @accountMismatchDownloadNone.
+  ///
+  /// In en, this message translates to:
+  /// **'There are no notes to save.'**
+  String get accountMismatchDownloadNone;
+
+  /// No description provided for @accountClearFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t erase the previous account\'s note copies. Please try again.'**
+  String get accountClearFailed;
+
+  /// No description provided for @unsentLogoutTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes weren\'t sent'**
+  String get unsentLogoutTitle;
+
+  /// No description provided for @unsentLogoutBody.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 change wasn\'t} other{{count} changes weren\'t}} sent. If you log out, they will be lost.'**
+  String unsentLogoutBody(int count);
+
+  /// No description provided for @unsentLogoutBodyUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t check for changes that weren\'t sent. If you log out, they may be lost.'**
+  String get unsentLogoutBodyUnknown;
+
+  /// No description provided for @unsentLogoutConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard and log out'**
+  String get unsentLogoutConfirm;
+
+  /// No description provided for @unsentDisconnectLine.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 change wasn\'t} other{{count} changes weren\'t}} sent.'**
+  String unsentDisconnectLine(int count);
+
+  /// No description provided for @unsentDisconnectLineUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t check for changes that weren\'t sent.'**
+  String get unsentDisconnectLineUnknown;
+
+  /// No description provided for @unsentDisconnectConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard and disconnect'**
+  String get unsentDisconnectConfirm;
 }
 
 class _AppLocalizationsDelegate

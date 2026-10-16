@@ -102,5 +102,61 @@
   "drivePrepareFailed": "Couldn't prepare Drive",
   "receiving": "Receiving",
   "receivingLatest": "Receiving the latest version",
-  "scanningNotes": "Checking your notes"
+  "scanningNotes": "Checking your notes",
+  "accountMismatchTitle": "Signed in with a different account",
+  "accountMismatchBody": "Account {email} has {count, plural, =1{1 change} other{{count} changes}} that weren't sent.",
+  "@accountMismatchBody": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "accountMismatchBodyUnknown": "Couldn't check whether account {email} has changes that weren't sent. Discarding may lose them.",
+  "@accountMismatchBodyUnknown": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "accountMismatchBack": "Go back to the previous account",
+  "accountMismatchDownload": "Save as files",
+  "accountMismatchDiscard": "Discard {count, plural, =1{1 change} other{{count} changes}} from the previous account",
+  "@accountMismatchDiscard": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "accountMismatchDiscardUnknown": "Discard changes from the previous account",
+  "discardAgain": "Press again to discard",
+  "accountMismatchDownloadFailed": "Couldn't save the files. Please try again.",
+  "accountMismatchDownloadNone": "There are no notes to save.",
+  "accountClearFailed": "Couldn't erase the previous account's note copies. Please try again.",
+  "unsentLogoutTitle": "Changes weren't sent",
+  "unsentLogoutBody": "{count, plural, =1{1 change wasn't} other{{count} changes weren't}} sent. If you log out, they will be lost.",
+  "@unsentLogoutBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "unsentLogoutBodyUnknown": "Couldn't check for changes that weren't sent. If you log out, they may be lost.",
+  "unsentLogoutConfirm": "Discard and log out",
+  "unsentDisconnectLine": "{count, plural, =1{1 change wasn't} other{{count} changes weren't}} sent.",
+  "@unsentDisconnectLine": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "unsentDisconnectLineUnknown": "Couldn't check for changes that weren't sent.",
+  "unsentDisconnectConfirm": "Discard and disconnect"
 }

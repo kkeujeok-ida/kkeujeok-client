@@ -732,6 +732,19 @@ class NoteStore {
     });
   }
 
+  /// The raw bytes of the working copy, readable or not (for a file export);
+  /// null when there is none or it cannot be read.
+  Future<List<int>?> workingBytes(String noteId) async {
+    try {
+      final file = await _working(noteId);
+      return await _locked(noteId, () async {
+        return await file.exists() ? await file.readAsBytes() : null;
+      });
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// The ids of the note folders, without reading any file.
   Future<List<String>> ids() async {
     final root = await _data.notesDir();

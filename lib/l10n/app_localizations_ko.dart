@@ -236,4 +236,69 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get scanningNotes => '노트 확인 중';
+
+  @override
+  String get accountMismatchTitle => '다른 계정으로 로그인했어요';
+
+  @override
+  String accountMismatchBody(String email, int count) {
+    return '이전 계정($email)에서 보내지 못한 변경 $count개가 있어요.';
+  }
+
+  @override
+  String accountMismatchBodyUnknown(String email) {
+    return '이전 계정($email)에서 보내지 못한 변경이 있는지 확인하지 못했어요. 버리면 그 변경이 사라질 수 있어요.';
+  }
+
+  @override
+  String get accountMismatchBack => '이전 계정으로 돌아가기';
+
+  @override
+  String get accountMismatchDownload => '파일로 내려받기';
+
+  @override
+  String accountMismatchDiscard(int count) {
+    return '이전 계정 변경 $count개 버리기';
+  }
+
+  @override
+  String get accountMismatchDiscardUnknown => '이전 계정 변경 버리기';
+
+  @override
+  String get discardAgain => '한 번 더 누르면 버려져요';
+
+  @override
+  String get accountMismatchDownloadFailed => '파일로 내려받지 못했어요. 다시 시도해 주세요.';
+
+  @override
+  String get accountMismatchDownloadNone => '내려받을 수 있는 노트가 없어요.';
+
+  @override
+  String get accountClearFailed => '이전 계정의 노트 사본을 지우지 못했어요. 다시 시도해 주세요.';
+
+  @override
+  String get unsentLogoutTitle => '보내지 못한 변경이 있어요';
+
+  @override
+  String unsentLogoutBody(int count) {
+    return '보내지 못한 변경 $count개가 있어요. 로그아웃하면 이 변경이 사라져요.';
+  }
+
+  @override
+  String get unsentLogoutBodyUnknown =>
+      '보내지 못한 변경이 있는지 확인하지 못했어요. 로그아웃하면 사라질 수 있어요.';
+
+  @override
+  String get unsentLogoutConfirm => '버리고 로그아웃';
+
+  @override
+  String unsentDisconnectLine(int count) {
+    return '보내지 못한 변경 $count개가 있어요.';
+  }
+
+  @override
+  String get unsentDisconnectLineUnknown => '보내지 못한 변경이 있는지 확인하지 못했어요.';
+
+  @override
+  String get unsentDisconnectConfirm => '버리고 연결 해제';
 }

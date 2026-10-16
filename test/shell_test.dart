@@ -39,6 +39,7 @@ Future<LanguageStore> pumpApp(
   double textScale = 1,
   List<Override> overrides = const [],
   bool settle = true, // false: a spinner animates and never settles
+  bool stubUnsent = true, // false: the test overrides unsentIdsProvider
 }) async {
   tester.view.physicalSize = Size(width, 700);
   tester.view.devicePixelRatio = 1;
@@ -71,6 +72,9 @@ Future<LanguageStore> pumpApp(
         penSlotsStoreProvider.overrideWithValue(PenSlotsStore(sp)),
         privacyUrlProvider.overrideWithValue(privacyUrl),
         if (openUrl != null) urlOpenerProvider.overrideWithValue(openUrl),
+        // Real file IO does not finish under the fake clock: no unsent notes.
+        if (stubUnsent)
+          unsentIdsProvider.overrideWithValue(() async => <String>[]),
         ...overrides,
       ],
       child: const App(),

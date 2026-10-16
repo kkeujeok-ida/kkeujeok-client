@@ -239,4 +239,97 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get scanningNotes => 'Checking your notes';
+
+  @override
+  String get accountMismatchTitle => 'Signed in with a different account';
+
+  @override
+  String accountMismatchBody(String email, int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count changes',
+      one: '1 change',
+    );
+    return 'Account $email has $_temp0 that weren\'t sent.';
+  }
+
+  @override
+  String accountMismatchBodyUnknown(String email) {
+    return 'Couldn\'t check whether account $email has changes that weren\'t sent. Discarding may lose them.';
+  }
+
+  @override
+  String get accountMismatchBack => 'Go back to the previous account';
+
+  @override
+  String get accountMismatchDownload => 'Save as files';
+
+  @override
+  String accountMismatchDiscard(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count changes',
+      one: '1 change',
+    );
+    return 'Discard $_temp0 from the previous account';
+  }
+
+  @override
+  String get accountMismatchDiscardUnknown =>
+      'Discard changes from the previous account';
+
+  @override
+  String get discardAgain => 'Press again to discard';
+
+  @override
+  String get accountMismatchDownloadFailed =>
+      'Couldn\'t save the files. Please try again.';
+
+  @override
+  String get accountMismatchDownloadNone => 'There are no notes to save.';
+
+  @override
+  String get accountClearFailed =>
+      'Couldn\'t erase the previous account\'s note copies. Please try again.';
+
+  @override
+  String get unsentLogoutTitle => 'Changes weren\'t sent';
+
+  @override
+  String unsentLogoutBody(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count changes weren\'t',
+      one: '1 change wasn\'t',
+    );
+    return '$_temp0 sent. If you log out, they will be lost.';
+  }
+
+  @override
+  String get unsentLogoutBodyUnknown =>
+      'Couldn\'t check for changes that weren\'t sent. If you log out, they may be lost.';
+
+  @override
+  String get unsentLogoutConfirm => 'Discard and log out';
+
+  @override
+  String unsentDisconnectLine(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count changes weren\'t',
+      one: '1 change wasn\'t',
+    );
+    return '$_temp0 sent.';
+  }
+
+  @override
+  String get unsentDisconnectLineUnknown =>
+      'Couldn\'t check for changes that weren\'t sent.';
+
+  @override
+  String get unsentDisconnectConfirm => 'Discard and disconnect';
 }

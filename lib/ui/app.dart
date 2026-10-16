@@ -5,7 +5,7 @@ import '../l10n/app_localizations.dart';
 import '../storage/language_store.dart';
 import 'library.dart' show libraryRouteObserver;
 import 'providers.dart';
-import 'shell.dart';
+import 'account_gate.dart';
 import 'sign_in.dart';
 
 // Generated from kkeujeok-web/design_tokens (symlinked as lib/design_tokens).
@@ -112,7 +112,7 @@ class _Gate extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) =>
       switch (ref.watch(authProvider).phase) {
-        AuthPhase.signedIn => const Shell(),
+        AuthPhase.signedIn => const AccountGate(),
         AuthPhase.checking => const Scaffold(),
         _ => const SignInScreen(),
       };

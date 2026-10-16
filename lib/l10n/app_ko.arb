@@ -79,5 +79,61 @@
   "drivePrepareFailed": "Drive를 준비하지 못했어요",
   "receiving": "받는 중",
   "receivingLatest": "최신 내용 받는 중",
-  "scanningNotes": "노트 확인 중"
+  "scanningNotes": "노트 확인 중",
+  "accountMismatchTitle": "다른 계정으로 로그인했어요",
+  "accountMismatchBody": "이전 계정({email})에서 보내지 못한 변경 {count}개가 있어요.",
+  "@accountMismatchBody": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "accountMismatchBodyUnknown": "이전 계정({email})에서 보내지 못한 변경이 있는지 확인하지 못했어요. 버리면 그 변경이 사라질 수 있어요.",
+  "@accountMismatchBodyUnknown": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "accountMismatchBack": "이전 계정으로 돌아가기",
+  "accountMismatchDownload": "파일로 내려받기",
+  "accountMismatchDiscard": "이전 계정 변경 {count}개 버리기",
+  "@accountMismatchDiscard": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "accountMismatchDiscardUnknown": "이전 계정 변경 버리기",
+  "discardAgain": "한 번 더 누르면 버려져요",
+  "accountMismatchDownloadFailed": "파일로 내려받지 못했어요. 다시 시도해 주세요.",
+  "accountMismatchDownloadNone": "내려받을 수 있는 노트가 없어요.",
+  "accountClearFailed": "이전 계정의 노트 사본을 지우지 못했어요. 다시 시도해 주세요.",
+  "unsentLogoutTitle": "보내지 못한 변경이 있어요",
+  "unsentLogoutBody": "보내지 못한 변경 {count}개가 있어요. 로그아웃하면 이 변경이 사라져요.",
+  "@unsentLogoutBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "unsentLogoutBodyUnknown": "보내지 못한 변경이 있는지 확인하지 못했어요. 로그아웃하면 사라질 수 있어요.",
+  "unsentLogoutConfirm": "버리고 로그아웃",
+  "unsentDisconnectLine": "보내지 못한 변경 {count}개가 있어요.",
+  "@unsentDisconnectLine": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "unsentDisconnectLineUnknown": "보내지 못한 변경이 있는지 확인하지 못했어요.",
+  "unsentDisconnectConfirm": "버리고 연결 해제"
 }

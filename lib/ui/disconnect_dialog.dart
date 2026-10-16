@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
 import 'providers.dart';
+import 'unsent_widgets.dart';
 
 const _hit = Size(0, KkjTokens.spacingHitMinAndroid);
 
@@ -11,9 +12,14 @@ enum _Step { confirm, busy, revokeFailed, deleteFailed }
 
 /// Confirms, then revokes access and erases the note copies. Pops `true` when
 /// the user is disconnected. Back and [Cancel] are the same; both are locked
-/// only while the call runs (it ends within the auth timeout).
+/// only while the call runs (it ends within the auth timeout). With [warn],
+/// changes Drive does not have ([unsent] notes, null = could not check) are
+/// named and the first confirm needs a second press.
 class DisconnectDialog extends ConsumerStatefulWidget {
-  const DisconnectDialog({super.key});
+  const DisconnectDialog({super.key, this.warn = false, this.unsent});
+
+  final bool warn;
+  final int? unsent;
 
   @override
   ConsumerState<DisconnectDialog> createState() => _DisconnectDialogState();
@@ -43,12 +49,20 @@ class _DisconnectDialogState extends ConsumerState<DisconnectDialog> {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final busy = _step == _Step.busy;
+    final unsent = widget.unsent;
+    final unsentLine = unsent == null
+        ? l10n.unsentDisconnectLineUnknown
+        : l10n.unsentDisconnectLine(unsent);
     final errorStyle = theme.textTheme.bodyMedium?.copyWith(
       color: theme.colorScheme.error,
     );
 
     final Widget content = switch (_step) {
-      _Step.confirm => Text(l10n.disconnectBody),
+      _Step.confirm => Text(
+        widget.warn
+            ? '$unsentLine ${l10n.disconnectBody}'
+            : l10n.disconnectBody,
+      ),
       _Step.busy => Center(
         heightFactor: 2,
         child: CircularProgressIndicator(semanticsLabel: l10n.disconnecting),
@@ -79,17 +93,23 @@ class _DisconnectDialogState extends ConsumerState<DisconnectDialog> {
                   onPressed: () => Navigator.of(context).pop(false),
                   child: Text(l10n.cancel),
                 ),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    minimumSize: _hit,
-                    backgroundColor: theme.colorScheme.error,
-                    foregroundColor: theme.colorScheme.onError,
+                if (widget.warn && _step == _Step.confirm)
+                  TwoStepButton(
+                    label: l10n.unsentDisconnectConfirm,
+                    onConfirm: _run,
+                  )
+                else
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                      minimumSize: _hit,
+                      backgroundColor: theme.colorScheme.error,
+                      foregroundColor: theme.colorScheme.onError,
+                    ),
+                    onPressed: _run,
+                    child: Text(
+                      _step == _Step.confirm ? l10n.disconnect : l10n.retry,
+                    ),
                   ),
-                  onPressed: _run,
-                  child: Text(
-                    _step == _Step.confirm ? l10n.disconnect : l10n.retry,
-                  ),
-                ),
               ],
       ),
     );

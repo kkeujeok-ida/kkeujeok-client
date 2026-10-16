@@ -8,6 +8,7 @@ import '../l10n/app_localizations.dart';
 import '../storage/language_store.dart';
 import 'disconnect_dialog.dart';
 import 'providers.dart';
+import 'unsent_widgets.dart';
 
 /// A row with a 48dp minimum touch target.
 class _Row extends StatelessWidget {
@@ -98,11 +99,64 @@ class _ExportLogRowState extends ConsumerState<_ExportLogRow> {
   }
 }
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  bool _counting = false; // single-flight: one unsent count at a time
+
+  /// The notes with unsent changes, or null (unknown). Null `busy` result
+  /// means a count is already running or this screen was left meanwhile.
+  Future<({List<String>? ids})?> _count() async {
+    if (_counting) return null;
+    _counting = true;
+    try {
+      final ids = await ref.read(unsentIdsProvider)();
+      return (ids: ids);
+    } finally {
+      _counting = false;
+    }
+  }
+
+  Future<void> _logOut() async {
+    final nav = Navigator.of(context);
+    final counted = await _count();
+    if (counted == null || !mounted) return;
+    final ids = counted.ids;
+    if (ids != null && ids.isEmpty) {
+      await ref.read(authProvider.notifier).signOut();
+      nav.popUntil((r) => r.isFirst);
+      return;
+    }
+    final done = await showDialog<bool>(
+      context: context,
+      builder: (_) => UnsentLogoutDialog(count: ids?.length),
+    );
+    // A failed erase leaves the session ended: nothing to stay on.
+    if (done == true || ref.read(authProvider).phase != AuthPhase.signedIn) {
+      nav.popUntil((r) => r.isFirst);
+    }
+  }
+
+  Future<void> _disconnect() async {
+    final nav = Navigator.of(context);
+    final counted = await _count();
+    if (counted == null || !mounted) return;
+    final ids = counted.ids;
+    final warn = ids == null || ids.isNotEmpty;
+    final done = await showDialog<bool>(
+      context: context,
+      builder: (_) => DisconnectDialog(warn: warn, unsent: ids?.length),
+    );
+    if (done == true) nav.popUntil((r) => r.isFirst);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final choice = ref.watch(languageProvider);
@@ -130,21 +184,6 @@ class SettingsScreen extends ConsumerWidget {
     final signedIn = ref.watch(authProvider).phase == AuthPhase.signedIn;
 
     // The sign-in screen replaces the shell underneath; drop what is above it.
-    Future<void> logOut() async {
-      final nav = Navigator.of(context);
-      await ref.read(authProvider.notifier).signOut();
-      nav.popUntil((r) => r.isFirst);
-    }
-
-    Future<void> disconnect() async {
-      final nav = Navigator.of(context);
-      final done = await showDialog<bool>(
-        context: context,
-        builder: (_) => const DisconnectDialog(),
-      );
-      if (done == true) nav.popUntil((r) => r.isFirst);
-    }
-
     Widget action(String label, VoidCallback onTap, {Color? color}) =>
         Semantics(
           button: true,
@@ -231,8 +270,12 @@ class SettingsScreen extends ConsumerWidget {
           const _ExportLogRow(),
           if (signedIn) ...[
             Divider(color: theme.colorScheme.outlineVariant),
-            action(l10n.logOut, logOut),
-            action(l10n.disconnect, disconnect, color: theme.colorScheme.error),
+            action(l10n.logOut, _logOut),
+            action(
+              l10n.disconnect,
+              _disconnect,
+              color: theme.colorScheme.error,
+            ),
           ],
         ],
       ),

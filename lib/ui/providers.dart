@@ -31,6 +31,7 @@ import '../sync/note_receiver.dart';
 import '../sync/note_uploader.dart';
 import '../sync/open_note.dart';
 import '../sync/sync_log.dart';
+import '../sync/unsent.dart';
 import '../sync/thumbnail.dart';
 import '../sync/upload_coordinator.dart';
 
@@ -350,6 +351,43 @@ final appVersionProvider = Provider<Future<String> Function()>(
       () async => (await PackageInfo.fromPlatform()).version,
 );
 
+/// Hands exported note files to the system share sheet (its targets include
+/// saving to a chosen place).
+final noteFilesSharerProvider = Provider<Future<void> Function(List<File>)>(
+  (ref) =>
+      (files) => SharePlus.instance.share(
+        ShareParams(
+          files: [
+            for (final f in files)
+              XFile(f.path, mimeType: 'application/octet-stream'),
+          ],
+        ),
+      ),
+);
+
+/// The notes with changes Drive does not have; null = could not check.
+final unsentIdsProvider = Provider<Future<List<String>?> Function()>(
+  (ref) =>
+      () => unsentNoteIds(ref.read(noteStoreProvider)),
+);
+
+/// Erases every local copy of the notes and the device record (account tag,
+/// cached ids). False, with the device record kept, when the notes cannot be
+/// deleted. The sync log stays.
+final discardLocalDataProvider = Provider<Future<bool> Function()>(
+  (ref) => () async {
+    try {
+      await ref.read(noteDataProvider).clear();
+    } catch (_) {
+      return false;
+    }
+    ref.read(noteHistoriesProvider).clear();
+    ref.read(_adoptedAccountProvider).key = null;
+    await ref.read(syncDeviceStoreProvider).clear();
+    return true;
+  },
+);
+
 /// Where the exported log is written before sharing.
 final exportDirProvider = Provider<Future<Directory> Function()>(
   (ref) => getTemporaryDirectory,
@@ -423,7 +461,6 @@ int _compare(LibraryEntry a, LibraryEntry b) {
   final c = a.editedAt == null ? 0 : b.editedAt!.compareTo(a.editedAt!);
   return c != 0 ? c : b.noteId.compareTo(a.noteId);
 }
-
 
 class LibraryNotifier extends AsyncNotifier<List<LibraryEntry>> {
   @override

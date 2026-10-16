@@ -114,9 +114,8 @@ void main() {
     t,
   ) async {
     await open(t, more: [rootFolderProvider.overrideWith(_ReadyRoot.new)]);
-    await t.pump();
-    await t.pump();
-    expect(rec.calls, contains('rootReady')); // no transition ever came
+    // The account gate reads the device record first (real file IO).
+    await until(t, () => rec.calls.contains('rootReady')); // no transition
   });
 
   testWidgets('paused is appBackgrounded, resumed is foreground', (t) async {
