@@ -123,7 +123,8 @@ Future<void> runBackgroundUpload({
     drive: client,
     device: device,
     log: log,
-    merge: const UnavailableMergeStep(),
+    // No editor lives in this isolate: the note is merged under its lock.
+    merge: QueueMergeStep(store: store, hosts: MergeHosts()),
     allowed: rootAlive,
     online: probe,
     sleep: Future<void>.delayed,

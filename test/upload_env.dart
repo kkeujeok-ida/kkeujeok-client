@@ -58,18 +58,25 @@ class Crash implements Exception {
   String toString() => 'Crash';
 }
 
+/// A merge step with scripted answers. A `Merged` answer is written as the
+/// working copy, as the real step does.
 class StubMerge implements MergeStep {
-  StubMerge(this.answer);
+  StubMerge(this.store, this.answer);
 
+  final NoteStore store;
   final MergeOutcome Function(int call) answer;
   int calls = 0;
 
   @override
   Future<MergeOutcome> merge({
-    required Note working,
+    required Note localAtStart,
     required Note? base,
     required Note remote,
-  }) async => answer(++calls);
+  }) async {
+    final o = answer(++calls);
+    if (o is Merged) await store.write(o.note);
+    return o;
+  }
 }
 
 /// Everything one uploader test needs, over a temp folder and a [FakeDrive].
@@ -93,7 +100,17 @@ class UploadEnv {
 
   bool allowed = true;
   bool online = true;
-  MergeStep merge = const UnavailableMergeStep();
+  final hosts = MergeHosts();
+  var _revs = 0;
+
+  /// The real step, with a fixed clock and counting revs.
+  late MergeStep merge = QueueMergeStep(
+    store: store,
+    hosts: hosts,
+    clock: () => DateTime.utc(2026, 10, 16),
+    newRev: () =>
+        '01926f3a-0000-7000-8000-00000000f${(++_revs).toString().padLeft(3, '0')}',
+  );
   final sleeps = <Duration>[];
   double jitter = 0.5;
   Future<List<int>?> Function(Map<String, dynamic>, int, int)? thumbnail;

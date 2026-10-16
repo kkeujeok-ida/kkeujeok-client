@@ -96,6 +96,23 @@ class SyncDevice {
     extra: extra,
   );
 
+  SyncDevice copyWith({
+    Object? conflictsFolderId = _keep,
+    List<Map<String, Object?>>? createIntents,
+  }) => SyncDevice(
+    sub: sub,
+    email: email,
+    rootFolderId: rootFolderId,
+    conflictsFolderId: identical(conflictsFolderId, _keep)
+        ? this.conflictsFolderId
+        : conflictsFolderId as String?,
+    pageToken: pageToken,
+    createIntents: createIntents ?? this.createIntents,
+    extra: extra,
+  );
+
+  static const _keep = Object();
+
   SyncDevice withAccount(String sub, String email) => SyncDevice(
     sub: sub,
     email: email,
@@ -162,6 +179,17 @@ class SyncDeviceStore {
     }
     await _write(d);
   });
+
+  /// Changes the record under the lock, so no earlier read can overwrite a
+  /// newer write. Throws when the write fails or the file is unreadable.
+  Future<void> update(SyncDevice Function(SyncDevice current) change) =>
+      _locked(() async {
+        final cur = await _load();
+        if (!cur.readable) {
+          throw const FileSystemException('sync-device.json is unreadable');
+        }
+        await _write(change(cur.device));
+      });
 
   /// Tags the device with this account. True when there was no record or it
   /// has the same [sub] (the e-mail is refreshed); false, nothing written,

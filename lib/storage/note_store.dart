@@ -30,6 +30,16 @@ const syncFileName = 'sync.json';
 final _baseName = RegExp(r'^base\.(.+)\.kkj$');
 final _pathSep = RegExp(r'[/\\]');
 
+/// What [NoteStore.mergeWorking] writes: the new working copy (null = leave
+/// it), a change of `sync.json` (null = leave it), the sidecar records to
+/// keep, and the value the caller gets back.
+typedef MergePlan<T> = ({
+  T value,
+  Note? note,
+  SyncInfo Function(SyncInfo)? sync,
+  List<Map<String, Object?>> sidecars,
+});
+
 /// What [NoteStore.readSync] knows about one note's sync files.
 typedef SyncRead = ({
   SyncInfo info,
@@ -404,6 +414,156 @@ class NoteStore {
     });
     await _notify();
     return committed;
+  }
+
+  /// `sync.json` for a write under the lock: no file is "none"; a file that
+  /// is there but cannot be read is never replaced (it would drop the
+  /// fileId and the base).
+  Future<SyncInfo> _loadSyncStrict(Directory dir) async {
+    final f = File(_in(dir, syncFileName));
+    if (!await f.exists()) return const SyncInfo();
+    SyncInfo? read;
+    try {
+      read = SyncInfo.fromJson(jsonDecode(await f.readAsString()));
+    } catch (_) {}
+    if (read == null) throw NoteSaveException(syncUnreadableMessage);
+    return read;
+  }
+
+  static String _sidecarName(String pageId, String rev) =>
+      '${Uri.encodeComponent(pageId)}-${Uri.encodeComponent(rev)}.json';
+
+  Future<void> _put(File f, List<int> bytes, List<File> tmps) async {
+    final t = File('${f.path}.tmp');
+    tmps.add(t);
+    await _writeFile(t, bytes);
+    await t.rename(f.path);
+    tmps.remove(t);
+  }
+
+  Future<void> _putSidecars(
+    Directory dir,
+    List<Map<String, Object?>> sidecars,
+    List<File> tmps,
+  ) async {
+    if (sidecars.isEmpty) return;
+    final sub = Directory(_in(dir, 'sidecars'));
+    await sub.create(recursive: true);
+    for (final sc in sidecars) {
+      await _put(
+        File(
+          _in(sub, _sidecarName(sc['pageId'] as String, sc['rev'] as String)),
+        ),
+        utf8.encode(jsonEncode(sc)),
+        tmps,
+      );
+    }
+  }
+
+  Future<void> _cleanTmps(List<File> tmps) async {
+    for (final t in tmps) {
+      try {
+        if (await t.exists()) await t.delete();
+      } catch (_) {}
+    }
+  }
+
+  /// Keeps the sidecar records (spec `merge.conflictSidecar`) beside the note,
+  /// at `sidecars/<pageId>-<rev>.json`, until they are uploaded. Writing the
+  /// same record again is harmless. Throws [NoteSaveException].
+  Future<void> writeSidecars(
+    String noteId,
+    List<Map<String, Object?>> sidecars,
+  ) async {
+    final dir = (await _working(noteId)).parent;
+    await _locked(noteId, () async {
+      final tmps = <File>[];
+      try {
+        if (!await dir.exists()) {
+          throw NoteSaveException('the note has no folder');
+        }
+        await _putSidecars(dir, sidecars, tmps);
+      } catch (e) {
+        await _cleanTmps(tmps);
+        if (e is NoteSaveException) rethrow;
+        throw NoteSaveException('could not write sidecar', e);
+      }
+    });
+  }
+
+  /// The sidecar record kept for ([pageId], [rev]); null when it is missing
+  /// or cannot be read.
+  Future<Map<String, Object?>?> readSidecar(
+    String noteId,
+    String pageId,
+    String rev,
+  ) async {
+    final dir = (await _working(noteId)).parent;
+    return _locked(noteId, () async {
+      try {
+        final j = jsonDecode(
+          await File(
+            _in(Directory(_in(dir, 'sidecars')), _sidecarName(pageId, rev)),
+          ).readAsString(),
+        );
+        return j is Map
+            ? {for (final e in j.entries) '${e.key}': e.value}
+            : null;
+      } catch (_) {
+        return null;
+      }
+    });
+  }
+
+  /// Applies a merge to the working copy as one item of the note's queue
+  /// (spec `merge.requeue`, AD-16): [plan] gets the working copy and
+  /// `sync.json` as they are inside the lock, never an earlier snapshot, and
+  /// says what to write. Written in this order: the sidecars, `sync.json`,
+  /// the working copy. Nothing is written when [plan] throws. Throws
+  /// [NoteSaveException] when the working copy or `sync.json` cannot be read
+  /// or a write fails (the earlier files stay as they were written).
+  Future<T> mergeWorking<T>(
+    String noteId,
+    MergePlan<T> Function(Note current, SyncInfo info) plan,
+  ) async {
+    late T value;
+    final dir = (await _working(noteId)).parent;
+    await _locked(noteId, () async {
+      final tmps = <File>[];
+      try {
+        final file = File(_in(dir, workingFileName));
+        if (!await file.exists()) {
+          throw NoteSaveException('the note has no working copy');
+        }
+        final r = decodeKkj(await file.readAsBytes());
+        final cur = r.note;
+        if (!r.writable || cur == null || cur.noteId != noteId) {
+          throw NoteSaveException(
+            'existing file is not readable by this client',
+          );
+        }
+        final info = await _loadSyncStrict(dir);
+        final p = plan(cur, info);
+        value = p.value;
+        await _putSidecars(dir, p.sidecars, tmps);
+        final sync = p.sync;
+        if (sync != null) {
+          await _put(
+            File(_in(dir, syncFileName)),
+            utf8.encode(jsonEncode(sync(info).toJson())),
+            tmps,
+          );
+        }
+        final next = p.note;
+        if (next != null) await _put(file, encodeKkj(next), tmps);
+      } catch (e) {
+        await _cleanTmps(tmps);
+        if (e is NoteSaveException) rethrow;
+        throw NoteSaveException('could not write the merge', e);
+      }
+    });
+    await _notify();
+    return value;
   }
 
   /// Never throws. A missing or broken `sync.json` is "none": state

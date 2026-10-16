@@ -6,6 +6,7 @@ import 'dart:ui' show Tristate;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/intl.dart';
 import 'package:kkeujeok/design_tokens/build/tokens.dart';
@@ -16,6 +17,8 @@ import 'package:kkeujeok/render/page_painter.dart';
 import 'package:kkeujeok/render/stroke_outline.dart';
 import 'package:kkeujeok/storage/note_data.dart';
 import 'package:kkeujeok/storage/note_store.dart';
+import 'package:kkeujeok/sync/merge_step.dart';
+import 'package:kkeujeok/ui/providers.dart';
 import 'package:kkeujeok/ui/note_editor.dart';
 import 'package:kkeujeok/ui/pen_toolbar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -1249,6 +1252,108 @@ void main() {
       expect(enabled(t, 'Undo'), isFalse);
       expect(enabled(t, 'Redo'), isFalse);
       h.dispose();
+    });
+
+    // A second page, and the note a sync brings from Drive: the first page
+    // (or the second) changed there, with the lineage a synced page has.
+    Note twoPages() {
+      final j = _note().copyJson();
+      final p1 = (j['pages'] as List).first as Map<String, dynamic>;
+      (j['pages'] as List).add({...p1, 'id': _id(1002), 'rev': _id(2002)});
+      return Note.trusted(j);
+    }
+
+    Note remoteChanging(Note base, int pageNo) {
+      final j = base.copyJson();
+      final p = (j['pages'] as List)[pageNo] as Map<String, dynamic>;
+      p['lineage'] = [p['rev']];
+      p['rev'] = _id(9000 + pageNo);
+      p['seq'] = (p['seq'] as int) + 1;
+      return Note.trusted(j);
+    }
+
+    Future<MergeOutcome> syncIn(WidgetTester t, Note base, Note remote) {
+      final container = ProviderScope.containerOf(
+        t.element(find.byType(NoteEditor)),
+      );
+      return t
+          .runAsync(
+            () => container
+                .read(mergeStepProvider)
+                .merge(localAtStart: base, base: base, remote: remote),
+          )
+          .then((o) => o!);
+    }
+
+    testWidgets('a merge that replaces the page drops its undo records', (
+      t,
+    ) async {
+      final h = t.ensureSemantics();
+      final base = twoPages();
+      seed(base);
+      await open(t);
+      await draw(t, line);
+      await settle(t);
+      expect(enabled(t, 'Undo'), isTrue);
+
+      // The other device changed the same page: its page replaces ours.
+      final out = await syncIn(t, base, remoteChanging(base, 0));
+      await settle(t);
+
+      expect(out, isA<Merged>());
+      expect((out as Merged).conflicts, 1);
+      expect(page()['rev'], _id(9000));
+      expect(elements(), isEmpty); // our stroke is in the sidecar only
+      expect(enabled(t, 'Undo'), isFalse);
+      expect(enabled(t, 'Redo'), isFalse);
+      expect(viewportPage(t)['rev'], _id(9000));
+      h.dispose();
+    });
+
+    testWidgets(
+      'a merge of another page keeps the undo records of its own page',
+      (t) async {
+        final h = t.ensureSemantics();
+        final base = twoPages();
+        seed(base);
+        await open(t);
+        await draw(t, line);
+        await settle(t);
+
+        await syncIn(t, base, remoteChanging(base, 1));
+        await settle(t);
+
+        final saved = decodeKkj(file.readAsBytesSync()).note!;
+        expect(saved.pages[1]['rev'], _id(9001)); // the remote page 2
+        expect(elements(), hasLength(1));
+        expect(enabled(t, 'Undo'), isTrue);
+        await tap(t, 'Undo');
+        expect(elements(), isEmpty); // the record still works
+        expect(
+          decodeKkj(file.readAsBytesSync()).note!.pages[1]['rev'],
+          _id(9001),
+        );
+        h.dispose();
+      },
+    );
+
+    testWidgets('a merge result that is an error leaves the screen alone', (
+      t,
+    ) async {
+      final base = twoPages();
+      seed(base);
+      await open(t);
+      await draw(t, line);
+      await settle(t);
+      final before = file.readAsBytesSync();
+      final v2 = Note.trusted(base.copyJson()..['formatVersion'] = 2);
+
+      final out = await syncIn(t, base, v2);
+      await settle(t);
+
+      expect(out, isA<MergeUnsupported>());
+      expect(file.readAsBytesSync(), before);
+      expect(enabled(t, 'Undo'), isTrue);
     });
 
     testWidgets('a failed save leaves the screen undone, next save heals', (

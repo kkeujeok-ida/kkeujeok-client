@@ -180,12 +180,13 @@ class UploadCoordinator {
   // `backoff` is the class of a note whose 7 network retries ran out.
   static const _retryClasses = {'backoff', 'quota', 'reauth', 'fatal'};
 
-  // These end the same way again until a merge engine exists (Story 3.3), so
-  // they are retried once per app process, not at every trigger.
+  // These end the same way again at the next trigger, so they are retried
+  // once per app process, not at every trigger.
   static const _retryOnce = {
-    'mergeUnavailable',
     'verifyExhausted',
     'sessionLost',
+    'noteIdMismatch',
+    'duplicatePageId',
   };
   final _retried = <String>{};
 

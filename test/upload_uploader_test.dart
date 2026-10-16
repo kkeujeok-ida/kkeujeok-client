@@ -205,36 +205,52 @@ void main() {
       );
     });
 
-    test(
-      'head != base: not merged, nothing uploaded, working untouched',
-      () async {
-        await env.save(makeNote(rev: 2));
-        final before = env.working.readAsBytesSync();
-        final head = env.drive.foreignRevision(
-          env.note,
-          encodeKkj(makeNote(rev: 9)),
-        );
+    test('head != base: merged into the working copy, conflict recorded, '
+        'sidecar uploaded before the note', () async {
+      await env.save(makeNote(rev: 2));
+      final head = env.drive.foreignRevision(
+        env.note,
+        encodeKkj(makeNote(rev: 9)),
+      );
+      final order = <String>[];
+      env.drive.after = (c) {
+        if (c.startsWith('upload:')) {
+          order.add(env.drive.uploads.last.metadata['name'] as String);
+        }
+      };
 
-        expect(await up(), UploadOutcome.failed);
+      expect(await up(), UploadOutcome.uploaded);
 
-        expect(env.drive.uploads, isEmpty);
-        expect(env.note.headRevisionId, head.id);
-        expect(env.working.readAsBytesSync(), before);
-        expect(env.info.state, SyncState.error);
-        expect(env.info.lastError, {
-          'class': 'fatal',
-          'reason': 'mergeUnavailable',
-        });
-        expect(env.info.pendingVerify, isNull);
-        expect(env.info.baseHeadRevisionId, isNot(head.id));
-        final log = await env.events();
-        expect(
-          log.where((e) => e['event'] == 'error').single,
-          containsPair('reason', 'mergeUnavailable'),
-        );
-        expect(await env.stateChanges(), contains('syncing>error'));
-      },
-    );
+      // Both pages differ from the base: the remote page stays in the note,
+      // ours is a sidecar.
+      expect(
+        noteOf(env.working.readAsBytesSync())!.pages.first['rev'],
+        endsWith('59'),
+      );
+      expect(env.info.conflicts, hasLength(1));
+      expect(env.info.conflicts.single, containsPair('kind', 'bothEdited'));
+      expect(env.info.conflicts.single['rev'], endsWith('52'));
+      expect(env.info.unsentSidecars, isEmpty);
+      expect(order, [
+        '$pageId-01926f3a-0000-7000-8000-000000000052.json',
+        'a.kkj',
+      ]);
+      final sc = env.drive.byKkeujeokId(
+        'sc:$noteId:$pageId:01926f3a-0000-7000-8000-000000000052',
+      )!;
+      expect(sc.appProperties['kkjIndex'], '0');
+      expect(sc.appProperties['kkjEdited'], isNotNull);
+      expect(env.drive.byKkeujeokId('cf:$noteId'), isNotNull);
+      expect(env.drive.byKkeujeokId('conflicts')!.parents, [env.root.id]);
+      expect(env.note.headRevisionId, isNot(head.id));
+      expect(env.info.state, SyncState.conflict);
+      expect(await env.stateChanges(), contains('syncing>conflict'));
+      expect(await env.eventNames(), contains('conflictFound'));
+      expect(env.info.lastError, isNull);
+      expect(env.info.pendingVerify, isNull);
+      expect(env.info.createIntent, isNull);
+      expect((await env.device.read()).createIntents, isEmpty);
+    });
 
     test('a remote that already holds our working copy is ours', () async {
       await env.save(makeNote(rev: 2));
@@ -244,29 +260,35 @@ void main() {
       expect(env.info.state, SyncState.synced);
     });
 
-    test('a foreign revision at verify goes to the merge step', () async {
+    test('a foreign revision at verify is merged and uploaded again', () async {
       await env.save(makeNote(rev: 2));
+      var n = 0;
       env.drive.after = (c) {
-        if (c.startsWith('upload:')) {
+        if (c.startsWith('upload:') && n++ == 0) {
           env.drive.foreignRevision(env.note, encodeKkj(makeNote(rev: 9)));
         }
       };
-      final baseId = env.info.baseHeadRevisionId;
 
-      expect(await up(), UploadOutcome.failed);
+      expect(await up(), UploadOutcome.uploaded);
 
-      expect(env.info.lastError, {
-        'class': 'fatal',
-        'reason': 'mergeUnavailable',
-      });
+      final notes = env.drive.uploads.where(
+        (u) => (u.metadata['name'] as String).endsWith('.kkj'),
+      );
+      expect(notes, hasLength(2)); // round 1 and round 2
+      expect(env.info.lastError, isNull);
       expect(env.info.pendingVerify, isNull);
-      expect(env.info.baseHeadRevisionId, baseId); // base not advanced
-      expect(env.info.state, SyncState.error);
+      expect(env.info.conflicts.single, containsPair('kind', 'bothEdited'));
+      expect(env.info.baseHeadRevisionId, env.note.headRevisionId);
+      expect(
+        noteOf(env.note.bytes)!.pages.first['rev'],
+        endsWith('59'),
+        reason: 'the remote page won, ours is in the sidecar',
+      );
     });
 
     test('a merged answer is uploaded again with round + 1, up to 3', () async {
       await env.save(makeNote(rev: 2));
-      final stub = StubMerge((_) => Merged(makeNote(rev: 4)));
+      final stub = StubMerge(env.store, (_) => Merged(makeNote(rev: 4)));
       env.merge = stub;
       env.drive.after = (c) {
         if (c.startsWith('upload:')) {
@@ -276,8 +298,11 @@ void main() {
 
       expect(await up(), UploadOutcome.failed);
 
-      expect(env.drive.uploads, hasLength(3)); // the round limit
-      expect(stub.calls, 2);
+      expect(
+        env.drive.uploads.where((u) => u.metadata['name'] == 'a.kkj'),
+        hasLength(3),
+      ); // the round limit
+      expect(stub.calls, 3); // head == base first, then two foreign rounds
       expect(env.info.lastError, {
         'class': 'fatal',
         'reason': 'verifyExhausted',
@@ -295,7 +320,7 @@ void main() {
 
     test('a merged answer that is then verified moves the base', () async {
       await env.save(makeNote(rev: 2));
-      env.merge = StubMerge((_) => Merged(makeNote(rev: 4)));
+      env.merge = StubMerge(env.store, (_) => Merged(makeNote(rev: 4)));
       var n = 0;
       env.drive.after = (c) {
         if (c.startsWith('upload:') && n++ == 0) {
@@ -305,7 +330,10 @@ void main() {
 
       expect(await up(), UploadOutcome.uploaded);
 
-      expect(env.drive.uploads, hasLength(2));
+      expect(
+        env.drive.uploads.where((u) => u.metadata['name'] == 'a.kkj'),
+        hasLength(2),
+      );
       final base = (await env.store.readSync(noteId)).base!;
       expect(base.pages.first['rev'], endsWith('54')); // the merged note
       expect(env.info.baseHeadRevisionId, env.note.headRevisionId);

@@ -23,6 +23,15 @@ class History {
     return null;
   }
 
+  /// Takes the note a merge made and forgets the undo and redo records of
+  /// [pages] (spec `merge.undoDrop`, AD-16): they would undo another device's
+  /// work. Records of other pages stay.
+  void adopt(Note merged, Set<String> pages) {
+    note = merged;
+    _undo.removeWhere((op) => pages.contains(op['pageId']));
+    _redo.removeWhere((op) => pages.contains(op['pageId']));
+  }
+
   String? undo(Ctx ctx) => _replay(_undo, _redo, ctx);
   String? redo(Ctx ctx) => _replay(_redo, _undo, ctx);
 

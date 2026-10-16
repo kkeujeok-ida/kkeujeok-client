@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/drive/drive_client.dart';
 import 'package:kkeujeok/model/kkj_codec.dart';
+import 'package:kkeujeok/model/note.dart';
 import 'package:kkeujeok/storage/note_store.dart';
 import 'package:kkeujeok/storage/sync_device_store.dart';
 import 'package:kkeujeok/storage/sync_info.dart';
@@ -65,14 +66,16 @@ void main() {
       expect(env.sleeps, hasLength(1));
     });
 
-    test('duplicates found on the way are counted in the log', () async {
+    test('a duplicate found on the way is folded into the kept file, then '
+        'trashed; its other version of the page is a sidecar', () async {
       await env.save(makeNote());
       var lost = false;
+      late FakeItem dup;
       env.drive.after = (c) {
         if (c == 'upload:new' && !lost) {
           lost = true;
-          final dup = env.drive.seed(name: 'a.kkj', kkeujeokId: noteId);
-          env.drive.foreignRevision(dup, [1]);
+          dup = env.drive.seed(name: 'a.kkj', kkeujeokId: noteId);
+          env.drive.foreignRevision(dup, encodeKkj(makeNote(rev: 5)));
           throw const DriveError('network');
         }
       };
@@ -82,7 +85,41 @@ void main() {
         log.where((e) => e['event'] == 'duplicatesCleaned').single['count'],
         1,
       );
+      expect(dup.trashed, isTrue);
+      expect(env.info.conflicts, hasLength(1));
+      expect(env.info.conflicts.single['kind'], 'bothEdited');
+      expect(env.info.unsentSidecars, isEmpty); // uploaded before the note
+      expect(
+        env.drive.byKkeujeokId(
+          'sc:$noteId:$pageId:01926f3a-0000-7000-8000-000000000055',
+        ),
+        isNotNull,
+      );
     });
+
+    test(
+      'a duplicate that cannot be parsed is neither folded nor trashed',
+      () async {
+        await env.save(makeNote());
+        var lost = false;
+        late FakeItem dup;
+        env.drive.after = (c) {
+          if (c == 'upload:new' && !lost) {
+            lost = true;
+            dup = env.drive.seed(name: 'a.kkj', kkeujeokId: noteId);
+            env.drive.foreignRevision(dup, [1]);
+            throw const DriveError('network');
+          }
+        };
+        await up();
+        expect(dup.trashed, isFalse);
+        expect(
+          (await env.events()).where((e) => e['event'] == 'duplicatesCleaned'),
+          isEmpty,
+        );
+        expect(env.info.conflicts, isEmpty);
+      },
+    );
   });
 
   group('resumable offsets', () {
@@ -348,29 +385,30 @@ void main() {
       );
     });
 
-    test(
-      'mergeUnavailable is retried once per process, not at every trigger',
-      () async {
-        await env.save(makeNote());
-        await coordinator.noteClosed(noteId);
-        await env.save(makeNote(rev: 2));
-        env.drive.foreignRevision(env.note, encodeKkj(makeNote(rev: 9)));
-        await coordinator.noteClosed(noteId);
-        expect(env.info.lastError?['reason'], 'mergeUnavailable');
+    test('a merge error (duplicatePageId) is retried once per process, '
+        'not at every trigger', () async {
+      await env.save(makeNote());
+      await coordinator.noteClosed(noteId);
+      await env.save(makeNote(rev: 2));
+      final json = makeNote(rev: 9).copyJson();
+      final pages = json['pages'] as List;
+      pages.add(copyJsonValue(pages.first)); // a page id twice
+      env.drive.foreignRevision(env.note, encodeKkj(Note.trusted(json)));
+      await coordinator.noteClosed(noteId);
+      expect(env.info.lastError?['reason'], 'duplicatePageId');
 
-        env.drive.calls.clear();
-        await coordinator.foreground(); // the one retry: fails the same way
-        expect(env.drive.calls, isNotEmpty);
-        expect(env.info.lastError?['reason'], 'mergeUnavailable');
+      env.drive.calls.clear();
+      await coordinator.foreground(); // the one retry: fails the same way
+      expect(env.drive.calls, isNotEmpty);
+      expect(env.info.lastError?['reason'], 'duplicatePageId');
 
-        env.drive.calls.clear();
-        await coordinator.foreground();
-        await coordinator.uploadUnsent();
-        await coordinator.appStarted();
-        expect(env.drive.calls, isEmpty);
-        expect(env.info.state, SyncState.error);
-      },
-    );
+      env.drive.calls.clear();
+      await coordinator.foreground();
+      await coordinator.uploadUnsent();
+      await coordinator.appStarted();
+      expect(env.drive.calls, isEmpty);
+      expect(env.info.state, SyncState.error);
+    });
 
     test(
       'a note in error is also retried from app start and the task',

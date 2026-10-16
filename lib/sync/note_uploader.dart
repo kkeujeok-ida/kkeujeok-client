@@ -1,10 +1,12 @@
 import 'dart:convert';
+import 'dart:io' show FileSystemException;
 
 import 'package:crypto/crypto.dart' as crypto;
 
 import '../drive/drive_client.dart';
 import '../drive/duplicates.dart';
 import '../drive/note_summary.dart';
+import '../model/ids.dart' as mid;
 import '../model/kkj_codec.dart';
 import '../model/note.dart';
 import '../storage/note_store.dart';
@@ -12,6 +14,7 @@ import '../storage/sync_device_store.dart';
 import '../storage/sync_info.dart';
 import 'error_class.dart';
 import 'has_unsent.dart';
+import 'merge.dart';
 import 'merge_step.dart';
 import 'sync_log.dart';
 import 'sync_rules.dart';
@@ -36,6 +39,7 @@ const resumableChunk = 8388608;
 const maxThumbnailBytes = 2097152;
 
 const _kkjMime = 'application/vnd.kkeujeok.kkj';
+const _folderMime = 'application/vnd.google-apps.folder';
 
 class _Failure implements Exception {
   _Failure(this.cls, {this.status, this.reason, this.clearVerify = false});
@@ -69,7 +73,11 @@ class NoteUploader {
     required this.jitter,
     this.thumbnail,
     this.heartbeat,
-  });
+    DateTime Function()? clock,
+    String Function()? newRev,
+    this.editedBy = mid.deviceEditedBy,
+  }) : _clock = clock ?? DateTime.now,
+       _newRev = newRev ?? mid.newId;
 
   final NoteStore store;
   final DriveClient drive;
@@ -95,6 +103,11 @@ class NoteUploader {
   /// Called before every Drive call and between chunks: keeps the upload
   /// lease of the note fresh while a long upload runs.
   final Future<void> Function(String noteId)? heartbeat;
+
+  /// For the `ctx` of the duplicate folds (the merge reads no clock itself).
+  final DateTime Function() _clock;
+  final String Function() _newRev;
+  final String editedBy;
 
   final _chains = <String, Future<void>>{};
 
@@ -331,7 +344,6 @@ class NoteUploader {
     var round = 1;
     String? ours;
     Note? uploaded;
-    Note? snapshot; // set after a merge; else the working copy at upload time
     var skipPre = false;
 
     // "Start": an unfinished upload.
@@ -384,6 +396,8 @@ class NoteUploader {
     while (true) {
       if (ours == null) {
         if (!skipPre) {
+          // Step 0: sidecars of earlier merges go before anything else.
+          await _sendSidecars(noteId);
           // Step 1.
           if (fileId == null) {
             final root = (await device.read()).rootFolderId;
@@ -398,26 +412,15 @@ class NoteUploader {
             }
             final found = await _all(noteId, kkeujeokIdQuery(noteId));
             if (found.isNotEmpty) {
-              // Merging duplicate notes is Story 3.1; the earliest is used.
-              final keep =
-                  driveDuplicatesRule({
-                        'kkeujeokId': noteId,
-                        'items': [
-                          for (final f in found)
-                            {
-                              'id': f.id,
-                              'createdTime':
-                                  f.createdTime ?? '9999-12-31T23:59:59.999Z',
-                            },
-                        ],
-                      })['keep']
-                      as String;
+              final keep = await _foldDuplicates(noteId, found);
               fileId = keep;
               info = await _commit(noteId, (c) => c.copyWith(fileId: keep));
             }
           }
           if (fileId != null) {
             final id = fileId;
+            // The working copy the sync starts from (spec `merge.requeue`).
+            final start = (await store.read(noteId))?.note ?? working0;
             final f = await _call(
               noteId,
               () => drive.get(id, fields: 'headRevisionId,trashed'),
@@ -446,19 +449,26 @@ class NoteUploader {
                   ),
                 );
               } else {
-                snapshot = await _merge(noteId, now, baseNote, remote);
+                await _merge(noteId, start, baseNote, remote);
               }
+            } else if (baseNote != null) {
+              // Head == base: the merge runs all the same, so a page changed
+              // here gets its `lineage` (spec `sync` step 1).
+              await _merge(noteId, start, baseNote, baseNote, announce: false);
             }
           } else {
             parent = null;
           }
         }
         if (ours == null) {
+          // Step 0 again: sidecars a merge of step 1 just made go before the
+          // note too. The snapshot is the queue state after that.
+          await _sendSidecars(noteId);
           // Step 2.
           final up = await _send(
             noteId,
             fileId: fileId,
-            snapshot: snapshot ?? (await store.read(noteId))?.note ?? working0,
+            snapshot: (await store.read(noteId))?.note ?? working0,
             parent: parent,
             round: round,
             intent: info.createIntent,
@@ -483,7 +493,6 @@ class NoteUploader {
         await _finish(noteId, id, ours, uploaded!);
         return;
       }
-      snapshot = again.snapshot;
       parent = again.parent;
       round = again.round;
       ours = null;
@@ -492,31 +501,43 @@ class NoteUploader {
     }
   }
 
-  Future<Note> _merge(
+  /// Merges [remote] into the working copy through the merge step (which
+  /// writes the result through the note's queue). Nothing is returned: step 2
+  /// reads the queue again, so what was drawn meanwhile is in the upload.
+  Future<void> _merge(
     String noteId,
-    Note working,
+    Note localAtStart,
     Note? base,
-    Note remote,
-  ) async {
-    final r = await merge.merge(working: working, base: base, remote: remote);
+    Note remote, {
+    bool announce = true,
+  }) async {
+    final r = await merge.merge(
+      localAtStart: localAtStart,
+      base: base,
+      remote: remote,
+    );
     switch (r) {
-      case Merged(:final note):
-        await log.append('merged', {'noteId': noteId});
-        return note;
-      case MergeNotImplemented():
-        throw _Failure('fatal', reason: 'mergeUnavailable', clearVerify: true);
+      case Merged(:final conflicts):
+        if (announce) await log.append('merged', {'noteId': noteId});
+        if (conflicts > 0) {
+          await log.append('conflictFound', {'noteId': noteId});
+          await _commit(noteId, (c) => c, event: 'conflictFound');
+        }
+      case MergeUnsupported():
+        throw _Failure(
+          'unreadable',
+          reason: 'unsupportedVersion',
+          clearVerify: true,
+        );
+      case MergeFailed(:final code):
+        throw _Failure('fatal', reason: code, clearVerify: true);
     }
   }
 
-  /// Step 2: one request that carries content, name and summary.
-  Future<({String fileId, String ours, Note note})> _send(
-    String noteId, {
-    required String? fileId,
-    required Note snapshot,
-    required String? parent,
-    required int round,
-    required JsonMap? intent,
-  }) async {
+  /// The bytes, MD5 and request metadata (name, summary, thumbnail) of one
+  /// note upload.
+  Future<({List<int> bytes, String sum, Map<String, Object?> metadata})>
+  _package(Note snapshot, String? fileId, JsonMap? intent) async {
     final bytes = encodeKkj(snapshot);
     final sum = crypto.md5.convert(bytes).toString();
     final summary = listSummaryRule({
@@ -561,6 +582,20 @@ class NoteUploader {
         'parents': [intent?['parentId']],
       },
     };
+    return (bytes: bytes, sum: sum, metadata: metadata);
+  }
+
+  /// Step 2: one request that carries content, name and summary.
+  Future<({String fileId, String ours, Note note})> _send(
+    String noteId, {
+    required String? fileId,
+    required Note snapshot,
+    required String? parent,
+    required int round,
+    required JsonMap? intent,
+  }) async {
+    final pkg = await _package(snapshot, fileId, intent);
+    final bytes = pkg.bytes, sum = pkg.sum, metadata = pkg.metadata;
 
     // The intent of this upload is on disk before the request goes out.
     await _commit(
@@ -616,31 +651,274 @@ class NoteUploader {
     return (fileId: file.id, ours: head, note: snapshot);
   }
 
-  /// The earliest file with this note's kkeujeokId (with its head), or null.
-  /// Duplicates are counted in the log; merging them is Story 3.1.
+  /// The file with this note's kkeujeokId that stays (with its head), or
+  /// null. Several files are folded into one ([_foldDuplicates]).
   Future<DriveFile?> _adopt(String noteId) async {
     final found = await _all(noteId, kkeujeokIdQuery(noteId));
     if (found.isEmpty) return null;
-    if (found.length > 1) {
-      await log.append('duplicatesCleaned', {'count': found.length - 1});
-    }
-    final keep =
-        driveDuplicatesRule({
-              'kkeujeokId': noteId,
-              'items': [
-                for (final f in found)
-                  {
-                    'id': f.id,
-                    'createdTime': f.createdTime ?? '9999-12-31T23:59:59.999Z',
-                  },
-              ],
-            })['keep']
-            as String;
+    final keep = await _foldDuplicates(noteId, found);
     final head = await _call(
       noteId,
       () => drive.get(keep, fields: 'headRevisionId'),
     );
     return DriveFile(id: keep, headRevisionId: head.headRevisionId);
+  }
+
+  /// Several note files with one `kkeujeokId` (spec `drive-layout`,
+  /// "Duplicate cleanup"): `drive.duplicates` keeps one; each other file is
+  /// folded into it, `acc = merge(null, duplicate, acc)`, so the kept note's
+  /// pages win and a different version of a page goes to a sidecar. Then
+  /// `acc` is uploaded as the kept file and the folded files are trashed,
+  /// last. A file that cannot be read, or whose merge answers anything but
+  /// `merged`, is neither folded nor trashed. Returns the kept file's id.
+  Future<String> _foldDuplicates(String noteId, List<DriveFile> found) async {
+    final rule = driveDuplicatesRule({
+      'kkeujeokId': noteId,
+      'items': [
+        for (final f in found)
+          {
+            'id': f.id,
+            'createdTime': f.createdTime ?? '9999-12-31T23:59:59.999Z',
+          },
+      ],
+    });
+    final keep = rule['keep'] as String;
+    final others = (rule['merge'] as List).cast<String>();
+    if (others.isEmpty) return keep;
+
+    Future<Note?> read(String id) async {
+      final head = (await _call(
+        noteId,
+        () => drive.get(id, fields: 'headRevisionId'),
+      )).headRevisionId;
+      if (head == null) return null;
+      final bytes = await _call(noteId, () => drive.downloadRevision(id, head));
+      final n = decodeKkj(bytes).note;
+      return n != null && n.noteId == noteId ? n : null;
+    }
+
+    final kept = await read(keep);
+    if (kept == null) throw _Failure('unreadable', reason: 'parse');
+    var acc = kept;
+    final folded = <String>[];
+    final records = <Map<String, Object?>>[];
+    for (final id in others) {
+      final dup = await read(id);
+      if (dup == null) continue;
+      final out = mergeNotes(null, dup.copyJson(), acc.copyJson(), {
+        'now': mid.canonicalNow(_clock()),
+        'orderRev': _newRev(),
+        'rev': _newRev(),
+        'editedBy': editedBy,
+        'lastSeenRemoteSeq': 0,
+      });
+      if (out['result'] != 'merged') continue;
+      acc = Note.trusted(out['note'] as Map<String, dynamic>);
+      folded.add(id);
+      records.add(out);
+    }
+    if (folded.isEmpty) return keep;
+    // The conflicts of the folds belong to this device like any other.
+    for (final out in records) {
+      final rec = mergeRecords(out);
+      if (rec.sidecars.isNotEmpty) {
+        await store.writeSidecars(noteId, rec.sidecars);
+      }
+      await store.updateSync(noteId, rec.sync);
+    }
+    final pkg = await _package(acc, keep, null);
+    final kind = uploadKindRule({
+      'size': pkg.bytes.length + utf8.encode(jsonEncode(pkg.metadata)).length,
+    })['kind'];
+    if (kind == 'simple') {
+      await _call(
+        noteId,
+        () => drive.uploadSimple(
+          fileId: keep,
+          metadata: pkg.metadata,
+          bytes: pkg.bytes,
+        ),
+      );
+    } else {
+      await _resumable(noteId, keep, pkg.metadata, pkg.bytes);
+    }
+    for (final id in folded) {
+      await _call(noteId, () => drive.update(id, trashed: true));
+    }
+    await log.append('duplicatesCleaned', {'count': folded.length});
+    return keep;
+  }
+
+  Future<void> _deviceUpdate(SyncDevice Function(SyncDevice) change) async {
+    try {
+      await device.update(change);
+    } on FileSystemException {
+      throw _Failure('fatal', reason: 'localWrite');
+    }
+  }
+
+  /// Idempotent creation of one item with a known `kkeujeokId` (spec
+  /// `drive-layout`): the intent is saved, the item is looked for, created
+  /// when missing, looked for again (a listing that lags falls back to the
+  /// id of the create), duplicates are cleaned up, the intent is cleared.
+  /// Returns the id of the item that stays.
+  Future<String> _ensureItem(
+    String noteId, {
+    required String kkeujeokId,
+    required String kind,
+    required String parentId,
+    required bool folder,
+    required Future<DriveFile> Function() create,
+  }) async {
+    await _deviceUpdate(
+      (d) => d.copyWith(
+        createIntents: [
+          for (final i in d.createIntents)
+            if (i['kkeujeokId'] != kkeujeokId) i,
+          {'kkeujeokId': kkeujeokId, 'kind': kind, 'parentId': parentId},
+        ],
+      ),
+    );
+    var found = await _all(noteId, kkeujeokIdQuery(kkeujeokId));
+    String? id;
+    if (found.isEmpty) {
+      final made = await _call(noteId, create);
+      found = await _all(noteId, kkeujeokIdQuery(kkeujeokId));
+      if (found.isEmpty) id = made.id;
+    }
+    id ??= await _keepOne(noteId, kkeujeokId, found, folder: folder);
+    await _deviceUpdate(
+      (d) => d.copyWith(
+        createIntents: [
+          for (final i in d.createIntents)
+            if (i['kkeujeokId'] != kkeujeokId) i,
+        ],
+      ),
+    );
+    return id;
+  }
+
+  /// `drive.duplicates` keeps one; the others of a folder first hand their
+  /// children over, then every other item is trashed (last).
+  Future<String> _keepOne(
+    String noteId,
+    String kkeujeokId,
+    List<DriveFile> found, {
+    required bool folder,
+  }) async {
+    final rule = driveDuplicatesRule({
+      'kkeujeokId': kkeujeokId,
+      'items': [
+        for (final f in found)
+          {
+            'id': f.id,
+            'createdTime': f.createdTime ?? '9999-12-31T23:59:59.999Z',
+          },
+      ],
+    });
+    final keep = rule['keep'] as String;
+    final others = (rule['merge'] as List).cast<String>();
+    for (final dup in others) {
+      if (folder) {
+        for (final kid in await _all(noteId, childrenQuery(dup))) {
+          await _call(
+            noteId,
+            () => drive.update(kid.id, addParents: keep, removeParents: dup),
+          );
+        }
+      }
+      await _call(noteId, () => drive.update(dup, trashed: true));
+    }
+    if (others.isNotEmpty) {
+      await log.append('duplicatesCleaned', {'count': others.length});
+    }
+    return keep;
+  }
+
+  /// Step 0 (spec `sync`): the sidecars in `unsentSidecars` are uploaded,
+  /// each by idempotent creation under `.conflicts/<noteId>`, and removed
+  /// from the list when confirmed. A failure ends the upload before the note
+  /// is sent.
+  Future<void> _sendSidecars(String noteId) async {
+    final pending = (await store.readSync(noteId)).info.unsentSidecars;
+    if (pending.isEmpty) return;
+    final root = (await device.read()).rootFolderId;
+    if (root == null) throw _Failure('fatal', reason: 'rootMissing');
+    final cf = await _ensureItem(
+      noteId,
+      kkeujeokId: 'conflicts',
+      kind: 'conflicts',
+      parentId: root,
+      folder: true,
+      create: () => drive.create({
+        'name': '.conflicts',
+        'mimeType': _folderMime,
+        'parents': [root],
+        'appProperties': {'kkeujeokId': 'conflicts'},
+      }),
+    );
+    await _deviceUpdate((d) => d.copyWith(conflictsFolderId: cf));
+    final folder = await _ensureItem(
+      noteId,
+      kkeujeokId: 'cf:$noteId',
+      kind: 'noteConflicts',
+      parentId: cf,
+      folder: true,
+      create: () => drive.create({
+        'name': noteId,
+        'mimeType': _folderMime,
+        'parents': [cf],
+        'appProperties': {'kkeujeokId': 'cf:$noteId'},
+      }),
+    );
+    for (final e in pending) {
+      final pageId = e['pageId'] as String, rev = e['rev'] as String;
+      final sc = await store.readSidecar(noteId, pageId, rev);
+      if (sc == null) {
+        await log.append('error', {
+          'class': 'fatal',
+          'noteId': noteId,
+          'reason': 'sidecarMissing',
+        });
+      } else {
+        final conflict = (await store.readSync(noteId)).info.conflicts
+            .where((c) => c['pageId'] == pageId && c['rev'] == rev)
+            .firstOrNull;
+        final bytes = utf8.encode(jsonEncode(sc));
+        final id = 'sc:$noteId:$pageId:$rev';
+        await _ensureItem(
+          noteId,
+          kkeujeokId: id,
+          kind: 'sidecar',
+          parentId: folder,
+          folder: false,
+          create: () => drive.uploadSimple(
+            metadata: {
+              'name': '$pageId-$rev.json',
+              'mimeType': 'application/json',
+              'parents': [folder],
+              'appProperties': {
+                'kkeujeokId': id,
+                'kkjEdited': '${sc['editedAt']}',
+                'kkjIndex': '${conflict?['originalIndex'] ?? 0}',
+                if (conflict?['resolvedAt'] != null)
+                  'kkjResolved': '${conflict!['resolvedAt']}',
+              },
+            },
+            bytes: bytes,
+          ),
+        );
+      }
+      await _commit(
+        noteId,
+        (c) => c.copyWith(
+          unsentSidecars: [
+            for (final x in c.unsentSidecars)
+              if (!(x['pageId'] == pageId && x['rev'] == rev)) x,
+          ],
+        ),
+      );
+    }
   }
 
   Future<DriveFile> _resumable(
@@ -748,14 +1026,16 @@ class NoteUploader {
       case 'verified':
         return null;
       case 'merge':
-        var working =
-            (await store.read(noteId))?.note ?? (throw _Failure('fatal'));
         final ids = (plan['download'] as List).cast<String>();
         for (final id in ids) {
+          // Each revision is merged into the working copy the previous one
+          // left (spec `sync` step 3); `base` stays the base copy.
+          final start =
+              (await store.read(noteId))?.note ?? (throw _Failure('fatal'));
           final remote = await _download(noteId, fileId, id);
-          working = await _merge(noteId, working, baseNote, remote);
+          await _merge(noteId, start, baseNote, remote);
         }
-        return _Again(working, ids.last, round + 1);
+        return _Again(ids.last, round + 1);
       default:
         throw _Failure('fatal', reason: 'verifyExhausted', clearVerify: true);
     }
@@ -801,9 +1081,8 @@ class NoteUploader {
 }
 
 class _Again {
-  _Again(this.snapshot, this.parent, this.round);
+  _Again(this.parent, this.round);
 
-  final Note snapshot;
   final String parent;
   final int round;
 }

@@ -33,6 +33,14 @@ class SyncInfo {
   final JsonMap? lastError;
   final JsonMap extra;
 
+  /// The greatest `seq` seen in a merged remote note; the next operation takes
+  /// `max(page.seq, this) + 1` (spec `merge.seqAfterMerge`). An unknown key of
+  /// `sync.json`, so older readers keep it.
+  int get lastSeenRemoteSeq {
+    final v = extra['lastSeenRemoteSeq'];
+    return v is int && v > 0 ? v : 0;
+  }
+
   static const _known = {
     'fileId',
     'baseHeadRevisionId',
@@ -153,6 +161,7 @@ class SyncInfo {
     List<JsonMap>? conflicts,
     List<JsonMap>? unsentSidecars,
     Object? lastError = _keep,
+    JsonMap? extra,
   }) => SyncInfo(
     fileId: identical(fileId, _keep) ? this.fileId : fileId as String?,
     baseHeadRevisionId: identical(baseHeadRevisionId, _keep)
@@ -173,7 +182,7 @@ class SyncInfo {
     lastError: identical(lastError, _keep)
         ? this.lastError
         : lastError as JsonMap?,
-    extra: extra,
+    extra: extra ?? this.extra,
   );
 
   JsonMap toJson() => {

@@ -12,6 +12,7 @@ import '../model/pen.dart';
 import '../ops/history.dart';
 import '../ops/ops.dart';
 import '../render/page_painter.dart';
+import '../sync/merge_step.dart';
 import 'pen_toolbar.dart';
 import 'providers.dart';
 
@@ -57,6 +58,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   late final _store = ref.read(noteStoreProvider);
   late final _openNote = ref.read(openNoteProvider);
   late final _coordinator = ref.read(uploadCoordinatorProvider);
+  late final _hosts = ref.read(mergeHostsProvider);
+  late final MergeHost _host = _applyMerge;
+
+  /// `lastSeenRemoteSeq` of `sync.json` (spec `merge.seqAfterMerge`): the
+  /// next operation takes `max(page.seq, this) + 1`.
+  int _lastSeen = 0;
   final _cache = StrokePathCache();
   final _tick = ValueNotifier<int>(0);
 
@@ -132,6 +139,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     rev: newId(),
     now: canonicalNow(DateTime.now()),
     editedBy: deviceEditedBy,
+    lastSeenRemoteSeq: _lastSeen,
   );
 
   /// Queues the history's current note for saving.
@@ -169,6 +177,49 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     // queue to reach the disk first.
     _openNote.set(widget.note.noteId);
     _coordinator.flushOpen = _flush;
+    // A sync result for this note is merged into this queue and history.
+    _hosts.register(widget.note.noteId, _host);
+    _loadLastSeen();
+  }
+
+  Future<void> _loadLastSeen() async {
+    try {
+      final s = await _store.readSync(widget.note.noteId);
+      if (s.info.lastSeenRemoteSeq > _lastSeen) {
+        _lastSeen = s.info.lastSeenRemoteSeq;
+      }
+    } catch (_) {}
+  }
+
+  /// Applies a merge to the live note as one item of the save queue (spec
+  /// `merge.requeue`). The merge runs on the note as it is now; when an edit
+  /// landed while [record] wrote the conflict files, it runs again on the
+  /// new note, so nothing drawn meanwhile is lost. The adoption has no
+  /// `await` between the check and the swap. Undo and redo records of the
+  /// replaced pages are dropped (AD-16) and the buttons follow the rest.
+  Future<bool> _applyMerge(
+    LiveMerge merge,
+    Future<void> Function() record,
+  ) async {
+    for (var tries = 0; tries < 20; tries++) {
+      final live = _history.note;
+      final r = merge(live);
+      await record();
+      if (!identical(_history.note, live)) continue;
+      if (r != null) {
+        _history.adopt(r.note, r.undoDrop);
+        _failed = null; // an older snapshot must never be written again
+        if (mounted) {
+          setState(() {});
+          _tick.value++;
+        }
+        _commit();
+        await _flush();
+      }
+      await _loadLastSeen();
+      return true;
+    }
+    return false;
   }
 
   /// Waits until every queued save is on disk (one more try for a failed
@@ -187,6 +238,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   @override
   void dispose() {
     if (_coordinator.flushOpen == _flush) _coordinator.flushOpen = null;
+    _hosts.unregister(widget.note.noteId, _host);
     _openNote.clear(widget.note.noteId);
     _anim.dispose();
     _tick.dispose();
@@ -447,7 +499,13 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   /// Ends the stroke with the points so far (also for a cancel).
   void _finish() {
     if (_pointer == null) return;
-    final pageId = _page!['id'];
+    final page = _page;
+    if (page == null) {
+      // A merge took the last page away while the stroke was being drawn.
+      _discardStroke();
+      return;
+    }
+    final pageId = page['id'];
     final stroke = _stroke(List.of(_points));
     _pointer = null;
     _points.clear();

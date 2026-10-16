@@ -226,10 +226,18 @@ final uploadsAllowedProvider = Provider<bool>(
   (ref) => ref.watch(rootFolderProvider).status == RootStatus.ready,
 );
 
-/// Story 3.3 overrides this with the real merge; until then a version that
-/// is not ours is never merged and the note stays in `error`.
+/// The open editors, which merge a sync result into their own queue.
+final mergeHostsProvider = Provider<MergeHosts>((ref) => MergeHosts());
+
+/// Merges a version that is not ours against the queue state at commit time
+/// (Story 3.3). A kept undo history forgets the pages a merge replaced.
 final mergeStepProvider = Provider<MergeStep>(
-  (ref) => const UnavailableMergeStep(),
+  (ref) => QueueMergeStep(
+    store: ref.read(noteStoreProvider),
+    hosts: ref.read(mergeHostsProvider),
+    onApplied: (noteId, merged, undoDrop) =>
+        ref.read(noteHistoriesProvider)[noteId]?.adopt(merged, undoDrop),
+  ),
 );
 
 /// False only while the device is known to be offline.
@@ -370,9 +378,6 @@ int _compare(LibraryEntry a, LibraryEntry b) {
   return c != 0 ? c : b.noteId.compareTo(a.noteId);
 }
 
-// ponytail: the Android model name needs a device-info plugin; one constant
-// until a story adds it.
-const deviceEditedBy = 'Android';
 
 class LibraryNotifier extends AsyncNotifier<List<LibraryEntry>> {
   @override

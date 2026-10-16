@@ -82,6 +82,20 @@ void roundStroke(Map<String, dynamic> s) {
   ];
 }
 
+/// Deep equality of two JSON values; key order does not matter and numbers
+/// compare by value (1 equals 1.0).
+bool jsonEqual(Object? a, Object? b) {
+  if (a is Map && b is Map) {
+    return a.length == b.length &&
+        a.keys.every((k) => b.containsKey(k) && jsonEqual(a[k], b[k]));
+  }
+  if (a is List && b is List) {
+    return a.length == b.length &&
+        Iterable<int>.generate(a.length).every((i) => jsonEqual(a[i], b[i]));
+  }
+  return a == b;
+}
+
 /// Deep copy of a JSON value.
 Object? copyJsonValue(Object? v) => _copy(v);
 

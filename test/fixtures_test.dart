@@ -12,10 +12,12 @@ import 'package:kkeujeok/model/note_title.dart';
 import 'package:kkeujeok/model/number.dart';
 import 'package:kkeujeok/ops/history.dart';
 import 'package:kkeujeok/ops/ops.dart';
+import 'package:kkeujeok/ops/resolve_conflict.dart';
 import 'package:kkeujeok/render/page_background.dart';
 import 'package:kkeujeok/render/stroke_outline.dart';
 import 'package:kkeujeok/sync/error_class.dart';
 import 'package:kkeujeok/sync/has_unsent.dart';
+import 'package:kkeujeok/sync/merge.dart';
 import 'package:kkeujeok/sync/sync_log_entry.dart';
 import 'package:kkeujeok/sync/sync_rules.dart';
 
@@ -191,6 +193,44 @@ final runners = <String, void Function(Case)>{
     listSummaryRule((c['input'] as Map).cast<String, Object?>()),
     c['expected'],
   ),
+  for (final id in const [
+    'merge.page3way',
+    'merge.staleSeq',
+    'merge.seqAfterMerge',
+    'merge.conflictSidecar',
+    'merge.order',
+    'merge.meta',
+    'merge.unknownFields',
+    'merge.formatVersion',
+    'merge.undoDrop',
+  ])
+    id: _runMerge,
+  'merge.requeue': (c) {
+    final i = _json(c['input']);
+    _same(
+      mergeRequeueNotes(
+        base: i['base'] as Json?,
+        localAtStart: i['localAtStart'] as Json,
+        localAtCommit: i['localAtCommit'] as Json,
+        remote: i['remote'] as Json,
+        ctx: i['ctx'] as Json,
+      ),
+      c['expected'],
+    );
+  },
+  'merge.resolve': (c) => _same(_resolve(_json(c['input'])), c['expected']),
+  'merge.keepBothConverge': (c) {
+    final i = _json(c['input']);
+    final a = _resolve({...i['a'] as Json, 'choice': 'both'});
+    final b = _resolve({...i['b'] as Json, 'choice': 'both'});
+    Map<String, Object?> m(Object? x, Object? y) => mergeNotes(
+      i['base'] as Json?,
+      (x as Map<String, Object?>)['note'] as Json,
+      (y as Map<String, Object?>)['note'] as Json,
+      i['ctx'] as Json,
+    );
+    _same({'a': a, 'b': b, 'ab': m(a, b), 'ba': m(b, a)}, c['expected']);
+  },
   'ops.undoRedo': (c) {
     final i = c['input'] as Map<String, dynamic>;
     final h = History(_note(i['note']));
@@ -213,6 +253,29 @@ final runners = <String, void Function(Case)>{
   },
 };
 
+Json _json(Object? v) => v as Json;
+
+void _runMerge(Case c) {
+  final i = _json(c['input']);
+  _same(
+    mergeNotes(
+      i['base'] as Json?,
+      i['local'] as Json,
+      i['remote'] as Json,
+      i['ctx'] as Json,
+    ),
+    c['expected'],
+  );
+}
+
+Map<String, Object?> _resolve(Json i) => resolveConflict(
+  i['note'] as Json,
+  i['conflict'] as Json,
+  i['sidecar'] as Json,
+  i['choice'],
+  i['ctx'] as Json,
+);
+
 void _runOp(Case c) {
   final i = c['input'] as Map<String, dynamic>;
   final r = applyOp(
@@ -227,18 +290,6 @@ void _runOp(Case c) {
 // needs a valid fixture file and must not have a runner yet: when its story
 // adds the runner, the entry has to go (a stale entry fails the run).
 const pendingRules = <String>{
-  'merge.page3way',
-  'merge.staleSeq',
-  'merge.seqAfterMerge',
-  'merge.conflictSidecar',
-  'merge.order',
-  'merge.meta',
-  'merge.unknownFields',
-  'merge.formatVersion',
-  'merge.resolve',
-  'merge.keepBothConverge',
-  'merge.requeue',
-  'merge.undoDrop',
   'version.list',
   'version.keepForever',
   'ops.restoreNote',
@@ -478,7 +529,8 @@ void main() {
             }
           }
           edit(dir);
-          return loadFixtures(dir.path, pending: pending);
+          // The ids of later stories stay pending in every copy.
+          return loadFixtures(dir.path, pending: {...pendingRules, ...pending});
         } finally {
           dir.deleteSync(recursive: true);
         }
@@ -487,8 +539,8 @@ void main() {
       void put(Directory d, String text) =>
           File('${d.path}${_sep}x.later.json').writeAsStringSync(text);
 
-      test('the real folder passes with nothing pending', () {
-        expect(pendingRules, isEmpty);
+      test('the real folder passes with the pending ids of later stories', () {
+        expect(pendingRules.where((id) => id.startsWith('merge.')), isEmpty);
         expect(loadCopy((_) {}, pending: pendingRules), isNotEmpty);
       });
 
@@ -520,7 +572,7 @@ void main() {
 
       test('a rule that is neither run nor pending still fails', () {
         expect(
-          () => loadCopy((d) => put(d, laterFile), pending: {}),
+          () => loadCopy((d) => put(d, laterFile), pending: <String>{}),
           throwsMessage('has no test'),
         );
       });

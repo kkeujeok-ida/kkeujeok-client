@@ -10,3 +10,8 @@ String canonicalNow(DateTime t) => DateTime.fromMillisecondsSinceEpoch(
   t.millisecondsSinceEpoch,
   isUtc: true,
 ).toIso8601String();
+
+// ponytail: the Android model name needs a device-info plugin; one constant
+// until a story adds it.
+/// `editedBy` of what this device writes.
+const deviceEditedBy = 'Android';
