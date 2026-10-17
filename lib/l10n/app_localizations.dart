@@ -871,6 +871,180 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Conflicts'**
   String get conflictNotificationChannel;
+
+  /// No description provided for @conflictSheetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pages edited on both devices'**
+  String get conflictSheetTitle;
+
+  /// No description provided for @conflictSheetProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Page {page} · {i}/{total}'**
+  String conflictSheetProgress(int page, int i, int total);
+
+  /// No description provided for @conflictPrev.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous page'**
+  String get conflictPrev;
+
+  /// No description provided for @conflictNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Next page'**
+  String get conflictNext;
+
+  /// No description provided for @conflictQuestion.
+  ///
+  /// In en, this message translates to:
+  /// **'Which one do you want to keep?'**
+  String get conflictQuestion;
+
+  /// No description provided for @conflictTagThis.
+  ///
+  /// In en, this message translates to:
+  /// **'This device'**
+  String get conflictTagThis;
+
+  /// No description provided for @conflictTagOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other device'**
+  String get conflictTagOther;
+
+  /// No description provided for @conflictMoreRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Newer'**
+  String get conflictMoreRecent;
+
+  /// No description provided for @conflictEditedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'{device} · {time}'**
+  String conflictEditedAt(String device, String time);
+
+  /// No description provided for @conflictKeepThis.
+  ///
+  /// In en, this message translates to:
+  /// **'This device version'**
+  String get conflictKeepThis;
+
+  /// No description provided for @conflictKeepOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other device version'**
+  String get conflictKeepOther;
+
+  /// No description provided for @conflictKeepBoth.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep both'**
+  String get conflictKeepBoth;
+
+  /// No description provided for @conflictRecoverNote.
+  ///
+  /// In en, this message translates to:
+  /// **'The version you do not keep can be restored from version history for 30 days.'**
+  String get conflictRecoverNote;
+
+  /// No description provided for @conflictLater.
+  ///
+  /// In en, this message translates to:
+  /// **'Decide later'**
+  String get conflictLater;
+
+  /// No description provided for @conflictDeletedHere.
+  ///
+  /// In en, this message translates to:
+  /// **'Page deleted on this device'**
+  String get conflictDeletedHere;
+
+  /// No description provided for @conflictDeletedOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Page deleted on another device'**
+  String get conflictDeletedOther;
+
+  /// No description provided for @conflictRemovePage.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete page'**
+  String get conflictRemovePage;
+
+  /// No description provided for @conflictKeepVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep this version'**
+  String get conflictKeepVersion;
+
+  /// No description provided for @conflictRestAllThis.
+  ///
+  /// In en, this message translates to:
+  /// **'Rest: all this device version'**
+  String get conflictRestAllThis;
+
+  /// No description provided for @conflictRestAllOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Rest: all other device version'**
+  String get conflictRestAllOther;
+
+  /// No description provided for @conflictRestAllConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap again to apply to {n} pages'**
+  String conflictRestAllConfirm(int n);
+
+  /// No description provided for @conflictPreviewSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'{tag} version of page {n}'**
+  String conflictPreviewSemantics(String tag, int n);
+
+  /// No description provided for @conflictResolvedBoth.
+  ///
+  /// In en, this message translates to:
+  /// **'Page {n}: kept both'**
+  String conflictResolvedBoth(int n);
+
+  /// No description provided for @conflictResolvedThis.
+  ///
+  /// In en, this message translates to:
+  /// **'Page {n}: kept this device version'**
+  String conflictResolvedThis(int n);
+
+  /// No description provided for @conflictResolvedOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Page {n}: kept the other device version'**
+  String conflictResolvedOther(int n);
+
+  /// No description provided for @conflictResolvedRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Page {n}: deleted'**
+  String conflictResolvedRemove(int n);
+
+  /// No description provided for @conflictResolvedKeep.
+  ///
+  /// In en, this message translates to:
+  /// **'Page {n}: kept'**
+  String conflictResolvedKeep(int n);
+
+  /// No description provided for @conflictResolvedAll.
+  ///
+  /// In en, this message translates to:
+  /// **'{n, plural, =1{1 page resolved} other{{n} pages resolved}}'**
+  String conflictResolvedAll(int n);
+
+  /// No description provided for @conflictResolveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not resolve. Try again.'**
+  String get conflictResolveFailed;
 }
 
 class _AppLocalizationsDelegate

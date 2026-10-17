@@ -127,6 +127,159 @@ class NoteUploader {
   Future<UploadOutcome> resume(String noteId) =>
       _chained(noteId, () => _upload(noteId, recoverOnly: true));
 
+  // ---- resolved conflicts (Story 3.21) ------------------------------------
+
+  static bool _sameConflict(JsonMap a, JsonMap b) =>
+      a['pageId'] == b['pageId'] &&
+      a['kind'] == b['kind'] &&
+      a['rev'] == b['rev'] &&
+      a['theirsRev'] == b['theirsRev'];
+
+  /// A conflict was settled: its entry takes [conflict] (with `resolvedAt`)
+  /// and the state takes the event `resolve`, in one `sync.json` write. The
+  /// resolved note was saved before this runs. Throws [NoteSaveException]
+  /// when `sync.json` cannot be written or has no such conflict.
+  Future<void> resolved(String noteId, JsonMap conflict) =>
+      _chained(noteId, () async {
+        await _commit(noteId, (c) {
+          final list = [
+            for (final e in c.conflicts)
+              if (_sameConflict(e, conflict)) {...conflict} else e,
+          ];
+          final found = c.conflicts.any((e) => _sameConflict(e, conflict));
+          if (!found) throw NoteSaveException('no such conflict');
+          return c.copyWith(conflicts: list);
+        }, event: 'resolve');
+        // A resolve that left the note as Drive has it (the other device's
+        // deleted page removed) has nothing to send: it is saved, not
+        // pending.
+        final s = await store.readSync(noteId);
+        if (s.info.state == SyncState.pending &&
+            !s.hasUnsent &&
+            s.info.unresolvedConflicts.isEmpty) {
+          await store.updateSync(
+            noteId,
+            (c) => c.copyWith(state: SyncState.synced),
+          );
+          await log.append('stateChange', {
+            'noteId': noteId,
+            'from': 'pending',
+            'to': 'synced',
+          });
+        }
+      });
+
+  Future<void> _logFailure(String noteId, _Failure f) => log.append('error', {
+    'class': f.cls,
+    'noteId': noteId,
+    'status': ?f.status,
+    'reason': ?f.reason,
+  });
+
+  /// A failure of the best-effort sidecar work: logged, never thrown; the
+  /// next call tries again.
+  Future<void> _ignored(String noteId, Object e) async {
+    try {
+      await _logFailure(
+        noteId,
+        e is _Failure ? e : _Failure('fatal', reason: 'sidecarSync'),
+      );
+    } catch (_) {
+      // The log itself is not writable: nothing more can be done here.
+    }
+  }
+
+  Future<void> _flag(String noteId, JsonMap conflict, String key) =>
+      store.updateSync(
+        noteId,
+        (c) => c.copyWith(
+          conflicts: [
+            for (final e in c.conflicts)
+              _sameConflict(e, conflict) ? {...e, key: true} : e,
+          ],
+        ),
+      );
+
+  /// Sets `kkjResolved` on the sidecar files of resolved conflicts once the
+  /// resolving upload is verified (nothing unsent). A conflict is flagged
+  /// only when its sidecar was found on Drive. A failure is logged per
+  /// conflict and retried at the next call. Never throws.
+  Future<void> markResolved(String noteId) => _chained(noteId, () async {
+    final List<JsonMap> todo;
+    try {
+      final s = await store.readSync(noteId);
+      todo = [
+        for (final c in s.info.conflicts)
+          if (c['resolvedAt'] != null && c['sidecarMarked'] != true) c,
+      ];
+      if (todo.isEmpty || s.hasUnsent || s.info.state == SyncState.error) {
+        return;
+      }
+      if (!await allowed() || !await online()) return;
+    } catch (e) {
+      return _ignored(noteId, e);
+    }
+    for (final c in todo) {
+      try {
+        final at = '${c['resolvedAt']}';
+        final id = 'sc:$noteId:${c['pageId']}:${c['rev']}';
+        final files = await _all(noteId, kkeujeokIdQuery(id));
+        for (final f in files) {
+          if (f.appProperties['kkjResolved'] == at) continue;
+          await _call(
+            noteId,
+            () => drive.update(f.id, appProperties: {'kkjResolved': at}),
+          );
+        }
+        if (files.isNotEmpty) await _flag(noteId, c, 'sidecarMarked');
+      } catch (e) {
+        await _ignored(noteId, e);
+      }
+    }
+  });
+
+  /// App start: sidecars resolved more than 30 days ago go to the Drive
+  /// trash (there is no hard delete). Best effort, logged per conflict,
+  /// never throws.
+  Future<void> cleanResolvedSidecars(Iterable<String> noteIds) async {
+    final limit = _clock().subtract(const Duration(days: 30));
+    for (final noteId in noteIds) {
+      await _chained(noteId, () async {
+        final List<JsonMap> todo;
+        try {
+          final s = await store.readSync(noteId);
+          todo = [
+            for (final c in s.info.conflicts)
+              if (c['resolvedAt'] != null && c['sidecarTrashed'] != true) c,
+          ];
+          if (todo.isEmpty || !await allowed() || !await online()) return;
+        } catch (e) {
+          return _ignored(noteId, e);
+        }
+        for (final c in todo) {
+          try {
+            final id = 'sc:$noteId:${c['pageId']}:${c['rev']}';
+            final files = await _all(noteId, kkeujeokIdQuery(id));
+            var done = files.isNotEmpty;
+            for (final f in files) {
+              final at = DateTime.tryParse(
+                f.appProperties['kkjResolved'] ?? '',
+              );
+              if (at == null || at.isAfter(limit)) {
+                done = false;
+              } else {
+                await _call(noteId, () => drive.update(f.id, trashed: true));
+              }
+            }
+            if (done) await _flag(noteId, c, 'sidecarTrashed');
+          } catch (e) {
+            await _ignored(noteId, e);
+          }
+        }
+      });
+    }
+  }
+
   // ---- state -------------------------------------------------------------
 
   Map<String, Object?> _s(Note n) => {

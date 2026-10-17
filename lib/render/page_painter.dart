@@ -184,6 +184,12 @@ class PagePainter extends CustomPainter {
     final h = (page['height'] as num).toDouble();
     if (!(w.isFinite && h.isFinite && w > 0 && h > 0)) return;
     final vp = viewport ?? PageViewport.fit(size, w, h, EdgeInsets.zero);
+    // A page of a long note that is off screen draws nothing.
+    if (!(Offset.zero & size).overlaps(
+      Rect.fromLTWH(vp.offset.dx, vp.offset.dy, w * vp.scale, h * vp.scale),
+    )) {
+      return;
+    }
     canvas
       ..save()
       ..translate(vp.offset.dx, vp.offset.dy)

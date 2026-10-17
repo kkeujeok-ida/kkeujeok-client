@@ -117,6 +117,15 @@ void main() {
     expect(jsonDecode(u.body), {'trashed': true});
   });
 
+  test('update can set appProperties alone (the sidecar mark)', () async {
+    reply = '{"id":"c"}';
+    await client().update('c', appProperties: {'kkjResolved': 'T'});
+    expect(seen.last.method, 'PATCH');
+    expect(jsonDecode(seen.last.body), {
+      'appProperties': {'kkjResolved': 'T'},
+    });
+  });
+
   test('a Drive error carries status and the first reason', () async {
     status = 403;
     reply = jsonEncode({

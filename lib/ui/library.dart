@@ -213,8 +213,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
   }
 
-  Future<void> _push(Note note) => Navigator.of(context)
-      .push(MaterialPageRoute<void>(builder: (_) => NoteEditor(note: note)));
+  Future<void> _push(Note note, {bool resolve = false}) =>
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => NoteEditor(note: note, openResolveSheet: resolve),
+        ),
+      );
 
   Future<void> _newNote() => _guarded(() async {
     // A created note is already in the list; no reload needed.
@@ -222,8 +226,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     if (note != null && mounted) await _afterEditor(_push(note), note);
   });
 
-  Future<void> _open(Note note) =>
-      _guarded(() => _afterEditor(_push(note), note));
+  /// A card of a note with an unresolved conflict opens the editor with the
+  /// resolve sheet already up (Story 3.21); the card's own badge state says
+  /// so, no extra read.
+  Future<void> _open(Note note) => _guarded(
+    () => _afterEditor(
+      _push(note, resolve: ref.read(noteSyncProvider(note.noteId)).hasConflict),
+      note,
+    ),
+  );
 
   Future<void> _openById(String noteId) => _guarded(() async {
     final note = (await ref.read(noteStoreProvider).read(noteId))?.note;

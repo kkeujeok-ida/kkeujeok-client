@@ -194,15 +194,25 @@ class UploadCoordinator {
   };
   final _retried = <String>{};
 
-  Future<bool> _needsUpload(String noteId) async {
+  /// (upload needed, a resolved sidecar still to mark), from one read.
+  Future<(bool, bool)> _needs(String noteId) async {
     final s = await store.readSync(noteId);
-    return s.info.state != SyncState.error &&
-        (s.hasUnsent || s.info.pendingVerify != null);
+    return (
+      s.info.state != SyncState.error &&
+          (s.hasUnsent || s.info.pendingVerify != null),
+      s.info.conflicts.any(
+        (c) => c['resolvedAt'] != null && c['sidecarMarked'] != true,
+      ),
+    );
   }
 
   Future<void> _one(String noteId, {bool recover = false}) async {
     try {
-      if (!await _needsUpload(noteId)) return;
+      final (upload, mark) = await _needs(noteId);
+      if (!upload) {
+        if (mark) await uploader.markResolved(noteId);
+        return;
+      }
       if (!await allowed() || !await online()) {
         await _schedule();
         return;
@@ -222,6 +232,7 @@ class UploadCoordinator {
                 'backoff') {
           await _schedule(); // try again when the network is back
         }
+        if (mark) await uploader.markResolved(noteId);
       } finally {
         await lease.release(noteId);
       }
@@ -264,6 +275,23 @@ class UploadCoordinator {
     await openNote.clear(); // nothing is open when the app starts
     await _all(includeOpen: true, recover: true);
     await _all(includeOpen: true);
+    try {
+      await uploader.cleanResolvedSidecars(await store.ids());
+    } catch (_) {}
+  }
+
+  /// A conflict was settled in the editor (Story 3.21): its `sync.json`
+  /// entry and the state follow. False when that could not be written.
+  Future<bool> conflictResolved(
+    String noteId,
+    Map<String, Object?> conflict,
+  ) async {
+    try {
+      await uploader.resolved(noteId, conflict);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Interrupted uploads, then unsent notes, except the open one: the

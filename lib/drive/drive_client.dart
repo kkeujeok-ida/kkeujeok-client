@@ -105,12 +105,14 @@ abstract interface class DriveClient {
 
   Future<DriveFile> get(String id, {String? fields});
 
-  /// `files.update` of metadata: parents moved and/or the file trashed.
+  /// `files.update` of metadata: parents moved, the file trashed and/or
+  /// [appProperties] set (the given keys; others are kept).
   Future<DriveFile> update(
     String id, {
     String? addParents,
     String? removeParents,
     bool? trashed,
+    Map<String, String>? appProperties,
   });
 
   /// One `multipart` upload (`fields=id,headRevisionId`). Creates when

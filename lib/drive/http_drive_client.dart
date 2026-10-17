@@ -204,6 +204,7 @@ class HttpDriveClient implements DriveClient {
     String? addParents,
     String? removeParents,
     bool? trashed,
+    Map<String, String>? appProperties,
   }) async => _file(
     await _send(
       'PATCH',
@@ -212,7 +213,7 @@ class HttpDriveClient implements DriveClient {
         'addParents': ?addParents,
         'removeParents': ?removeParents,
       }),
-      {'trashed': ?trashed},
+      {'trashed': ?trashed, 'appProperties': ?appProperties},
     ),
   );
 

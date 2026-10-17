@@ -154,7 +154,7 @@ void main() {
                   ),
                 )
                 .evaluate()
-                .single
+                .first
                 .widget
             as CustomPaint;
     return (w.painter as PagePainter).page;
@@ -170,7 +170,7 @@ void main() {
                   ),
                 )
                 .evaluate()
-                .single
+                .first
                 .widget
             as CustomPaint;
     final vp = (paint.painter as PagePainter).viewport!;
@@ -252,9 +252,12 @@ void main() {
       expect(find.text(bannerEn), findsOneWidget);
       expect(assertive(foundEn), hasLength(1));
       expect(find.text('Resolve'), findsOneWidget);
+      // The hook is supplied by the editor (Story 3.21): the sheet opens.
       expect(
-        t.widget<TextButton>(find.widgetWithText(TextButton, 'Resolve')).onPressed,
-        isNull,
+        t
+            .widget<TextButton>(find.widgetWithText(TextButton, 'Resolve'))
+            .onPressed,
+        isNotNull,
       );
       // The page is read-only: no stroke, no op.
       await stroke(t);
@@ -600,10 +603,7 @@ void main() {
       await t.runAsync(() => store.updateSync(_id(1), (s) => s));
       await record(t);
       await open(t, device: const Locale('ko', 'KR'));
-      expect(
-        find.text('다른 기기에서도 고친 페이지예요. 고를 때까지는 읽기만 돼요.'),
-        findsOneWidget,
-      );
+      expect(find.text('다른 기기에서도 고친 페이지예요. 고를 때까지는 읽기만 돼요.'), findsOneWidget);
       expect(find.text('해결하기'), findsOneWidget);
       await stroke(t);
       await settle(t);

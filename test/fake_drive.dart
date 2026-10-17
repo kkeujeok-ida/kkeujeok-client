@@ -411,11 +411,12 @@ class FakeDrive implements DriveClient {
     String? addParents,
     String? removeParents,
     bool? trashed,
+    Map<String, String>? appProperties,
   }) async {
     final what = switch (trashed) {
       true => 'trash',
       false => 'untrash',
-      null => 'move',
+      null => appProperties != null ? 'props' : 'move',
     };
     _enter('update:$id:$what');
     final i = _find(id);
@@ -423,6 +424,7 @@ class FakeDrive implements DriveClient {
     if (addParents != null) i.parents.add(addParents);
     if (removeParents != null) i.parents.remove(removeParents);
     if (trashed != null) i.trashed = trashed;
+    if (appProperties != null) i.appProperties.addAll(appProperties);
     changeLog.add((i.id, false));
     after?.call('update:$id:$what');
     return _file(i);

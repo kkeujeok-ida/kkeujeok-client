@@ -25,7 +25,9 @@ import 'package:kkeujeok/ui/pen_toolbar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'fake_receiver.dart';
+
 import 'package:kkeujeok/sync/note_receiver.dart';
+
 import 'shell_test.dart' show pumpApp;
 
 String _id(int n) =>
@@ -117,7 +119,7 @@ void main() {
                   ),
                 )
                 .evaluate()
-                .single
+                .first
                 .widget
             as CustomPaint;
     return (paint.painter as PagePainter).viewport!;
@@ -1099,7 +1101,7 @@ void main() {
                     ),
                   )
                   .evaluate()
-                  .single
+                  .first
                   .widget
               as CustomPaint;
       return (w.painter as PagePainter).page;

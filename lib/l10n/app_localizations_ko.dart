@@ -422,4 +422,116 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get conflictNotificationChannel => '충돌';
+
+  @override
+  String get conflictSheetTitle => '두 기기에서 고친 페이지가 있어요';
+
+  @override
+  String conflictSheetProgress(int page, int i, int total) {
+    return '$page페이지 · $i/$total';
+  }
+
+  @override
+  String get conflictPrev => '이전 충돌 페이지';
+
+  @override
+  String get conflictNext => '다음 충돌 페이지';
+
+  @override
+  String get conflictQuestion => '어느 쪽을 남길까요?';
+
+  @override
+  String get conflictTagThis => '이 기기';
+
+  @override
+  String get conflictTagOther => '다른 기기';
+
+  @override
+  String get conflictMoreRecent => '더 최근';
+
+  @override
+  String conflictEditedAt(String device, String time) {
+    return '$device · $time';
+  }
+
+  @override
+  String get conflictKeepThis => '이 기기 버전';
+
+  @override
+  String get conflictKeepOther => '다른 기기 버전';
+
+  @override
+  String get conflictKeepBoth => '둘 다 남기기';
+
+  @override
+  String get conflictRecoverNote => '고르지 않은 버전은 30일 동안 버전 기록에서 되살릴 수 있어요.';
+
+  @override
+  String get conflictLater => '나중에 결정';
+
+  @override
+  String get conflictDeletedHere => '이 기기에서 지운 페이지';
+
+  @override
+  String get conflictDeletedOther => '다른 기기에서 지운 페이지';
+
+  @override
+  String get conflictRemovePage => '페이지 지우기';
+
+  @override
+  String get conflictKeepVersion => '이 버전 남기기';
+
+  @override
+  String get conflictRestAllThis => '나머지 모두 이 기기 버전';
+
+  @override
+  String get conflictRestAllOther => '나머지 모두 다른 기기 버전';
+
+  @override
+  String conflictRestAllConfirm(int n) {
+    return '한 번 더 누르면 $n페이지에 적용돼요';
+  }
+
+  @override
+  String conflictPreviewSemantics(String tag, int n) {
+    return '$n페이지 $tag 버전';
+  }
+
+  @override
+  String conflictResolvedBoth(int n) {
+    return '$n페이지: 둘 다 남겼어요';
+  }
+
+  @override
+  String conflictResolvedThis(int n) {
+    return '$n페이지: 이 기기 버전을 남겼어요';
+  }
+
+  @override
+  String conflictResolvedOther(int n) {
+    return '$n페이지: 다른 기기 버전을 남겼어요';
+  }
+
+  @override
+  String conflictResolvedRemove(int n) {
+    return '$n페이지: 지웠어요';
+  }
+
+  @override
+  String conflictResolvedKeep(int n) {
+    return '$n페이지: 남겼어요';
+  }
+
+  @override
+  String conflictResolvedAll(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other: '$n페이지를 정했어요',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get conflictResolveFailed => '정하지 못했어요. 다시 시도해 주세요.';
 }

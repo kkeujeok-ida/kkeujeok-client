@@ -462,4 +462,118 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get conflictNotificationChannel => 'Conflicts';
+
+  @override
+  String get conflictSheetTitle => 'Pages edited on both devices';
+
+  @override
+  String conflictSheetProgress(int page, int i, int total) {
+    return 'Page $page · $i/$total';
+  }
+
+  @override
+  String get conflictPrev => 'Previous page';
+
+  @override
+  String get conflictNext => 'Next page';
+
+  @override
+  String get conflictQuestion => 'Which one do you want to keep?';
+
+  @override
+  String get conflictTagThis => 'This device';
+
+  @override
+  String get conflictTagOther => 'Other device';
+
+  @override
+  String get conflictMoreRecent => 'Newer';
+
+  @override
+  String conflictEditedAt(String device, String time) {
+    return '$device · $time';
+  }
+
+  @override
+  String get conflictKeepThis => 'This device version';
+
+  @override
+  String get conflictKeepOther => 'Other device version';
+
+  @override
+  String get conflictKeepBoth => 'Keep both';
+
+  @override
+  String get conflictRecoverNote =>
+      'The version you do not keep can be restored from version history for 30 days.';
+
+  @override
+  String get conflictLater => 'Decide later';
+
+  @override
+  String get conflictDeletedHere => 'Page deleted on this device';
+
+  @override
+  String get conflictDeletedOther => 'Page deleted on another device';
+
+  @override
+  String get conflictRemovePage => 'Delete page';
+
+  @override
+  String get conflictKeepVersion => 'Keep this version';
+
+  @override
+  String get conflictRestAllThis => 'Rest: all this device version';
+
+  @override
+  String get conflictRestAllOther => 'Rest: all other device version';
+
+  @override
+  String conflictRestAllConfirm(int n) {
+    return 'Tap again to apply to $n pages';
+  }
+
+  @override
+  String conflictPreviewSemantics(String tag, int n) {
+    return '$tag version of page $n';
+  }
+
+  @override
+  String conflictResolvedBoth(int n) {
+    return 'Page $n: kept both';
+  }
+
+  @override
+  String conflictResolvedThis(int n) {
+    return 'Page $n: kept this device version';
+  }
+
+  @override
+  String conflictResolvedOther(int n) {
+    return 'Page $n: kept the other device version';
+  }
+
+  @override
+  String conflictResolvedRemove(int n) {
+    return 'Page $n: deleted';
+  }
+
+  @override
+  String conflictResolvedKeep(int n) {
+    return 'Page $n: kept';
+  }
+
+  @override
+  String conflictResolvedAll(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other: '$n pages resolved',
+      one: '1 page resolved',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get conflictResolveFailed => 'Could not resolve. Try again.';
 }

@@ -17,8 +17,19 @@ class History {
 
   /// Makes [pages] read-only (a conflict waits for the person, Story 3.19):
   /// an op on them and an undo or redo of their records answer
-  /// `pageReadOnly`. Locks are only added here; a merge keeps them.
+  /// `pageReadOnly`. This adds to the locked set; [setLocks] replaces it. A
+  /// merge keeps the locks.
   void lockPages(Set<String> pages) => _locked.addAll(pages);
+
+  /// Replaces the locked set (Story 3.21): a resolved page is editable again.
+  void setLocks(Set<String> pages) {
+    _locked
+      ..clear()
+      ..addAll(pages);
+  }
+
+  bool sameLocks(Set<String> pages) =>
+      pages.length == _locked.length && _locked.containsAll(pages);
 
   bool isLocked(String? pageId) => pageId != null && _locked.contains(pageId);
 
