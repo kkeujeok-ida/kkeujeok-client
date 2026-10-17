@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,6 +5,7 @@ import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
 import '../storage/language_store.dart';
 import 'disconnect_dialog.dart';
+import 'log_export.dart';
 import 'providers.dart';
 import 'unsent_widgets.dart';
 
@@ -49,28 +48,10 @@ class _ExportLogRowState extends ConsumerState<_ExportLogRow> {
 
   Future<void> _export() async {
     if (_busy) return;
-    // Everything the export needs is read before the first await.
-    final log = ref.read(syncLogProvider);
-    final version = ref.read(appVersionProvider);
-    final exportDir = ref.read(exportDirProvider);
-    final share = ref.read(logSharerProvider);
-    final messenger = ScaffoldMessenger.of(context);
-    final failed = AppLocalizations.of(context).syncLogExportFailed;
     setState(() => _busy = true);
-    File? file;
     try {
-      file = await log.exportJsonl(
-        appVersion: await version(),
-        now: DateTime.now(),
-        into: await exportDir(),
-      );
-      await share(file);
-    } catch (_) {
-      if (mounted) messenger.showSnackBar(SnackBar(content: Text(failed)));
+      await exportSyncLog(ref, context);
     } finally {
-      try {
-        await file?.delete(); // the log's own file stays; this is a copy
-      } catch (_) {}
       if (mounted) setState(() => _busy = false);
     }
   }

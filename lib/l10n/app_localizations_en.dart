@@ -332,4 +332,74 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get unsentDisconnectConfirm => 'Discard and disconnect';
+
+  @override
+  String get syncStateSaved => 'Saved';
+
+  @override
+  String get syncStatePending => 'Waiting to save';
+
+  @override
+  String get syncStateOffline => 'Offline · Kept on this device';
+
+  @override
+  String get syncBadgeOffline => 'Offline';
+
+  @override
+  String get syncStateSaving => 'Saving';
+
+  @override
+  String get syncStateReceiving => 'Getting the latest';
+
+  @override
+  String get syncStateTwoVersions => 'Two versions';
+
+  @override
+  String get syncStateNotSaved => 'Not saved';
+
+  @override
+  String syncIndicatorLabel(String state) {
+    return 'Sync status: $state. More details';
+  }
+
+  @override
+  String get syncDescSaved => 'All changes are saved to Drive.';
+
+  @override
+  String get syncDescPending => 'Saving to Drive soon.';
+
+  @override
+  String get syncDescOffline =>
+      'You\'re offline. Changes are kept on this device and saved when you\'re connected.';
+
+  @override
+  String get syncDescSaving => 'Saving to Drive.';
+
+  @override
+  String get syncDescReceiving =>
+      'Getting the latest version from another device.';
+
+  @override
+  String get syncDescTwoVersions => 'A page was changed on two devices.';
+
+  @override
+  String get syncNow => 'Sync now';
+
+  @override
+  String get syncErrorBody =>
+      'Changes are kept on this device. Try again or export the sync log.';
+
+  @override
+  String get syncQuotaBody =>
+      'Drive is out of space. Changes are kept on this device.';
+
+  @override
+  String get syncManageDrive => 'Manage Drive storage';
+
+  @override
+  String get syncOpenFailed => 'Couldn\'t open the page.';
+
+  @override
+  String get syncReauthBanner =>
+      'Your sign-in expired. Changes are kept on this device.';
 }

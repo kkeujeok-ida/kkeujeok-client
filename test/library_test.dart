@@ -498,7 +498,9 @@ void main() {
           .format(DateTime.parse('2026-10-10T12:00:00.000Z').toLocal());
       final node = t.getSemantics(find.bySemanticsLabel('Graphs'));
       expect(node.label, 'Graphs');
-      expect(node.value, date);
+      // A note that was never uploaded waits to be saved: the state is part
+      // of the description (Story 3.15).
+      expect(node.value, 'Waiting to save, $date');
       h.dispose();
     });
 
@@ -613,7 +615,10 @@ void main() {
       expect(find.text('1/1/2000'), findsOneWidget);
       // Only the dated card has a date text.
       expect(find.textContaining(RegExp(r'\d+/\d+/\d+')), findsOneWidget);
-      expect(t.getSemantics(find.bySemanticsLabel('Undated')).value, isEmpty);
+      expect(
+        t.getSemantics(find.bySemanticsLabel('Undated')).value,
+        'Waiting to save', // the state only: there is no date
+      );
       expect(order(t, ['Dated', 'Undated', "Can't open"]), [
         'Dated',
         'Undated',

@@ -158,5 +158,33 @@
     }
   },
   "unsentDisconnectLineUnknown": "Couldn't check for changes that weren't sent.",
-  "unsentDisconnectConfirm": "Discard and disconnect"
+  "unsentDisconnectConfirm": "Discard and disconnect",
+  "syncStateSaved": "Saved",
+  "syncStatePending": "Waiting to save",
+  "syncStateOffline": "Offline · Kept on this device",
+  "syncBadgeOffline": "Offline",
+  "syncStateSaving": "Saving",
+  "syncStateReceiving": "Getting the latest",
+  "syncStateTwoVersions": "Two versions",
+  "syncStateNotSaved": "Not saved",
+  "syncIndicatorLabel": "Sync status: {state}. More details",
+  "@syncIndicatorLabel": {
+    "placeholders": {
+      "state": {
+        "type": "String"
+      }
+    }
+  },
+  "syncDescSaved": "All changes are saved to Drive.",
+  "syncDescPending": "Saving to Drive soon.",
+  "syncDescOffline": "You're offline. Changes are kept on this device and saved when you're connected.",
+  "syncDescSaving": "Saving to Drive.",
+  "syncDescReceiving": "Getting the latest version from another device.",
+  "syncDescTwoVersions": "A page was changed on two devices.",
+  "syncNow": "Sync now",
+  "syncErrorBody": "Changes are kept on this device. Try again or export the sync log.",
+  "syncQuotaBody": "Drive is out of space. Changes are kept on this device.",
+  "syncManageDrive": "Manage Drive storage",
+  "syncOpenFailed": "Couldn't open the page.",
+  "syncReauthBanner": "Your sign-in expired. Changes are kept on this device."
 }

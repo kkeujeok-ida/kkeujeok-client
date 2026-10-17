@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -78,6 +79,19 @@ class NoteStore {
   /// Test hook: called right after each file of [commitSync] is renamed
   /// (`working`, `base`, `sync`). Throwing from it simulates a crash there.
   final Future<void> Function(String step)? onStep;
+
+  final _changes = StreamController<({String noteId, bool sync})>.broadcast(
+    sync: true,
+  );
+
+  /// Fires after a note was saved: `sync` is false for a plain edit of the
+  /// working copy, true when `sync.json` (or a received note) was committed.
+  /// The sync display follows this.
+  Stream<({String noteId, bool sync})> get changes => _changes.stream;
+
+  void _emit(String noteId, {bool sync = true}) {
+    if (!_changes.isClosed) _changes.add((noteId: noteId, sync: sync));
+  }
 
   Future<void> _notify() async {
     try {
@@ -162,6 +176,7 @@ class NoteStore {
       }
     });
     await _notify();
+    _emit(note.noteId, sync: false);
   }
 
   /// Writes the three files of one note as a group: working copy, base copy
@@ -177,6 +192,7 @@ class NoteStore {
   Future<void> commitSync(Note working, Note? base, SyncInfo info) async {
     await _locked(working.noteId, () => _commitLocked(working, base, info));
     await _notify();
+    _emit(working.noteId);
   }
 
   /// [commitSync] for a note received from Drive: under the note's lock the
@@ -208,7 +224,10 @@ class NoteStore {
       await _commitLocked(working, base, change(await _loadSyncStrict(dir)));
       done = true;
     });
-    if (done) await _notify();
+    if (done) {
+      await _notify();
+      _emit(noteId);
+    }
     return done;
   }
 
@@ -241,7 +260,10 @@ class NoteStore {
         throw NoteSaveException('could not write the file', e);
       }
     });
-    if (done) await _notify();
+    if (done) {
+      await _notify();
+      _emit(noteId);
+    }
     return done;
   }
 
@@ -479,6 +501,7 @@ class NoteStore {
       }
     });
     await _notify();
+    _emit(noteId);
     return committed;
   }
 
@@ -629,6 +652,7 @@ class NoteStore {
       }
     });
     await _notify();
+    _emit(noteId);
     return value;
   }
 

@@ -183,12 +183,15 @@ class RootFolderNotifier extends Notifier<RootFolderState> {
 
   /// [다시 로그인]: asks for the Drive permission again for the account
   /// already chosen, then checks the root once more when it was granted.
-  Future<void> signInAgain() async {
+  /// True when the permission was granted.
+  Future<bool> signInAgain() async {
     var outcome = AuthOutcome.networkError;
     try {
       outcome = await ref.read(authGatewayProvider).requestAccess();
     } catch (_) {}
-    if (ref.mounted && outcome == AuthOutcome.granted) await check();
+    final granted = outcome == AuthOutcome.granted;
+    if (ref.mounted && granted) await check();
+    return granted;
   }
 
   /// [새로 만들기] of the missing-root dialog.
@@ -333,6 +336,7 @@ final uploadCoordinatorProvider = Provider<UploadCoordinator>(
     allowed: () async => ref.read(uploadsAllowedProvider),
     online: ref.read(networkProbeProvider),
     schedule: ref.read(backgroundSchedulerProvider),
+    receive: () => ref.read(noteReceiverProvider).check(),
   ),
 );
 

@@ -16,6 +16,9 @@ import 'library_fab.dart';
 import 'new_note_sheet.dart';
 import 'note_editor.dart';
 import 'providers.dart';
+import 'sync_banner.dart';
+import 'sync_display.dart';
+import 'sync_indicator.dart';
 
 const double _phoneMaxWidth = 600; // dp: below this the grid has 2 columns
 
@@ -231,6 +234,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         _receive.kick(force: true);
       }
     });
+    ref.listen(onlineProvider, (_, _) {}); // the reconnect upload
     final recv = ref.watch(receiveStateProvider);
     ref.listen(receiveStateProvider.select((r) => r.version), (_, _) {
       ref.read(libraryProvider.notifier).reload();
@@ -296,6 +300,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              SyncBanner(startInset: widget.headerStartInset),
               Padding(
                 padding: EdgeInsetsDirectional.only(
                   start: KkjTokens.spacing5 + widget.headerStartInset,
@@ -450,12 +455,30 @@ class _PageThumbState extends State<_PageThumb> {
   );
 }
 
-/// Arrow-down and "receiving" on a card whose note is being received.
-class _ReceivingBadge extends StatelessWidget {
-  const _ReceivingBadge();
+/// The `badge` of a card whose note is not `synced`: icon and text, in the
+/// badge colors of its state (UX-DR39).
+class _SyncBadge extends StatelessWidget {
+  const _SyncBadge(this.label);
+
+  final SyncLabel label;
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final (bg, fg) = switch (label) {
+      SyncLabel.twoVersions => (
+        KkjLight.componentsBadgeConflictBackground,
+        KkjLight.componentsBadgeConflictText,
+      ),
+      SyncLabel.notSaved => (
+        KkjLight.componentsBadgeErrorBackground,
+        KkjLight.componentsBadgeErrorText,
+      ),
+      _ => (
+        KkjLight.componentsBadgeNeutralBackground,
+        KkjLight.componentsBadgeNeutralText,
+      ),
+    };
     final style = TextStyle(
       fontFamily: KkjLight.componentsBadgeTextFontFamily,
       fontSize: KkjLight.componentsBadgeTextFontSize,
@@ -463,11 +486,11 @@ class _ReceivingBadge extends StatelessWidget {
       height:
           KkjLight.componentsBadgeTextLineHeight /
           KkjLight.componentsBadgeTextFontSize,
-      color: KkjLight.componentsBadgeNeutralText,
+      color: fg,
     );
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: KkjLight.componentsBadgeNeutralBackground,
+        color: bg,
         borderRadius: BorderRadius.circular(KkjLight.componentsBadgeRounded),
       ),
       child: Padding(
@@ -478,13 +501,13 @@ class _ReceivingBadge extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.arrow_downward,
+            Icon(
+              syncIcon(label),
               size: KkjLight.componentsBadgeTextFontSize,
-              color: KkjLight.componentsBadgeNeutralText,
+              color: fg,
             ),
             const SizedBox(width: KkjTokens.spacing1),
-            Text(AppLocalizations.of(context).receiving, style: style),
+            Text(_badgeText(l, label), style: style),
           ],
         ),
       ),
@@ -492,22 +515,28 @@ class _ReceivingBadge extends StatelessWidget {
   }
 }
 
-/// A card thumbnail with the badge in its corner while [receiving].
+String _badgeText(AppLocalizations l, SyncLabel s) => switch (s) {
+  SyncLabel.receiving => l.receiving,
+  SyncLabel.offline => l.syncBadgeOffline,
+  _ => syncText(l, s),
+};
+
+/// A card thumbnail with the badge in its corner while [label] is set.
 class _CardThumb extends StatelessWidget {
-  const _CardThumb({required this.thumb, required this.receiving});
+  const _CardThumb({required this.thumb, required this.label});
 
   final Widget thumb;
-  final bool receiving;
+  final SyncLabel? label;
 
   @override
   Widget build(BuildContext context) => Stack(
     children: [
       thumb,
-      if (receiving)
-        const PositionedDirectional(
+      if (label != null)
+        PositionedDirectional(
           top: KkjTokens.spacing2,
           end: KkjTokens.spacing2,
-          child: _ReceivingBadge(),
+          child: _SyncBadge(label!),
         ),
     ],
   );
@@ -553,7 +582,7 @@ class _RemoteNoteCard extends StatelessWidget {
         children: [
           _CardThumb(
             thumb: const _Thumb(child: SizedBox.expand()),
-            receiving: receiving,
+            label: receiving ? SyncLabel.receiving : null,
           ),
           const SizedBox(height: KkjTokens.spacing2),
           Text(
@@ -569,7 +598,7 @@ class _RemoteNoteCard extends StatelessWidget {
   }
 }
 
-class _NoteCard extends StatelessWidget {
+class _NoteCard extends ConsumerWidget {
   const _NoteCard({
     required this.entry,
     required this.onTap,
@@ -581,8 +610,14 @@ class _NoteCard extends StatelessWidget {
   final bool receiving;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final l = AppLocalizations.of(context);
+    final v = ref.watch(noteSyncProvider(entry.noteId));
+    // `synced` has no badge; a note being received shows it at once.
+    final label = receiving
+        ? SyncLabel.receiving
+        : (!v.loaded || v.label == SyncLabel.saved ? null : v.label);
     final note = entry.note!;
     final at = entry.editedAt;
     final date = at == null
@@ -592,9 +627,12 @@ class _NoteCard extends StatelessWidget {
     return Semantics(
       button: true,
       label: note.title,
-      value: receiving
-          ? AppLocalizations.of(context).receiving
-          : date, // no date text and no semantics date when unknown
+      // "자료구조, 두 버전, 오늘": the state is part of the value; no date
+      // text and no semantics date when unknown.
+      value: [
+        if (label != null) _badgeText(l, label),
+        ?date,
+      ].join(', '),
       excludeSemantics: true,
       onTap: onTap,
       child: InkWell(
@@ -607,7 +645,7 @@ class _NoteCard extends StatelessWidget {
           children: [
             _CardThumb(
               thumb: _Thumb(page: note.pages.isEmpty ? null : note.pages.first),
-              receiving: receiving,
+              label: label,
             ),
             const SizedBox(height: KkjTokens.spacing2),
             Text(

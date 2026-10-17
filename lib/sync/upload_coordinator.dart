@@ -152,6 +152,7 @@ class UploadCoordinator {
     required this.allowed,
     required this.online,
     required this.schedule,
+    this.receive,
   });
 
   final NoteStore store;
@@ -165,6 +166,9 @@ class UploadCoordinator {
   /// Asks WorkManager for one task that runs when the network is there.
   /// Never throws for the caller's sake: failures are swallowed here.
   final Future<void> Function() schedule;
+
+  /// Asks Drive for remote changes (`changes.list`), for [syncNow].
+  final Future<void> Function()? receive;
 
   /// Set by the open editor: waits until its save queue is on disk.
   Future<void> Function()? flushOpen;
@@ -227,12 +231,16 @@ class UploadCoordinator {
     }
   }
 
-  Future<void> _all({required bool includeOpen, bool recover = false}) async {
+  Future<void> _all({
+    required bool includeOpen,
+    bool recover = false,
+    bool retryErrors = true,
+  }) async {
     try {
       final open = includeOpen ? null : await openNote.read();
       for (final id in await store.ids()) {
         if (id == open) continue;
-        await _retry(id);
+        if (retryErrors) await _retry(id);
         await _one(id, recover: recover);
       }
     } catch (_) {}
@@ -272,15 +280,63 @@ class UploadCoordinator {
   /// Back to the foreground: notes in `error` of a class that can recover
   /// get `retry` (as at every other upload trigger), then unsent notes go
   /// (the open one stays).
-  Future<void> foreground() => _all(includeOpen: false);
+  Future<void> foreground() async {
+    try {
+      // The open note is not uploaded, but its `error` is cleared so the
+      // display and the next close or background upload go on.
+      final open = await openNote.read();
+      if (open != null) await _retry(open);
+    } catch (_) {}
+    await _all(includeOpen: false);
+  }
 
-  Future<void> _retry(String noteId) async {
+  /// The connection came back: unsent notes except the open one go, a note
+  /// in `error` waits for its own retry (a full Drive is not hammered).
+  Future<void> reconnected() => _all(includeOpen: false, retryErrors: false);
+
+  /// [지금 동기화]: the open note's queue reaches the disk, the note is
+  /// uploaded without closing it, then Drive is asked for changes. A note in
+  /// `error` gets `retry` first, as for [다시 시도].
+  Future<void> syncNow(String noteId) async {
+    try {
+      await flushOpen?.call();
+    } catch (_) {}
+    await _retry(noteId, manual: true);
+    await _one(noteId);
+    try {
+      await receive?.call();
+    } catch (_) {}
+  }
+
+  /// [다시 시도]: `error` to `pending` for this note, then it uploads.
+  Future<void> retry(String noteId) async {
+    await _retry(noteId, manual: true);
+    await _one(noteId);
+  }
+
+  /// After a finished sign-in: every note in `error` of a class that can
+  /// recover gets `retry`, then unsent notes go (the open one stays; it
+  /// uploads when closed).
+  Future<void> retryAll() async {
+    try {
+      for (final id in await store.ids()) {
+        await _retry(id, manual: true);
+      }
+    } catch (_) {}
+    await _all(includeOpen: false);
+  }
+
+  Future<void> _retry(String noteId, {bool manual = false}) async {
     try {
       final s = await store.readSync(noteId);
       if (s.info.state != SyncState.error) return;
       final err = s.info.lastError;
       if (!_retryClasses.contains(err?['class'])) return; // deleted etc.
-      if (_retryOnce.contains(err?['reason']) && !_retried.add(noteId)) return;
+      if (!manual &&
+          _retryOnce.contains(err?['reason']) &&
+          !_retried.add(noteId)) {
+        return;
+      }
       var moved = false;
       await store.updateSync(noteId, (cur) {
         final t = cur.state == SyncState.error

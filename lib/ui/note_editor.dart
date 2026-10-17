@@ -16,6 +16,8 @@ import '../render/page_painter.dart';
 import '../sync/merge_step.dart';
 import 'pen_toolbar.dart';
 import 'providers.dart';
+import 'sync_banner.dart';
+import 'sync_indicator.dart';
 
 /// The writing screen: page, toolbar and the top-left `editor-corner`.
 /// Input goes through `History.doOp(addStroke)`; every stroke is saved
@@ -604,13 +606,6 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final pad = MediaQuery.paddingOf(context);
-    const gap = KkjTokens.spacing3;
-    final page = _page;
-    final landscape =
-        page != null && (page['width'] as num) > (page['height'] as num);
-    final title = Theme.of(context).textTheme.labelMedium;
     ref.listen(
       receiveStateProvider.select(
         (r) => r.receiving.contains(widget.note.noteId),
@@ -630,129 +625,163 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
         },
         child: Scaffold(
           backgroundColor: KkjLight.colorSurfaceSunken,
-          body: LayoutBuilder(
-            builder: (context, c) {
-              if (page != null) _layout(c.biggest, pad);
-              return Stack(
-                children: [
-                  Positioned.fill(
-                    child: Listener(
-                      behavior: HitTestBehavior.opaque,
-                      onPointerDown: _down,
-                      onPointerHover: _hover,
-                      onPointerMove: _move,
-                      onPointerUp: _up,
-                      onPointerCancel: _cancel,
-                      child: page == null
-                          ? const SizedBox.expand()
-                          : Semantics(
-                              label: l10n.pageSemantics(
-                                1,
-                                widget.note.pages.length,
-                                landscape
-                                    ? l10n.orientationLandscape
-                                    : l10n.orientationPortrait,
-                              ),
-                              value: l10n.handwriting,
-                              child: RepaintBoundary(
-                                child: CustomPaint(
-                                  size: Size.infinite,
-                                  painter: PagePainter(
-                                    page: page,
-                                    cache: _cache,
-                                    viewport: _vp!,
-                                    live: _live,
-                                    repaint: _tick,
-                                  ),
-                                ),
-                              ),
-                            ),
-                    ),
-                  ),
-                  if (_showLatest)
-                    Positioned(
-                      bottom: pad.bottom + gap,
-                      left: pad.left + gap,
-                      right: pad.right + gap,
-                      child: Semantics(
-                        liveRegion: true,
-                        child: Center(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: KkjLight.componentsBadgeNeutralBackground,
-                              borderRadius: BorderRadius.circular(
-                                KkjLight.componentsBadgeRounded,
-                              ),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: KkjTokens.spacing3,
-                                vertical: KkjTokens.spacing1,
-                              ),
-                              child: Text(
-                                l10n.receivingLatest,
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SyncBanner(),
+              Expanded(
+                child: MediaQuery.removePadding(
+                  context: context,
+                  // The banner takes the status bar's place.
+                  removeTop: syncBannerShown(ref),
+                  child: Builder(builder: _body),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _body(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final pad = MediaQuery.paddingOf(context);
+    const gap = KkjTokens.spacing3;
+    final page = _page;
+    final landscape =
+        page != null && (page['width'] as num) > (page['height'] as num);
+    final title = Theme.of(context).textTheme.labelMedium;
+    return LayoutBuilder(
+      builder: (context, c) {
+        if (page != null) _layout(c.biggest, pad);
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: Listener(
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: _down,
+                onPointerHover: _hover,
+                onPointerMove: _move,
+                onPointerUp: _up,
+                onPointerCancel: _cancel,
+                child: page == null
+                    ? const SizedBox.expand()
+                    : Semantics(
+                        label: l10n.pageSemantics(
+                          1,
+                          widget.note.pages.length,
+                          landscape
+                              ? l10n.orientationLandscape
+                              : l10n.orientationPortrait,
+                        ),
+                        value: l10n.handwriting,
+                        child: RepaintBoundary(
+                          child: CustomPaint(
+                            size: Size.infinite,
+                            painter: PagePainter(
+                              page: page,
+                              cache: _cache,
+                              viewport: _vp!,
+                              live: _live,
+                              repaint: _tick,
                             ),
                           ),
                         ),
                       ),
+              ),
+            ),
+            if (_showLatest)
+              Positioned(
+                bottom: pad.bottom + gap,
+                left: pad.left + gap,
+                right: pad.right + gap,
+                child: Semantics(
+                  liveRegion: true,
+                  child: Center(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: KkjLight.componentsBadgeNeutralBackground,
+                        borderRadius: BorderRadius.circular(
+                          KkjLight.componentsBadgeRounded,
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: KkjTokens.spacing3,
+                          vertical: KkjTokens.spacing1,
+                        ),
+                        child: Text(
+                          l10n.receivingLatest,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
                     ),
-                  Positioned(
-                    top: pad.top + gap,
-                    left: pad.left + gap,
-                    right: pad.right + gap,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Align(
-                            alignment: AlignmentDirectional.topStart,
-                            child: _Corner(
-                              title: widget.note.title,
-                              style: title,
-                              tooltip: l10n.backToLibrary,
-                              // Always through PopScope, so the queue drains.
-                              onBack: () => Navigator.of(context).maybePop(),
-                            ),
-                          ),
+                  ),
+                ),
+              ),
+            Positioned(
+              top: pad.top + gap,
+              left: pad.left + gap,
+              right: pad.right + gap,
+              child: LayoutBuilder(
+                builder: (context, top) {
+                  // ponytail: with room the toolbar stays centered; on a
+                  // phone the indicator and the menu (2 x 48 dp) leave the
+                  // title less room, so the right side takes only its width.
+                  final wide = top.maxWidth >= 480;
+                  final left = _Corner(
+                    title: widget.note.title,
+                    style: title,
+                    tooltip: l10n.backToLibrary,
+                    // Always through PopScope, so the queue drains.
+                    onBack: () => Navigator.of(context).maybePop(),
+                  );
+                  final right = _MoreMenu(
+                    noteId: widget.note.noteId,
+                    percent: ((_vp?.scale ?? 1) * 100).round(),
+                    canZoomOut: (_vp?.scale ?? 1) > PageViewport.zoomMin,
+                    canZoomIn: (_vp?.scale ?? 1) < PageViewport.zoomMax,
+                    onZoomOut: () => _zoomBy(1 / _zoomStep),
+                    onZoomIn: () => _zoomBy(_zoomStep),
+                    onFitWidth: () => _goTo(_laidOut(_Fit.width), _Fit.width),
+                    onFitPage: () => _goTo(_laidOut(_Fit.page), _Fit.page),
+                  );
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Align(
+                          alignment: AlignmentDirectional.topStart,
+                          child: left,
                         ),
-                        PenToolbar(
-                          pen: ref.watch(penSlotsProvider).first,
-                          onPenTap: _editPen,
-                          slotFocus: _slotFocus,
-                          canUndo: _history.undoDepth > 0,
-                          canRedo: _history.redoDepth > 0,
-                          onUndo: _undo,
-                          onRedo: _redo,
-                        ),
+                      ),
+                      PenToolbar(
+                        pen: ref.watch(penSlotsProvider).first,
+                        onPenTap: _editPen,
+                        slotFocus: _slotFocus,
+                        canUndo: _history.undoDepth > 0,
+                        canRedo: _history.redoDepth > 0,
+                        onUndo: _undo,
+                        onRedo: _redo,
+                      ),
+                      if (wide)
                         Expanded(
                           child: Align(
                             alignment: AlignmentDirectional.topEnd,
-                            child: _MoreMenu(
-                              percent: ((_vp?.scale ?? 1) * 100).round(),
-                              canZoomOut:
-                                  (_vp?.scale ?? 1) > PageViewport.zoomMin,
-                              canZoomIn:
-                                  (_vp?.scale ?? 1) < PageViewport.zoomMax,
-                              onZoomOut: () => _zoomBy(1 / _zoomStep),
-                              onZoomIn: () => _zoomBy(_zoomStep),
-                              onFitWidth: () =>
-                                  _goTo(_laidOut(_Fit.width), _Fit.width),
-                              onFitPage: () =>
-                                  _goTo(_laidOut(_Fit.page), _Fit.page),
-                            ),
+                            child: right,
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-      ),
+                        )
+                      else
+                        right,
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -813,6 +842,7 @@ const _cornerDecoration = ShapeDecoration(
 /// ([-] [N%] [+] stays open; the fit items close it).
 class _MoreMenu extends StatelessWidget {
   const _MoreMenu({
+    required this.noteId,
     required this.percent,
     required this.canZoomOut,
     required this.canZoomIn,
@@ -822,6 +852,7 @@ class _MoreMenu extends StatelessWidget {
     required this.onFitPage,
   });
 
+  final String noteId;
   final int percent;
   final bool canZoomOut, canZoomIn;
   final VoidCallback onZoomOut, onZoomIn, onFitWidth, onFitPage;
@@ -841,67 +872,73 @@ class _MoreMenu extends StatelessWidget {
     );
     return DecoratedBox(
       decoration: _cornerDecoration,
-      child: MenuAnchor(
-        style: MenuStyle(
-          backgroundColor: const WidgetStatePropertyAll(
-            KkjLight.componentsPopoverBackground,
-          ),
-          shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(
-                KkjLight.componentsPopoverRounded,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SyncIndicator(noteId: noteId),
+          MenuAnchor(
+            style: MenuStyle(
+              backgroundColor: const WidgetStatePropertyAll(
+                KkjLight.componentsPopoverBackground,
               ),
-            ),
-          ),
-        ),
-        menuChildren: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                tooltip: l10n.zoomOut,
-                constraints: _hit,
-                icon: const Icon(Icons.remove),
-                disabledColor: KkjLight.colorInkDisabled,
-                onPressed: canZoomOut ? onZoomOut : null,
-              ),
-              Semantics(
-                container: true,
-                label: l10n.zoomLevel(percent),
-                excludeSemantics: true,
-                child: SizedBox(
-                  width: 56,
-                  height: KkjTokens.spacingHitMinAndroid,
-                  child: Center(child: Text('$percent%')),
+              shape: WidgetStatePropertyAll(
+                RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(
+                    KkjLight.componentsPopoverRounded,
+                  ),
                 ),
               ),
-              IconButton(
-                tooltip: l10n.zoomIn,
-                constraints: _hit,
-                icon: const Icon(Icons.add),
-                disabledColor: KkjLight.colorInkDisabled,
-                onPressed: canZoomIn ? onZoomIn : null,
+            ),
+            menuChildren: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: l10n.zoomOut,
+                    constraints: _hit,
+                    icon: const Icon(Icons.remove),
+                    disabledColor: KkjLight.colorInkDisabled,
+                    onPressed: canZoomOut ? onZoomOut : null,
+                  ),
+                  Semantics(
+                    container: true,
+                    label: l10n.zoomLevel(percent),
+                    excludeSemantics: true,
+                    child: SizedBox(
+                      width: 56,
+                      height: KkjTokens.spacingHitMinAndroid,
+                      child: Center(child: Text('$percent%')),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: l10n.zoomIn,
+                    constraints: _hit,
+                    icon: const Icon(Icons.add),
+                    disabledColor: KkjLight.colorInkDisabled,
+                    onPressed: canZoomIn ? onZoomIn : null,
+                  ),
+                ],
+              ),
+              MenuItemButton(
+                style: item,
+                onPressed: onFitWidth,
+                child: Text(l10n.fitWidth),
+              ),
+              MenuItemButton(
+                style: item,
+                onPressed: onFitPage,
+                child: Text(l10n.fitPage),
               ),
             ],
-          ),
-          MenuItemButton(
-            style: item,
-            onPressed: onFitWidth,
-            child: Text(l10n.fitWidth),
-          ),
-          MenuItemButton(
-            style: item,
-            onPressed: onFitPage,
-            child: Text(l10n.fitPage),
+            builder: (context, controller, _) => IconButton(
+              tooltip: l10n.moreMenu,
+              constraints: _hit,
+              icon: const Icon(Icons.more_horiz),
+              onPressed: () =>
+                  controller.isOpen ? controller.close() : controller.open(),
+            ),
           ),
         ],
-        builder: (context, controller, _) => IconButton(
-          tooltip: l10n.moreMenu,
-          constraints: _hit,
-          icon: const Icon(Icons.more_horiz),
-          onPressed: () =>
-              controller.isOpen ? controller.close() : controller.open(),
-        ),
       ),
     );
   }

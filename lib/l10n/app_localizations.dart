@@ -643,6 +643,132 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Discard and disconnect'**
   String get unsentDisconnectConfirm;
+
+  /// No description provided for @syncStateSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved'**
+  String get syncStateSaved;
+
+  /// No description provided for @syncStatePending.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting to save'**
+  String get syncStatePending;
+
+  /// No description provided for @syncStateOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Offline · Kept on this device'**
+  String get syncStateOffline;
+
+  /// No description provided for @syncBadgeOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Offline'**
+  String get syncBadgeOffline;
+
+  /// No description provided for @syncStateSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving'**
+  String get syncStateSaving;
+
+  /// No description provided for @syncStateReceiving.
+  ///
+  /// In en, this message translates to:
+  /// **'Getting the latest'**
+  String get syncStateReceiving;
+
+  /// No description provided for @syncStateTwoVersions.
+  ///
+  /// In en, this message translates to:
+  /// **'Two versions'**
+  String get syncStateTwoVersions;
+
+  /// No description provided for @syncStateNotSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Not saved'**
+  String get syncStateNotSaved;
+
+  /// No description provided for @syncIndicatorLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync status: {state}. More details'**
+  String syncIndicatorLabel(String state);
+
+  /// No description provided for @syncDescSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'All changes are saved to Drive.'**
+  String get syncDescSaved;
+
+  /// No description provided for @syncDescPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving to Drive soon.'**
+  String get syncDescPending;
+
+  /// No description provided for @syncDescOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re offline. Changes are kept on this device and saved when you\'re connected.'**
+  String get syncDescOffline;
+
+  /// No description provided for @syncDescSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving to Drive.'**
+  String get syncDescSaving;
+
+  /// No description provided for @syncDescReceiving.
+  ///
+  /// In en, this message translates to:
+  /// **'Getting the latest version from another device.'**
+  String get syncDescReceiving;
+
+  /// No description provided for @syncDescTwoVersions.
+  ///
+  /// In en, this message translates to:
+  /// **'A page was changed on two devices.'**
+  String get syncDescTwoVersions;
+
+  /// No description provided for @syncNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync now'**
+  String get syncNow;
+
+  /// No description provided for @syncErrorBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes are kept on this device. Try again or export the sync log.'**
+  String get syncErrorBody;
+
+  /// No description provided for @syncQuotaBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Drive is out of space. Changes are kept on this device.'**
+  String get syncQuotaBody;
+
+  /// No description provided for @syncManageDrive.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage Drive storage'**
+  String get syncManageDrive;
+
+  /// No description provided for @syncOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t open the page.'**
+  String get syncOpenFailed;
+
+  /// No description provided for @syncReauthBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'Your sign-in expired. Changes are kept on this device.'**
+  String get syncReauthBanner;
 }
 
 class _AppLocalizationsDelegate

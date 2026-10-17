@@ -301,4 +301,69 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get unsentDisconnectConfirm => '버리고 연결 해제';
+
+  @override
+  String get syncStateSaved => '저장됨';
+
+  @override
+  String get syncStatePending => '저장 대기';
+
+  @override
+  String get syncStateOffline => '오프라인 · 이 기기에 보관 중';
+
+  @override
+  String get syncBadgeOffline => '오프라인';
+
+  @override
+  String get syncStateSaving => '저장 중';
+
+  @override
+  String get syncStateReceiving => '최신 내용 받는 중';
+
+  @override
+  String get syncStateTwoVersions => '두 버전';
+
+  @override
+  String get syncStateNotSaved => '저장 안 됨';
+
+  @override
+  String syncIndicatorLabel(String state) {
+    return '동기화 상태: $state. 자세히 보기';
+  }
+
+  @override
+  String get syncDescSaved => '모든 변경이 Drive에 저장됐어요.';
+
+  @override
+  String get syncDescPending => '곧 Drive에 저장해요.';
+
+  @override
+  String get syncDescOffline => '오프라인이에요. 변경은 이 기기에 보관 중이고, 연결되면 저장해요.';
+
+  @override
+  String get syncDescSaving => 'Drive에 저장하는 중이에요.';
+
+  @override
+  String get syncDescReceiving => '다른 기기의 최신 내용을 받는 중이에요.';
+
+  @override
+  String get syncDescTwoVersions => '두 기기에서 고친 페이지가 있어요.';
+
+  @override
+  String get syncNow => '지금 동기화';
+
+  @override
+  String get syncErrorBody => '변경은 이 기기에 보관 중이에요. 다시 시도하거나 동기화 로그 내보내기를 해 주세요.';
+
+  @override
+  String get syncQuotaBody => 'Drive 저장 공간이 부족해요. 이 기기에 보관 중이에요.';
+
+  @override
+  String get syncManageDrive => 'Drive 공간 관리';
+
+  @override
+  String get syncOpenFailed => '페이지를 열지 못했어요.';
+
+  @override
+  String get syncReauthBanner => '로그인이 만료됐어요. 변경은 이 기기에 보관 중이에요.';
 }

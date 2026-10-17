@@ -135,5 +135,33 @@
     }
   },
   "unsentDisconnectLineUnknown": "보내지 못한 변경이 있는지 확인하지 못했어요.",
-  "unsentDisconnectConfirm": "버리고 연결 해제"
+  "unsentDisconnectConfirm": "버리고 연결 해제",
+  "syncStateSaved": "저장됨",
+  "syncStatePending": "저장 대기",
+  "syncStateOffline": "오프라인 · 이 기기에 보관 중",
+  "syncBadgeOffline": "오프라인",
+  "syncStateSaving": "저장 중",
+  "syncStateReceiving": "최신 내용 받는 중",
+  "syncStateTwoVersions": "두 버전",
+  "syncStateNotSaved": "저장 안 됨",
+  "syncIndicatorLabel": "동기화 상태: {state}. 자세히 보기",
+  "@syncIndicatorLabel": {
+    "placeholders": {
+      "state": {
+        "type": "String"
+      }
+    }
+  },
+  "syncDescSaved": "모든 변경이 Drive에 저장됐어요.",
+  "syncDescPending": "곧 Drive에 저장해요.",
+  "syncDescOffline": "오프라인이에요. 변경은 이 기기에 보관 중이고, 연결되면 저장해요.",
+  "syncDescSaving": "Drive에 저장하는 중이에요.",
+  "syncDescReceiving": "다른 기기의 최신 내용을 받는 중이에요.",
+  "syncDescTwoVersions": "두 기기에서 고친 페이지가 있어요.",
+  "syncNow": "지금 동기화",
+  "syncErrorBody": "변경은 이 기기에 보관 중이에요. 다시 시도하거나 동기화 로그 내보내기를 해 주세요.",
+  "syncQuotaBody": "Drive 저장 공간이 부족해요. 이 기기에 보관 중이에요.",
+  "syncManageDrive": "Drive 공간 관리",
+  "syncOpenFailed": "페이지를 열지 못했어요.",
+  "syncReauthBanner": "로그인이 만료됐어요. 변경은 이 기기에 보관 중이에요."
 }
