@@ -12,6 +12,7 @@ import '../storage/note_data.dart';
 import '../storage/note_store.dart';
 import '../storage/session_hint.dart';
 import '../storage/sync_device_store.dart';
+import 'conflict_notifier.dart';
 import 'merge_step.dart';
 import 'note_uploader.dart';
 import 'open_note.dart';
@@ -76,6 +77,7 @@ Future<void> runBackgroundUpload({
   NoteData? data,
   DriveClient? drive,
   Future<bool> Function()? online,
+  ConflictNotifier? notifier,
 }) async {
   final hint = SessionHint(prefs ?? await SharedPreferences.getInstance());
   final saved = hint.account;
@@ -142,5 +144,47 @@ Future<void> runBackgroundUpload({
     online: probe,
     schedule: () async {}, // already running
   );
-  await coordinator.uploadUnsent();
+  final before = await _unresolved(store);
+  try {
+    await coordinator.uploadUnsent();
+  } finally {
+    // A conflict recorded before a failure is still told.
+    await _notifyConflicts(before, store, notifier ?? LocalConflictNotifier());
+  }
+}
+
+/// Unresolved conflict count of every note; a note that cannot be read is
+/// left out.
+Future<Map<String, int>> _unresolved(NoteStore store) async {
+  final out = <String, int>{};
+  try {
+    for (final id in await store.ids()) {
+      try {
+        out[id] = (await store.readSync(id)).info.unresolvedConflicts.length;
+      } catch (_) {}
+    }
+  } catch (_) {}
+  return out;
+}
+
+/// One notification per note whose unresolved count grew (UX-DR66), only
+/// when the permission is already there: the background never asks. The
+/// notification carries the note id, never note content. Errors are swallowed.
+Future<void> _notifyConflicts(
+  Map<String, int> before,
+  NoteStore store,
+  ConflictNotifier notifier,
+) async {
+  try {
+    final grown = [
+      for (final e in (await _unresolved(store)).entries)
+        if (e.value > (before[e.key] ?? 0)) e.key,
+    ];
+    if (grown.isEmpty || !await notifier.isGranted()) return;
+    for (final id in grown) {
+      try {
+        await notifier.show(id);
+      } catch (_) {}
+    }
+  } catch (_) {}
 }

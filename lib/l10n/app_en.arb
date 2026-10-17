@@ -194,5 +194,28 @@
   "newVersionBanner": "This note was made in a newer version. Update the app to edit it.",
   "cannotOpenBody": "This note file cannot be read. The file was left as it is.",
   "cannotOpenViewInDrive": "View in Drive",
-  "cannotOpenDownload": "Download as file"
+  "cannotOpenDownload": "Download as file",
+  "conflictBanner": "You edited this page on another device too. It is read-only until you choose.",
+  "conflictBannerDeleted": "A page was deleted on another device. This device's version is kept until you choose.",
+  "conflictResolveAction": "Resolve",
+  "conflictReadOnlyBlocked": "This page is read-only.",
+  "conflictFound": "Page {n} was edited on both devices. It is read-only until you choose.",
+  "@conflictFound": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "conflictFoundDeleted": "Page {n} was deleted on another device. This device's version is kept until you choose.",
+  "@conflictFoundDeleted": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "conflictPageSemantics": "Read-only, page edited on both devices",
+  "conflictNotificationTitle": "A page was edited on both devices",
+  "conflictNotificationChannel": "Conflicts"
 }

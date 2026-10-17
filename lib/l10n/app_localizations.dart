@@ -817,6 +817,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Download as file'**
   String get cannotOpenDownload;
+
+  /// No description provided for @conflictBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'You edited this page on another device too. It is read-only until you choose.'**
+  String get conflictBanner;
+
+  /// No description provided for @conflictBannerDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'A page was deleted on another device. This device\'s version is kept until you choose.'**
+  String get conflictBannerDeleted;
+
+  /// No description provided for @conflictResolveAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolve'**
+  String get conflictResolveAction;
+
+  /// No description provided for @conflictReadOnlyBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'This page is read-only.'**
+  String get conflictReadOnlyBlocked;
+
+  /// No description provided for @conflictFound.
+  ///
+  /// In en, this message translates to:
+  /// **'Page {n} was edited on both devices. It is read-only until you choose.'**
+  String conflictFound(int n);
+
+  /// No description provided for @conflictFoundDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Page {n} was deleted on another device. This device\'s version is kept until you choose.'**
+  String conflictFoundDeleted(int n);
+
+  /// No description provided for @conflictPageSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'Read-only, page edited on both devices'**
+  String get conflictPageSemantics;
+
+  /// No description provided for @conflictNotificationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'A page was edited on both devices'**
+  String get conflictNotificationTitle;
+
+  /// No description provided for @conflictNotificationChannel.
+  ///
+  /// In en, this message translates to:
+  /// **'Conflicts'**
+  String get conflictNotificationChannel;
 }
 
 class _AppLocalizationsDelegate

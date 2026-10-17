@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../storage/note_store.dart' show SyncRead;
@@ -27,6 +28,7 @@ class NoteSyncView {
     this.state = SyncState.pending,
     this.errorClass,
     this.errorReason,
+    this.conflicts = const [],
     this.loaded = true,
   });
 
@@ -41,6 +43,19 @@ class NoteSyncView {
 
   /// `lastError.reason`, only while [state] is `error`.
   final String? errorReason;
+
+  /// The unresolved conflicts of `sync.json`, in their order (Story 3.19).
+  final List<ConflictInfo> conflicts;
+
+  /// Page ids with an unresolved conflict. A `remoteDeleted` page is not in
+  /// the note any more; the editor locks only the ids it still has.
+  Set<String> get conflictPages => {for (final c in conflicts) c.pageId};
+
+  bool get hasConflict => conflicts.isNotEmpty;
+
+  /// Every unresolved conflict is a page the other device deleted.
+  bool get conflictAllDeleted =>
+      conflicts.isNotEmpty && conflicts.every((c) => c.kind == 'remoteDeleted');
 
   /// The Drive file was deleted elsewhere (Story 3.17).
   bool get deleted => errorClass == 'deleted';
@@ -63,12 +78,16 @@ class NoteSyncView {
       other.state == state &&
       other.errorClass == errorClass &&
       other.errorReason == errorReason &&
+      listEquals(other.conflicts, conflicts) &&
       other.loaded == loaded;
 
   @override
   int get hashCode =>
-      Object.hash(label, state, errorClass, errorReason, loaded);
+      Object.hash(label, state, errorClass, errorReason, loaded, conflicts.length);
 }
+
+/// One unresolved entry of `sync.json.conflicts`.
+typedef ConflictInfo = ({String pageId, String kind, int index});
 
 /// `saving` and `receiving` are drawn only after this long...
 const syncSlowDelay = Duration(milliseconds: 1000);
@@ -203,6 +222,14 @@ class NoteSyncNotifier extends Notifier<NoteSyncView> {
       errorReason: r.state == SyncState.error
           ? (r.info.lastError?['reason'] as String?)
           : null,
+      conflicts: [
+        for (final c in r.info.unresolvedConflicts)
+          (
+            pageId: c['pageId'] as String,
+            kind: (c['kind'] as String?) ?? 'bothEdited',
+            index: (c['originalIndex'] as int?) ?? 0,
+          ),
+      ],
     );
 
     final slow = raw == SyncLabel.saving || raw == SyncLabel.receiving;
@@ -250,16 +277,24 @@ final noteSyncProvider =
 /// What blocks sync for the whole device: a sign-in that needs the person
 /// (banner) and a full Drive (one notice).
 class SyncProblems {
-  const SyncProblems({this.reauth = false, this.quota = false});
+  const SyncProblems({
+    this.reauth = false,
+    this.quota = false,
+    this.conflict = false,
+  });
 
-  final bool reauth, quota;
+  /// [conflict]: some note has an unresolved conflict (Story 3.19).
+  final bool reauth, quota, conflict;
 
   @override
   bool operator ==(Object other) =>
-      other is SyncProblems && other.reauth == reauth && other.quota == quota;
+      other is SyncProblems &&
+      other.reauth == reauth &&
+      other.quota == quota &&
+      other.conflict == conflict;
 
   @override
-  int get hashCode => Object.hash(reauth, quota);
+  int get hashCode => Object.hash(reauth, quota, conflict);
 }
 
 class SyncProblemsNotifier extends Notifier<SyncProblems> {
@@ -281,10 +316,11 @@ class SyncProblemsNotifier extends Notifier<SyncProblems> {
   Future<void> _scan() async {
     final gen = ++_gen;
     final store = ref.read(noteStoreProvider);
-    var reauth = false, quota = false;
+    var reauth = false, quota = false, conflict = false;
     try {
       for (final id in await store.ids()) {
         final s = await store.readSync(id);
+        conflict |= s.info.unresolvedConflicts.isNotEmpty;
         if (s.state != SyncState.error) continue;
         final c = s.info.lastError?['class'];
         reauth |= c == 'reauth';
@@ -294,7 +330,7 @@ class SyncProblemsNotifier extends Notifier<SyncProblems> {
       return;
     }
     if (ref.mounted && gen == _gen) {
-      state = SyncProblems(reauth: reauth, quota: quota);
+      state = SyncProblems(reauth: reauth, quota: quota, conflict: conflict);
     }
   }
 }

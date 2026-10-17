@@ -429,4 +429,37 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cannotOpenDownload => 'Download as file';
+
+  @override
+  String get conflictBanner =>
+      'You edited this page on another device too. It is read-only until you choose.';
+
+  @override
+  String get conflictBannerDeleted =>
+      'A page was deleted on another device. This device\'s version is kept until you choose.';
+
+  @override
+  String get conflictResolveAction => 'Resolve';
+
+  @override
+  String get conflictReadOnlyBlocked => 'This page is read-only.';
+
+  @override
+  String conflictFound(int n) {
+    return 'Page $n was edited on both devices. It is read-only until you choose.';
+  }
+
+  @override
+  String conflictFoundDeleted(int n) {
+    return 'Page $n was deleted on another device. This device\'s version is kept until you choose.';
+  }
+
+  @override
+  String get conflictPageSemantics => 'Read-only, page edited on both devices';
+
+  @override
+  String get conflictNotificationTitle => 'A page was edited on both devices';
+
+  @override
+  String get conflictNotificationChannel => 'Conflicts';
 }

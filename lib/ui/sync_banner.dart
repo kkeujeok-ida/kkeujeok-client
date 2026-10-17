@@ -9,16 +9,18 @@ import '../l10n/app_localizations.dart';
 import 'providers.dart';
 import 'sync_display.dart';
 
-enum _Kind { deleted, newVersion, reauth }
+enum _Kind { conflict, deleted, newVersion, reauth }
 
-/// The banner that holds the one slot (UX-DR40): a read-only conflict
-/// ([higherPriority]) > the open note was deleted elsewhere > the open note
-/// is of a newer format > the sign-in needs the person. [noteId] is the open
-/// note of the editor; the library has none.
+/// The banner that holds the one slot (UX-DR40): a read-only conflict of the
+/// open note > the open note was deleted elsewhere > the open note is of a
+/// newer format > the sign-in needs the person. [noteId] is the open note of
+/// the editor; the library has none. [higherPriority] is a banner the caller
+/// puts above all of these.
 _Kind? _kind(WidgetRef ref, bool higherPriority, String? noteId) {
   if (higherPriority) return null;
   if (noteId != null) {
     final v = ref.watch(noteSyncProvider(noteId));
+    if (v.hasConflict) return _Kind.conflict;
     if (v.deleted) return _Kind.deleted;
     if (v.newVersion) return _Kind.newVersion;
   }
@@ -46,6 +48,8 @@ class SyncBanner extends ConsumerWidget {
     this.startInset = 0,
     this.noteId,
     this.onCloseNote,
+    this.onResolve,
+    this.emphasis = false,
   });
 
   final bool higherPriority;
@@ -55,6 +59,14 @@ class SyncBanner extends ConsumerWidget {
 
   /// [닫기] of the deleted banner: leaves the editor.
   final VoidCallback? onCloseNote;
+
+  /// [해결하기] of the conflict banner (the resolve sheet, Story 3.21). Without
+  /// it the button is there and cannot be tapped.
+  final VoidCallback? onResolve;
+
+  /// The banner is drawn stressed for a moment (a blocked write on a
+  /// read-only page).
+  final bool emphasis;
 
   /// Room kept clear at the start for a button floating over the top left.
   final double startInset;
@@ -101,7 +113,14 @@ class SyncBanner extends ConsumerWidget {
         Size(KkjTokens.spacingHitMinAndroid, KkjTokens.spacingHitMinAndroid),
       ),
     );
+    final id = noteId;
+    final conflictDeleted =
+        id != null &&
+        kind == _Kind.conflict &&
+        ref.watch(noteSyncProvider(id)).conflictAllDeleted;
     final text = switch (kind) {
+      _Kind.conflict =>
+        conflictDeleted ? l.conflictBannerDeleted : l.conflictBanner,
       _Kind.deleted => l.deletedBanner,
       _Kind.newVersion => l.newVersionBanner,
       _Kind.reauth => l.syncReauthBanner,
@@ -111,7 +130,9 @@ class SyncBanner extends ConsumerWidget {
       liveRegion: true,
       sortKey: const OrdinalSortKey(0),
       child: ColoredBox(
-        color: KkjLight.componentsBannerBackground,
+        color: emphasis
+            ? KkjLight.colorAccentSoft
+            : KkjLight.componentsBannerBackground,
         child: Padding(
           padding: EdgeInsets.only(
             top: MediaQuery.paddingOf(context).top,
@@ -129,6 +150,12 @@ class SyncBanner extends ConsumerWidget {
                         ?.copyWith(color: KkjLight.componentsBannerText),
                   ),
                 ),
+                if (kind == _Kind.conflict)
+                  TextButton(
+                    style: small,
+                    onPressed: onResolve,
+                    child: Text(l.conflictResolveAction),
+                  ),
                 if (kind == _Kind.reauth)
                   TextButton(
                     style: small,

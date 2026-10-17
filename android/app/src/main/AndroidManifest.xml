@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Drive calls (HttpClient) need it in release builds too; debug adds it. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Local notification of a conflict found by a background upload (Android 13+). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="Kkeujeok"
         android:localeConfig="@xml/locales_config"

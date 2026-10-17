@@ -25,6 +25,7 @@ import '../storage/pen_slots_store.dart';
 import '../storage/session_hint.dart';
 import '../storage/sync_device_store.dart';
 import '../sync/background_upload.dart';
+import '../sync/conflict_notifier.dart';
 import '../sync/merge_step.dart';
 import '../sync/note_chain.dart';
 import '../sync/note_receiver.dart';
@@ -244,6 +245,11 @@ final mergeStepProvider = Provider<MergeStep>(
     onApplied: (noteId, merged, undoDrop) =>
         ref.read(noteHistoriesProvider)[noteId]?.adopt(merged, undoDrop),
   ),
+);
+
+/// The local notification of a conflict found in the background (Story 3.19).
+final conflictNotifierProvider = Provider<ConflictNotifier>(
+  (ref) => LocalConflictNotifier(),
 );
 
 /// False only while the device is known to be offline.

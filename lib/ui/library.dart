@@ -10,6 +10,7 @@ import '../drive/root_folder.dart' show RootStatus;
 import '../l10n/app_localizations.dart';
 import '../model/note.dart';
 import '../render/page_painter.dart';
+import '../sync/conflict_notifier.dart' show askConflictPermissionOnce;
 import '../sync/note_receiver.dart';
 import '../sync/receive_scheduler.dart';
 import 'cannot_open_sheet.dart';
@@ -50,6 +51,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     check: () => ref.read(noteReceiverProvider).check(),
   );
   Timer? _scanTimer;
+  StreamSubscription<String>? _taps;
   bool _showScan = false; // the scan took longer than 1,000 ms
 
   @override
@@ -58,8 +60,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     WidgetsBinding.instance.addObserver(this);
     _receive.resume();
     if (ref.read(receiveStateProvider).scanning) _watchScan(true);
+    // A tap on the notification of a conflict opens that note (Story 3.19).
+    final notifier = ref.read(conflictNotifierProvider);
+    _taps = notifier.taps.listen(_openById, onError: (Object _) {});
+    unawaited(
+      notifier.launchNoteId().then((id) {
+        if (id != null && mounted) _openById(id);
+      }, onError: (Object _) {}),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      if (ref.read(syncProblemsProvider).conflict) _askNotifyPermission();
       // Already known to be missing (an earlier library): ask at once.
       final status = ref.read(rootFolderProvider).status;
       if (status == RootStatus.missing) {
@@ -108,6 +119,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   void dispose() {
     _receive.dispose();
     _scanTimer?.cancel();
+    _taps?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     libraryRouteObserver.unsubscribe(this);
     super.dispose();
@@ -213,6 +225,26 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   Future<void> _open(Note note) =>
       _guarded(() => _afterEditor(_push(note), note));
 
+  Future<void> _openById(String noteId) => _guarded(() async {
+    final note = (await ref.read(noteStoreProvider).read(noteId))?.note;
+    if (note != null && mounted) await _afterEditor(_push(note), note);
+  });
+
+  /// The first conflict shown in the foreground asks for the permission of
+  /// the background notification, once (UX-DR66).
+  void _askNotifyPermission() {
+    final state = WidgetsBinding.instance.lifecycleState;
+    if (state != null && state != AppLifecycleState.resumed) return;
+    final l = AppLocalizations.of(context);
+    unawaited(
+      askConflictPermissionOnce(
+        ref.read(conflictNotifierProvider),
+        title: l.conflictNotificationTitle,
+        channel: l.conflictNotificationChannel,
+      ),
+    );
+  }
+
   /// The list is read again when the person comes back from the editor, and
   /// the closed note is uploaded (never blocking: not awaited).
   Future<void> _afterEditor(Future<void> route, Note note) async {
@@ -249,6 +281,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       }
     });
     ref.listen(onlineProvider, (_, _) {}); // the reconnect upload
+    ref.listen(syncProblemsProvider.select((p) => p.conflict), (_, on) {
+      if (on) _askNotifyPermission();
+    });
     final recv = ref.watch(receiveStateProvider);
     ref.listen(receiveStateProvider.select((r) => r.version), (_, _) {
       ref.read(libraryProvider.notifier).reload();

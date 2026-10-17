@@ -390,4 +390,36 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get cannotOpenDownload => '파일로 내려받기';
+
+  @override
+  String get conflictBanner => '다른 기기에서도 고친 페이지예요. 고를 때까지는 읽기만 돼요.';
+
+  @override
+  String get conflictBannerDeleted =>
+      '다른 기기에서 지운 페이지가 있어요. 고를 때까지 이 기기 버전을 보관해요.';
+
+  @override
+  String get conflictResolveAction => '해결하기';
+
+  @override
+  String get conflictReadOnlyBlocked => '읽기 전용 페이지예요';
+
+  @override
+  String conflictFound(int n) {
+    return '$n페이지를 두 기기에서 고쳤어요. 고를 때까지 읽기만 돼요.';
+  }
+
+  @override
+  String conflictFoundDeleted(int n) {
+    return '$n페이지를 다른 기기에서 지웠어요. 고를 때까지 이 기기 버전을 보관해요.';
+  }
+
+  @override
+  String get conflictPageSemantics => '읽기 전용, 두 기기에서 고친 페이지';
+
+  @override
+  String get conflictNotificationTitle => '두 기기에서 고친 페이지가 있어요';
+
+  @override
+  String get conflictNotificationChannel => '충돌';
 }

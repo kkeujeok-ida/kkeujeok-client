@@ -41,6 +41,12 @@ class SyncInfo {
     return v is int && v > 0 ? v : 0;
   }
 
+  /// The entries of [conflicts] nobody has resolved yet.
+  List<JsonMap> get unresolvedConflicts => [
+    for (final c in conflicts)
+      if (c['resolvedAt'] == null) c,
+  ];
+
   static const _known = {
     'fileId',
     'baseHeadRevisionId',

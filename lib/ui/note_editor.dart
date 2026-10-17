@@ -3,6 +3,7 @@ import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../design_tokens/build/tokens.dart';
@@ -79,6 +80,17 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   bool _leaving = false;
 
   int? _pointer; // the one pointer that is drawing
+  // Completed when the stroke in progress ends (value: its page id), so a
+  // merge waits for it and the finished stroke is in the sidecar (Story 3.19).
+  Completer<String?>? _strokeDone;
+  // The pre-merge version of a page whose stroke was in progress when a
+  // conflict locked it: shown, never saved, gone with the editor.
+  Map<String, dynamic>? _held;
+  // A write on a locked page: the banner stressed for a moment, and the
+  // assertive notice at most once a second.
+  bool _emphasis = false;
+  Timer? _emphasisTimer;
+  DateTime? _announcedAt;
   Duration _t0 = Duration.zero;
   final _points = <List<num>>[];
   PageViewport? _vp;
@@ -157,6 +169,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   void _replay(bool undo) {
     if (!mounted || _pointer != null || _leaving || _readOnly) return;
+    if (_pageLocked) {
+      _blocked();
+      return;
+    }
     final depth = undo ? _history.undoDepth : _history.redoDepth;
     if (depth == 0) return;
     final err = undo ? _history.undo(_ctx()) : _history.redo(_ctx());
@@ -167,6 +183,75 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     setState(() {});
     _tick.value++;
     _commit();
+  }
+
+  bool get _pageLocked => _history.isLocked(_page?['id'] as String?);
+
+  /// Resolves when no stroke is in progress; the value is the page id of the
+  /// stroke that just ended, else null.
+  Future<String?> _strokeEnd() => _pointer == null
+      ? Future<String?>.value()
+      : (_strokeDone ??= Completer<String?>()).future;
+
+  void _strokeEnded(String? pageId) {
+    final c = _strokeDone;
+    _strokeDone = null;
+    c?.complete(pageId);
+  }
+
+  /// Makes the pages of [ids] that the note still has read-only. Locks are
+  /// only added; a stroke in progress is let to end first.
+  void _lockWhenIdle(Set<String> ids) {
+    if (_pointer != null) {
+      unawaited(_strokeEnd().then((_) => _lockWhenIdle(ids)));
+      return;
+    }
+    final here = {for (final p in _history.note.pages) p['id'] as String};
+    final add = ids.where(here.contains).toSet();
+    if (add.every(_history.isLocked)) return;
+    _history.lockPages(add);
+    if (mounted) setState(() {});
+  }
+
+  /// A write on a locked page was refused: stress the banner once and say so.
+  void _blocked() {
+    if (!mounted) return;
+    if (!_emphasis && !MediaQuery.disableAnimationsOf(context)) {
+      setState(() => _emphasis = true);
+      _emphasisTimer?.cancel();
+      _emphasisTimer = Timer(const Duration(milliseconds: 800), () {
+        _emphasisTimer = null;
+        if (mounted) setState(() => _emphasis = false);
+      });
+    }
+    final now = DateTime.now();
+    final last = _announcedAt;
+    if (last != null && now.difference(last) < const Duration(seconds: 1)) {
+      return;
+    }
+    _announcedAt = now;
+    _announce(AppLocalizations.of(context).conflictReadOnlyBlocked);
+  }
+
+  void _announce(String text) {
+    unawaited(
+      SemanticsService.sendAnnouncement(
+        View.of(context),
+        text,
+        Directionality.of(context),
+        assertiveness: Assertiveness.assertive,
+      ),
+    );
+  }
+
+  /// A conflict that showed up while the editor is open.
+  void _announceConflict(ConflictInfo c) {
+    final l = AppLocalizations.of(context);
+    _announce(
+      c.kind == 'remoteDeleted'
+          ? l.conflictFoundDeleted(c.index + 1)
+          : l.conflictFound(c.index + 1),
+    );
   }
 
   Map<String, dynamic>? get _page {
@@ -211,13 +296,25 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   bool get _readOnly =>
       ref.read(noteSyncProvider(widget.note.noteId)).newVersion;
 
-  Future<void> _loadLastSeen() async {
+  /// `lastSeenRemoteSeq` is taken; the answer is the page ids with an
+  /// unresolved conflict.
+  Future<Set<String>> _readSync() async {
     try {
       final s = await _store.readSync(widget.note.noteId);
       if (s.info.lastSeenRemoteSeq > _lastSeen) {
         _lastSeen = s.info.lastSeenRemoteSeq;
       }
-    } catch (_) {}
+      return {
+        for (final c in s.info.unresolvedConflicts) c['pageId'] as String,
+      };
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> _loadLastSeen() async {
+    final locked = await _readSync();
+    if (mounted) _lockWhenIdle(locked);
   }
 
   /// Applies a merge to the live note as one item of the save queue (spec
@@ -230,14 +327,27 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     LiveMerge merge,
     Future<void> Function() record,
   ) async {
+    String? stroked; // the page of a stroke that ended while we waited
     for (var tries = 0; tries < 20; tries++) {
+      // A stroke in progress ends first, so it is part of the version that
+      // goes to the sidecar.
+      stroked = await _strokeEnd() ?? stroked;
       final live = _history.note;
       final r = merge(live);
       await record();
-      if (!identical(_history.note, live)) continue;
+      final conflicted = await _readSync();
+      if (_pointer != null || !identical(_history.note, live)) continue;
+      final here = {
+        for (final p in (r?.note ?? live).pages) p['id'] as String,
+      };
+      _history.lockPages(conflicted.where(here.contains).toSet());
       if (r != null) {
+        final held = stroked != null && conflicted.contains(stroked)
+            ? live.pages.where((p) => p['id'] == stroked).firstOrNull
+            : null;
         _history.adopt(r.note, r.undoDrop);
         _failed = null; // an older snapshot must never be written again
+        if (held != null) _held = held;
         if (mounted) {
           setState(() {});
           _tick.value++;
@@ -245,6 +355,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
         _commit();
         await _flush();
       }
+      if (mounted) setState(() {});
       await _loadLastSeen();
       return true;
     }
@@ -267,6 +378,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   @override
   void dispose() {
     _latestTimer?.cancel();
+    _emphasisTimer?.cancel();
+    _strokeEnded(null);
     if (_coordinator.flushOpen == _flush) _coordinator.flushOpen = null;
     _hosts.unregister(widget.note.noteId, _host);
     _openNote.clear(widget.note.noteId);
@@ -445,6 +558,13 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   }
 
   void _begin(PointerDownEvent e, Offset page) {
+    // A page with an unresolved conflict is read-only (Story 3.19): no
+    // stroke; a finger may still pinch.
+    if (_pageLocked) {
+      _blocked();
+      _mode = _mode == _Mode.touchStroke ? _Mode.touchIdle : _Mode.ignored;
+      return;
+    }
     // The note is being received or is read-only: no stroke (Stories 3.13,
     // 3.17).
     if (_receiving || _readOnly) {
@@ -465,6 +585,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _pointer = null;
     _points.clear();
     _tick.value++;
+    _strokeEnded(null);
   }
 
   void _startGesture(int a, int b) {
@@ -553,6 +674,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     }, _ctx());
     setState(() {});
     _tick.value++;
+    _strokeEnded(pageId as String?);
     if (err == null) {
       _commit();
     } else {
@@ -619,6 +741,18 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       (_, on) => _watchReceiving(on),
     );
 
+    // A conflict that appears while the editor is open locks its page and is
+    // announced; the first read of an already conflicted note is not.
+    ref.listen(noteSyncProvider(widget.note.noteId), (prev, next) {
+      if (!next.loaded) return;
+      _lockWhenIdle(next.conflictPages);
+      if (prev == null || !prev.loaded) return;
+      final fresh = next.conflicts.where(
+        (c) => !prev.conflictPages.contains(c.pageId),
+      );
+      if (fresh.isNotEmpty) _announceConflict(fresh.first);
+    });
+
     return Semantics(
       scopesRoute: true,
       namesRoute: true,
@@ -637,6 +771,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
               SyncBanner(
                 noteId: widget.note.noteId,
                 onCloseNote: () => Navigator.of(context).maybePop(),
+                emphasis: _emphasis,
               ),
               Expanded(
                 child: MediaQuery.removePadding(
@@ -658,6 +793,11 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     final pad = MediaQuery.paddingOf(context);
     const gap = KkjTokens.spacing3;
     final page = _page;
+    final locked = _pageLocked;
+    final held = _held;
+    final shown = held != null && page != null && held['id'] == page['id']
+        ? held
+        : page;
     final landscape =
         page != null && (page['width'] as num) > (page['height'] as num);
     final title = Theme.of(context).textTheme.labelMedium;
@@ -687,12 +827,14 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                               ? l10n.orientationLandscape
                               : l10n.orientationPortrait,
                         ),
-                        value: l10n.handwriting,
+                        value: locked
+                            ? '${l10n.handwriting}, ${l10n.conflictPageSemantics}'
+                            : l10n.handwriting,
                         child: RepaintBoundary(
                           child: CustomPaint(
                             size: Size.infinite,
                             painter: PagePainter(
-                              page: page,
+                              page: shown!,
                               cache: _cache,
                               viewport: _vp!,
                               live: _live,
@@ -772,8 +914,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                         pen: ref.watch(penSlotsProvider).first,
                         onPenTap: _editPen,
                         slotFocus: _slotFocus,
-                        canUndo: !readOnly && _history.undoDepth > 0,
-                        canRedo: !readOnly && _history.redoDepth > 0,
+                        canUndo:
+                            !readOnly && !locked && _history.undoDepth > 0,
+                        canRedo:
+                            !readOnly && !locked && _history.redoDepth > 0,
                         onUndo: _undo,
                         onRedo: _redo,
                       ),

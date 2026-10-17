@@ -13,8 +13,18 @@ class History {
   int get undoDepth => _undo.length;
   int get redoDepth => _redo.length;
 
+  final _locked = <String>{};
+
+  /// Makes [pages] read-only (a conflict waits for the person, Story 3.19):
+  /// an op on them and an undo or redo of their records answer
+  /// `pageReadOnly`. Locks are only added here; a merge keeps them.
+  void lockPages(Set<String> pages) => _locked.addAll(pages);
+
+  bool isLocked(String? pageId) => pageId != null && _locked.contains(pageId);
+
   /// Error code, or null on success. A failure changes nothing.
   String? doOp(Map<String, dynamic> op, Ctx ctx) {
+    if (isLocked(op['pageId'] as String?)) return 'pageReadOnly';
     final r = applyOp(note, op, ctx);
     if (r.error != null) return r.error;
     note = r.note!;
@@ -41,6 +51,7 @@ class History {
     Ctx ctx,
   ) {
     if (from.isEmpty) return null;
+    if (isLocked(from.last['pageId'] as String?)) return 'pageReadOnly';
     final r = applyOp(note, from.last, ctx);
     if (r.error != null) return r.error;
     note = r.note!;
