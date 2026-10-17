@@ -286,7 +286,9 @@ final noteUploaderProvider = Provider<NoteUploader>(
 );
 
 /// Receives remote changes (Story 3.13): app start, foreground, 20 s poll.
-final noteReceiverProvider = Provider<NoteReceiver>((ref) {
+final Provider<NoteReceiver> noteReceiverProvider = Provider<NoteReceiver>((
+  ref,
+) {
   final r = NoteReceiver(
     store: ref.read(noteStoreProvider),
     drive: ref.read(driveClientProvider),
@@ -300,6 +302,9 @@ final noteReceiverProvider = Provider<NoteReceiver>((ref) {
     sleep: Future<void>.delayed,
     jitter: Random().nextDouble,
     chain: ref.read(noteChainProvider),
+    flushOpen: () async =>
+        await ref.read(uploadCoordinatorProvider).flushOpen?.call(),
+    uploadNote: (id) => ref.read(uploadCoordinatorProvider).noteClosed(id),
   );
   ref.onDispose(r.dispose);
   return r;

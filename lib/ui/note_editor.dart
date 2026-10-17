@@ -17,6 +17,7 @@ import '../sync/merge_step.dart';
 import 'pen_toolbar.dart';
 import 'providers.dart';
 import 'sync_banner.dart';
+import 'sync_display.dart';
 import 'sync_indicator.dart';
 
 /// The writing screen: page, toolbar and the top-left `editor-corner`.
@@ -155,7 +156,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   void _redo() => _replay(false);
 
   void _replay(bool undo) {
-    if (!mounted || _pointer != null || _leaving) return;
+    if (!mounted || _pointer != null || _leaving || _readOnly) return;
     final depth = undo ? _history.undoDepth : _history.redoDepth;
     if (depth == 0) return;
     final err = undo ? _history.undo(_ctx()) : _history.redo(_ctx());
@@ -205,6 +206,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   bool get _receiving =>
       ref.read(receiveStateProvider).receiving.contains(widget.note.noteId);
+
+  /// The note was made in a newer format: shown, never edited (Story 3.17).
+  bool get _readOnly =>
+      ref.read(noteSyncProvider(widget.note.noteId)).newVersion;
 
   Future<void> _loadLastSeen() async {
     try {
@@ -440,8 +445,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   }
 
   void _begin(PointerDownEvent e, Offset page) {
-    // The note is being received: no stroke (Story 3.13).
-    if (_receiving) {
+    // The note is being received or is read-only: no stroke (Stories 3.13,
+    // 3.17).
+    if (_receiving || _readOnly) {
       _mode = _Mode.ignored;
       return;
     }
@@ -628,12 +634,15 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
           body: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SyncBanner(),
+              SyncBanner(
+                noteId: widget.note.noteId,
+                onCloseNote: () => Navigator.of(context).maybePop(),
+              ),
               Expanded(
                 child: MediaQuery.removePadding(
                   context: context,
                   // The banner takes the status bar's place.
-                  removeTop: syncBannerShown(ref),
+                  removeTop: syncBannerShown(ref, noteId: widget.note.noteId),
                   child: Builder(builder: _body),
                 ),
               ),
@@ -652,6 +661,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     final landscape =
         page != null && (page['width'] as num) > (page['height'] as num);
     final title = Theme.of(context).textTheme.labelMedium;
+    final readOnly = ref.watch(
+      noteSyncProvider(widget.note.noteId).select((v) => v.newVersion),
+    );
     return LayoutBuilder(
       builder: (context, c) {
         if (page != null) _layout(c.biggest, pad);
@@ -760,8 +772,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                         pen: ref.watch(penSlotsProvider).first,
                         onPenTap: _editPen,
                         slotFocus: _slotFocus,
-                        canUndo: _history.undoDepth > 0,
-                        canRedo: _history.redoDepth > 0,
+                        canUndo: !readOnly && _history.undoDepth > 0,
+                        canRedo: !readOnly && _history.redoDepth > 0,
                         onUndo: _undo,
                         onRedo: _redo,
                       ),

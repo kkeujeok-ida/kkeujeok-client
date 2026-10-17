@@ -231,6 +231,32 @@ class NoteStore {
     return done;
   }
 
+  /// Deletes the whole folder of a note whose Drive file is gone (Story
+  /// 3.17), only while its working copy is still [expected] under the note's
+  /// lock; false, nothing deleted, when it moved on. Throws
+  /// [NoteSaveException].
+  Future<bool> removeNote(String noteId, {required Note expected}) async {
+    var done = false;
+    final dir = (await _working(noteId)).parent;
+    await _locked(noteId, () async {
+      final file = File(_in(dir, workingFileName));
+      if (!await file.exists()) return;
+      final cur = decodeKkj(await file.readAsBytes()).note;
+      if (cur == null ||
+          jsonEncode(cur.toJson()) != jsonEncode(expected.toJson())) {
+        return;
+      }
+      try {
+        await dir.delete(recursive: true);
+      } catch (e) {
+        throw NoteSaveException('could not remove the note', e);
+      }
+      done = true;
+    });
+    if (done) _emit(noteId);
+    return done;
+  }
+
   /// A downloaded file this client cannot read, kept byte for byte as the
   /// working copy of a note that has none (so it is never replaced), with
   /// [info] as its `sync.json`. False, nothing written, when a working copy

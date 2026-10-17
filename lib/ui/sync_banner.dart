@@ -9,10 +9,30 @@ import '../l10n/app_localizations.dart';
 import 'providers.dart';
 import 'sync_display.dart';
 
-/// Whether the re-login banner is on screen: the sign-in needs the person
-/// and no banner of a higher priority (a read-only conflict) holds the slot.
-bool syncBannerShown(WidgetRef ref, {bool higherPriority = false}) =>
-    !higherPriority && ref.watch(syncProblemsProvider.select((p) => p.reauth));
+enum _Kind { deleted, newVersion, reauth }
+
+/// The banner that holds the one slot (UX-DR40): a read-only conflict
+/// ([higherPriority]) > the open note was deleted elsewhere > the open note
+/// is of a newer format > the sign-in needs the person. [noteId] is the open
+/// note of the editor; the library has none.
+_Kind? _kind(WidgetRef ref, bool higherPriority, String? noteId) {
+  if (higherPriority) return null;
+  if (noteId != null) {
+    final v = ref.watch(noteSyncProvider(noteId));
+    if (v.deleted) return _Kind.deleted;
+    if (v.newVersion) return _Kind.newVersion;
+  }
+  return ref.watch(syncProblemsProvider.select((p) => p.reauth))
+      ? _Kind.reauth
+      : null;
+}
+
+/// Whether a banner is on screen.
+bool syncBannerShown(
+  WidgetRef ref, {
+  bool higherPriority = false,
+  String? noteId,
+}) => _kind(ref, higherPriority, noteId) != null;
 
 /// The one `banner` slot of the library and the editor, at the top and the
 /// full width, pushing the content down: "로그인이 만료됐어요" with
@@ -24,9 +44,17 @@ class SyncBanner extends ConsumerWidget {
     super.key,
     this.higherPriority = false,
     this.startInset = 0,
+    this.noteId,
+    this.onCloseNote,
   });
 
   final bool higherPriority;
+
+  /// The note the editor has open (deleted / newer-format banners).
+  final String? noteId;
+
+  /// [닫기] of the deleted banner: leaves the editor.
+  final VoidCallback? onCloseNote;
 
   /// Room kept clear at the start for a button floating over the top left.
   final double startInset;
@@ -35,6 +63,11 @@ class SyncBanner extends ConsumerWidget {
     final coordinator = ref.read(uploadCoordinatorProvider);
     final granted = await ref.read(rootFolderProvider.notifier).signInAgain();
     if (granted) unawaited(coordinator.retryAll());
+  }
+
+  Future<void> _revive(WidgetRef ref, String id) async {
+    await ref.read(noteReceiverProvider).revive(id);
+    await ref.read(uploadCoordinatorProvider).syncNow(id);
   }
 
   void _quotaNotice(BuildContext context, WidgetRef ref) {
@@ -60,10 +93,19 @@ class SyncBanner extends ConsumerWidget {
     ref.listen(syncProblemsProvider.select((p) => p.quota), (_, on) {
       if (on) _quotaNotice(context, ref);
     });
-    if (!syncBannerShown(ref, higherPriority: higherPriority)) {
-      return const SizedBox.shrink();
-    }
+    final kind = _kind(ref, higherPriority, noteId);
+    if (kind == null) return const SizedBox.shrink();
     final l = AppLocalizations.of(context);
+    const small = ButtonStyle(
+      minimumSize: WidgetStatePropertyAll(
+        Size(KkjTokens.spacingHitMinAndroid, KkjTokens.spacingHitMinAndroid),
+      ),
+    );
+    final text = switch (kind) {
+      _Kind.deleted => l.deletedBanner,
+      _Kind.newVersion => l.newVersionBanner,
+      _Kind.reauth => l.syncReauthBanner,
+    };
     return Semantics(
       container: true,
       liveRegion: true,
@@ -82,23 +124,29 @@ class SyncBanner extends ConsumerWidget {
               children: [
                 Expanded(
                   child: Text(
-                    l.syncReauthBanner,
+                    text,
                     style: Theme.of(context).textTheme.bodyMedium
                         ?.copyWith(color: KkjLight.componentsBannerText),
                   ),
                 ),
-                TextButton(
-                  style: const ButtonStyle(
-                    minimumSize: WidgetStatePropertyAll(
-                      Size(
-                        KkjTokens.spacingHitMinAndroid,
-                        KkjTokens.spacingHitMinAndroid,
-                      ),
-                    ),
+                if (kind == _Kind.reauth)
+                  TextButton(
+                    style: small,
+                    onPressed: () => _signIn(ref),
+                    child: Text(l.driveReauthAction),
                   ),
-                  onPressed: () => _signIn(ref),
-                  child: Text(l.driveReauthAction),
-                ),
+                if (kind == _Kind.deleted) ...[
+                  TextButton(
+                    style: small,
+                    onPressed: () => _revive(ref, noteId!),
+                    child: Text(l.deletedRevive),
+                  ),
+                  TextButton(
+                    style: small,
+                    onPressed: onCloseNote,
+                    child: Text(l.close),
+                  ),
+                ],
               ],
             ),
           ),

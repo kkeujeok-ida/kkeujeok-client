@@ -163,5 +163,13 @@
   "syncQuotaBody": "Drive 저장 공간이 부족해요. 이 기기에 보관 중이에요.",
   "syncManageDrive": "Drive 공간 관리",
   "syncOpenFailed": "페이지를 열지 못했어요.",
-  "syncReauthBanner": "로그인이 만료됐어요. 변경은 이 기기에 보관 중이에요."
+  "syncReauthBanner": "로그인이 만료됐어요. 변경은 이 기기에 보관 중이에요.",
+  "close": "닫기",
+  "deletedBanner": "다른 기기에서 지운 노트예요.",
+  "deletedRevive": "다시 살리기",
+  "revivedSnack": "다른 기기에서 지운 노트에 보내지 않은 변경이 있어 되살렸어요.",
+  "newVersionBanner": "새 버전에서 만든 노트예요. 앱을 업데이트하면 편집할 수 있어요.",
+  "cannotOpenBody": "이 노트 파일을 읽을 수 없어요. 파일은 그대로 두었어요.",
+  "cannotOpenViewInDrive": "Drive에서 보기",
+  "cannotOpenDownload": "파일로 내려받기"
 }

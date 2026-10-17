@@ -12,6 +12,7 @@ import '../model/note.dart';
 import '../render/page_painter.dart';
 import '../sync/note_receiver.dart';
 import '../sync/receive_scheduler.dart';
+import 'cannot_open_sheet.dart';
 import 'library_fab.dart';
 import 'new_note_sheet.dart';
 import 'note_editor.dart';
@@ -218,7 +219,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     await route;
     if (!mounted) return;
     ref.read(libraryProvider.notifier).reload();
-    unawaited(ref.read(uploadCoordinatorProvider).noteClosed(note.noteId));
+    final id = note.noteId;
+    final receiver = ref.read(noteReceiverProvider);
+    final coordinator = ref.read(uploadCoordinatorProvider);
+    // A note the editor showed as deleted elsewhere is removed (nothing
+    // unsent) or restored (something unsent) before it is uploaded.
+    unawaited(
+      receiver
+          .noteClosed(id)
+          .catchError((_) {})
+          .then((_) => coordinator.noteClosed(id))
+          .then((_) {
+            if (mounted) ref.read(libraryProvider.notifier).reload();
+          }),
+    );
   }
 
   @override
@@ -238,6 +252,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final recv = ref.watch(receiveStateProvider);
     ref.listen(receiveStateProvider.select((r) => r.version), (_, _) {
       ref.read(libraryProvider.notifier).reload();
+    });
+    ref.listen(receiveStateProvider.select((r) => r.revived), (prev, next) {
+      if (next > (prev ?? 0)) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(l10n.revivedSnack)));
+      }
     });
     ref.listen(receiveStateProvider.select((r) => r.scanning), (_, next) {
       _watchScan(next);
@@ -291,7 +312,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 receiving: recv.receiving.contains(e.noteId),
                 onTap: () => _open(e.note!),
               )
-            : const _UnreadableCard(),
+            : _UnreadableCard(noteId: e.noteId),
     ];
 
     return Stack(
@@ -570,9 +591,8 @@ class _RemoteNoteCard extends StatelessWidget {
         : DateTime.tryParse(card.modifiedAt!);
     final date = at == null
         ? null
-        : DateFormat.yMd(
-            Localizations.localeOf(context).toString(),
-          ).format(at.toLocal());
+        : DateFormat.yMd(Localizations.localeOf(context).toString())
+              .format(at.toLocal());
     return Semantics(
       label: card.title,
       value: receiving ? AppLocalizations.of(context).receiving : date,
@@ -618,6 +638,8 @@ class _NoteCard extends ConsumerWidget {
     final label = receiving
         ? SyncLabel.receiving
         : (!v.loaded || v.label == SyncLabel.saved ? null : v.label);
+    // The remote file cannot be read: the card is the "열 수 없음" one.
+    if (v.unreadable) return _UnreadableCard(noteId: entry.noteId);
     final note = entry.note!;
     final at = entry.editedAt;
     final date = at == null
@@ -629,10 +651,7 @@ class _NoteCard extends ConsumerWidget {
       label: note.title,
       // "자료구조, 두 버전, 오늘": the state is part of the value; no date
       // text and no semantics date when unknown.
-      value: [
-        if (label != null) _badgeText(l, label),
-        ?date,
-      ].join(', '),
+      value: [if (label != null) _badgeText(l, label), ?date].join(', '),
       excludeSemantics: true,
       onTap: onTap,
       child: InkWell(
@@ -663,25 +682,36 @@ class _NoteCard extends ConsumerWidget {
 }
 
 /// A note this client cannot read: shown dimmed, never opened or touched.
+/// A tap opens the sheet that says what happened (Story 3.17).
 class _UnreadableCard extends StatelessWidget {
-  const _UnreadableCard();
+  const _UnreadableCard({required this.noteId});
+
+  final String noteId;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final style = Theme.of(context).textTheme.labelMedium
         ?.copyWith(color: KkjLight.colorInkDisabled);
+    void open() => showCannotOpenSheet(context, noteId);
     return Semantics(
       label: l10n.cannotOpen,
-      enabled: false,
+      button: true,
       excludeSemantics: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const _Thumb(disabled: true),
-          const SizedBox(height: KkjTokens.spacing2),
-          Text(l10n.cannotOpen, style: style),
-        ],
+      onTap: open,
+      child: InkWell(
+        onTap: open,
+        borderRadius: BorderRadius.circular(
+          KkjLight.componentsCoverCardRounded,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _Thumb(disabled: true),
+            const SizedBox(height: KkjTokens.spacing2),
+            Text(l10n.cannotOpen, style: style),
+          ],
+        ),
       ),
     );
   }

@@ -42,6 +42,7 @@ class ReceiveState {
     this.cards = const [],
     this.scanning = false,
     this.version = 0,
+    this.revived = 0,
   });
 
   /// Notes that need a receive and are not settled yet.
@@ -54,16 +55,22 @@ class ReceiveState {
   /// Grows whenever a note on disk was changed by a receive.
   final int version;
 
+  /// Grows whenever a deleted note with unsent changes was brought back
+  /// (the snackbar of Story 3.17).
+  final int revived;
+
   ReceiveState copyWith({
     Set<String>? receiving,
     List<RemoteCard>? cards,
     bool? scanning,
     int? version,
+    int? revived,
   }) => ReceiveState(
     receiving: receiving ?? this.receiving,
     cards: cards ?? this.cards,
     scanning: scanning ?? this.scanning,
     version: version ?? this.version,
+    revived: revived ?? this.revived,
   );
 }
 
@@ -71,12 +78,37 @@ class ReceiveState {
 class _Stop implements Exception {}
 
 class _Failure implements Exception {
-  _Failure(this.cls, {this.status, this.reason});
+  _Failure(this.cls, {this.status, this.reason, this.head});
 
   final String cls;
   final int? status;
   final String? reason;
+
+  /// The remote head that could not be read (`unreadable` only): a change
+  /// with another head starts the receive over.
+  final String? head;
 }
+
+/// `trashed` or `removed` when [i] is a note ended by a gone Drive file.
+String? _goneKind(SyncInfo i) {
+  if (i.state != SyncState.error || i.lastError?['class'] != 'deleted') {
+    return null;
+  }
+  return i.lastError?['reason'] == 'trashed' ? 'trashed' : 'removed';
+}
+
+/// An `unreadable` note whose Drive file has another head now.
+bool _recoverable(SyncInfo i, String? head) =>
+    i.state == SyncState.error &&
+    i.lastError?['class'] == 'unreadable' &&
+    i.lastError?['head'] is String &&
+    i.lastError?['head'] != head;
+
+/// An `error` that a change of the same file ends (Story 3.17).
+bool _relinkable(SyncInfo i, DriveFile f) =>
+    i.fileId == f.id &&
+    i.pendingVerify == null &&
+    (_goneKind(i) != null || _recoverable(i, f.headRevisionId));
 
 final _uuid = RegExp(
   r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
@@ -101,6 +133,8 @@ class NoteReceiver {
     required this.account,
     required this.sleep,
     required this.jitter,
+    this.flushOpen,
+    this.uploadNote,
     NoteChain? chain,
   }) : chain = chain ?? NoteChain();
 
@@ -116,6 +150,12 @@ class NoteReceiver {
   final Future<void> Function(Duration) sleep;
   final double Function() jitter;
   final NoteChain chain;
+
+  /// Waits until the open editor's save queue is on disk.
+  final Future<void> Function()? flushOpen;
+
+  /// Uploads a note that was brought back (the coordinator's `noteClosed`).
+  final Future<void> Function(String noteId)? uploadNote;
 
   final state = ValueNotifier<ReceiveState>(const ReceiveState());
   final _counts = <String, int>{};
@@ -217,6 +257,7 @@ class NoteReceiver {
       } else {
         await _follow(a.sub, token, d.rootFolderId);
       }
+      await _settleGone(a.sub);
     } on _Stop {
       // Signed out or another account: nothing more is done.
     } on _Failure catch (f) {
@@ -284,6 +325,7 @@ class NoteReceiver {
     await _handle(sub, root, [
       for (final f in files) DriveChange(f.id, file: f),
     ]);
+    await _sweepUnlisted(sub, {for (final f in files) f.id});
     await _saveToken(sub, startToken);
   }
 
@@ -348,12 +390,29 @@ class NoteReceiver {
       last[c.fileId] = c;
     }
     final gone = <String>{};
+    final goneNotes = <({String id, String fileId, String kind})>[];
+    Map<String, String>? owners; // fileId -> local noteId, built on demand
     final work = <DriveFile>[];
     final cards = <RemoteCard>[];
     for (final c in last.values) {
       final f = c.file;
       if (c.removed || f == null || f.trashed) {
         gone.add(c.fileId);
+        if (owners == null) {
+          owners = {};
+          for (final id in await store.ids()) {
+            final fid = (await store.readSync(id)).info.fileId;
+            if (fid != null) owners[fid] = id;
+          }
+        }
+        final owner = owners[c.fileId];
+        if (owner != null) {
+          goneNotes.add((
+            id: owner,
+            fileId: c.fileId,
+            kind: c.removed || f == null ? 'removed' : 'trashed',
+          ));
+        }
         continue;
       }
       if (!_valid(f)) continue;
@@ -362,9 +421,11 @@ class NoteReceiver {
       if (local == null) {
         final card = _card(f, root);
         if (card != null) cards.add(card);
-      } else if (local.note == null ||
-          _skip((await store.readSync(id)).info, f)) {
+      } else if (local.note == null) {
         continue; // unreadable data is never overwritten
+      } else {
+        final info = (await store.readSync(id)).info;
+        if (!_relinkable(info, f) && _skip(info, f)) continue;
       }
       work.add(f);
     }
@@ -378,6 +439,10 @@ class NoteReceiver {
           ],
         ),
       );
+    }
+    for (final g in goneNotes) {
+      await _guard(sub);
+      await _goneSafe(sub, g.id, g.fileId, g.kind);
     }
     final ids = [for (final f in work) f.appProperties['kkeujeokId']!];
     _mark(ids, cards);
@@ -412,7 +477,23 @@ class NoteReceiver {
       await _guard(sub);
       final cur = await store.read(id);
       if (cur != null && cur.note == null) return;
-      if (cur != null && _skip((await store.readSync(id)).info, f)) return;
+      if (cur != null) {
+        var info = (await store.readSync(id)).info;
+        var relinked = false;
+        if (_relinkable(info, f)) {
+          // The file is live again, or a broken one has another head: look
+          // again from a clean state.
+          await _clearError(id);
+          info = (await store.readSync(id)).info;
+          relinked = true;
+        }
+        if (_skip(info, f)) {
+          if (relinked && info.baseHeadRevisionId == head) {
+            await _settleWhole(id); // the same file is back: nothing to receive
+          }
+          return;
+        }
+      }
       if (cur != null && !announced) {
         await _event(id, 'remoteChange');
         announced = true;
@@ -425,7 +506,9 @@ class NoteReceiver {
           final reason = r.status == ReadStatus.unsupportedVersion
               ? 'unsupportedVersion'
               : 'parse';
-          if (cur != null) throw _Failure('unreadable', reason: reason);
+          if (cur != null) {
+            throw _Failure('unreadable', reason: reason, head: head);
+          }
           await _guard(sub);
           final done = await _wrapWrite(
             () => store.storeUnreadable(
@@ -434,7 +517,11 @@ class NoteReceiver {
               SyncInfo(
                 fileId: f.id,
                 state: SyncState.error,
-                lastError: {'class': 'unreadable', 'reason': reason},
+                lastError: {
+                  'class': 'unreadable',
+                  'reason': reason,
+                  'head': head,
+                },
               ),
             ),
           );
@@ -526,7 +613,7 @@ class NoteReceiver {
           await _event(id, 'conflictFound');
         }
       case MergeUnsupported():
-        throw _Failure('unreadable', reason: 'unsupportedVersion');
+        throw _Failure('unreadable', reason: 'unsupportedVersion', head: head);
       case MergeFailed(:final code):
         throw _Failure('fatal', reason: code);
     }
@@ -659,7 +746,12 @@ class NoteReceiver {
           state: t == null
               ? c.state
               : SyncState.values.firstWhere((s) => s.name == t),
-          lastError: {'class': f.cls, 'status': ?f.status, 'reason': ?f.reason},
+          lastError: {
+            'class': f.cls,
+            'status': ?f.status,
+            'reason': ?f.reason,
+            if (f.cls == 'unreadable') 'head': ?f.head,
+          },
         );
       });
       final t = transition(from!, 'failed');
@@ -671,42 +763,263 @@ class NoteReceiver {
     }
   }
 
-  // ---- opening a note ----------------------------------------------------
+  // ---- the Drive file of a note that is here is gone (Story 3.17) --------
 
-  /// A note was opened: asks Drive for its head once and receives it when it
-  /// moved. The editor blocks strokes while the note is in the receiving set.
-  Future<void> noteOpened(String noteId) async {
+  /// `retry` and no `lastError`: the file is live again, or it has another
+  /// head than the broken one.
+  Future<void> _clearError(String id) async {
+    String? from, to;
+    await _wrapWrite(
+      () => store.updateSync(id, (c) {
+        from = to = c.state.name;
+        if (c.state != SyncState.error) return c;
+        to = transition('error', 'retry');
+        return c.copyWith(state: SyncState.pending, lastError: null);
+      }),
+    );
+    if (from != to) {
+      await log.append('stateChange', {'noteId': id, 'from': from, 'to': to});
+    }
+  }
+
+  /// The note is whole again (nothing to receive): `synced`, or `pending`
+  /// when it has unsent changes.
+  Future<void> _settleWhole(String id) async {
+    final unsent = (await store.readSync(id)).hasUnsent;
+    String? from, to;
+    await _wrapWrite(
+      () => store.updateSync(id, (c) {
+        from = to = c.state.name;
+        if (c.state != SyncState.pending && c.state != SyncState.synced) {
+          return c;
+        }
+        to = unsent ? 'pending' : 'synced';
+        return c.copyWith(state: SyncState.values.byName(to!));
+      }),
+    );
+    if (from != to) {
+      await log.append('stateChange', {'noteId': id, 'from': from, 'to': to});
+    }
+    _bump();
+  }
+
+  /// `error` + `lastError deleted`: what the banner of an open note and the
+  /// next sweep read.
+  Future<void> _markGone(String id, String kind) async {
+    String? from;
+    await _wrapWrite(
+      () => store.updateSync(id, (c) {
+        from = c.state.name;
+        final t = transition(c.state.name, 'failed');
+        return c.copyWith(
+          state: t == null ? c.state : SyncState.values.byName(t),
+          lastError: {'class': 'deleted', 'reason': kind},
+        );
+      }),
+    );
+    if (from != 'error') {
+      await log.append('stateChange', {
+        'noteId': id,
+        'from': from,
+        'to': 'error',
+      });
+    }
+    _bump();
+  }
+
+  bool _keepsLocal(SyncRead s) =>
+      s.hasUnsent ||
+      s.info.pendingVerify != null ||
+      s.info.state == SyncState.conflict ||
+      s.info.conflicts.any((c) => c['resolvedAt'] == null);
+
+  /// Puts the note back on Drive (inside the note's chain): untrash, or
+  /// forget the file so the next upload creates it again with the same id.
+  Future<void> _reviveIn(
+    String sub,
+    String id,
+    String kind,
+    String fileId, {
+    required bool announce,
+  }) async {
+    var k = kind;
+    if (k == 'trashed') {
+      try {
+        await _call(
+          id,
+          () => drive.update(fileId, trashed: false),
+          pass: (e) => e.kind == 'http' && e.status == 404,
+        );
+      } on DriveError {
+        k = 'removed'; // deleted for good meanwhile
+      }
+    }
+    await _guard(sub);
+    if (k == 'removed') {
+      final from = (await store.readSync(id)).info.state.name;
+      await _wrapWrite(() => store.resetSync(id));
+      if (from != 'pending') {
+        await log.append('stateChange', {
+          'noteId': id,
+          'from': from,
+          'to': 'pending',
+        });
+      }
+    } else {
+      await _clearError(id);
+      await _settleWhole(id);
+    }
+    if (announce) _emit((s) => s.copyWith(revived: s.revived + 1));
+    _bump();
+  }
+
+  /// One decision for a note whose file is gone, inside its chain; true =
+  /// upload it now. Everything is read again after the last await: unsent
+  /// changes (an open note is flushed first) restore it, an open note with
+  /// none gets the banner, a closed one is removed (only while its working
+  /// copy is unchanged).
+  Future<bool> _goneStep(
+    String sub,
+    String id,
+    String fileId,
+    String kind,
+  ) async {
+    for (var tries = 0; tries < 3; tries++) {
+      await _guard(sub);
+      if (hosts.of(id) != null) {
+        try {
+          await flushOpen?.call();
+        } catch (_) {}
+      }
+      await _guard(sub);
+      final note = (await store.read(id))?.note;
+      final s = await store.readSync(id);
+      final open = hosts.of(id) != null; // decided after the last await
+      if (note == null || s.info.fileId != fileId) return false;
+      if (_keepsLocal(s)) {
+        await log.append('error', {
+          'class': 'deleted',
+          'noteId': id,
+          'reason': kind,
+        });
+        await _reviveIn(sub, id, kind, fileId, announce: true);
+        return !open;
+      }
+      if (open) {
+        if (_goneKind(s.info) == null) {
+          await log.append('error', {
+            'class': 'deleted',
+            'noteId': id,
+            'reason': kind,
+          });
+          await _markGone(id, kind);
+        }
+        return false;
+      }
+      await log.append('error', {
+        'class': 'deleted',
+        'noteId': id,
+        'reason': kind,
+      });
+      if (await _wrapWrite(() => store.removeNote(id, expected: note))) {
+        _bump();
+        return false;
+      }
+    }
+    return false;
+  }
+
+  Future<void> _fileGone(
+    String sub,
+    String id,
+    String fileId,
+    String kind,
+  ) async {
+    var upload = false;
+    await chain.run(id, () async {
+      upload = await _goneStep(sub, id, fileId, kind);
+    });
+    if (upload) {
+      try {
+        await uploadNote?.call(id);
+      } catch (_) {}
+    }
+  }
+
+  /// [_fileGone] that never fails the batch: a permanent failure is logged,
+  /// a transient one ends the check (the change comes again).
+  Future<void> _goneSafe(
+    String sub,
+    String id,
+    String fileId,
+    String kind,
+  ) async {
     try {
-      if (_disposed || !await allowed() || !await online()) return;
+      await _fileGone(sub, id, fileId, kind);
+    } on _Failure catch (f) {
+      await _logFailure(id, f);
+      if (_transient.contains(f.cls)) rethrow;
+    }
+  }
+
+  /// Every note an earlier upload or receive ended as deleted (and an open
+  /// one that was already marked) is decided again.
+  Future<void> _settleGone(String sub) async {
+    for (final id in await store.ids()) {
+      await _guard(sub);
+      final info = (await store.readSync(id)).info;
+      final kind = _goneKind(info);
+      if (kind != null && info.fileId != null) {
+        await _goneSafe(sub, id, info.fileId!, kind);
+      }
+    }
+  }
+
+  /// After a full listing: a local note whose file the listing does not show
+  /// is looked up (it may have been trashed, deleted, or only moved out of
+  /// the folder, which keeps it live).
+  Future<void> _sweepUnlisted(String sub, Set<String> listed) async {
+    for (final id in await store.ids()) {
+      await _guard(sub);
+      final info = (await store.readSync(id)).info;
+      final fileId = info.fileId;
+      if (fileId == null ||
+          listed.contains(fileId) ||
+          info.state == SyncState.syncing ||
+          info.pendingVerify != null) {
+        continue;
+      }
+      String? kind;
+      try {
+        final f = await _call(
+          id,
+          () => drive.get(fileId, fields: 'headRevisionId,trashed'),
+        );
+        if (f.trashed) kind = 'trashed';
+      } on _Failure catch (e) {
+        if (_transient.contains(e.cls)) rethrow;
+        if (e.cls != 'deleted') {
+          await _logFailure(id, e); // one bad note does not stop the sweep
+          continue;
+        }
+        kind = 'removed';
+      }
+      if (kind != null) await _goneSafe(sub, id, fileId, kind);
+    }
+  }
+
+  /// Runs [body] with the account of the run; every failure is logged.
+  Future<void> _guarded(
+    String? noteId,
+    Future<void> Function(String sub) body, {
+    bool needsOnline = true,
+  }) async {
+    try {
+      if (_disposed || !await allowed()) return;
+      if (needsOnline && !await online()) return;
       final a = account();
       if (a == null) return;
-      final s = await store.readSync(noteId);
-      final fileId = s.info.fileId;
-      if (fileId == null ||
-          s.info.state == SyncState.error ||
-          s.info.pendingVerify != null) {
-        return;
-      }
-      final f = await _call(
-        noteId,
-        () => drive.get(fileId, fields: 'headRevisionId,trashed'),
-      );
-      await _guard(a.sub);
-      final head = f.headRevisionId;
-      if (f.trashed || head == null || head == s.info.baseHeadRevisionId) {
-        return;
-      }
-      await _handle(a.sub, (await device.read()).rootFolderId, [
-        DriveChange(
-          fileId,
-          file: DriveFile(
-            id: fileId,
-            appProperties: {'kkeujeokId': noteId},
-            headRevisionId: head,
-            mimeType: noteMimeType,
-          ),
-        ),
-      ]);
+      await body(a.sub);
     } on _Stop {
       // Account changed.
     } on _Failure catch (f) {
@@ -715,6 +1028,76 @@ class NoteReceiver {
       await log.append('error', {'class': 'fatal', 'reason': 'other'});
     }
   }
+
+  /// [다시 살리기] of the deleted banner: the file is untrashed, or created
+  /// again by the next upload.
+  Future<void> revive(String noteId) => _guarded(noteId, (sub) async {
+    final info = (await store.readSync(noteId)).info;
+    final kind = _goneKind(info);
+    final fileId = info.fileId;
+    if (kind == null || fileId == null) return;
+    await chain.run(noteId, () async {
+      await _guard(sub);
+      final now = (await store.readSync(noteId)).info;
+      if (_goneKind(now) == null || now.fileId != fileId) return;
+      await _reviveIn(sub, noteId, _goneKind(now)!, fileId, announce: false);
+    });
+  });
+
+  /// The editor of [noteId] is gone: a note still marked `deleted` is
+  /// removed when it has nothing unsent, restored when it has.
+  Future<void> noteClosed(String noteId) =>
+      _guarded(noteId, needsOnline: false, (sub) async {
+        final info = (await store.readSync(noteId)).info;
+        final kind = _goneKind(info);
+        if (kind != null && info.fileId != null) {
+          await _fileGone(sub, noteId, info.fileId!, kind);
+        }
+      });
+
+  // ---- opening a note ----------------------------------------------------
+
+  /// A note was opened: asks Drive for its head once and receives it when it
+  /// moved (or sees that its file is gone). The editor blocks strokes while
+  /// the note is in the receiving set.
+  Future<void> noteOpened(String noteId) => _guarded(noteId, (sub) async {
+    final s = await store.readSync(noteId);
+    final fileId = s.info.fileId;
+    final cls = s.info.lastError?['class'];
+    if (fileId == null ||
+        s.info.pendingVerify != null ||
+        (s.info.state == SyncState.error &&
+            cls != 'deleted' &&
+            cls != 'unreadable')) {
+      return;
+    }
+    final DriveFile f;
+    try {
+      f = await _call(
+        noteId,
+        () => drive.get(fileId, fields: 'headRevisionId,trashed'),
+      );
+    } on _Failure catch (e) {
+      if (e.cls != 'deleted') rethrow;
+      return _fileGone(sub, noteId, fileId, 'removed');
+    }
+    await _guard(sub);
+    final head = f.headRevisionId;
+    if (f.trashed) return _fileGone(sub, noteId, fileId, 'trashed');
+    final probe = DriveFile(
+      id: fileId,
+      appProperties: {'kkeujeokId': noteId},
+      headRevisionId: head,
+      mimeType: noteMimeType,
+    );
+    if (head == null ||
+        (head == s.info.baseHeadRevisionId && !_relinkable(s.info, probe))) {
+      return;
+    }
+    await _handle(sub, (await device.read()).rootFolderId, [
+      DriveChange(fileId, file: probe),
+    ]);
+  });
 
   // ---- calls -------------------------------------------------------------
 

@@ -278,6 +278,20 @@ class FakeDrive implements DriveClient {
     changeLog.add((item.id, false));
   }
 
+  /// Another device (or the Drive web UI) renames the file: no new revision.
+  void renameForeign(FakeItem item, String name) {
+    item.name = name;
+    changeLog.add((item.id, false));
+  }
+
+  /// Another device (or the Drive web UI) moves the file to [parent].
+  void moveForeign(FakeItem item, String parent) {
+    item.parents
+      ..clear()
+      ..add(parent);
+    changeLog.add((item.id, false));
+  }
+
   void _applyMetadata(FakeItem i, Map<String, Object?> m) {
     if (m['name'] is String) i.name = m['name'] as String;
     final props = m['appProperties'];
@@ -398,7 +412,11 @@ class FakeDrive implements DriveClient {
     String? removeParents,
     bool? trashed,
   }) async {
-    final what = trashed == true ? 'trash' : 'move';
+    final what = switch (trashed) {
+      true => 'trash',
+      false => 'untrash',
+      null => 'move',
+    };
     _enter('update:$id:$what');
     final i = _find(id);
     if (i == null) throw const DriveError('http', status: 404);

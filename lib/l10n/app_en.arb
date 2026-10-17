@@ -186,5 +186,13 @@
   "syncQuotaBody": "Drive is out of space. Changes are kept on this device.",
   "syncManageDrive": "Manage Drive storage",
   "syncOpenFailed": "Couldn't open the page.",
-  "syncReauthBanner": "Your sign-in expired. Changes are kept on this device."
+  "syncReauthBanner": "Your sign-in expired. Changes are kept on this device.",
+  "close": "Close",
+  "deletedBanner": "This note was deleted on another device.",
+  "deletedRevive": "Bring it back",
+  "revivedSnack": "This note was deleted on another device but had changes not sent yet, so it was brought back.",
+  "newVersionBanner": "This note was made in a newer version. Update the app to edit it.",
+  "cannotOpenBody": "This note file cannot be read. The file was left as it is.",
+  "cannotOpenViewInDrive": "View in Drive",
+  "cannotOpenDownload": "Download as file"
 }

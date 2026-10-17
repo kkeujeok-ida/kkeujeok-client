@@ -769,6 +769,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Your sign-in expired. Changes are kept on this device.'**
   String get syncReauthBanner;
+
+  /// No description provided for @close.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get close;
+
+  /// No description provided for @deletedBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'This note was deleted on another device.'**
+  String get deletedBanner;
+
+  /// No description provided for @deletedRevive.
+  ///
+  /// In en, this message translates to:
+  /// **'Bring it back'**
+  String get deletedRevive;
+
+  /// No description provided for @revivedSnack.
+  ///
+  /// In en, this message translates to:
+  /// **'This note was deleted on another device but had changes not sent yet, so it was brought back.'**
+  String get revivedSnack;
+
+  /// No description provided for @newVersionBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'This note was made in a newer version. Update the app to edit it.'**
+  String get newVersionBanner;
+
+  /// No description provided for @cannotOpenBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This note file cannot be read. The file was left as it is.'**
+  String get cannotOpenBody;
+
+  /// No description provided for @cannotOpenViewInDrive.
+  ///
+  /// In en, this message translates to:
+  /// **'View in Drive'**
+  String get cannotOpenViewInDrive;
+
+  /// No description provided for @cannotOpenDownload.
+  ///
+  /// In en, this message translates to:
+  /// **'Download as file'**
+  String get cannotOpenDownload;
 }
 
 class _AppLocalizationsDelegate

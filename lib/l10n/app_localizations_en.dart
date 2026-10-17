@@ -402,4 +402,31 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get syncReauthBanner =>
       'Your sign-in expired. Changes are kept on this device.';
+
+  @override
+  String get close => 'Close';
+
+  @override
+  String get deletedBanner => 'This note was deleted on another device.';
+
+  @override
+  String get deletedRevive => 'Bring it back';
+
+  @override
+  String get revivedSnack =>
+      'This note was deleted on another device but had changes not sent yet, so it was brought back.';
+
+  @override
+  String get newVersionBanner =>
+      'This note was made in a newer version. Update the app to edit it.';
+
+  @override
+  String get cannotOpenBody =>
+      'This note file cannot be read. The file was left as it is.';
+
+  @override
+  String get cannotOpenViewInDrive => 'View in Drive';
+
+  @override
+  String get cannotOpenDownload => 'Download as file';
 }

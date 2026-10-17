@@ -366,4 +366,28 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get syncReauthBanner => '로그인이 만료됐어요. 변경은 이 기기에 보관 중이에요.';
+
+  @override
+  String get close => '닫기';
+
+  @override
+  String get deletedBanner => '다른 기기에서 지운 노트예요.';
+
+  @override
+  String get deletedRevive => '다시 살리기';
+
+  @override
+  String get revivedSnack => '다른 기기에서 지운 노트에 보내지 않은 변경이 있어 되살렸어요.';
+
+  @override
+  String get newVersionBanner => '새 버전에서 만든 노트예요. 앱을 업데이트하면 편집할 수 있어요.';
+
+  @override
+  String get cannotOpenBody => '이 노트 파일을 읽을 수 없어요. 파일은 그대로 두었어요.';
+
+  @override
+  String get cannotOpenViewInDrive => 'Drive에서 보기';
+
+  @override
+  String get cannotOpenDownload => '파일로 내려받기';
 }

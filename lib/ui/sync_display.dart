@@ -26,6 +26,7 @@ class NoteSyncView {
     this.label, {
     this.state = SyncState.pending,
     this.errorClass,
+    this.errorReason,
     this.loaded = true,
   });
 
@@ -38,6 +39,19 @@ class NoteSyncView {
   /// `lastError.class`, only while [state] is `error`.
   final String? errorClass;
 
+  /// `lastError.reason`, only while [state] is `error`.
+  final String? errorReason;
+
+  /// The Drive file was deleted elsewhere (Story 3.17).
+  bool get deleted => errorClass == 'deleted';
+
+  /// The remote file cannot be read here: the card is "열 수 없음".
+  bool get unreadable => errorClass == 'unreadable' && errorReason == 'parse';
+
+  /// The remote note is of a newer format: it opens read-only.
+  bool get newVersion =>
+      errorClass == 'unreadable' && errorReason == 'unsupportedVersion';
+
   bool get isError => label == SyncLabel.notSaved;
   bool get quota => isError && errorClass == 'quota';
   bool get reauth => isError && errorClass == 'reauth';
@@ -48,10 +62,12 @@ class NoteSyncView {
       other.label == label &&
       other.state == state &&
       other.errorClass == errorClass &&
+      other.errorReason == errorReason &&
       other.loaded == loaded;
 
   @override
-  int get hashCode => Object.hash(label, state, errorClass, loaded);
+  int get hashCode =>
+      Object.hash(label, state, errorClass, errorReason, loaded);
 }
 
 /// `saving` and `receiving` are drawn only after this long...
@@ -183,6 +199,9 @@ class NoteSyncNotifier extends Notifier<NoteSyncView> {
       state: r.state,
       errorClass: r.state == SyncState.error
           ? (r.info.lastError?['class'] as String?)
+          : null,
+      errorReason: r.state == SyncState.error
+          ? (r.info.lastError?['reason'] as String?)
           : null,
     );
 

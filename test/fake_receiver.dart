@@ -14,6 +14,15 @@ class RecReceiver implements NoteReceiver {
   @override
   Future<void> noteOpened(String noteId) async => opened.add(noteId);
 
+  final closed = <String>[];
+  final revived = <String>[];
+
+  @override
+  Future<void> noteClosed(String noteId) async => closed.add(noteId);
+
+  @override
+  Future<void> revive(String noteId) async => revived.add(noteId);
+
   @override
   void dispose() {}
 
