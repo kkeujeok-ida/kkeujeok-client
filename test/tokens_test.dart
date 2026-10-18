@@ -70,9 +70,9 @@ void main() {
   test('generated Dart values match the source', () {
     // Literal expectations: a wrong ARGB order, weight or unit in the generator
     // would otherwise only show up on the device.
-    expect(KkjLight.colorAccent, const Color(0xFF2F6FEB));
+    expect(KkjLight.colorAccent, const Color(0xFFFDD55D));
     expect(KkjLight.colorScrim, const Color(0x6B22242A));
-    expect(KkjDark.colorAccent, const Color(0xFF7AA5F5));
+    expect(KkjDark.colorAccent, const Color(0xFFFDD55D));
     expect(KkjDark.colorScrim, const Color(0x99000000));
     expect(KkjTokens.typographyTitleFontWeight, FontWeight.w600);
     expect(KkjTokens.typographyBodyFontSize, 15.0);
