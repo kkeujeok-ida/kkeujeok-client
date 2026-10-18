@@ -16,12 +16,14 @@ import '../ops/ops.dart';
 import '../ops/resolve_conflict.dart';
 import '../render/page_painter.dart';
 import '../sync/merge_step.dart';
+import '../sync/version_history.dart' show RestoreFailure;
 import 'conflict_sheet.dart';
 import 'pen_toolbar.dart';
 import 'providers.dart';
 import 'sync_banner.dart';
 import 'sync_display.dart';
 import 'sync_indicator.dart';
+import 'version_history.dart';
 
 /// The writing screen: page, toolbar and the top-left `editor-corner`.
 /// Input goes through `History.doOp(addStroke)`; every stroke is saved
@@ -580,6 +582,47 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     return used;
   }
 
+  // ---- version history (Story 3.24) -------------------------------------
+
+  Future<void> _openHistory() async {
+    if (_leaving || !mounted) return;
+    final restored = await showVersionHistory(
+      context,
+      noteId: widget.note.noteId,
+      onRestore: _restoreVersion,
+    );
+    if (!restored || !mounted) return;
+    _canvasFocus.requestFocus();
+    _announce(AppLocalizations.of(context).versionRestored, polite: true);
+  }
+
+  /// The restore procedure of spec `version-history`; the note is changed
+  /// through [_applyMerge], the same queue as every edit and every sync.
+  Future<RestoreFailure?> _restoreVersion(
+    Map<String, Object?> entry,
+    String fileId,
+  ) async {
+    if (_leaving || _readOnly || _receiving) return RestoreFailure.notApplied;
+    final id = widget.note.noteId;
+    final failure = await ref
+        .read(versionRestorerProvider)
+        .restore(
+          noteId: id,
+          fileId: fileId,
+          entry: entry,
+          live: () => _history.note,
+          apply: _applyMerge,
+        );
+    if (failure == null) {
+      if (!mounted) return null; // restored all the same
+      _held = null;
+      await _loadLastSeen(); // the locks follow the conflicts that are left
+      // The restored note goes up like any edit.
+      unawaited(_coordinator.syncNow(id));
+    }
+    return failure;
+  }
+
   /// Applies a merge to the live note as one item of the save queue (spec
   /// `merge.requeue`). The merge runs on the note as it is now; when an edit
   /// landed while [record] wrote the conflict files, it runs again on the
@@ -1136,6 +1179,11 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     final readOnly = ref.watch(
       noteSyncProvider(widget.note.noteId).select((v) => v.newVersion),
     );
+    final receiving = ref.watch(
+      receiveStateProvider.select(
+        (r) => r.receiving.contains(widget.note.noteId),
+      ),
+    );
     return LayoutBuilder(
       builder: (context, c) {
         if (page != null) _layout(c.biggest, pad);
@@ -1216,6 +1264,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                     onZoomIn: () => _zoomBy(_zoomStep),
                     onFitWidth: () => _goTo(_laidOut(_Fit.width), _Fit.width),
                     onFitPage: () => _goTo(_laidOut(_Fit.page), _Fit.page),
+                    onVersionHistory: readOnly || receiving ? null : _openHistory,
                   );
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1320,12 +1369,14 @@ class _MoreMenu extends StatelessWidget {
     required this.onZoomIn,
     required this.onFitWidth,
     required this.onFitPage,
+    required this.onVersionHistory,
   });
 
   final String noteId;
   final int percent;
   final bool canZoomOut, canZoomIn;
   final VoidCallback onZoomOut, onZoomIn, onFitWidth, onFitPage;
+  final VoidCallback? onVersionHistory;
 
   static const _hit = BoxConstraints(
     minWidth: KkjTokens.spacingHitMinAndroid,
@@ -1398,6 +1449,11 @@ class _MoreMenu extends StatelessWidget {
                 style: item,
                 onPressed: onFitPage,
                 child: Text(l10n.fitPage),
+              ),
+              MenuItemButton(
+                style: item,
+                onPressed: onVersionHistory,
+                child: Text(l10n.versionHistory),
               ),
             ],
             builder: (context, controller, _) => IconButton(

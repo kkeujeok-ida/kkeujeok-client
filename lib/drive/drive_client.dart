@@ -67,12 +67,13 @@ class ChangesPage {
   final String? newStartPageToken;
 }
 
-/// One entry of `revisions.list` (`id`, `modifiedTime`).
+/// One entry of `revisions.list` (`id`, `modifiedTime`, `keepForever`).
 class DriveRevision {
-  const DriveRevision(this.id, this.modifiedTime);
+  const DriveRevision(this.id, this.modifiedTime, {this.keepForever = false});
 
   final String id;
   final String modifiedTime;
+  final bool keepForever;
 }
 
 /// Answer of one resumable `PUT`: [file] is set when the upload finished
@@ -145,6 +146,17 @@ abstract interface class DriveClient {
 
   /// `revisions.get` with `alt=media`.
   Future<List<int>> downloadRevision(String fileId, String revisionId);
+
+  /// `revisions.update` of `keepForever` (Story 3.24, spec `version-history`).
+  /// HTTP 404 means the revision is gone.
+  Future<void> updateRevision(
+    String fileId,
+    String revisionId, {
+    required bool keepForever,
+  });
+
+  /// `files.get` with `alt=media`: the content of a file (a sidecar).
+  Future<List<int>> downloadFile(String fileId);
 
   /// `changes.getStartPageToken`.
   Future<String> getStartPageToken();

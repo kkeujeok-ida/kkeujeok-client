@@ -35,6 +35,7 @@ import '../sync/sync_log.dart';
 import '../sync/unsent.dart';
 import '../sync/thumbnail.dart';
 import '../sync/upload_coordinator.dart';
+import '../sync/version_history.dart';
 
 /// Overridden in main() with the opened preferences.
 final languageStoreProvider = Provider<LanguageStore>(
@@ -348,6 +349,15 @@ final uploadCoordinatorProvider = Provider<UploadCoordinator>(
     online: ref.read(networkProbeProvider),
     schedule: ref.read(backgroundSchedulerProvider),
     receive: () => ref.read(noteReceiverProvider).check(),
+  ),
+);
+
+/// The restore procedure of the version history (Story 3.24).
+final versionRestorerProvider = Provider<VersionRestorer>(
+  (ref) => VersionRestorer(
+    drive: ref.read(driveClientProvider),
+    store: ref.read(noteStoreProvider),
+    coordinator: ref.read(uploadCoordinatorProvider),
   ),
 );
 

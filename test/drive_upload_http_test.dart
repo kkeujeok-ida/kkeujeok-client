@@ -178,7 +178,11 @@ void main() {
       for (var n = 1; n <= 3; n++)
         jsonEncode({
           'revisions': [
-            {'id': 'R$n', 'modifiedTime': '2026-10-10T04:20:0$n.000Z'},
+            {
+              'id': 'R$n',
+              'modifiedTime': '2026-10-10T04:20:0$n.000Z',
+              if (n == 2) 'keepForever': true,
+            },
           ],
           if (n < 3) 'nextPageToken': 'p$n',
         }),
@@ -189,10 +193,43 @@ void main() {
     expect(seen[0].uri.queryParameters['pageSize'], '1000');
     expect(
       seen[0].uri.queryParameters['fields'],
-      'nextPageToken,revisions(id,modifiedTime)',
+      'nextPageToken,revisions(id,modifiedTime,keepForever)',
     );
+    expect([for (final r in revs) r.keepForever], [false, true, false]);
     expect(seen[1].uri.queryParameters['pageToken'], 'p1');
     expect(seen[2].uri.queryParameters['pageToken'], 'p2');
+  });
+
+  test('updateRevision patches keepForever of one revision', () async {
+    reply = '{"id":"R1","keepForever":true}';
+    await client().updateRevision('F1', 'R1', keepForever: true);
+    expect(seen.single.method, 'PATCH');
+    expect(seen.single.uri.path, '/drive/v3/files/F1/revisions/R1');
+    expect(jsonDecode(utf8.decode(seen.single.body)), {'keepForever': true});
+    await client().updateRevision('F1', 'R1', keepForever: false);
+    expect(jsonDecode(utf8.decode(seen.last.body)), {'keepForever': false});
+  });
+
+  test('a purged revision answers 404 on update and download', () async {
+    status = 404;
+    reply = '{"error":{"errors":[{"reason":"notFound"}]}}';
+    for (final call in [
+      () => client().updateRevision('F1', 'R1', keepForever: true),
+      () => client().downloadRevision('F1', 'R1'),
+    ]) {
+      await expectLater(
+        call(),
+        throwsA(isA<DriveError>().having((e) => e.status, 'status', 404)),
+      );
+    }
+  });
+
+  test('downloadFile asks alt=media for the file itself', () async {
+    reply = 'abc';
+    final b = await client().downloadFile('F1');
+    expect(utf8.decode(b), 'abc');
+    expect(seen.single.uri.path, '/drive/v3/files/F1');
+    expect(seen.single.uri.queryParameters['alt'], 'media');
   });
 
   test('downloadRevision asks alt=media and returns the bytes', () async {

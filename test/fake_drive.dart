@@ -10,6 +10,7 @@ class FakeRevision {
   final String id;
   final String modifiedTime;
   final List<int> bytes;
+  bool keepForever = false;
 }
 
 class FakeItem {
@@ -99,7 +100,8 @@ class FakeDrive implements DriveClient {
   /// Every call, in order: `list`, `create`, `get:<id>`, `update:<id>:<what>`,
   /// `upload:<id|new>`, `resumable:start:<id|new>`,
   /// `resumable:put:<session>:<offset>`, `resumable:query:<session>`,
-  /// `revisions:<id>`, `media:<id>:<revision>`.
+  /// `revisions:<id>`, `media:<id>:<revision>`, `content:<id>`,
+  /// `pin:<id>:<revision>:<keepForever>`.
   final List<String> calls = [];
 
   /// Every upload request (simple, or the start of a session).
@@ -501,7 +503,35 @@ class FakeDrive implements DriveClient {
     _enter('revisions:$fileId');
     final i = _find(fileId);
     if (i == null) throw const DriveError('http', status: 404);
-    return [for (final r in i.revisions) DriveRevision(r.id, r.modifiedTime)];
+    return [
+      for (final r in i.revisions)
+        DriveRevision(r.id, r.modifiedTime, keepForever: r.keepForever),
+    ];
+  }
+
+  @override
+  Future<void> updateRevision(
+    String fileId,
+    String revisionId, {
+    required bool keepForever,
+  }) async {
+    _enter('pin:$fileId:$revisionId:$keepForever');
+    final r = _find(fileId)?.revisions
+        .where((r) => r.id == revisionId)
+        .firstOrNull;
+    if (r == null) throw const DriveError('http', status: 404);
+    r.keepForever = keepForever;
+    after?.call('pin:$fileId:$revisionId:$keepForever');
+  }
+
+  @override
+  Future<List<int>> downloadFile(String fileId) async {
+    _enter('content:$fileId');
+    final i = _find(fileId);
+    if (i == null || i.revisions.isEmpty) {
+      throw const DriveError('http', status: 404);
+    }
+    return [...i.bytes];
   }
 
   @override

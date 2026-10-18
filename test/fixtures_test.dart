@@ -13,6 +13,7 @@ import 'package:kkeujeok/model/number.dart';
 import 'package:kkeujeok/ops/history.dart';
 import 'package:kkeujeok/ops/ops.dart';
 import 'package:kkeujeok/ops/resolve_conflict.dart';
+import 'package:kkeujeok/ops/restore.dart';
 import 'package:kkeujeok/render/page_background.dart';
 import 'package:kkeujeok/render/stroke_outline.dart';
 import 'package:kkeujeok/sync/error_class.dart';
@@ -20,6 +21,7 @@ import 'package:kkeujeok/sync/has_unsent.dart';
 import 'package:kkeujeok/sync/merge.dart';
 import 'package:kkeujeok/sync/sync_log_entry.dart';
 import 'package:kkeujeok/sync/sync_rules.dart';
+import 'package:kkeujeok/sync/version_list.dart';
 
 typedef Case = Map<String, dynamic>;
 
@@ -231,6 +233,16 @@ final runners = <String, void Function(Case)>{
     );
     _same({'a': a, 'b': b, 'ab': m(a, b), 'ba': m(b, a)}, c['expected']);
   },
+  'version.list': (c) => _same(
+    versionListRule((c['input'] as Map).cast<String, Object?>()),
+    c['expected'],
+  ),
+  'version.keepForever': (c) => _same(
+    keepForeverRule((c['input'] as Map).cast<String, Object?>()),
+    c['expected'],
+  ),
+  'ops.restoreNote': (c) => _same(_restore(c, restoreNote), c['expected']),
+  'ops.restorePage': (c) => _same(_restore(c, restorePage), c['expected']),
   'ops.undoRedo': (c) {
     final i = c['input'] as Map<String, dynamic>;
     final h = History(_note(i['note']));
@@ -276,6 +288,16 @@ Map<String, Object?> _resolve(Json i) => resolveConflict(
   i['ctx'] as Json,
 );
 
+Map<String, Object?> _restore(
+  Case c,
+  Map<String, Object?> Function(Json, Json, Json, List<Json>) run,
+) {
+  final i = _json(c['input']);
+  return run(i['note'] as Json, i['op'] as Json, i['ctx'] as Json, [
+    for (final x in i['conflicts'] as List) x as Json,
+  ]);
+}
+
 void _runOp(Case c) {
   final i = c['input'] as Map<String, dynamic>;
   final r = applyOp(
@@ -289,12 +311,7 @@ void _runOp(Case c) {
 // Rules whose fixture exists but whose client code is a later story's. Each
 // needs a valid fixture file and must not have a runner yet: when its story
 // adds the runner, the entry has to go (a stale entry fails the run).
-const pendingRules = <String>{
-  'version.list',
-  'version.keepForever',
-  'ops.restoreNote',
-  'ops.restorePage',
-};
+const pendingRules = <String>{};
 
 final _sep = Platform.pathSeparator;
 

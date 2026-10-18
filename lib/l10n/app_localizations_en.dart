@@ -576,4 +576,62 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get conflictResolveFailed => 'Could not resolve. Try again.';
+
+  @override
+  String get versionHistory => 'Version history';
+
+  @override
+  String get versionHistoryEmpty => 'No earlier versions yet';
+
+  @override
+  String get versionHistoryOffline =>
+      'Version history is available once you are connected.';
+
+  @override
+  String get versionHistoryFailed => 'Could not load the version history.';
+
+  @override
+  String get versionHistoryLoading => 'Loading version history';
+
+  @override
+  String get versionTagConflict => 'Version kept from a conflict';
+
+  @override
+  String get versionTagBeforeRestore => 'Before restore';
+
+  @override
+  String get versionPreviewUnavailable => 'Preview unavailable';
+
+  @override
+  String get versionPreviewSemantics => 'Version preview';
+
+  @override
+  String get versionRestore => 'Restore this version';
+
+  @override
+  String get versionRestoreConfirm => 'Tap again to switch to this version';
+
+  @override
+  String get versionRestoring => 'Restoring';
+
+  @override
+  String get versionRestored => 'Restored this version';
+
+  @override
+  String get versionRestoreFailed =>
+      'Could not restore. Try again in a moment.';
+
+  @override
+  String get versionRestoreOffline => 'You can restore once you are connected.';
+
+  @override
+  String get versionRestoreNotSaved =>
+      'Could not save the current state to Drive, so nothing was restored.';
+
+  @override
+  String get versionRestorePinFailed =>
+      'Could not mark the version before restore, so nothing was restored.';
+
+  @override
+  String get versionRestoreUnreadable => 'This version cannot be read.';
 }

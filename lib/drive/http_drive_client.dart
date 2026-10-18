@@ -331,7 +331,7 @@ class HttpDriveClient implements DriveClient {
       final m = await _send(
         'GET',
         _uri('/drive/v3/files/${Uri.encodeComponent(fileId)}/revisions', {
-          'fields': 'nextPageToken,revisions(id,modifiedTime)',
+          'fields': 'nextPageToken,revisions(id,modifiedTime,keepForever)',
           'pageSize': '1000',
           'pageToken': ?pageToken,
         }),
@@ -345,7 +345,13 @@ class HttpDriveClient implements DriveClient {
         if (r is! Map || r['id'] is! String || r['modifiedTime'] is! String) {
           throw const DriveError('parse');
         }
-        out.add(DriveRevision(r['id'] as String, r['modifiedTime'] as String));
+        out.add(
+          DriveRevision(
+            r['id'] as String,
+            r['modifiedTime'] as String,
+            keepForever: r['keepForever'] == true,
+          ),
+        );
       }
       pageToken = next as String?;
     } while (pageToken != null);
@@ -362,6 +368,27 @@ class HttpDriveClient implements DriveClient {
           {'alt': 'media'},
         ),
       )).body;
+
+  @override
+  Future<void> updateRevision(
+    String fileId,
+    String revisionId, {
+    required bool keepForever,
+  }) => _send(
+    'PATCH',
+    _uri(
+      '/drive/v3/files/${Uri.encodeComponent(fileId)}/revisions/'
+      '${Uri.encodeComponent(revisionId)}',
+      {'fields': 'id,keepForever'},
+    ),
+    {'keepForever': keepForever},
+  );
+
+  @override
+  Future<List<int>> downloadFile(String fileId) async => (await _request(
+    'GET',
+    _uri('/drive/v3/files/${Uri.encodeComponent(fileId)}', {'alt': 'media'}),
+  )).body;
 
   @override
   Future<String> getStartPageToken() async {

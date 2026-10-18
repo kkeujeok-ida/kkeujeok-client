@@ -34,6 +34,14 @@ void main() {
     expect(h.undoDepth, 0);
   });
 
+  test('restore ops are not history operations: unknownOp, no record', () {
+    final h = History(r.note!);
+    for (final op in ['restoreNote', 'restorePage']) {
+      expect(h.doOp({'op': op, 'pageId': 'p'}, ctx), 'unknownOp');
+    }
+    expect(h.undoDepth, 0);
+  });
+
   test('Ctx.fromJson defaults lastSeenRemoteSeq', () {
     expect(
       Ctx.fromJson({'rev': 'a', 'now': 'n', 'editedBy': 'e'}).lastSeenRemoteSeq,

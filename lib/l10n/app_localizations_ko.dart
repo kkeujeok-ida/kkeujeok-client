@@ -534,4 +534,58 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get conflictResolveFailed => '정하지 못했어요. 다시 시도해 주세요.';
+
+  @override
+  String get versionHistory => '버전 기록';
+
+  @override
+  String get versionHistoryEmpty => '아직 이전 버전이 없어요';
+
+  @override
+  String get versionHistoryOffline => '연결되면 버전 기록을 볼 수 있어요.';
+
+  @override
+  String get versionHistoryFailed => '버전 기록을 불러오지 못했어요.';
+
+  @override
+  String get versionHistoryLoading => '버전 기록을 불러오는 중이에요';
+
+  @override
+  String get versionTagConflict => '충돌로 남긴 버전';
+
+  @override
+  String get versionTagBeforeRestore => '복원 전';
+
+  @override
+  String get versionPreviewUnavailable => '미리 볼 수 없어요';
+
+  @override
+  String get versionPreviewSemantics => '버전 미리보기';
+
+  @override
+  String get versionRestore => '이 버전으로 복원';
+
+  @override
+  String get versionRestoreConfirm => '한 번 더 누르면 이 버전으로 바뀌어요';
+
+  @override
+  String get versionRestoring => '복원하는 중이에요';
+
+  @override
+  String get versionRestored => '이 버전으로 되돌렸어요';
+
+  @override
+  String get versionRestoreFailed => '복원하지 못했어요. 잠시 후 다시 시도해 주세요.';
+
+  @override
+  String get versionRestoreOffline => '연결되면 복원할 수 있어요.';
+
+  @override
+  String get versionRestoreNotSaved => '지금 상태를 Drive에 저장하지 못해서 복원하지 않았어요.';
+
+  @override
+  String get versionRestorePinFailed => '복원 전 버전을 표시하지 못해서 복원하지 않았어요.';
+
+  @override
+  String get versionRestoreUnreadable => '이 버전을 읽을 수 없어요.';
 }

@@ -127,6 +127,58 @@ class NoteUploader {
   Future<UploadOutcome> resume(String noteId) =>
       _chained(noteId, () => _upload(noteId, recoverOnly: true));
 
+  /// Story 3.24, restore step 2: uploads [noteId] until `verified`, also
+  /// when nothing is unsent (then it only confirms that Drive's head is the
+  /// base). Answers the revision id that holds the state now (the
+  /// `baseHeadRevisionId` after the commit), or null when it could not be
+  /// reached; a failure is in `sync.json` and the log like any upload error.
+  Future<String?> uploadVerified(String noteId) => _chained(noteId, () async {
+    try {
+      var s = await store.readSync(noteId);
+      if (s.info.state == SyncState.error) return null;
+      if (s.hasUnsent || s.info.pendingVerify != null) {
+        if (await _upload(noteId, recoverOnly: false) !=
+            UploadOutcome.uploaded) {
+          return null;
+        }
+        s = await store.readSync(noteId);
+        return s.info.baseHeadRevisionId;
+      }
+      final base = s.info.baseHeadRevisionId, fileId = s.info.fileId;
+      if (base == null || fileId == null) return null;
+      if (!await allowed() || !await online()) return null;
+      final f = await _call(
+        noteId,
+        () => drive.get(fileId, fields: 'headRevisionId,trashed'),
+      );
+      // Another device's newer head is not the state to pin.
+      return !f.trashed && f.headRevisionId == base ? base : null;
+    } on _Failure catch (f) {
+      await _fail(noteId, f);
+      return null;
+    } on NoteSaveException {
+      return null;
+    }
+  });
+
+  /// A Drive call outside the upload failed (the pin of a restore, Story
+  /// 3.24): handled as a sync error of the note, like an upload failure.
+  Future<void> reportFailure(String noteId, DriveError e) =>
+      _chained(noteId, () async {
+        try {
+          await _fail(
+            noteId,
+            _Failure(
+              classifyDriveError(e),
+              status: e.status,
+              reason: e.kind == 'parse' ? 'parse' : e.reason,
+            ),
+          );
+        } catch (_) {
+          // The log or `sync.json` is not writable: nothing more to do here.
+        }
+      });
+
   // ---- resolved conflicts (Story 3.21) ------------------------------------
 
   static bool _sameConflict(JsonMap a, JsonMap b) =>

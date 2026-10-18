@@ -1045,6 +1045,114 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not resolve. Try again.'**
   String get conflictResolveFailed;
+
+  /// No description provided for @versionHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Version history'**
+  String get versionHistory;
+
+  /// No description provided for @versionHistoryEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No earlier versions yet'**
+  String get versionHistoryEmpty;
+
+  /// No description provided for @versionHistoryOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Version history is available once you are connected.'**
+  String get versionHistoryOffline;
+
+  /// No description provided for @versionHistoryFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load the version history.'**
+  String get versionHistoryFailed;
+
+  /// No description provided for @versionHistoryLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading version history'**
+  String get versionHistoryLoading;
+
+  /// No description provided for @versionTagConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'Version kept from a conflict'**
+  String get versionTagConflict;
+
+  /// No description provided for @versionTagBeforeRestore.
+  ///
+  /// In en, this message translates to:
+  /// **'Before restore'**
+  String get versionTagBeforeRestore;
+
+  /// No description provided for @versionPreviewUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview unavailable'**
+  String get versionPreviewUnavailable;
+
+  /// No description provided for @versionPreviewSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'Version preview'**
+  String get versionPreviewSemantics;
+
+  /// No description provided for @versionRestore.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore this version'**
+  String get versionRestore;
+
+  /// No description provided for @versionRestoreConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap again to switch to this version'**
+  String get versionRestoreConfirm;
+
+  /// No description provided for @versionRestoring.
+  ///
+  /// In en, this message translates to:
+  /// **'Restoring'**
+  String get versionRestoring;
+
+  /// No description provided for @versionRestored.
+  ///
+  /// In en, this message translates to:
+  /// **'Restored this version'**
+  String get versionRestored;
+
+  /// No description provided for @versionRestoreFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not restore. Try again in a moment.'**
+  String get versionRestoreFailed;
+
+  /// No description provided for @versionRestoreOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'You can restore once you are connected.'**
+  String get versionRestoreOffline;
+
+  /// No description provided for @versionRestoreNotSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the current state to Drive, so nothing was restored.'**
+  String get versionRestoreNotSaved;
+
+  /// No description provided for @versionRestorePinFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not mark the version before restore, so nothing was restored.'**
+  String get versionRestorePinFailed;
+
+  /// No description provided for @versionRestoreUnreadable.
+  ///
+  /// In en, this message translates to:
+  /// **'This version cannot be read.'**
+  String get versionRestoreUnreadable;
 }
 
 class _AppLocalizationsDelegate

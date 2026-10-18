@@ -294,6 +294,30 @@ class UploadCoordinator {
     }
   }
 
+  /// Restore step 2 (Story 3.24): the open note's queue reaches the disk,
+  /// then the note is uploaded and verified. Answers the revision id that
+  /// holds the state, or null when that failed (nothing may be restored then).
+  /// Never throws.
+  Future<String?> uploadForRestore(String noteId) async {
+    try {
+      try {
+        await flushOpen?.call();
+      } catch (_) {
+        return null; // the last strokes may not be on disk: pin nothing
+      }
+      await _retry(noteId, manual: true); // a note still in `error` ends below
+      if (!await allowed() || !await online()) return null;
+      if (!await lease.acquire(noteId)) return null;
+      try {
+        return await uploader.uploadVerified(noteId);
+      } finally {
+        await lease.release(noteId);
+      }
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Interrupted uploads, then unsent notes, except the open one: the
   /// WorkManager task, and what waited while the gate was closed.
   Future<void> uploadUnsent() async {
