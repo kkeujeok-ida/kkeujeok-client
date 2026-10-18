@@ -127,6 +127,20 @@ class NoteUploader {
   Future<UploadOutcome> resume(String noteId) =>
       _chained(noteId, () => _upload(noteId, recoverOnly: true));
 
+  /// Story 11.2: a note left in `syncing` that has nothing unsent and no
+  /// unfinished upload (a killed receive, a lost commit) would stay so for
+  /// good. It takes the event `verified`, which picks the real state
+  /// (`synced`, or `conflict`); a remote change is then received as usual.
+  Future<void> settleStuck(String noteId) => _chained(noteId, () async {
+    final s = await store.readSync(noteId);
+    if (s.info.state != SyncState.syncing ||
+        s.hasUnsent ||
+        s.info.pendingVerify != null) {
+      return;
+    }
+    await _commit(noteId, (c) => c, event: 'verified');
+  });
+
   /// Story 3.24, restore step 2: uploads [noteId] until `verified`, also
   /// when nothing is unsent (then it only confirms that Drive's head is the
   /// base). Answers the revision id that holds the state now (the

@@ -121,7 +121,10 @@ class LocalConflictNotifier implements ConflictNotifier {
     await _init();
     final d = await _plugin.getNotificationAppLaunchDetails();
     final id = d?.notificationResponse?.payload;
-    return d != null && d.didNotificationLaunchApp && id != null && id.isNotEmpty
+    return d != null &&
+            d.didNotificationLaunchApp &&
+            id != null &&
+            id.isNotEmpty
         ? id
         : null;
   }

@@ -213,4 +213,58 @@ void main() {
       expect(env.drive.uploads, hasLength(1));
     },
   );
+
+  group('Story 11.2: syncing never stays', () {
+    test('syncing with nothing to send settles at app start, logged', () async {
+      await env.save(makeNote());
+      await coordinator.noteClosed(noteId);
+      // A killed receive left `syncing`; the working copy equals the base.
+      await env.store.updateSync(
+        noteId,
+        (c) => c.copyWith(state: SyncState.syncing),
+      );
+      env.drive.calls.clear();
+      await coordinator.appStarted();
+      expect(env.info.state, SyncState.synced);
+      expect((await env.stateChanges()).last, 'syncing>synced');
+      expect(env.drive.uploads, hasLength(1)); // nothing uploaded again
+    });
+
+    test(
+      'an upload killed before its request ends when online again',
+      () async {
+        await env.save(makeNote());
+        env.drive.before = (c) {
+          if (c == 'upload:new') throw Crash();
+        };
+        await coordinator.noteClosed(noteId); // swallowed: a crash
+        expect(env.info.state, SyncState.syncing);
+
+        env.drive.before = null;
+        env.online = false;
+        await coordinator.appStarted(); // offline: still honest, not dropped
+        expect(env.info.state, SyncState.syncing);
+
+        env.online = true;
+        await coordinator.reconnected();
+        expect(env.info.state, SyncState.synced);
+        expect(env.drive.uploads, hasLength(1));
+      },
+    );
+
+    test('an offline edit uploads when the connection returns', () async {
+      await env.save(makeNote());
+      await coordinator.noteClosed(noteId);
+      env.online = false;
+      await env.save(makeNote(rev: 2));
+      await coordinator.noteClosed(noteId);
+      expect((await env.store.readSync(noteId)).state, SyncState.pending);
+      expect(scheduled, greaterThan(0));
+
+      env.online = true;
+      await coordinator.reconnected();
+      expect(env.info.state, SyncState.synced);
+      expect(env.drive.uploads, hasLength(2));
+    });
+  });
 }

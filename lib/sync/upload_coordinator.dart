@@ -203,9 +203,12 @@ class UploadCoordinator {
   final _retried = <String>{};
 
   /// (upload needed, a resolved sidecar still to mark), from one read.
-  Future<(bool, bool)> _needs(String noteId) async {
+  Future<(bool, bool, bool)> _needs(String noteId) async {
     final s = await store.readSync(noteId);
     return (
+      s.info.state == SyncState.syncing &&
+          !s.hasUnsent &&
+          s.info.pendingVerify == null,
       s.info.state != SyncState.error &&
           (s.hasUnsent || s.info.pendingVerify != null),
       s.info.conflicts.any(
@@ -216,7 +219,19 @@ class UploadCoordinator {
 
   Future<void> _one(String noteId, {bool recover = false}) async {
     try {
-      final (upload, mark) = await _needs(noteId);
+      final (stuck, upload, mark) = await _needs(noteId);
+      if (stuck) {
+        // Story 11.2: `syncing` with nothing to send ends here, offline too.
+        if (!await lease.acquire(noteId)) {
+          await _schedule();
+          return;
+        }
+        try {
+          await uploader.settleStuck(noteId);
+        } finally {
+          await lease.release(noteId);
+        }
+      }
       if (!upload) {
         if (mark) await uploader.markResolved(noteId);
         return;
