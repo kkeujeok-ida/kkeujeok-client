@@ -196,6 +196,7 @@ class HttpDriveClient implements DriveClient {
         'fields': fields ?? _defaultFields,
       }),
     ),
+    id, // a `fields` mask without `id` gets no `id` back
   );
 
   @override

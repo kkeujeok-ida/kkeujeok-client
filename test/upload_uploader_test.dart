@@ -409,6 +409,13 @@ void main() {
       expect(waits, ['1:1500', '2:3000', '3:6000']);
     });
 
+    test('a verify answer that cannot be parsed is not `unreadable`', () async {
+      env.drive.failures['revisions'] = [const DriveError('parse')];
+      expect(await up(), UploadOutcome.failed);
+      expect(env.info.lastError, {'class': 'fatal', 'reason': 'verifyParse'});
+      expect(env.info.pendingVerify, isNotNull); // verify repeats, no re-upload
+    });
+
     test('403 rateLimitExceeded is a backoff', () async {
       env.drive.failures['upload'] = [
         const DriveError('http', status: 403, reason: 'rateLimitExceeded'),

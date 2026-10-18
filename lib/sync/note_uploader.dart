@@ -1197,11 +1197,19 @@ class NoteUploader {
       // An `invalidInput` plan is asked once more without using a backoff
       // attempt; a second one counts as a network failure.
       for (var again = 0; again < 2; again++) {
-        final head = (await drive.get(
-          fileId,
-          fields: 'headRevisionId',
-        )).headRevisionId;
-        final revs = await drive.listRevisions(fileId);
+        final String? head;
+        final List<DriveRevision> revs;
+        try {
+          head = (await drive.get(
+            fileId,
+            fields: 'headRevisionId',
+          )).headRevisionId;
+          revs = await drive.listRevisions(fileId);
+        } on DriveError catch (e) {
+          // Not the note's fault: kept apart from `unreadable/parse`.
+          if (e.kind != 'parse') rethrow;
+          throw _Failure('fatal', reason: 'verifyParse');
+        }
         final p = verifyPlanRule({
           'base': parent,
           'ours': ours,

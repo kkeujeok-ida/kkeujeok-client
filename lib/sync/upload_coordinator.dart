@@ -182,7 +182,13 @@ class UploadCoordinator {
   }
 
   // `backoff` is the class of a note whose 7 network retries ran out.
-  static const _retryClasses = {'backoff', 'quota', 'reauth', 'fatal'};
+  static const _retryClasses = {
+    'backoff',
+    'quota',
+    'reauth',
+    'fatal',
+    'unreadable',
+  };
 
   // These end the same way again at the next trigger, so they are retried
   // once per app process, not at every trigger.
@@ -191,6 +197,8 @@ class UploadCoordinator {
     'sessionLost',
     'noteIdMismatch',
     'duplicatePageId',
+    'verifyParse',
+    'parse',
   };
   final _retried = <String>{};
 
@@ -384,6 +392,11 @@ class UploadCoordinator {
       if (s.info.state != SyncState.error) return;
       final err = s.info.lastError;
       if (!_retryClasses.contains(err?['class'])) return; // deleted etc.
+      // An `unreadable` note is retried only when its upload awaits a
+      // verify (Story 11.1): the retry reads Drive and never overwrites it.
+      if (err?['class'] == 'unreadable' && s.info.pendingVerify == null) {
+        return;
+      }
       if (!manual &&
           _retryOnce.contains(err?['reason']) &&
           !_retried.add(noteId)) {

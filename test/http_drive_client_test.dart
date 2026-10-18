@@ -157,7 +157,14 @@ void main() {
 
   test('a file without an id is parse', () async {
     reply = '{"name":"x"}';
-    expect((await failure(() => client().get('a'))).kind, 'parse');
+    expect((await failure(() => client().create({}))).kind, 'parse');
+  });
+
+  test('get with a fields mask that leaves out id still parses', () async {
+    // Drive answers only the fields asked for (Story 11.1).
+    reply = '{"headRevisionId":"r9"}';
+    final g = await client().get('a', fields: 'headRevisionId');
+    expect((g.id, g.headRevisionId), ('a', 'r9'));
   });
 
   test('no token is 401 without a call', () async {

@@ -145,6 +145,24 @@ void main() {
     expect(env.drive.calls, isEmpty);
   });
 
+  test('an old unreadable/parse note waiting for verify recovers', () async {
+    await env.save(makeNote());
+    env.drive.failures['revisions'] = [const DriveError('parse')];
+    await coordinator.noteClosed(noteId);
+    // What 11.1 builds before the fix wrote:
+    await env.store.updateSync(
+      noteId,
+      (c) => c.copyWith(lastError: {'class': 'unreadable', 'reason': 'parse'}),
+    );
+    final local = env.working.readAsBytesSync();
+
+    await coordinator.syncNow(noteId);
+
+    expect(env.info.state, SyncState.synced);
+    expect(env.drive.uploads, hasLength(1)); // verified, not uploaded again
+    expect(env.working.readAsBytesSync(), local);
+  });
+
   test('another holder of the lease: the note is left alone', () async {
     await env.save(makeNote());
     final other = UploadLease(env.data, () => now);
