@@ -20,6 +20,7 @@
   "networkError": "Check your connection and try again",
   "retry": "Try again",
   "logOut": "Log out",
+  "logOutConfirmTitle": "Log out?",
   "disconnect": "Disconnect",
   "cancel": "Cancel",
   "disconnectTitle": "Disconnect?",

@@ -321,10 +321,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final cards = <Widget>[
       if (root.status == RootStatus.failed)
         switch (root.errorClass) {
-          'backoff' => _ErrorCard(
-            message: l10n.networkError,
-            onRetry: () => ref.read(rootFolderProvider.notifier).check(),
-          ),
+          'backoff' => const SizedBox.shrink(), // top right, below
           'reauth' => _ErrorCard(
             message: l10n.driveReauth,
             actionLabel: l10n.driveReauthAction,
@@ -389,6 +386,31 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           ),
         ),
         Positioned.fill(child: LibraryFab(onNewNote: _newNote)),
+        // Offline notice (UX-DR40): floats at the top right, so it neither
+        // pushes nor covers the list.
+        if (root.status == RootStatus.failed && root.errorClass == 'backoff')
+          PositionedDirectional(
+            top: MediaQuery.paddingOf(context).top + KkjTokens.spacing3,
+            end: MediaQuery.paddingOf(context).right + KkjTokens.spacing3,
+            width: _offlineNoticeWidth,
+            child: DecoratedBox(
+              key: const Key('offlineNotice'),
+              decoration: BoxDecoration(
+                color: KkjLight.componentsBannerBackground,
+                borderRadius: BorderRadius.circular(
+                  KkjLight.componentsCoverCardRounded,
+                ),
+                boxShadow: kkjShadow(KkjLight.componentsPopoverShadow),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(KkjLight.componentsBannerPadding),
+                child: _ErrorCard(
+                  message: l10n.networkError,
+                  onRetry: () => ref.read(rootFolderProvider.notifier).check(),
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -797,6 +819,9 @@ class _NewNoteCard extends StatelessWidget {
     );
   }
 }
+
+// Width of the floating offline notice: spacing-based, the tokens have none.
+const double _offlineNoticeWidth = KkjTokens.spacing7 * 5;
 
 /// Shown instead of the empty-library card when the folder could not be
 /// listed.

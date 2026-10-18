@@ -16,6 +16,7 @@ import 'package:kkeujeok/ops/resolve_conflict.dart';
 import 'package:kkeujeok/ops/restore.dart';
 import 'package:kkeujeok/render/page_background.dart';
 import 'package:kkeujeok/render/stroke_outline.dart';
+import 'package:kkeujeok/render/zoom_snap.dart';
 import 'package:kkeujeok/sync/error_class.dart';
 import 'package:kkeujeok/sync/has_unsent.dart';
 import 'package:kkeujeok/sync/merge.dart';
@@ -189,6 +190,18 @@ final runners = <String, void Function(Case)>{
   ),
   'drive.fileName': (c) => _same(
     driveFileNameRule((c['input'] as Map).cast<String, Object?>()),
+    c['expected'],
+  ),
+  'zoom.snap': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final out = zoomSnap(
+      (i['scale'] as num).toDouble(),
+      (i['fitScale'] as num).toDouble(),
+    );
+    expect(out, closeTo((c['expected'] as num).toDouble(), 1e-12));
+  },
+  'drive.remoteTitle': (c) => _same(
+    driveRemoteTitleRule((c['input'] as Map).cast<String, Object?>()),
     c['expected'],
   ),
   'drive.listSummary': (c) => _same(

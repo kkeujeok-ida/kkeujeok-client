@@ -393,6 +393,7 @@ class NoteReceiver {
     final goneNotes = <({String id, String fileId, String kind})>[];
     Map<String, String>? owners; // fileId -> local noteId, built on demand
     final work = <DriveFile>[];
+    final named = <DriveFile>[]; // live notes here whose name may have moved
     final cards = <RemoteCard>[];
     for (final c in last.values) {
       final f = c.file;
@@ -425,6 +426,7 @@ class NoteReceiver {
         continue; // unreadable data is never overwritten
       } else {
         final info = (await store.readSync(id)).info;
+        if (f.name != null && info.fileId == f.id) named.add(f);
         if (!_relinkable(info, f) && _skip(info, f)) continue;
       }
       work.add(f);
@@ -446,6 +448,7 @@ class NoteReceiver {
     }
     final ids = [for (final f in work) f.appProperties['kkeujeokId']!];
     _mark(ids, cards);
+
     final pending = [...ids];
     try {
       for (final f in work) {
@@ -463,6 +466,52 @@ class NoteReceiver {
       }
     } finally {
       _unmark(pending); // an aborted batch leaves nothing marked
+    }
+    // After the receives: the content may carry the old title. A rename moves
+    // no revision, so notes skipped above are looked at too.
+    for (final f in named) {
+      await _guard(sub);
+      await _renameLocal(f.appProperties['kkeujeokId']!, f.id, f.name!);
+    }
+  }
+
+  // ---- the Drive file of a note that is here was renamed (drive.remoteTitle)
+
+  /// Renames seen while the note was open here: applied when it is closed.
+  final _renames = <String, ({String fileId, String name})>{};
+
+  /// The title follows the Drive name in the working and the base copy;
+  /// content, `rev`s and the sync state stay. Skips a note that is open, in
+  /// error, uploading or waiting for its upload check.
+  Future<void> _renameLocal(String id, String fileId, String name) async {
+    if (hosts.of(id) != null) {
+      _renames[id] = (fileId: fileId, name: name);
+      return;
+    }
+    _renames.remove(id);
+    try {
+      final done = await chain.run(
+        id,
+        () => _wrapWrite(
+          () => store.retitle(id, (work, base, info) {
+            if (info.fileId != fileId ||
+                info.pendingVerify != null ||
+                info.state == SyncState.error ||
+                info.state == SyncState.syncing) {
+              return null;
+            }
+            final r = driveRemoteTitleRule({
+              'name': name,
+              'title': work.title,
+              'baseTitle': base.title,
+            });
+            return r['title'] as String?;
+          }),
+        ),
+      );
+      if (done) _bump();
+    } on _Failure catch (e) {
+      await _fail(id, e);
     }
   }
 
@@ -1052,6 +1101,10 @@ class NoteReceiver {
         final kind = _goneKind(info);
         if (kind != null && info.fileId != null) {
           await _fileGone(sub, noteId, info.fileId!, kind);
+        }
+        final r = _renames[noteId];
+        if (r != null && kind == null) {
+          await _renameLocal(noteId, r.fileId, r.name);
         }
       });
 

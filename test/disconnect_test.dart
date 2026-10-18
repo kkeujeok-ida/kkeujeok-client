@@ -62,6 +62,13 @@ void main() {
     await t.pumpAndSettle();
   }
 
+  // Settings row, then the "Log out?" confirm (Story 11.9).
+  Future<void> logOut(WidgetTester t) async {
+    await t.tap(find.text('Log out'));
+    await t.pumpAndSettle();
+    await t.tap(find.widgetWithText(FilledButton, 'Log out'));
+  }
+
   Future<void> confirmDisconnect(WidgetTester t) async {
     await t.tap(find.text('Disconnect'));
     await t.pumpAndSettle();
@@ -69,11 +76,66 @@ void main() {
   }
 
   group('log out', () {
-    testWidgets('goes straight to sign-in and keeps the notes', (t) async {
+    testWidgets('always asks "Log out?" first; cancel changes nothing', (
+      t,
+    ) async {
+      final h = t.ensureSemantics();
       final g = FakeAuthGateway(restored: true);
       await pump(t, g);
       await openSettings(t);
       await t.tap(find.text('Log out'));
+      await t.pumpAndSettle();
+      expect(find.text('Log out?'), findsOneWidget);
+      expect(find.bySemanticsLabel('Log out?'), findsWidgets);
+      expect(g.signOutCalls, 0);
+      // Cancel has the focus; all buttons reach 48 dp.
+      for (final b in [
+        find.widgetWithText(TextButton, 'Cancel'),
+        find.widgetWithText(FilledButton, 'Log out'),
+      ]) {
+        expect(t.getSize(b).height, greaterThanOrEqualTo(48));
+      }
+      await t.tap(find.text('Cancel'));
+      await t.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.text('Settings'), findsOneWidget);
+      expect(g.signOutCalls, 0);
+      // Back is the same as Cancel.
+      await t.tap(find.text('Log out'));
+      await t.pumpAndSettle();
+      await t.binding.handlePopRoute();
+      await t.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(g.signOutCalls, 0);
+      h.dispose();
+    });
+
+    testWidgets('the confirm is in Korean too', (t) async {
+      final g = FakeAuthGateway(restored: true);
+      await pumpApp(
+        t,
+        auth: g,
+        prefs: {'language': 'ko'},
+        noteData: NoteData(() async => docs),
+        noteStore: NoteStore(NoteData(() async => docs)),
+      );
+      await t.tap(find.text('설정'));
+      await t.pumpAndSettle();
+      await t.tap(find.text('로그아웃'));
+      await t.pumpAndSettle();
+      expect(find.text('로그아웃할까요?'), findsOneWidget);
+      await t.tap(find.widgetWithText(FilledButton, '로그아웃'));
+      await t.pumpAndSettle();
+      expect(g.signOutCalls, 1);
+    });
+
+    testWidgets('goes to sign-in after the confirm and keeps the notes', (
+      t,
+    ) async {
+      final g = FakeAuthGateway(restored: true);
+      await pump(t, g);
+      await openSettings(t);
+      await logOut(t);
       await t.pumpAndSettle();
       expectSignIn();
       expect(find.byType(AlertDialog), findsNothing);
@@ -86,7 +148,7 @@ void main() {
       final g = FakeAuthGateway(restored: true, signOutFails: true);
       await pump(t, g);
       await openSettings(t);
-      await t.tap(find.text('Log out'));
+      await logOut(t);
       await t.pumpAndSettle();
       expectSignIn();
       expect(note.existsSync(), isTrue);
@@ -98,7 +160,7 @@ void main() {
       final g = FakeAuthGateway(restored: true, signOutHangs: true);
       await pump(t, g);
       await openSettings(t);
-      await t.tap(find.text('Log out'));
+      await logOut(t);
       await t.pump();
       expect(find.text('Sign in with Google'), findsNothing);
       await t.pump(const Duration(seconds: 11));
@@ -110,7 +172,7 @@ void main() {
     testWidgets('signing in again opens the shell', (t) async {
       await pump(t, FakeAuthGateway(restored: true));
       await openSettings(t);
-      await t.tap(find.text('Log out'));
+      await logOut(t);
       await t.pumpAndSettle();
       await t.tap(find.text('Sign in with Google'));
       await t.pumpAndSettle();
@@ -245,7 +307,7 @@ void main() {
       expect(g.disconnectCalls, 1);
       await t.tap(find.widgetWithText(TextButton, 'Cancel'));
       await t.pumpAndSettle();
-      await t.tap(find.text('Log out'));
+      await logOut(t);
       await t.pumpAndSettle();
       expectSignIn();
       await t.tap(find.text('Sign in with Google'));

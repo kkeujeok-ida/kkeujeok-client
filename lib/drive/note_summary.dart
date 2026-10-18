@@ -31,6 +31,21 @@ Map<String, Object?> driveFileNameRule(Map<String, Object?> input) {
   return {'name': '$t.kkj'};
 }
 
+/// `drive.remoteTitle`: the title a note takes from its Drive file [name], or
+/// `{'keep': true}`.
+Map<String, Object?> driveRemoteTitleRule(Map<String, Object?> input) {
+  final name = input['name'] as String;
+  final candidate = name.endsWith('.kkj')
+      ? name.substring(0, name.length - 4)
+      : name;
+  if (!_validTitle(candidate) ||
+      candidate == input['title'] ||
+      input['title'] != input['baseTitle']) {
+    return const {'keep': true};
+  }
+  return {'title': candidate};
+}
+
 final _md5 = RegExp(r'^[0-9a-f]{32}$');
 final _timestamp = RegExp(
   r'^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T([01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}Z$',

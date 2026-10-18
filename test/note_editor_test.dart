@@ -582,6 +582,14 @@ void main() {
       await t.pumpAndSettle();
     }
 
+    // The percent in the open menu (the scale badge shows the same text).
+    Finder menuText(String s) => find.descendant(
+      of: find
+          .ancestor(of: find.byTooltip('Zoom in'), matching: find.byType(Row))
+          .first,
+      matching: find.text(s),
+    );
+
     IconButton iconButton(WidgetTester t, IconData icon) =>
         t.widget<IconButton>(
           find.ancestor(
@@ -627,6 +635,50 @@ void main() {
       await settle(t);
       expect(file.readAsBytesSync(), before); // no stroke, no save
       expect(elements(), isEmpty);
+    });
+
+    testWidgets('pinch snaps to the fit width within 10%, releases beyond', (
+      t,
+    ) async {
+      seed(_note());
+      await open(t);
+      final fit = viewport(t).scale;
+      // 100 px apart; 105 px is +5% of the start scale: inside the band.
+      await pinch(
+        t,
+        const Offset(300, 300),
+        const Offset(405, 300),
+        release: false,
+      );
+      expect(viewport(t).scale, fit);
+      // Still held, 130 px: +30%, past the band.
+      await ptr(t, move(32, const Offset(430, 300), 35));
+      expect(viewport(t).scale, closeTo(fit * 1.3, 1e-9));
+      // Back inside while held: snaps again.
+      await ptr(t, move(32, const Offset(395, 300), 36));
+      expect(viewport(t).scale, fit);
+      await ptr(t, up(31, const Offset(300, 300), 50));
+      await ptr(t, up(32, const Offset(395, 300), 50));
+    });
+
+    testWidgets('scale badge shows at the top right, then goes away', (
+      t,
+    ) async {
+      final h = t.ensureSemantics();
+      seed(_note());
+      await open(t);
+      expect(find.text('${(viewport(t).scale * 100).round()}%'), findsNothing);
+      await pinch(t, const Offset(300, 300), const Offset(500, 300));
+      final p = (viewport(t).scale * 100).round();
+      final badge = find.text('$p%');
+      expect(badge, findsOneWidget);
+      expect(find.bySemanticsLabel('$p%'), findsOneWidget);
+      final r = t.getRect(badge);
+      expect(r.right, greaterThan(900 - 2 * gap - 1));
+      expect(r.top, lessThan(150));
+      await t.pump(const Duration(seconds: 2));
+      expect(badge, findsNothing);
+      h.dispose();
     });
 
     testWidgets('scale is limited to 50%..400%', (t) async {
@@ -781,7 +833,7 @@ void main() {
         find.bySemanticsLabel('Zoom ${(s0 * 100).round()}%'),
         findsOneWidget,
       );
-      expect(find.text('${(s0 * 100).round()}%'), findsOneWidget);
+      expect(menuText('${(s0 * 100).round()}%'), findsOneWidget);
 
       // 48 dp everywhere.
       for (final f in [
@@ -819,7 +871,7 @@ void main() {
         await t.pumpAndSettle();
       }
       expect(viewport(t).scale, PageViewport.zoomMax);
-      expect(find.text('400%'), findsOneWidget);
+      expect(menuText('400%'), findsOneWidget);
       expect(iconButton(t, Icons.add).onPressed, isNull);
       h.dispose();
     });
@@ -830,7 +882,7 @@ void main() {
       await pinch(t, const Offset(400, 300), const Offset(402, 300));
       await menu(t);
       expect(viewport(t).scale, PageViewport.zoomMin);
-      expect(find.text('50%'), findsOneWidget);
+      expect(menuText('50%'), findsOneWidget);
       expect(iconButton(t, Icons.remove).onPressed, isNull);
     });
 

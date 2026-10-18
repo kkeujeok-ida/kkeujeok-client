@@ -120,6 +120,38 @@ void main() {
     expect(drive.calls.skip(before).where((x) => x == 'create').length, 1);
   });
 
+  testWidgets('offline notice floats at the top right, layout untouched', (
+    t,
+  ) async {
+    final drive = FakeDrive()..failures['list'] = [const DriveError('network')];
+    final c = await open(t, drive);
+    await until(t, () => status(c) == RootStatus.failed);
+    final notice = find.byKey(const Key('offlineNotice'));
+    final screen = t.view.physicalSize / t.view.devicePixelRatio;
+    final r = t.getRect(notice);
+    expect(r.right, greaterThan(screen.width - 24));
+    expect(r.top, lessThan(48));
+    expect(r.left, greaterThan(screen.width / 2));
+    // Text and button live in it, with the 48 dp touch target kept.
+    expect(
+      find.descendant(
+        of: notice,
+        matching: find.text('Check your connection and try again'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      t.getSize(find.widgetWithText(FilledButton, 'Try again')).height,
+      greaterThanOrEqualTo(48),
+    );
+    final header = t.getTopLeft(find.text('Library'));
+
+    await t.tap(find.text('Try again'));
+    await until(t, () => status(c) == RootStatus.ready);
+    expect(notice, findsNothing);
+    expect(t.getTopLeft(find.text('Library')), header); // nothing was pushed
+  });
+
   testWidgets('root moved: no dialog', (t) async {
     final drive = FakeDrive();
     final c = await open(t, drive);

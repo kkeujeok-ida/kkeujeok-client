@@ -103,6 +103,7 @@ void main() {
         await t.tap(find.text('Log out'));
         await t.pumpAndSettle();
         expect(find.text('Changes weren\'t sent'), findsOneWidget);
+        expect(find.text('Log out?'), findsNothing); // replaced, not stacked
         expect(find.text(logoutBody2), findsOneWidget);
         expect(find.byType(FilledButton), findsOneWidget);
         expect(find.byType(TextButton), findsOneWidget);
@@ -207,13 +208,19 @@ void main() {
         expect(gate.signOutCalls, 0);
       });
 
-      testWidgets('nothing unsent: no dialog, Story 1.13 behavior', (t) async {
+      testWidgets('nothing unsent: only the "Log out?" confirm (Story 11.9), '
+          'no unsent warning', (t) async {
         ids = [];
         await pump(t);
         await openSettings(t);
         await t.tap(find.text('Log out'));
         await t.pumpAndSettle();
-        expect(find.byType(AlertDialog), findsNothing);
+        expect(find.text('Log out?'), findsOneWidget);
+        expect(find.text("Changes weren't sent"), findsNothing);
+        expect(find.byType(AlertDialog), findsOneWidget);
+        expect(gate.signOutCalls, 0);
+        await t.tap(find.widgetWithText(FilledButton, 'Log out'));
+        await t.pumpAndSettle();
         expect(gate.signOutCalls, 1);
         expect(events, isEmpty);
         expect(find.text('Sign in with Google'), findsOneWidget);

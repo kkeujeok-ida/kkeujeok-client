@@ -15,6 +15,7 @@ import '../ops/history.dart';
 import '../ops/ops.dart';
 import '../ops/resolve_conflict.dart';
 import '../render/page_painter.dart';
+import '../render/zoom_snap.dart';
 import '../sync/merge_step.dart';
 import '../sync/version_history.dart' show RestoreFailure;
 import 'conflict_sheet.dart';
@@ -110,6 +111,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   Duration _t0 = Duration.zero;
   final _points = <List<num>>[];
   PageViewport? _vp;
+  // The scale badge at the top right: whole percent, null when hidden.
+  final _zoomBadge = ValueNotifier<int?>(null);
+  Timer? _zoomBadgeTimer;
   _Fit _fit = _Fit.width;
   Size _size = Size.zero;
   EdgeInsets _padding = EdgeInsets.zero;
@@ -693,6 +697,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   void dispose() {
     _latestTimer?.cancel();
     _emphasisTimer?.cancel();
+    _zoomBadgeTimer?.cancel();
+    _zoomBadge.dispose();
     _strokeEnded(null);
     if (_coordinator.flushOpen == _flush) _coordinator.flushOpen = null;
     _hosts.unregister(widget.note.noteId, _host);
@@ -755,6 +761,17 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     }
   }
 
+  /// The scale where the page is as wide as the padded view (spec zoom.snap).
+  double get _fitScale => (_size.width - _padding.horizontal) / _pageW;
+
+  void _flashZoom(double scale) {
+    _zoomBadge.value = (scale * 100).round();
+    _zoomBadgeTimer?.cancel();
+    _zoomBadgeTimer = Timer(const Duration(milliseconds: 1200), () {
+      _zoomBadge.value = null;
+    });
+  }
+
   void _setView(PageViewport v, _Fit fit) => setState(() {
     _vp = v;
     _fit = fit;
@@ -777,6 +794,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     // Not under a stroke or a pinch.
     if (_pointer != null || _mode == _Mode.gesture) return;
     final from = _vp;
+    if (from != null && from.scale != to.scale) _flashZoom(to.scale);
     _anim.stop();
     if (from == null || MediaQuery.disableAnimationsOf(context)) {
       _setView(to, fit);
@@ -799,10 +817,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     // Steps build on where a running animation is headed.
     final vp = _anim.isAnimating ? _to : _vp;
     if (vp == null || _page == null) return;
-    final s = (vp.scale * factor).clamp(
-      PageViewport.zoomMin,
-      PageViewport.zoomMax,
-    );
+    final s = zoomSnap(vp.scale * factor, _fitScale);
     _goTo(_clamp(vp.zoomAbout(_size.center(Offset.zero), s)), _Fit.free);
   }
 
@@ -922,10 +937,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     final pa = _touches[_gA], pb = _touches[_gB];
     if (pa == null || pb == null) return;
     final focal = (pa + pb) / 2;
-    final s = (_s0 * (pa - pb).distance / _d0).clamp(
-      PageViewport.zoomMin,
-      PageViewport.zoomMax,
-    );
+    // The request counts from the unsnapped start scale, so a long pinch
+    // leaves the snap (spec zoom.snap, "Releasing").
+    final s = zoomSnap(_s0 * (pa - pb).distance / _d0, _fitScale);
+    if (s != _vp?.scale) _flashZoom(s);
     _setView(_clamp(PageViewport(s, focal - _p0 * s)), _Fit.free);
   }
 
@@ -1239,6 +1254,41 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                 ),
               ),
             Positioned(
+              top: pad.top + gap + _toolbarHeight + gap,
+              right: pad.right + gap,
+              child: IgnorePointer(
+                child: ValueListenableBuilder<int?>(
+                  valueListenable: _zoomBadge,
+                  builder: (context, p, _) => p == null
+                      ? const SizedBox.shrink()
+                      : Semantics(
+                          liveRegion: true,
+                          container: true,
+                          label: '$p%',
+                          excludeSemantics: true,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: KkjLight.componentsBadgeNeutralBackground,
+                              borderRadius: BorderRadius.circular(
+                                KkjLight.componentsBadgeRounded,
+                              ),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: KkjTokens.spacing3,
+                                vertical: KkjTokens.spacing1,
+                              ),
+                              child: Text(
+                                '$p%',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+            ),
+            Positioned(
               top: pad.top + gap,
               left: pad.left + gap,
               right: pad.right + gap,
@@ -1264,7 +1314,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                     onZoomIn: () => _zoomBy(_zoomStep),
                     onFitWidth: () => _goTo(_laidOut(_Fit.width), _Fit.width),
                     onFitPage: () => _goTo(_laidOut(_Fit.page), _Fit.page),
-                    onVersionHistory: readOnly || receiving ? null : _openHistory,
+                    onVersionHistory: readOnly || receiving
+                        ? null
+                        : _openHistory,
                   );
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,

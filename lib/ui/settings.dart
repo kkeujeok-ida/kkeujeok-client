@@ -9,6 +9,33 @@ import 'log_export.dart';
 import 'providers.dart';
 import 'unsent_widgets.dart';
 
+/// "로그아웃할까요?": pops `true` on confirm. Cancel (also back) has the focus.
+class _LogOutConfirm extends StatelessWidget {
+  const _LogOutConfirm();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    const hit = Size(0, KkjTokens.spacingHitMinAndroid);
+    return AlertDialog(
+      title: Text(l10n.logOutConfirmTitle),
+      actions: [
+        TextButton(
+          autofocus: true, // default focus is the safe choice
+          style: TextButton.styleFrom(minimumSize: hit),
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(l10n.cancel),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(minimumSize: hit),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(l10n.logOut),
+        ),
+      ],
+    );
+  }
+}
+
 /// A row with a 48dp minimum touch target.
 class _Row extends StatelessWidget {
   const _Row({required this.child, this.onTap});
@@ -109,6 +136,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (counted == null || !mounted) return;
     final ids = counted.ids;
     if (ids != null && ids.isEmpty) {
+      // Nothing unsent: the plain confirm. The unsent warning below replaces
+      // it, so two boxes never follow each other.
+      final yes = await showDialog<bool>(
+        context: context,
+        builder: (_) => const _LogOutConfirm(),
+      );
+      if (yes != true || !mounted) return;
       await ref.read(authProvider.notifier).signOut();
       nav.popUntil((r) => r.isFirst);
       return;

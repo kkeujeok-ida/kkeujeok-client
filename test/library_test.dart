@@ -720,6 +720,8 @@ void main() {
       await t.pumpAndSettle();
       await t.tap(find.text('Log out'));
       await t.pumpAndSettle();
+      await t.tap(find.widgetWithText(FilledButton, 'Log out'));
+      await t.pumpAndSettle();
       // Changed while signed out.
       fileOf(1).parent.deleteSync(recursive: true);
       seed(_note(2, 'After'));

@@ -71,6 +71,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get logOut => '로그아웃';
 
   @override
+  String get logOutConfirmTitle => '로그아웃할까요?';
+
+  @override
   String get disconnect => '연결 해제';
 
   @override

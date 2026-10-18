@@ -682,6 +682,57 @@ class NoteStore {
     return value;
   }
 
+  /// The title changed in Drive (spec `drive.remoteTitle`): under the note's
+  /// lock [pick] gets the working copy, the base copy and `sync.json` and
+  /// returns the new title, or null to do nothing. The title goes into the
+  /// working copy first, then into the base copy; `metaRev`, pages and
+  /// `sync.json` stay as they are. A base that is ahead of the working copy
+  /// would make the app "win" and rename the file back, hence the order.
+  /// Returns whether it wrote. Throws [NoteSaveException].
+  Future<bool> retitle(
+    String noteId,
+    String? Function(Note working, Note base, SyncInfo info) pick,
+  ) async {
+    var done = false;
+    final dir = (await _working(noteId)).parent;
+    await _locked(noteId, () async {
+      final tmps = <File>[];
+      try {
+        final work = File(_in(dir, workingFileName));
+        if (!await work.exists()) return;
+        final w = decodeKkj(await work.readAsBytes());
+        if (!w.writable || w.note == null || w.note!.noteId != noteId) return;
+        final info = await _loadSyncStrict(dir);
+        final id = info.baseHeadRevisionId;
+        if (id == null) return;
+        final baseF = File(_in(dir, 'base.$id.kkj'));
+        if (!await baseF.exists()) return;
+        final b = decodeKkj(await baseF.readAsBytes());
+        if (b.note == null || b.note!.noteId != noteId) return;
+        final title = pick(w.note!, b.note!, info);
+        if (title == null) return;
+        Note withTitle(Note n) {
+          final j = n.copyJson();
+          (j['meta'] as Map<String, dynamic>)['title'] = title;
+          return Note.trusted(j);
+        }
+
+        await _put(work, encodeKkj(withTitle(w.note!)), tmps);
+        await _put(baseF, encodeKkj(withTitle(b.note!)), tmps);
+        done = true;
+      } catch (e) {
+        await _cleanTmps(tmps);
+        if (e is NoteSaveException) rethrow;
+        throw NoteSaveException('could not write the title', e);
+      }
+    });
+    if (done) {
+      await _notify();
+      _emit(noteId);
+    }
+    return done;
+  }
+
   /// Never throws. A missing or broken `sync.json` is "none": state
   /// `pending`, no base, and no base file is removed. Otherwise only the
   /// base it names is read and the others are removed. Leftover temp files

@@ -404,28 +404,26 @@ void main() {
   });
 
   group('rename and move', () {
-    test('the head did not change: nothing is downloaded or written', () async {
+    test('the head did not change: nothing is downloaded; only the title '
+        'follows the name (Story 11.3)', () async {
       final r = await synced();
-      final bytes = env.working.readAsBytesSync();
       final sync = env.syncFile.readAsStringSync();
       final media = mediaCalls();
       env.drive.renameForeign(env.note, 'Renamed in Drive.kkj');
       env.drive.moveForeign(env.note, 'elsewhere');
       await r.check();
       expect(mediaCalls(), media);
-      expect(env.working.readAsBytesSync(), bytes);
       expect(env.syncFile.readAsStringSync(), sync);
-      expect((await env.store.read(noteId))!.note!.title, 'a');
+      expect((await env.store.read(noteId))!.note!.title, 'Renamed in Drive');
     });
 
-    test('an upload sends the name back from the title', () async {
+    test('an upload keeps the renamed title in the name', () async {
       final r = await synced();
-      final name = env.note.name;
       env.drive.renameForeign(env.note, 'Renamed in Drive.kkj');
       await r.check();
-      await env.save(makeNote(rev: 4));
+      await env.save(makeNote(rev: 4, title: 'Renamed in Drive'));
       expect(await env.uploader().upload(noteId), UploadOutcome.uploaded);
-      expect(env.note.name, name);
+      expect(env.note.name, 'Renamed in Drive.kkj');
     });
   });
 
