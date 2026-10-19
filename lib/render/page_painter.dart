@@ -14,7 +14,7 @@ class PageViewport {
   Offset toPage(Offset local) => (local - offset) / scale;
 
   static const zoomMin = 0.5;
-  static const zoomMax = 4.0;
+  static const zoomMax = 8.0;
 
   static bool _ok(Size size, double w, double h, EdgeInsets pad) {
     final aw = size.width - pad.horizontal, ah = size.height - pad.vertical;

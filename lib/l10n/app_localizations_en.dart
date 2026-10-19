@@ -13,7 +13,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get productName => 'Kkeujeok';
 
   @override
-  String get library => 'Library';
+  String get library => 'Notes';
+
+  @override
+  String get sortNameAsc => 'Name (A-Z)';
+
+  @override
+  String get sortNameDesc => 'Name (Z-A)';
+
+  @override
+  String get sortCreatedDesc => 'Created (newest first)';
+
+  @override
+  String get sortCreatedAsc => 'Created (oldest first)';
+
+  @override
+  String get sortEditedDesc => 'Edited (newest first)';
+
+  @override
+  String get sortEditedAsc => 'Edited (oldest first)';
 
   @override
   String get settings => 'Settings';

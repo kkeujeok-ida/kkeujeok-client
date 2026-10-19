@@ -9,7 +9,7 @@ import 'open_note.dart';
 import 'sync_log.dart';
 import 'sync_rules.dart';
 
-/// A per-note `upload.lease` file (`<owner token>:<milliseconds>`), so the
+/// A per-note `upload.lease` file (`<owner token>:<milliseconds>:<pid>`), so the
 /// app and the WorkManager task never upload one note together.
 ///
 /// - Created exclusively; its content is then put in place by temp file and
@@ -18,17 +18,22 @@ import 'sync_rules.dart';
 /// - Stale after [staleAfter] without [renew]. A stale lease is moved aside
 ///   (only one contender succeeds) and taken over only when what was moved
 ///   is what was judged stale.
+/// - A lease written by another process id is stale at once: the app was
+///   killed mid-upload and no one is uploading (the WorkManager task runs in
+///   the app's own process).
 /// - Only the owner token releases or renews it.
 class UploadLease {
   UploadLease(
     this._data,
     this._clock, {
     this.staleAfter = const Duration(minutes: 10),
-  });
+    int? processId,
+  }) : _pid = processId ?? pid;
 
   final NoteData _data;
   final DateTime Function() _clock;
   final Duration staleAfter;
+  final int _pid;
   final _held = <String, String>{};
   static final _random = Random.secure();
 
@@ -49,20 +54,28 @@ class UploadLease {
     }
   }
 
-  ({String token, int ms})? _parse(String? text) {
-    final m = RegExp(r'^([0-9a-f]{16}):(\d+)$').firstMatch(text ?? '');
-    return m == null ? null : (token: m.group(1)!, ms: int.parse(m.group(2)!));
+  ({String token, int ms, int? pid})? _parse(String? text) {
+    final m = RegExp(r'^([0-9a-f]{16}):(\d+)(?::(\d+))?$')
+        .firstMatch(text ?? '');
+    if (m == null) return null;
+    final p = m.group(3);
+    return (
+      token: m.group(1)!,
+      ms: int.parse(m.group(2)!),
+      pid: p == null ? null : int.parse(p),
+    );
   }
 
   Future<void> _put(File f, String token) async {
     final tmp = File('${f.path}.$token.tmp');
-    await tmp.writeAsString('$token:${_clock().millisecondsSinceEpoch}');
+    await tmp.writeAsString('$token:${_clock().millisecondsSinceEpoch}:$_pid');
     await tmp.rename(f.path);
   }
 
   Future<bool> _fresh(File f, String? text) async {
     final p = _parse(text);
     if (p != null) {
+      if (p.pid != null && p.pid != _pid) return false;
       return _clock().difference(DateTime.fromMillisecondsSinceEpoch(p.ms)) <
           staleAfter;
     }

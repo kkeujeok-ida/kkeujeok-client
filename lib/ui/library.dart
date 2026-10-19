@@ -15,6 +15,7 @@ import '../sync/note_receiver.dart';
 import '../sync/receive_scheduler.dart';
 import 'cannot_open_sheet.dart';
 import 'library_fab.dart';
+import 'library_sort.dart';
 import 'new_note_sheet.dart';
 import 'note_editor.dart';
 import 'providers.dart';
@@ -317,16 +318,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         if (!local.contains(c.noteId)) c,
     ];
     final failed = async.hasError && !async.hasValue;
-    final entries = async.value ?? const <LibraryEntry>[];
+    final entries = sortEntries(
+      async.value ?? const <LibraryEntry>[],
+      ref.watch(librarySortProvider),
+    );
     final cards = <Widget>[
       if (root.status == RootStatus.failed)
-        switch (root.errorClass) {
-          'backoff' => const SizedBox.shrink(), // top right, below
+        ?switch (root.errorClass) {
           'reauth' => _ErrorCard(
             message: l10n.driveReauth,
             actionLabel: l10n.driveReauthAction,
             onRetry: () => ref.read(rootFolderProvider.notifier).signInAgain(),
           ),
+          'backoff' => null, // the floating notice at the top right, below
           _ => _ErrorCard(
             message: l10n.drivePrepareFailed,
             onRetry: () => ref.read(rootFolderProvider.notifier).check(),
@@ -372,12 +376,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   top: KkjTokens.spacing4,
                   bottom: KkjTokens.spacing3,
                 ),
-                child: Semantics(
-                  header: true,
-                  child: Text(
-                    l10n.library,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
+                child: Row(
+                  children: [
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        l10n.library,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                    const SizedBox(width: KkjTokens.spacing3),
+                    Flexible(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 240),
+                        child: const LibrarySortMenu(),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               if (root.status == RootStatus.preparing) const _Preparing(),
@@ -392,7 +407,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           PositionedDirectional(
             top: MediaQuery.paddingOf(context).top + KkjTokens.spacing3,
             end: MediaQuery.paddingOf(context).right + KkjTokens.spacing3,
-            width: _offlineNoticeWidth,
             child: DecoratedBox(
               key: const Key('offlineNotice'),
               decoration: BoxDecoration(
@@ -406,6 +420,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 padding: const EdgeInsets.all(KkjLight.componentsBannerPadding),
                 child: _ErrorCard(
                   message: l10n.networkError,
+                  inline: true,
                   onRetry: () => ref.read(rootFolderProvider.notifier).check(),
                 ),
               ),
@@ -820,9 +835,6 @@ class _NewNoteCard extends StatelessWidget {
   }
 }
 
-// Width of the floating offline notice: spacing-based, the tokens have none.
-const double _offlineNoticeWidth = KkjTokens.spacing7 * 5;
-
 /// Shown instead of the empty-library card when the folder could not be
 /// listed.
 class _ErrorCard extends StatelessWidget {
@@ -830,10 +842,14 @@ class _ErrorCard extends StatelessWidget {
     required this.message,
     required this.onRetry,
     this.actionLabel,
+    this.inline = false,
   });
 
   final String message;
   final String? actionLabel;
+
+  /// Message and button side by side on one row.
+  final bool inline;
   final VoidCallback onRetry;
 
   @override
@@ -842,17 +858,34 @@ class _ErrorCard extends StatelessWidget {
     return Semantics(
       liveRegion: true,
       container: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(message, style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(height: KkjTokens.spacing3),
-          FilledButton(
-            onPressed: onRetry,
-            child: Text(actionLabel ?? l10n.retry),
-          ),
-        ],
-      ),
+      child: inline
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    message,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
+                const SizedBox(width: KkjTokens.spacing3),
+                FilledButton(
+                  onPressed: onRetry,
+                  child: Text(actionLabel ?? l10n.retry),
+                ),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(message, style: Theme.of(context).textTheme.bodyMedium),
+                const SizedBox(height: KkjTokens.spacing3),
+                FilledButton(
+                  onPressed: onRetry,
+                  child: Text(actionLabel ?? l10n.retry),
+                ),
+              ],
+            ),
     );
   }
 }

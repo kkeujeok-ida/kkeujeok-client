@@ -320,6 +320,12 @@ void main() {
       expect(r.where((x) => x), hasLength(1));
     });
 
+    test('a lease of another process id is taken over at once', () async {
+      final dead = UploadLease(env.data, () => now, processId: 1);
+      expect(await dead.acquire(noteId), isTrue); // killed, never released
+      expect(await lease().acquire(noteId), isTrue); // no 10-minute wait
+    });
+
     test('only the owner releases', () async {
       final a = lease(), b = lease();
       expect(await a.acquire(noteId), isTrue);

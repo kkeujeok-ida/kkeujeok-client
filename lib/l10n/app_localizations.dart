@@ -107,8 +107,44 @@ abstract class AppLocalizations {
   /// No description provided for @library.
   ///
   /// In en, this message translates to:
-  /// **'Library'**
+  /// **'Notes'**
   String get library;
+
+  /// No description provided for @sortNameAsc.
+  ///
+  /// In en, this message translates to:
+  /// **'Name (A-Z)'**
+  String get sortNameAsc;
+
+  /// No description provided for @sortNameDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Name (Z-A)'**
+  String get sortNameDesc;
+
+  /// No description provided for @sortCreatedDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Created (newest first)'**
+  String get sortCreatedDesc;
+
+  /// No description provided for @sortCreatedAsc.
+  ///
+  /// In en, this message translates to:
+  /// **'Created (oldest first)'**
+  String get sortCreatedAsc;
+
+  /// No description provided for @sortEditedDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Edited (newest first)'**
+  String get sortEditedDesc;
+
+  /// No description provided for @sortEditedAsc.
+  ///
+  /// In en, this message translates to:
+  /// **'Edited (oldest first)'**
+  String get sortEditedAsc;
 
   /// No description provided for @settings.
   ///

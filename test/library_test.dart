@@ -146,7 +146,7 @@ void main() {
       expect(fab, findsOneWidget);
       expect(fabItem, findsNothing);
       // The header holds the title only.
-      expect(find.text('Library'), findsOneWidget);
+      expect(find.text('Notes'), findsOneWidget);
       expect(find.byType(NoteEditor), findsNothing);
     });
 
@@ -282,7 +282,6 @@ void main() {
       await settle(t);
 
       expect(find.byType(NoteEditor), findsOneWidget);
-      expect(find.text('Algorithms'), findsOneWidget);
 
       final dirs = notes.listSync().whereType<Directory>().toList();
       expect(dirs, hasLength(1));
@@ -319,6 +318,8 @@ void main() {
       await t.pumpAndSettle();
       await t.enterText(find.byType(TextField), '   ');
       await t.tap(find.text('Create'));
+      await settle(t);
+      await t.tap(find.byTooltip('Back to library'));
       await settle(t);
       expect(find.text('이름 없는 노트 2'), findsOneWidget);
     });
@@ -398,7 +399,9 @@ void main() {
   });
 
   group('note cards', () {
-    testWidgets('newest edit first, ties by noteId descending', (t) async {
+    testWidgets('by name at start; the drop-down picks another order', (
+      t,
+    ) async {
       seed(_note(1, 'Oldest', at: '2026-10-08T12:00:00.000Z'));
       seed(_note(2, 'TieLow', at: '2026-10-09T12:00:00.000Z'));
       seed(_note(3, 'TieHigh', at: '2026-10-09T12:00:00.000Z'));
@@ -409,9 +412,33 @@ void main() {
       final names = ['Oldest', 'TieLow', 'TieHigh', 'Newest', "Can't open"];
       expect(order(t, names), [
         'Newest',
+        'Oldest',
         'TieHigh',
         'TieLow',
+        "Can't open",
+      ]);
+
+      await t.tap(find.byKey(const Key('sortMenu')));
+      await settle(t);
+      await t.tap(find.text('Edited (newest first)').last);
+      await settle(t);
+      expect(order(t, names), [
+        'Newest',
+        'TieLow',
+        'TieHigh',
         'Oldest',
+        "Can't open",
+      ]);
+
+      await t.tap(find.byKey(const Key('sortMenu')));
+      await settle(t);
+      await t.tap(find.text('Name (Z-A)').last);
+      await settle(t);
+      expect(order(t, names), [
+        'TieLow',
+        'TieHigh',
+        'Oldest',
+        'Newest',
         "Can't open",
       ]);
     });
@@ -688,16 +715,16 @@ void main() {
       await pumpApp(t, noteData: data, width: 400);
       await settle(t);
       expect(
-        t.getTopLeft(find.text('Library')).dx,
+        t.getTopLeft(find.text('Notes')).dx,
         greaterThanOrEqualTo(t.getRect(find.byTooltip('Open menu')).right),
       );
       await pumpApp(t, noteData: data, width: 900);
       await settle(t);
-      expect(t.getTopLeft(find.text('Library')).dx, 240 + 24);
+      expect(t.getTopLeft(find.text('Notes')).dx, 240 + 24);
       await pumpApp(t, noteData: data, width: 700);
       await settle(t);
       // Rail: 8 padding + 48 button + 8 padding, then the 24 content gutter.
-      expect(t.getTopLeft(find.text('Library')).dx, 64 + 24);
+      expect(t.getTopLeft(find.text('Notes')).dx, 64 + 24);
     });
 
     Future<void> signInAgain(WidgetTester t) async {

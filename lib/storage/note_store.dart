@@ -750,7 +750,12 @@ class NoteStore {
         if (!await dir.exists()) return none;
         try {
           await for (final e in dir.list()) {
-            if (e is File && e.path.endsWith('.tmp')) {
+            // Only leftovers: a fresh one may be a write in flight in the
+            // other isolate (the WorkManager task has its own lock).
+            if (e is File &&
+                e.path.endsWith('.tmp') &&
+                DateTime.now().difference(await e.lastModified()) >
+                    const Duration(minutes: 1)) {
               try {
                 await e.delete();
               } catch (_) {}

@@ -360,6 +360,9 @@ void main() {
       f('sync.json.tmp').writeAsBytesSync([1, 2]);
       f('base.R9.kkj.tmp').writeAsBytesSync([1, 2]);
       f('working.kkj.tmp').writeAsBytesSync([1, 2]);
+      for (final n in ['sync.json.tmp', 'base.R9.kkj.tmp', 'working.kkj.tmp']) {
+        f(n).setLastModifiedSync(DateTime.now().subtract(const Duration(hours: 1)));
+      }
       final r = await store.readSync(id);
       expect(r.state, SyncState.synced);
       expect(names(), ['base.R1.kkj', 'sync.json', 'working.kkj']);

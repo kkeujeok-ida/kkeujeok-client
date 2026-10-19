@@ -275,10 +275,15 @@ class _ConflictBodyState extends State<_ConflictBody> {
     ),
   );
 
+  // Room for two lines, so a label that wraps never makes its button taller
+  // than the one beside it.
+  static const _versionHeight =
+      KkjTokens.spacingHitMinAndroid + KkjTokens.spacing4;
+
   ButtonStyle get _versionStyle => OutlinedButton.styleFrom(
     backgroundColor: KkjLight.componentsConflictSheetVersionButtonBackground,
     foregroundColor: KkjLight.componentsConflictSheetVersionButtonText,
-    minimumSize: const Size(0, KkjTokens.spacingHitMinAndroid),
+    minimumSize: const Size(0, _versionHeight),
     side: const BorderSide(
       color: KkjLight.componentsConflictSheetVersionButtonBorder,
     ),
@@ -295,6 +300,7 @@ class _ConflictBodyState extends State<_ConflictBody> {
     BuildContext context, {
     required bool thisDevice,
     required Widget? button,
+    required bool fill,
   }) {
     final l = AppLocalizations.of(context);
     final item = _item;
@@ -429,16 +435,19 @@ class _ConflictBodyState extends State<_ConflictBody> {
                 const SizedBox(height: KkjTokens.spacing2),
                 Text(when, style: style.bodySmall),
               ],
-              if (newer)
-                Text(
-                  l.conflictMoreRecent,
-                  style: style.labelMedium?.copyWith(
-                    color: KkjLight.colorStatusWarningText,
-                  ),
+              // The line is kept on both sides, so a "newer" mark on one
+              // side never moves the buttons.
+              Text(
+                newer ? l.conflictMoreRecent : ' ',
+                style: style.labelMedium?.copyWith(
+                  color: KkjLight.colorStatusWarningText,
                 ),
+              ),
             ],
           ),
         ),
+        // Side by side, the buttons sit at the bottom of equally tall columns.
+        if (fill) const Spacer(),
         if (button != null) ...[
           const SizedBox(height: KkjTokens.spacing2),
           button,
@@ -459,7 +468,7 @@ class _ConflictBodyState extends State<_ConflictBody> {
     Widget version(String text, VoidCallback f) => OutlinedButton(
       style: _versionStyle,
       onPressed: _busy ? null : f,
-      child: Text(text),
+      child: Text(text, textAlign: TextAlign.center),
     );
     Widget primary(String text, VoidCallback f) => FilledButton(
       focusNode: _primary,
@@ -475,11 +484,13 @@ class _ConflictBodyState extends State<_ConflictBody> {
       left = _side(
         context,
         thisDevice: true,
+        fill: sideBySide,
         button: version(l.conflictKeepThis, () => pick('mine')),
       );
       right = _side(
         context,
         thisDevice: false,
+        fill: sideBySide,
         button: version(l.conflictKeepOther, () => pick('theirs')),
       );
     } else {
@@ -491,24 +502,28 @@ class _ConflictBodyState extends State<_ConflictBody> {
       left = _side(
         context,
         thisDevice: true,
+        fill: sideBySide,
         button: keepThis ? keep() : remove(),
       );
       right = _side(
         context,
         thisDevice: false,
+        fill: sideBySide,
         button: keepThis ? remove() : keep(),
       );
     }
 
     const gap = SizedBox(width: KkjTokens.spacing4, height: KkjTokens.spacing4);
     final previews = sideBySide
-        ? Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: left),
-              gap,
-              Expanded(child: right),
-            ],
+        ? IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: left),
+                gap,
+                Expanded(child: right),
+              ],
+            ),
           )
         : Column(children: [left, gap, right]);
 
@@ -599,10 +614,21 @@ class _ConflictBodyState extends State<_ConflictBody> {
                 ],
                 if (n >= 2) ...[
                   const SizedBox(height: KkjTokens.spacing2),
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    children: [rest(_restThis, true), rest(_restOther, false)],
-                  ),
+                  if (sideBySide)
+                    IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(child: rest(_restThis, true)),
+                          gap,
+                          Expanded(child: rest(_restOther, false)),
+                        ],
+                      ),
+                    )
+                  else ...[
+                    rest(_restThis, true),
+                    rest(_restOther, false),
+                  ],
                 ],
                 const SizedBox(height: KkjTokens.spacing2),
                 Text(

@@ -1174,7 +1174,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                     vp.scale,
                     vp.offset + rects[i].topLeft * vp.scale,
                   ),
-                  live: id == _strokePageId ? _live : null,
+                  // Read at paint time: the first stroke of a session starts after this
+                  // build, when `_strokePageId` was still null.
+                  live: () => id == _strokePageId ? _live() : null,
                   repaint: _tick,
                 ),
               ),
@@ -1190,7 +1192,6 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     const gap = KkjTokens.spacing3;
     final page = _page;
     final locked = _pageLocked;
-    final title = Theme.of(context).textTheme.labelMedium;
     final readOnly = ref.watch(
       noteSyncProvider(widget.note.noteId).select((v) => v.newVersion),
     );
@@ -1296,11 +1297,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                 builder: (context, top) {
                   // ponytail: with room the toolbar stays centered; on a
                   // phone the indicator and the menu (2 x 48 dp) leave the
-                  // title less room, so the right side takes only its width.
+                  // toolbar less room, so the right side takes only its width.
                   final wide = top.maxWidth >= 480;
                   final left = _Corner(
-                    title: widget.note.title,
-                    style: title,
                     tooltip: l10n.backToLibrary,
                     // Always through PopScope, so the queue drains.
                     onBack: () => Navigator.of(context).maybePop(),
@@ -1357,17 +1356,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   }
 }
 
-/// `editor-corner`: back arrow and the title on one line; display only.
+/// `editor-corner`: the back arrow alone.
 class _Corner extends StatelessWidget {
-  const _Corner({
-    required this.title,
-    required this.style,
-    required this.tooltip,
-    required this.onBack,
-  });
+  const _Corner({required this.tooltip, required this.onBack});
 
-  final String title;
-  final TextStyle? style;
   final String tooltip;
   final VoidCallback onBack;
 
@@ -1385,17 +1377,6 @@ class _Corner extends StatelessWidget {
           ),
           icon: const Icon(Icons.arrow_back),
           onPressed: onBack,
-        ),
-        Flexible(
-          child: Padding(
-            padding: const EdgeInsetsDirectional.only(end: KkjTokens.spacing4),
-            child: Text(
-              title,
-              style: style,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
         ),
       ],
     ),

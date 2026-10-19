@@ -74,6 +74,7 @@ void main() {
     final n = _note();
     await store.write(n);
     tmp.writeAsBytesSync([1, 2, 3]);
+    tmp.setLastModifiedSync(DateTime.now().subtract(const Duration(hours: 1)));
     final r = (await store.read(id))!;
     expect(r.note!.title, 'a');
     expect(tmp.existsSync(), isFalse);
@@ -82,6 +83,7 @@ void main() {
   test('interrupted first write: no note, tmp cleaned', () async {
     dir.createSync(recursive: true);
     tmp.writeAsBytesSync([1, 2, 3]);
+    tmp.setLastModifiedSync(DateTime.now().subtract(const Duration(hours: 1)));
     expect(await store.list(), isEmpty);
     expect(await store.read(id), isNull);
     expect(tmp.existsSync(), isFalse);

@@ -16,6 +16,24 @@ class AppLocalizationsKo extends AppLocalizations {
   String get library => 'Notes';
 
   @override
+  String get sortNameAsc => '이름순 (ㄱ-ㅎ)';
+
+  @override
+  String get sortNameDesc => '이름순 (ㅎ-ㄱ)';
+
+  @override
+  String get sortCreatedDesc => '만든 날짜순 (최신부터)';
+
+  @override
+  String get sortCreatedAsc => '만든 날짜순 (오래된 것부터)';
+
+  @override
+  String get sortEditedDesc => '수정한 날짜순 (최신부터)';
+
+  @override
+  String get sortEditedAsc => '수정한 날짜순 (오래된 것부터)';
+
+  @override
   String get settings => '설정';
 
   @override

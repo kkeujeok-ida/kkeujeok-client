@@ -261,7 +261,7 @@ void main() {
       final h = t.ensureSemantics();
       seed(_note(background: 'lined'));
       await open(t);
-      expect(find.text('Lecture'), findsOneWidget);
+      expect(find.text('Lecture'), findsNothing); // the back arrow alone
       expect(find.byTooltip('Back to library'), findsOneWidget);
       expect(find.bySemanticsLabel('Pen, Black, width 2.0'), findsOneWidget);
       expect(
@@ -328,23 +328,6 @@ void main() {
       );
       expect(slot.width, greaterThanOrEqualTo(48));
       expect(slot.height, greaterThanOrEqualTo(48));
-    });
-
-    testWidgets('a long title keeps to one line', (t) async {
-      seed(_note(title: 'Long ' * 20));
-      await pumpApp(t, noteData: data, width: 400);
-      await settle(t);
-      await t.tap(find.textContaining('Long').first);
-      await settle(t);
-      final text = t.widget<Text>(
-        find.descendant(
-          of: find.byType(NoteEditor),
-          matching: find.textContaining('Long'),
-        ),
-      );
-      expect(text.maxLines, 1);
-      expect(text.overflow, TextOverflow.ellipsis);
-      expect(t.takeException(), isNull);
     });
   });
 
@@ -861,17 +844,17 @@ void main() {
       expect(v1.toPage(center).dx, closeTo(p.dx, 1e-6));
       expect(v1.toPage(center).dy, closeTo(p.dy, 1e-6));
 
-      // Up to the top: + is disabled at 400%.
+      // Up to the top: + is disabled at 800%.
       for (
         var i = 0;
-        i < 10 && iconButton(t, Icons.add).onPressed != null;
+        i < 20 && iconButton(t, Icons.add).onPressed != null;
         i++
       ) {
         await t.tap(find.byTooltip('Zoom in'));
         await t.pumpAndSettle();
       }
       expect(viewport(t).scale, PageViewport.zoomMax);
-      expect(menuText('400%'), findsOneWidget);
+      expect(menuText('800%'), findsOneWidget);
       expect(iconButton(t, Icons.add).onPressed, isNull);
       h.dispose();
     });

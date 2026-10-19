@@ -131,7 +131,16 @@ void main() {
     final r = t.getRect(notice);
     expect(r.right, greaterThan(screen.width - 24));
     expect(r.top, lessThan(48));
-    expect(r.left, greaterThan(screen.width / 2));
+    // Message and button share one row.
+    final msg = t.getRect(
+      find.descendant(
+        of: notice,
+        matching: find.text('Check your connection and try again'),
+      ),
+    );
+    final btn = t.getRect(find.widgetWithText(FilledButton, 'Try again'));
+    expect((msg.center.dy - btn.center.dy).abs(), lessThan(btn.height / 2));
+    expect(msg.right, lessThanOrEqualTo(btn.left));
     // Text and button live in it, with the 48 dp touch target kept.
     expect(
       find.descendant(
@@ -144,12 +153,12 @@ void main() {
       t.getSize(find.widgetWithText(FilledButton, 'Try again')).height,
       greaterThanOrEqualTo(48),
     );
-    final header = t.getTopLeft(find.text('Library'));
+    final header = t.getTopLeft(find.text('Notes'));
 
     await t.tap(find.text('Try again'));
     await until(t, () => status(c) == RootStatus.ready);
     expect(notice, findsNothing);
-    expect(t.getTopLeft(find.text('Library')), header); // nothing was pushed
+    expect(t.getTopLeft(find.text('Notes')), header); // nothing was pushed
   });
 
   testWidgets('root moved: no dialog', (t) async {

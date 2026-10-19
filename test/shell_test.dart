@@ -294,7 +294,7 @@ void main() {
       final handle = t.ensureSemantics();
       await pumpApp(t);
       expect(find.bySemanticsLabel('Settings'), findsOneWidget);
-      expect(find.bySemanticsLabel('Library'), findsOneWidget);
+      expect(find.bySemanticsLabel('Notes'), findsOneWidget);
       expect(
         find.semantics.byFlag(SemanticsFlag.namesRoute),
         findsAtLeastNWidgets(1),
