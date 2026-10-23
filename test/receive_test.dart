@@ -7,6 +7,7 @@ import 'package:kkeujeok/drive/auth_gateway.dart';
 import 'package:kkeujeok/drive/drive_client.dart';
 import 'package:kkeujeok/model/kkj_codec.dart';
 import 'package:kkeujeok/model/note.dart';
+import 'package:kkeujeok/storage/note_store.dart';
 import 'package:kkeujeok/storage/sync_device_store.dart';
 import 'package:kkeujeok/storage/sync_info.dart';
 import 'package:kkeujeok/sync/note_chain.dart';
@@ -259,6 +260,61 @@ void main() {
       expect(env.info.lastError?['reason'], 'unsupportedVersion');
     });
 
+    test('three rejected commits end the check: no token, a log, retried',
+        () async {
+      await localSynced();
+      final r0 = receiver();
+      await r0.check();
+      final tokenBefore = await token();
+      foreignEdit(2);
+      var rejects = 3;
+      final store = _RejectingStore(env.data, () => rejects-- > 0);
+      final r = NoteReceiver(
+        store: store,
+        drive: env.drive,
+        device: env.device,
+        log: env.log,
+        merge: env.merge,
+        hosts: env.hosts,
+        allowed: () async => env.allowed,
+        online: () async => online,
+        account: () => acct,
+        sleep: (d) async => env.sleeps.add(d),
+        jitter: () => 0.5,
+        chain: chain,
+      );
+      addTearDown(r.dispose);
+      await r.check();
+      expect(await token(), tokenBefore);
+      expect(env.info.baseHeadRevisionId, isNot(env.note.headRevisionId));
+      expect(
+        (await env.log.entries()).any(
+          (e) => e['event'] == 'error' && e['reason'] == 'receiveRejected',
+        ),
+        isTrue,
+      );
+    });
+
+    test('a skipped error note is received again once it left error',
+        () async {
+      await localSynced();
+      final r = receiver();
+      await r.check();
+      await env.store.updateSync(
+        noteId,
+        (c) => c.copyWith(state: SyncState.error),
+      );
+      foreignEdit(2);
+      await r.check();
+      expect(env.info.baseHeadRevisionId, isNot(env.note.headRevisionId));
+      await env.store.updateSync(
+        noteId,
+        (c) => c.copyWith(state: SyncState.pending),
+      );
+      await r.check();
+      expect(env.info.baseHeadRevisionId, env.note.headRevisionId);
+    });
+
     test('a note in error or with pendingVerify is skipped', () async {
       await localSynced();
       final r = receiver();
@@ -438,4 +494,32 @@ void main() {
     await r.check(); // must not throw
     r.dispose(); // idempotent
   });
+}
+
+/// Rejects the commit of a receive while [reject] says so, as if an edit had
+/// landed between the decision and the commit.
+class _RejectingStore extends NoteStore {
+  _RejectingStore(super.data, this.reject);
+
+  final bool Function() reject;
+
+  @override
+  Future<bool> commitReceive(
+    String noteId, {
+    required Note? expected,
+    required SyncInfo guard,
+    required Note working,
+    required Note base,
+    required SyncInfo Function(SyncInfo current) change,
+  }) async =>
+      reject()
+      ? false
+      : super.commitReceive(
+          noteId,
+          expected: expected,
+          guard: guard,
+          working: working,
+          base: base,
+          change: change,
+        );
 }

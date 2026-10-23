@@ -622,6 +622,7 @@ void main() {
       await s.commitReceive(
         noteId,
         expected: n,
+        guard: const SyncInfo(baseHeadRevisionId: 'R1'),
         working: n,
         base: n,
         change: (c) => c.copyWith(baseHeadRevisionId: 'R1'),

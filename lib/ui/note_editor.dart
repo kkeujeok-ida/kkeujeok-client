@@ -360,6 +360,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     // A sync result for this note is merged into this queue and history.
     _hosts.register(widget.note.noteId, _host);
     _loadLastSeen();
+    // A receive may have replaced the note before the mark was set.
+    unawaited(_rereadDisk());
     // Asks Drive whether the note is current (not awaited: never blocks
     // opening).
     unawaited(ref.read(noteReceiverProvider).noteOpened(widget.note.noteId));
@@ -367,6 +369,29 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     if (widget.openResolveSheet) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _openSheet());
     }
+  }
+
+  /// The note on disk differs from the one this editor opened with (a
+  /// receive landed first): start from the disk's. Not when this editor
+  /// already has strokes of its own that are not saved.
+  Future<void> _rereadDisk() async {
+    try {
+      final disk = (await _store.read(widget.note.noteId))?.note;
+      if (disk == null || !mounted || _readOnly) return;
+      if (_same(disk.copyJson(), _history.note.copyJson())) return;
+      if (_pointer != null ||
+          _running != null ||
+          _latest != null ||
+          _failed != null) {
+        return;
+      }
+      _history.adopt(disk, {
+        for (final p in _history.note.pages) p['id'] as String,
+      });
+      _relayout();
+      setState(() {});
+      _tick.value++;
+    } catch (_) {}
   }
 
   Timer? _latestTimer;
@@ -571,6 +596,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       return (
         note: Note.trusted(out['note'] as Map<String, dynamic>),
         undoDrop: <String>{...(out['undoDrop'] as List).cast<String>()},
+        lastSeen: 0,
       );
     }, () async {});
     if (!applied || out['result'] != 'resolved') return null;
@@ -664,7 +690,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
           _tick.value++;
         }
         _commit();
-        await _flush();
+        if (!await _flush()) return false; // not on disk: no upload, `_lastSeen` stays
+        // Only once the merge is adopted and saved: a stroke that follows takes a seq above it.
+        if (r.lastSeen > _lastSeen) _lastSeen = r.lastSeen;
       }
       if (mounted) setState(() {});
       await _loadLastSeen();
@@ -681,8 +709,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   }
 
   /// Waits until every queued save is on disk (one more try for a failed
-  /// one). Never throws.
-  Future<void> _flush() async {
+  /// one). Never throws; false when a save is still not on disk.
+  Future<bool> _flush() async {
     try {
       await _running;
       final f = _failed;
@@ -690,7 +718,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
         await _store.write(f);
         _failed = null;
       }
-    } catch (_) {}
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   @override

@@ -52,8 +52,12 @@ abstract interface class MergeStep {
 /// `sync.json` and runs between the calls. The host repeats [merge] when the
 /// live note changed while [record] ran, adopts the last result with no
 /// `await` between the check and the adoption, saves it through its own
-/// queue, and answers false when it gave up.
-typedef LiveMerge = ({Note note, Set<String> undoDrop})? Function(Note live);
+/// queue, and answers false when it gave up (or when the save failed).
+/// `lastSeen` is the merge's `lastSeenRemoteSeq` (0: none); the host raises
+/// its own to the greatest.
+typedef LiveMerge = ({Note note, Set<String> undoDrop, int lastSeen})? Function(
+  Note live,
+);
 typedef MergeHost = Future<bool> Function(
   LiveMerge merge,
   Future<void> Function() record,
@@ -183,6 +187,7 @@ class QueueMergeStep implements MergeStep {
           return (
             note: next,
             undoDrop: <String>{...(out['undoDrop'] as List).cast<String>()},
+            lastSeen: out['lastSeenRemoteSeq'] as int,
           );
         },
         () async {

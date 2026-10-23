@@ -230,12 +230,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   /// A card of a note with an unresolved conflict opens the editor with the
   /// resolve sheet already up (Story 3.21); the card's own badge state says
   /// so, no extra read.
-  Future<void> _open(Note note) => _guarded(
-    () => _afterEditor(
+  Future<void> _open(Note cached) => _guarded(() async {
+    // The list may hold a note a receive has replaced since: open the disk's.
+    final note =
+        (await ref.read(noteStoreProvider).read(cached.noteId))?.note ??
+        cached;
+    if (!mounted) return;
+    await _afterEditor(
       _push(note, resolve: ref.read(noteSyncProvider(note.noteId)).hasConflict),
       note,
-    ),
-  );
+    );
+  });
 
   Future<void> _openById(String noteId) => _guarded(() async {
     final note = (await ref.read(noteStoreProvider).read(noteId))?.note;

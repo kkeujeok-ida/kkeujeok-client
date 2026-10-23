@@ -42,6 +42,7 @@ void main() {
     final ok = await store.commitReceive(
       noteId,
       expected: before,
+      guard: (await store.readSync(noteId)).info,
       working: remote,
       base: remote,
       change: (c) => c.copyWith(baseHeadRevisionId: 'R2'),
@@ -65,6 +66,7 @@ void main() {
     final ok = await store.commitReceive(
       noteId,
       expected: seen,
+      guard: (await store.readSync(noteId)).info,
       working: remote,
       base: remote,
       change: (c) {
@@ -85,6 +87,7 @@ void main() {
     final ok = await store.commitReceive(
       noteId,
       expected: null,
+      guard: (await store.readSync(noteId)).info,
       working: remote,
       base: remote,
       change: (c) => c.copyWith(baseHeadRevisionId: 'R2'),
@@ -98,6 +101,7 @@ void main() {
     final ok = await store.commitReceive(
       noteId,
       expected: null,
+      guard: (await store.readSync(noteId)).info,
       working: remote,
       base: remote,
       change: (c) => c.copyWith(
@@ -120,6 +124,7 @@ void main() {
       await store.commitReceive(
         noteId,
         expected: remote,
+        guard: (await store.readSync(noteId)).info,
         working: remote,
         base: remote,
         change: (c) => c.copyWith(baseHeadRevisionId: 'R1'),
@@ -127,6 +132,48 @@ void main() {
       isFalse,
     );
     expect(file('working.kkj').existsSync(), isFalse);
+  });
+
+  test('commitReceive refuses when sync.json changed after the decision',
+      () async {
+    await seedSynced();
+    final seen = (await store.read(noteId))!.note!;
+    final guard = (await store.readSync(noteId)).info;
+    await store.updateSync(
+      noteId,
+      (c) => c.copyWith(unsentSidecars: [
+        {'pageId': 'p', 'rev': 'r'},
+      ]),
+    );
+    final remote = makeNote(rev: 2);
+    final ok = await store.commitReceive(
+      noteId,
+      expected: seen,
+      guard: guard,
+      working: remote,
+      base: remote,
+      change: (c) => c.copyWith(baseHeadRevisionId: 'R2'),
+    );
+    expect(ok, isFalse);
+    expect((await store.readSync(noteId)).info.baseHeadRevisionId, 'R1');
+  });
+
+  test('commitReceive refuses when the working copy differs from the base',
+      () async {
+    await seedSynced();
+    await store.write(makeNote(rev: 3)); // unsent edit
+    final seen = (await store.read(noteId))!.note!;
+    final remote = makeNote(rev: 2);
+    final ok = await store.commitReceive(
+      noteId,
+      expected: seen,
+      guard: (await store.readSync(noteId)).info,
+      working: remote,
+      base: remote,
+      change: (c) => c.copyWith(baseHeadRevisionId: 'R2'),
+    );
+    expect(ok, isFalse);
+    expect((await store.readSync(noteId)).info.baseHeadRevisionId, 'R1');
   });
 
   test('storeUnreadable keeps the bytes and is never replaced', () async {

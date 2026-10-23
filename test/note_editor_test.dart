@@ -1967,4 +1967,109 @@ void main() {
       expect(elements(), hasLength(1), reason: 'only the stylus stroke');
     });
   });
+
+  group('merge host and re-read (12.1)', () {
+    Future<MergeHost> hostOf(WidgetTester t) async {
+      final c = ProviderScope.containerOf(t.element(find.byType(NoteEditor)));
+      return c.read(mergeHostsProvider).of(_id(1))!;
+    }
+
+    LiveMerge retitle(int lastSeen) => (live) {
+      final j = live.copyJson();
+      (j['meta'] as Map<String, dynamic>)['title'] = 'Merged';
+      return (note: Note.trusted(j), undoDrop: <String>{}, lastSeen: lastSeen);
+    };
+
+    testWidgets('a merge whose save fails answers false (no upload)', (
+      t,
+    ) async {
+      seed(_note());
+      var fail = false;
+      final store = NoteStore(
+        data,
+        writeFile: (f, b) async {
+          if (fail) throw const FileSystemException('disk full');
+          await f.writeAsBytes(b);
+        },
+      );
+      await open(t, store: store);
+      final host = await hostOf(t);
+      fail = true;
+      final ok = await t.runAsync(() => host(retitle(5), () async {}));
+      expect(ok, isFalse);
+    });
+
+    testWidgets('lastSeen of a merge raises the seq of the next stroke', (
+      t,
+    ) async {
+      seed(_note());
+      await open(t);
+      final host = await hostOf(t);
+      final ok = await t.runAsync(() => host(retitle(50), () async {}));
+      expect(ok, isTrue);
+      await settle(t);
+      await draw(t, line);
+      await settle(t);
+      final seq =
+          decodeKkj(file.readAsBytesSync()).note!.pages.first['seq'] as int;
+      expect(seq, greaterThan(50));
+    });
+
+    Future<Completer<void>> pushStale(WidgetTester t, _GateStore store) async {
+      await pumpApp(t, noteData: data, noteStore: store);
+      await settle(t);
+      final gate = Completer<void>();
+      store.gate = gate.future;
+      final nav = Navigator.of(t.element(find.byType(Scaffold).first));
+      unawaited(
+        nav.push(
+          MaterialPageRoute<void>(
+            builder: (_) => NoteEditor(note: _note(title: 'Stale')),
+          ),
+        ),
+      );
+      await t.pump();
+      await t.pump(const Duration(seconds: 1)); // the route is in place
+      return gate;
+    }
+
+    String? historyTitle(WidgetTester t) => ProviderScope.containerOf(
+      t.element(find.byType(NoteEditor)),
+    ).read(noteHistoriesProvider)[_id(1)]?.note.title;
+
+    testWidgets('the disk note replaces a stale one the editor was opened with', (
+      t,
+    ) async {
+      seed(_note());
+      final store = _GateStore(data);
+      final gate = await pushStale(t, store);
+      gate.complete();
+      await settle(t);
+      expect(historyTitle(t), 'Lecture');
+    });
+
+    testWidgets('a stroke in progress keeps the editor as it is', (t) async {
+      seed(_note());
+      final store = _GateStore(data);
+      final gate = await pushStale(t, store);
+      await draw(t, line, up: false);
+      gate.complete();
+      await settle(t);
+      expect(historyTitle(t), 'Stale');
+    });
+  });
+}
+
+/// Holds every `read` back while [gate] is set.
+class _GateStore extends NoteStore {
+  _GateStore(super.data);
+
+  Future<void>? gate;
+
+  @override
+  Future<NoteReadResult?> read(String noteId) async {
+    final g = gate;
+    if (g != null) await g;
+    return super.read(noteId);
+  }
 }

@@ -200,9 +200,16 @@ class NoteStore {
   /// nothing is written and the answer is false. [change] gets the
   /// `sync.json` read under the same lock and returns the one to commit.
   /// Throws [NoteSaveException] like [commitSync].
+  ///
+  /// [guard] is the `sync.json` the decision was made on: under the lock its
+  /// `unsentSidecars`, `pendingVerify`, `baseHeadRevisionId` and `fileId` must
+  /// still be the same, and (for a note that exists) the working copy must
+  /// not differ from the base now, else the answer is false and the caller
+  /// decides again.
   Future<bool> commitReceive(
     String noteId, {
     required Note? expected,
+    required SyncInfo guard,
     required Note working,
     required Note base,
     required SyncInfo Function(SyncInfo current) change,
@@ -211,8 +218,9 @@ class NoteStore {
     final dir = (await _working(noteId)).parent;
     await _locked(noteId, () async {
       final file = File(_in(dir, workingFileName));
+      Note? cur;
       if (await file.exists()) {
-        final cur = decodeKkj(await file.readAsBytes()).note;
+        cur = decodeKkj(await file.readAsBytes()).note;
         if (expected == null ||
             cur == null ||
             jsonEncode(cur.toJson()) != jsonEncode(expected.toJson())) {
@@ -221,7 +229,40 @@ class NoteStore {
       } else if (expected != null) {
         return;
       }
-      await _commitLocked(working, base, change(await _loadSyncStrict(dir)));
+      final now = await _loadSyncStrict(dir);
+      String key(SyncInfo i) => jsonEncode([
+        i.unsentSidecars,
+        i.pendingVerify,
+        i.baseHeadRevisionId,
+        i.fileId,
+      ]);
+      if (key(now) != key(guard)) return;
+      if (cur != null) {
+        // hasUnsent from what is on disk under this lock, not a snapshot.
+        final id = now.baseHeadRevisionId;
+        Note? b;
+        if (id != null) {
+          try {
+            final bf = File(_in(dir, 'base.$id.kkj'));
+            if (await bf.exists()) b = decodeKkj(await bf.readAsBytes()).note;
+          } catch (_) {}
+        }
+        Map<String, Object?> s(Note n) => {
+          'orderRev': n.orderRev,
+          'metaRev': n.metaRev,
+          'pages': n.pages,
+        };
+        if (hasUnsentRule({
+              'base': b == null ? null : s(b),
+              'working': s(cur),
+              'pendingVerify': now.pendingVerify,
+              'unsentSidecars': now.unsentSidecars,
+            })['hasUnsent'] !=
+            false) {
+          return;
+        }
+      }
+      await _commitLocked(working, base, change(now));
       done = true;
     });
     if (done) {

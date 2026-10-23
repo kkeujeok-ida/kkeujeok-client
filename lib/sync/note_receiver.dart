@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../drive/auth_gateway.dart';
@@ -342,12 +344,37 @@ class NoteReceiver {
 
   // ---- one batch of changed files ---------------------------------------
 
-  bool _skip(SyncInfo i, DriveFile f) =>
-      i.baseHeadRevisionId == f.headRevisionId ||
-      i.state == SyncState.error ||
-      i.pendingVerify != null ||
-      i.fileId == null ||
-      i.fileId != f.id;
+  /// Heads of skipped notes (`error`, other file): the next check (foreground,
+  /// manual retry) looks at them again. An entry goes once it was processed.
+  final _pendingReceive = <String, DriveFile>{};
+  final _loggedSkips = <String>{};
+
+  bool _skip(SyncInfo i, DriveFile f) {
+    final same = i.baseHeadRevisionId == f.headRevisionId;
+    final byError = i.state == SyncState.error;
+    final byFile = i.fileId != null && i.fileId != f.id;
+    final skip =
+        same ||
+        byError ||
+        i.pendingVerify != null ||
+        i.fileId == null ||
+        byFile;
+    final id = f.appProperties['kkeujeokId'];
+    if (id != null && !same && (byError || byFile)) {
+      _pendingReceive[id] = f;
+      final key = '$id:${f.headRevisionId}';
+      if (_loggedSkips.add(key)) {
+        unawaited(
+          log.append('error', {
+            'class': 'fatal',
+            'noteId': id,
+            'reason': byError ? 'receiveSkippedError' : 'fileIdMismatch',
+          }),
+        );
+      }
+    }
+    return skip;
+  }
 
   static bool _valid(DriveFile f) =>
       f.mimeType == noteMimeType &&
@@ -388,6 +415,10 @@ class NoteReceiver {
     final last = <String, DriveChange>{};
     for (final c in changes) {
       last[c.fileId] = c;
+    }
+    // Skipped `error` notes come again; a newer change of the file wins.
+    for (final f in _pendingReceive.values) {
+      last.putIfAbsent(f.id, () => DriveChange(f.id, file: f));
     }
     final gone = <String>{};
     final goneNotes = <({String id, String fileId, String kind})>[];
@@ -454,12 +485,17 @@ class NoteReceiver {
       for (final f in work) {
         final id = f.appProperties['kkeujeokId']!;
         await _guard(sub);
+        final had = _pendingReceive.remove(id);
+        var done = false;
         try {
           await chain.run(id, () => _receiveOne(sub, f));
+          done = true;
         } on _Failure catch (e) {
           await _fail(id, e);
           if (_transient.contains(e.cls)) rethrow;
         } finally {
+          // A throwing receive keeps the head; a skip re-added it itself.
+          if (!done && had != null) _pendingReceive.putIfAbsent(id, () => had);
           pending.remove(id);
           _unmark([id]);
         }
@@ -601,6 +637,7 @@ class NoteReceiver {
           () => store.commitReceive(
             id,
             expected: note,
+            guard: s2.info,
             working: remote!,
             base: remote,
             change: (c) {
@@ -620,13 +657,17 @@ class NoteReceiver {
       await _mergeIn(id, f.id, head, note, s2.base, remote);
       return;
     }
+    // Three rejections: end the check, so the token is not saved.
+    throw _Failure('backoff', reason: 'receiveRejected');
   }
 
   Future<bool> _commitNew(String id, String fileId, String head, Note n) async {
+    final guard = (await store.readSync(id)).info;
     final ok = await _wrapWrite(
       () => store.commitReceive(
         id,
         expected: null,
+        guard: guard,
         working: n,
         base: n,
         change: (c) => c.copyWith(

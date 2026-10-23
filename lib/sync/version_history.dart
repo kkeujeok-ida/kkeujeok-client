@@ -227,6 +227,7 @@ class VersionRestorer {
         return (
           note: Note.trusted(out['note'] as Map<String, dynamic>),
           undoDrop: <String>{...(out['undoDrop'] as List).cast<String>()},
+          lastSeen: 0,
         );
       }, () async {});
       if (!applied || out['error'] != null || out['note'] == null) {
