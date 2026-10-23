@@ -1179,7 +1179,12 @@ class NoteUploader {
     );
     for (final e in pending) {
       final pageId = e['pageId'] as String, rev = e['rev'] as String;
-      final sc = await store.readSidecar(noteId, pageId, rev);
+      final sc = await store.readSidecar(noteId, pageId, rev).catchError((
+        Object _,
+      ) {
+        // A read error is not an absence: the entry stays, the next try reads again.
+        throw _Failure('backoff', reason: 'sidecarRead');
+      }, test: (e) => e is NoteSaveException);
       if (sc == null) {
         await log.append('error', {
           'class': 'fatal',

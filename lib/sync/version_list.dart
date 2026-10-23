@@ -171,6 +171,36 @@ Map<String, Object?> versionListRule(Map<String, Object?> input) {
   };
 }
 
+/// False for a sidecar whose `kkeujeokId` was seen before (first wins).
+bool _firstOf(Set<Object?> ids, Object? s) {
+  final id = ((s as Map)['appProperties'] as Map?)?['kkeujeokId'];
+  return id == null || ids.add(id);
+}
+
+/// [versionListRule] that drops the items the rule refuses (a bad time or
+/// `info`, a repeated id) instead of failing as a whole; the rule itself and
+/// its contract stay as they are.
+Map<String, Object?> versionListLenient(Map<String, Object?> input) {
+  final r = versionListRule(input);
+  final revs = input['revisions'], cars = input['sidecars'];
+  if (r['error'] == null || revs is! List || cars is! List) return r;
+  bool ok(List rs, List ss) =>
+      versionListRule({...input, 'revisions': rs, 'sidecars': ss})['error'] ==
+      null;
+  final ids = <Object?>{}, cids = <Object?>{};
+  return versionListRule({
+    ...input,
+    'revisions': [
+      for (final v in revs)
+        if (ok([v], const []) && ids.add((v as Map)['id'])) v,
+    ],
+    'sidecars': [
+      for (final s in cars)
+        if (ok(const [], [s]) && _firstOf(cids, s)) s,
+    ],
+  });
+}
+
 Map<String, Object?> keepForeverRule(Map<String, Object?> input) {
   final revisions = input['revisions'], target = input['target'];
   if (!_validRevisions(revisions) || target is! String) return _bad;

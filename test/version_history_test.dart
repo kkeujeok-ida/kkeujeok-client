@@ -1,6 +1,7 @@
 // Story 3.24: the version history screen (states, tags, previews, two-step
 // restore, semantics) over a fake Drive, and the flow from the editor menu.
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,8 +12,10 @@ import 'package:intl/intl.dart';
 import 'package:kkeujeok/drive/drive_client.dart';
 import 'package:kkeujeok/l10n/app_localizations.dart';
 import 'package:kkeujeok/model/ids.dart';
+import 'package:kkeujeok/model/kkj_codec.dart';
 import 'package:kkeujeok/model/note.dart';
 import 'package:kkeujeok/render/page_painter.dart';
+import 'package:kkeujeok/storage/note_store.dart' show NoteSaveException;
 import 'package:kkeujeok/storage/sync_info.dart';
 import 'package:kkeujeok/sync/note_receiver.dart' show ReceiveState;
 import 'package:kkeujeok/sync/version_history.dart';
@@ -20,6 +23,7 @@ import 'package:kkeujeok/ui/note_editor.dart';
 import 'package:kkeujeok/ui/providers.dart';
 import 'package:kkeujeok/ui/version_history.dart';
 
+import 'fake_drive.dart' show FakeRevision;
 import 'fake_receiver.dart';
 import 'shell_test.dart' show pumpApp;
 import 'upload_env.dart';
@@ -94,6 +98,7 @@ void main() {
     double width = 400,
     bool route = false,
     bool? pushed,
+    Future<void> Function()? sync,
   }) async {
     t.view.physicalSize = Size(width, 900);
     t.view.devicePixelRatio = 1;
@@ -131,7 +136,11 @@ void main() {
                     child: const Text('open'),
                   ),
                 )
-              : VersionHistoryScreen(noteId: noteId, onRestore: onRestore),
+              : VersionHistoryScreen(
+                  noteId: noteId,
+                  onRestore: onRestore,
+                  sync: sync,
+                ),
         ),
       ),
     );
@@ -163,11 +172,16 @@ void main() {
       await history(t, second: false);
       await show(t);
       await settle(t);
-      expect(find.text('No earlier versions yet'), findsOneWidget);
+      expect(
+        find.text('No earlier versions yet. Refresh to check again.'),
+        findsOneWidget,
+      );
+      expect(find.text('Refresh'), findsOneWidget);
       expect(find.text('Restore this version'), findsNothing);
       await show(t, locale: const Locale('ko'));
       await settle(t);
-      expect(find.text('아직 이전 버전이 없어요'), findsOneWidget);
+      expect(find.text('아직 이전 버전이 없어요. 새로고침하면 다시 확인해요.'), findsOneWidget);
+      expect(find.text('새로고침'), findsOneWidget);
     });
 
     testWidgets('a note never uploaded has no history and no call', (t) async {
@@ -177,7 +191,10 @@ void main() {
       });
       await show(t);
       await settle(t);
-      expect(find.text('No earlier versions yet'), findsOneWidget);
+      expect(
+        find.text('No earlier versions yet. Refresh to check again.'),
+        findsOneWidget,
+      );
       expect(env.drive.calls, isEmpty);
     });
 
@@ -204,6 +221,105 @@ void main() {
       await settle(t);
       expect(find.text('Could not load the version history.'), findsOneWidget);
       await t.tap(find.text('Try again'));
+      await settle(t);
+      expect(find.text('Restore this version'), findsOneWidget);
+    });
+  });
+
+  group('reload', () {
+    // Another device's revision becomes the head.
+    void addRevision() => env.drive.foreignRevision(
+      env.note,
+      encodeKkj(_note(2, strokes: 2, by: 'Galaxy Tab')),
+    );
+
+    testWidgets('a sync that finishes reloads the list in place', (t) async {
+      await history(t, second: false);
+      await show(
+        t,
+        sync: () async {
+          addRevision();
+        },
+      );
+      await settle(t);
+      expect(find.text('Restore this version'), findsOneWidget);
+    });
+
+    testWidgets('[Refresh] in the empty state reads the list again', (t) async {
+      await history(t, second: false);
+      await show(t);
+      await settle(t);
+      expect(find.text('Restore this version'), findsNothing);
+      addRevision();
+      await t.tap(find.text('Refresh'));
+      await settle(t);
+      expect(find.text('Restore this version'), findsOneWidget);
+    });
+  });
+
+  group('discarded versions', () {
+    Future<void> resolvedLocally(WidgetTester t) async {
+      await t.runAsync(() async {
+        final page = _note(5, by: 'Galaxy Tab').pages.first;
+        await env.store.writeSidecars(noteId, [
+          {
+            'noteId': noteId,
+            'pageId': page['id'],
+            'rev': page['rev'],
+            'seq': 1,
+            'editedAt': page['editedAt'],
+            'editedBy': 'Galaxy Tab',
+            'kind': 'bothEdited',
+            'page': page,
+          },
+        ]);
+        await env.store.updateSync(
+          noteId,
+          (c) => c.copyWith(
+            conflicts: [
+              {
+                'pageId': page['id'],
+                'kind': 'bothEdited',
+                'rev': page['rev'],
+                'theirsRev': 'x2',
+                'detectedAt': '2026-10-17T00:00:00.000Z',
+                'originalIndex': 0,
+                'resolvedAt': canonicalNow(DateTime.now()),
+              },
+            ],
+          ),
+        );
+      });
+    }
+
+    testWidgets('resolved here, not on Drive yet: listed and restorable', (
+      t,
+    ) async {
+      await history(t, second: false);
+      await resolvedLocally(t);
+      await show(t);
+      await settle(t);
+      expect(find.text('Version kept from a conflict'), findsOneWidget);
+      expect(find.text('Galaxy Tab'), findsOneWidget); // the local file read
+      await t.tap(restoreButton('Restore this version'));
+      await t.pump();
+      await t.tap(restoreButton('Tap again to switch to this version'));
+      await settle(t);
+      expect(restored.single['kind'], 'sidecar');
+    });
+
+    testWidgets('one revision with a bad time: only that one is left out', (
+      t,
+    ) async {
+      await history(t);
+      await t.runAsync(() async {
+        await env.save(_note(3, strokes: 3));
+        await env.uploader().upload(noteId);
+      });
+      final revs = env.note.revisions;
+      expect(revs, hasLength(3));
+      revs[0] = FakeRevision(revs[0].id, 'garbage', revs[0].bytes);
+      await show(t);
       await settle(t);
       expect(find.text('Restore this version'), findsOneWidget);
     });
@@ -620,6 +736,54 @@ void main() {
       expect(env.note.revisions.where((r) => r.keepForever), hasLength(1));
       expect(env.drive.uploads.length, greaterThan(uploadsBefore));
       expect(noteOf(env.note.bytes)!.pages.first['elements'], hasLength(1));
+    });
+  });
+
+  group('readSidecar', () {
+    test('a read error is not an absence: the unsent entry stays', () async {
+      env = await UploadEnv.create();
+      final up = env.uploader();
+      await env.save(_note(1));
+      await up.upload(noteId);
+      final page = _note(5, by: 'Galaxy Tab').pages.first;
+      final sc = {
+        'noteId': noteId,
+        'pageId': page['id'],
+        'rev': page['rev'],
+        'seq': 1,
+        'editedAt': page['editedAt'],
+        'editedBy': 'Galaxy Tab',
+        'kind': 'bothEdited',
+        'page': page,
+      };
+      await env.store.writeSidecars(noteId, [sc]);
+      expect(
+        await env.store.readSidecar(noteId, '${page['id']}', 'nope'),
+        isNull,
+      );
+      await env.store.updateSync(
+        noteId,
+        (c) => c.copyWith(
+          unsentSidecars: [
+            {'pageId': page['id'], 'rev': page['rev']},
+          ],
+        ),
+      );
+      // The file is there but cannot be read (a directory in its place).
+      final file = env.docs
+          .listSync(recursive: true)
+          .whereType<File>()
+          .singleWhere((f) => f.path.contains('sidecars'));
+      file.deleteSync();
+      Directory(file.path).createSync();
+      await expectLater(
+        env.store.readSidecar(noteId, '${page['id']}', '${page['rev']}'),
+        throwsA(isA<NoteSaveException>()),
+      );
+      await env.save(_note(2, strokes: 2));
+      await up.upload(noteId);
+      final left = (await env.store.readSync(noteId)).info.unsentSidecars;
+      expect(left, hasLength(1));
     });
   });
 }

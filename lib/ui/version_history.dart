@@ -26,11 +26,15 @@ Future<bool> showVersionHistory(
   BuildContext context, {
   required String noteId,
   required RestoreEntry onRestore,
+  Future<void>? Function()? sync,
 }) async =>
     await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) =>
-            VersionHistoryScreen(noteId: noteId, onRestore: onRestore),
+        builder: (_) => VersionHistoryScreen(
+          noteId: noteId,
+          onRestore: onRestore,
+          sync: sync,
+        ),
       ),
     ) ==
     true;
@@ -43,10 +47,15 @@ class VersionHistoryScreen extends ConsumerStatefulWidget {
     super.key,
     required this.noteId,
     required this.onRestore,
+    this.sync,
   });
 
   final String noteId;
   final RestoreEntry onRestore;
+
+  /// The `syncNow` that is running, if any (a resolved conflict going up): the
+  /// list is read again once it is done.
+  final Future<void>? Function()? sync;
 
   @override
   ConsumerState<VersionHistoryScreen> createState() => _VersionHistoryState();
@@ -63,6 +72,7 @@ class _VersionHistoryState extends ConsumerState<VersionHistoryScreen> {
   final _started = <String>{};
   final _unreachable = <String>{}; // a download failed: preview unavailable
   final _sidecarFiles = <String, String>{}; // kkeujeokId -> Drive file id
+  var _local = <String, LocalSidecar>{}; // resolved here, maybe not on Drive
 
   String? _armed; // the entry whose restore button was tapped once
   final _armedButton = GlobalKey();
@@ -73,42 +83,69 @@ class _VersionHistoryState extends ConsumerState<VersionHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    unawaited(_load());
+    unawaited(_start());
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _phase = _Phase.loading;
-      _armed = null;
-    });
+  /// Reads the list, then syncs and reads it again: what the sync uploaded
+  /// (or received) shows without leaving the screen.
+  Future<void> _start() async {
+    final ready = await _load();
+    final running = ready ? widget.sync?.call() : null;
+    if (running == null) return;
+    final no = _loadNo;
+    try {
+      await running;
+    } catch (_) {}
+    if (mounted && !_busy && no == _loadNo) await _load(silent: true);
+  }
+
+  int _loadNo = 0; // a newer load makes the older one's answer void
+
+  /// True when this load reached `ready`.
+  Future<bool> _load({bool silent = false}) async {
+    final no = silent ? _loadNo : ++_loadNo;
+    bool stale() => !mounted || no != _loadNo;
+    if (!silent) {
+      setState(() {
+        _phase = _Phase.loading;
+        _armed = null;
+      });
+    }
     try {
       final online =
           ref.read(uploadsAllowedProvider) &&
           await ref
               .read(networkProbeProvider)()
               .timeout(const Duration(seconds: 3), onTimeout: () => false);
-      if (!mounted) return;
-      if (!online) return setState(() => _phase = _Phase.offline);
-      final fileId = (await ref.read(noteStoreProvider).readSync(widget.noteId))
-          .info
-          .fileId;
-      if (!mounted) return;
+      if (stale()) return false;
+      if (!online) {
+        if (!silent) setState(() => _phase = _Phase.offline);
+        return false;
+      }
+      final store = ref.read(noteStoreProvider);
+      final info = (await store.readSync(widget.noteId)).info;
+      final fileId = info.fileId;
+      final local = await readLocalSidecars(store, widget.noteId, info);
+      if (stale()) return false;
       _fileId = fileId;
       // A note that was never uploaded has no history.
       final data = fileId == null
           ? const VersionData(null, [], [])
           : await _source.load(widget.noteId, fileId);
-      if (!mounted) return;
+      if (stale()) return false;
       for (final f in data.sidecars.reversed) {
         final id = f.appProperties['kkeujeokId'];
         if (id != null) _sidecarFiles[id] = f.id; // the first file wins
       }
       setState(() {
+        _local = {for (final x in local) x.id: x};
         _data = data;
         _phase = _Phase.ready;
       });
+      return true;
     } catch (_) {
-      if (mounted) setState(() => _phase = _Phase.failed);
+      if (!stale() && !silent) setState(() => _phase = _Phase.failed);
+      return false;
     }
   }
 
@@ -121,7 +158,29 @@ class _VersionHistoryState extends ConsumerState<VersionHistoryScreen> {
   List<Map<String, Object?>> _entries() {
     final d = _data;
     if (d == null) return const [];
-    final r = versionListRule({
+    // Drive's sidecars, and the local ones it does not (yet) list as resolved;
+    // the same id counts once, Drive's file winning once it says "resolved".
+    final sidecars = <Map<String, Object?>>[];
+    final driveIds = <String>{};
+    for (final f in d.sidecars) {
+      final id = f.appProperties['kkeujeokId'];
+      final l = id == null ? null : _local[id];
+      final useLocal =
+          l != null && !isTimestamp(f.appProperties['kkjResolved']);
+      if (id != null && !driveIds.add(id)) {
+        continue; // a repeated id: first wins
+      }
+      sidecars.add({
+        'appProperties': useLocal ? l.props : f.appProperties,
+        'info': _infos['s:$id'],
+      });
+    }
+    for (final l in _local.values) {
+      if (!driveIds.contains(l.id)) {
+        sidecars.add({'appProperties': l.props, 'info': _infos['s:${l.id}']});
+      }
+    }
+    final r = versionListLenient({
       'now': canonicalNow(DateTime.now()),
       'noteId': widget.noteId,
       'headRevisionId': d.headRevisionId,
@@ -134,13 +193,7 @@ class _VersionHistoryState extends ConsumerState<VersionHistoryScreen> {
             'info': _infos['r:${v.id}'],
           },
       ],
-      'sidecars': [
-        for (final f in d.sidecars)
-          {
-            'appProperties': f.appProperties,
-            'info': _infos['s:${f.appProperties['kkeujeokId']}'],
-          },
-      ],
+      'sidecars': sidecars,
     });
     final list = r['entries'];
     return list is List
@@ -155,7 +208,8 @@ class _VersionHistoryState extends ConsumerState<VersionHistoryScreen> {
   void _ensure(Map<String, Object?> e) {
     final key = _key(e);
     final fileId = _fileId;
-    if (fileId == null || !_started.add(key)) return;
+    final isLocal = e['kind'] != 'revision' && _local[key.substring(2)] != null;
+    if ((fileId == null && !isLocal) || !_started.add(key)) return;
     // A microtask: the first failure must not setState during the build.
     unawaited(
       Future.microtask(() async {
@@ -164,19 +218,27 @@ class _VersionHistoryState extends ConsumerState<VersionHistoryScreen> {
           if (e['kind'] == 'revision') {
             r = await _source.inspectRevision(
               widget.noteId,
-              fileId,
+              fileId!,
               e['revisionId'] as String,
             );
           } else {
             final id = key.substring(2);
             final file = _sidecarFiles[id];
-            if (file == null) throw const DriveError('parse');
-            r = await _source.inspectSidecar(
-              widget.noteId,
-              file,
-              e['pageId'] as String,
-              e['rev'] as String,
-            );
+            final local = _local[id];
+            if (file == null && local == null) throw const DriveError('parse');
+            r = file == null
+                ? inspectSidecarJson(
+                    local!.sidecar,
+                    widget.noteId,
+                    e['pageId'] as String,
+                    e['rev'] as String,
+                  )
+                : await _source.inspectSidecar(
+                    widget.noteId,
+                    file,
+                    e['pageId'] as String,
+                    e['rev'] as String,
+                  );
           }
           if (!mounted) return;
           setState(() {
@@ -231,6 +293,7 @@ class _VersionHistoryState extends ConsumerState<VersionHistoryScreen> {
             RestoreFailure.notSaved =>
               offline ? l.versionRestoreOffline : l.versionRestoreNotSaved,
             RestoreFailure.notPinned => l.versionRestorePinFailed,
+            RestoreFailure.changed => l.versionRestoreChanged,
             _ => l.versionRestoreFailed,
           }),
         ),
@@ -276,13 +339,22 @@ class _VersionHistoryState extends ConsumerState<VersionHistoryScreen> {
             style: TextButton.styleFrom(
               minimumSize: const Size(0, KkjTokens.spacingHitMinAndroid),
             ),
-            onPressed: _load,
+            onPressed: _start,
             child: Text(l.retry),
           ),
         );
       case _Phase.ready:
         body = entries.isEmpty
-            ? _Message(l.versionHistoryEmpty)
+            ? _Message(
+                l.versionHistoryEmpty,
+                action: TextButton(
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, KkjTokens.spacingHitMinAndroid),
+                  ),
+                  onPressed: _start,
+                  child: Text(l.versionHistoryRefresh),
+                ),
+              )
             : ListView.separated(
                 padding: const EdgeInsets.all(KkjTokens.spacing4),
                 itemCount: entries.length,

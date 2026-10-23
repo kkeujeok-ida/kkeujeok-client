@@ -51,6 +51,7 @@ void main() {
       store: env.store,
       coordinator: coordinator,
       clock: () => DateTime.utc(2026, 10, 18, 9),
+      delay: (_) async {},
       newRev: () => _id(7000 + revN++),
     );
     env.drive.before = (c) => order.add(c.split(':').first);
@@ -192,6 +193,30 @@ void main() {
       expect(p['lineage'], contains(makeNote(rev: 3).pages.first['rev']));
       expect(n.title, 'a'); // meta stays
       expect((await env.store.readSync(noteId)).hasUnsent, isTrue);
+    });
+
+    Future<RestoreFailure?> lagging({required bool catchUp}) async {
+      await twoRevisions();
+      final r1 = env.note.revisions.first.id;
+      final e = await entryOf((e) => e['revisionId'] == r1);
+      late FakeRevision hidden;
+      var n = 0;
+      env.drive.before = (c) {
+        if (!c.startsWith('revisions')) return;
+        n++;
+        if (n == 1) hidden = env.note.revisions.removeLast();
+        if (n == 2 && catchUp) env.note.revisions.add(hidden);
+      };
+      return restore(e);
+    }
+
+    test('the listing lags behind the head once: the pin asks again', () async {
+      expect(await lagging(catchUp: true), isNull);
+      expect(env.note.revisions.where((r) => r.keepForever), hasLength(1));
+    });
+
+    test('the listing never shows the head: notPinned', () async {
+      expect(await lagging(catchUp: false), RestoreFailure.notPinned);
     });
 
     test('nothing unsent: only the head is confirmed, no upload', () async {
@@ -472,6 +497,65 @@ void main() {
       expect((await env.store.read(noteId))!.note!.pages, hasLength(1));
       expect(env.note.revisions.where((r) => r.keepForever), hasLength(1));
     });
+
+    test(
+      'a sidecar that is only on this device is restored from the file',
+      () async {
+        await twoRevisions();
+        final p = {...makeNote(rev: 1).pages.first, 'rev': _id(8003)};
+        await env.store.writeSidecars(noteId, [
+          {
+            'noteId': noteId,
+            'pageId': p['id'],
+            'rev': p['rev'],
+            'seq': 1,
+            'editedAt': p['editedAt'],
+            'editedBy': 'Galaxy Tab',
+            'kind': 'bothEdited',
+            'page': p,
+          },
+        ]);
+        final e = {
+          'kind': 'sidecar',
+          'pageId': p['id'],
+          'rev': p['rev'],
+          'originalIndex': 0,
+        };
+        expect(await restore(e), isNull);
+        expect(pageOf(await working())['id'], pageId);
+      },
+    );
+
+    test(
+      'an edit between the pin and the apply: changed, nothing restored',
+      () async {
+        await twoRevisions();
+        final e = await entryOf(
+          (e) => e['kind'] == 'revision' && e['current'] != true,
+        );
+        Future<bool> editing(
+          LiveMerge m,
+          Future<void> Function() record,
+        ) async {
+          await env.save(makeNote(rev: 3));
+          return host(m, record);
+        }
+
+        final cur = await working();
+        final failure = await restorer.restore(
+          noteId: noteId,
+          fileId: env.info.fileId!,
+          entry: e,
+          live: () => cur,
+          apply: editing,
+        );
+        expect(failure, RestoreFailure.changed);
+        expect(
+          pageOf(await working())['rev'],
+          makeNote(rev: 3).pages.first['rev'],
+        );
+      },
+    );
 
     test('a page that is not in the note comes back at its index', () async {
       await twoRevisions();

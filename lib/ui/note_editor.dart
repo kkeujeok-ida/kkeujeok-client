@@ -552,7 +552,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _announce(l.conflictResolvedAll(done.length), polite: true);
     }
     // The resolution goes up (the note stays open).
-    unawaited(_coordinator.syncNow(widget.note.noteId));
+    _syncSoon();
     return done;
   }
 
@@ -614,12 +614,26 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   // ---- version history (Story 3.24) -------------------------------------
 
+  /// The upload of a change that just happened (the note stays open); the
+  /// version history reloads when it is done.
+  Future<void>? _lastSync;
+
+  void _syncSoon() {
+    final id = widget.note.noteId;
+    late final Future<void> f;
+    f = _coordinator.syncNow(id).catchError((Object _) {}).whenComplete(() {
+      if (identical(_lastSync, f)) _lastSync = null; // done: nothing to wait for
+    });
+    _lastSync = f;
+  }
+
   Future<void> _openHistory() async {
     if (_leaving || !mounted) return;
     final restored = await showVersionHistory(
       context,
       noteId: widget.note.noteId,
       onRestore: _restoreVersion,
+      sync: () => _lastSync,
     );
     if (!restored || !mounted) return;
     _canvasFocus.requestFocus();
@@ -648,7 +662,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _held = null;
       await _loadLastSeen(); // the locks follow the conflicts that are left
       // The restored note goes up like any edit.
-      unawaited(_coordinator.syncNow(id));
+      _syncSoon();
     }
     return failure;
   }

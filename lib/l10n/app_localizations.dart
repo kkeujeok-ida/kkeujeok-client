@@ -1097,8 +1097,20 @@ abstract class AppLocalizations {
   /// No description provided for @versionHistoryEmpty.
   ///
   /// In en, this message translates to:
-  /// **'No earlier versions yet'**
+  /// **'No earlier versions yet. Refresh to check again.'**
   String get versionHistoryEmpty;
+
+  /// No description provided for @versionHistoryRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get versionHistoryRefresh;
+
+  /// No description provided for @versionRestoreChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'The note changed in the meantime, so nothing was restored. Press again.'**
+  String get versionRestoreChanged;
 
   /// No description provided for @versionHistoryOffline.
   ///

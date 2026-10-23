@@ -647,8 +647,9 @@ class NoteStore {
     });
   }
 
-  /// The sidecar record kept for ([pageId], [rev]); null when it is missing
-  /// or cannot be read.
+  /// The sidecar record kept for ([pageId], [rev]); null when the file is
+  /// missing or is not a record. Throws [NoteSaveException] when the file is
+  /// there but cannot be read (an error that may pass, not an absence).
   Future<Map<String, Object?>?> readSidecar(
     String noteId,
     String pageId,
@@ -656,17 +657,26 @@ class NoteStore {
   ) async {
     final dir = (await _working(noteId)).parent;
     return _locked(noteId, () async {
+      final file = File(
+        _in(Directory(_in(dir, 'sidecars')), _sidecarName(pageId, rev)),
+      );
+      final String text;
       try {
-        final j = jsonDecode(
-          await File(
-            _in(Directory(_in(dir, 'sidecars')), _sidecarName(pageId, rev)),
-          ).readAsString(),
-        );
+        text = await file.readAsString();
+      } on PathNotFoundException {
+        return null;
+      } on FileSystemException catch (e) {
+        throw NoteSaveException('could not read sidecar', e);
+      } on FormatException {
+        return null; // invalid UTF-8: not a record, and a retry will not change it
+      }
+      try {
+        final j = jsonDecode(text);
         return j is Map
             ? {for (final e in j.entries) '${e.key}': e.value}
             : null;
       } catch (_) {
-        return null;
+        return null; // not a record: nothing a retry would change
       }
     });
   }

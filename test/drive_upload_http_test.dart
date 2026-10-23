@@ -200,6 +200,20 @@ void main() {
     expect(seen[2].uri.queryParameters['pageToken'], 'p2');
   });
 
+  test('listRevisions gives every time in the canonical form', () async {
+    replies = [
+      jsonEncode({
+        'revisions': [
+          {'id': 'R1', 'modifiedTime': '2026-10-10T04:20:01Z'},
+          {'id': 'R2', 'modifiedTime': 'not a time'},
+        ],
+      }),
+    ];
+    final revs = await client().listRevisions('F1');
+    expect(revs[0].modifiedTime, '2026-10-10T04:20:01.000Z');
+    expect(revs[1].modifiedTime, 'not a time');
+  });
+
   test('updateRevision patches keepForever of one revision', () async {
     reply = '{"id":"R1","keepForever":true}';
     await client().updateRevision('F1', 'R1', keepForever: true);

@@ -134,24 +134,83 @@ class VersionSource {
       rethrow;
     }
     try {
-      final j = jsonDecode(utf8.decode(bytes));
-      if (j is Map<String, dynamic> &&
-          j['noteId'] == noteId &&
-          j['pageId'] == pageId &&
-          j['rev'] == rev &&
-          j['editedBy'] is String &&
-          _validPage(j['page'])) {
-        return Inspection(
-          {'ok': true, 'editedBy': j['editedBy']},
-          page: j['page'] as Map<String, dynamic>,
-          sidecar: j,
-        );
-      }
+      return inspectSidecarJson(
+        jsonDecode(utf8.decode(bytes)),
+        noteId,
+        pageId,
+        rev,
+      );
     } catch (_) {
-      // falls through to unreadable
+      return _failed('unreadable');
     }
-    return _failed('unreadable');
   }
+}
+
+/// [j] is the record of ([pageId], [rev]) of the note.
+Inspection inspectSidecarJson(
+  Object? j,
+  String noteId,
+  String pageId,
+  String rev,
+) {
+  if (j is Map<String, dynamic> &&
+      j['noteId'] == noteId &&
+      j['pageId'] == pageId &&
+      j['rev'] == rev &&
+      j['editedBy'] is String &&
+      _validPage(j['page'])) {
+    return Inspection(
+      {'ok': true, 'editedBy': j['editedBy']},
+      page: j['page'] as Map<String, dynamic>,
+      sidecar: j,
+    );
+  }
+  return _failed('unreadable');
+}
+
+/// A resolved conflict whose sidecar file is on this device: listed even
+/// before Drive has the file (or its `kkjResolved`). [props] has the shape of
+/// a Drive sidecar's `appProperties`.
+class LocalSidecar {
+  const LocalSidecar(this.props, this.sidecar);
+
+  final Map<String, String> props;
+  final Map<String, Object?> sidecar;
+
+  String get id => props['kkeujeokId']!;
+}
+
+/// The resolved conflicts of `sync.json` that have a local sidecar file. A
+/// file that cannot be read is left out (the list is best effort).
+Future<List<LocalSidecar>> readLocalSidecars(
+  NoteStore store,
+  String noteId,
+  SyncInfo info,
+) async {
+  final out = <LocalSidecar>[];
+  try {
+    for (final c in info.conflicts) {
+      final at = c['resolvedAt'], pageId = c['pageId'], rev = c['rev'];
+      if (at is! String || pageId is! String || rev is! String) continue;
+      try {
+        final sc = await store.readSidecar(noteId, pageId, rev);
+        if (sc == null) continue;
+        out.add(
+          LocalSidecar({
+            'kkeujeokId': 'sc:$noteId:$pageId:$rev',
+            'kkjResolved': at,
+            'kkjEdited': '${sc['editedAt']}',
+            'kkjIndex': '${c['originalIndex'] ?? 0}',
+          }, sc),
+        );
+      } catch (_) {
+        continue;
+      }
+    }
+  } catch (_) {
+    // no sync record: no local entries
+  }
+  return out;
 }
 
 /// Why a restore did nothing (spec `version-history` "Restoring").
@@ -167,7 +226,22 @@ enum RestoreFailure {
 
   /// Step 4: the note could not be changed.
   notApplied,
+
+  /// The note was edited after it was uploaded and pinned: nothing was
+  /// restored.
+  changed,
 }
+
+/// Same pages with the same revisions, same order and meta: nothing was
+/// edited between the two.
+bool _sameState(Note x, Note y) =>
+    x.orderRev == y.orderRev &&
+    x.metaRev == y.metaRev &&
+    x.pages.length == y.pages.length &&
+    [
+      for (final (i, p) in x.pages.indexed)
+        p['id'] == y.pages[i]['id'] && p['rev'] == y.pages[i]['rev'],
+    ].every((b) => b);
 
 /// The restore procedure of spec `version-history`: read the version, upload
 /// and verify the current state, pin that revision, apply the restore through
@@ -180,10 +254,12 @@ class VersionRestorer {
     required this.coordinator,
     VersionSource? source,
     DateTime Function()? clock,
+    Future<void> Function(Duration)? delay,
     String Function()? newRev,
     this.editedBy = deviceEditedBy,
   }) : source = source ?? VersionSource(drive),
        _clock = clock ?? DateTime.now,
+       _delay = delay ?? Future<void>.delayed,
        _newRev = newRev ?? newId;
 
   final DriveClient drive;
@@ -191,6 +267,7 @@ class VersionRestorer {
   final UploadCoordinator coordinator;
   final VersionSource source;
   final DateTime Function() _clock;
+  final Future<void> Function(Duration) _delay;
   final String Function() _newRev;
   final String editedBy;
 
@@ -219,9 +296,19 @@ class VersionRestorer {
       if (!await _pin(noteId, fileId, head)) return RestoreFailure.notPinned;
 
       // 4. Apply the restore as an item of the note's queue.
-      final info = (await store.readSync(noteId)).info;
+      // Only on the note that was uploaded and pinned: an edit saved since
+      // then is in neither, so the restore would overwrite it.
+      final after = await store.readSync(noteId);
+      final info = after.info;
+      final uploaded = after.base;
+      if (uploaded == null) return RestoreFailure.notApplied; // sync record
       var out = <String, Object?>{};
+      var changed = false;
       final applied = await apply((cur) {
+        if (!_sameState(uploaded, cur)) {
+          changed = true;
+          return null;
+        }
         out = _run(cur, op, info, info.conflicts);
         if (out['error'] != null) return null;
         return (
@@ -230,6 +317,7 @@ class VersionRestorer {
           lastSeen: 0,
         );
       }, () async {});
+      if (changed) return RestoreFailure.changed;
       if (!applied || out['error'] != null || out['note'] == null) {
         return RestoreFailure.notApplied;
       }
@@ -274,13 +362,20 @@ class VersionRestorer {
         kkeujeokIdQuery('sc:$noteId:$pageId:$rev'),
         fields: 'id',
       );
-      if (files.files.isEmpty) return null;
-      final r = await source.inspectSidecar(
-        noteId,
-        files.files.first.id,
-        pageId,
-        rev,
-      );
+      // Not on Drive yet (unsent): the local file is read.
+      final r = files.files.isEmpty
+          ? inspectSidecarJson(
+              await store.readSidecar(noteId, pageId, rev),
+              noteId,
+              pageId,
+              rev,
+            )
+          : await source.inspectSidecar(
+              noteId,
+              files.files.first.id,
+              pageId,
+              rev,
+            );
       return r.ok
           ? {
               'op': 'restorePage',
@@ -291,6 +386,8 @@ class VersionRestorer {
           : null;
     } on DriveError {
       return null;
+    } on NoteSaveException {
+      return null; // the local record cannot be read
     }
   }
 
@@ -330,10 +427,9 @@ class VersionRestorer {
   /// Any failure is a sync error of the note and ends the restore.
   Future<bool> _pin(String noteId, String fileId, String revisionId) async {
     try {
-      final revs = await drive.listRevisions(fileId);
-      final r = keepForeverRule({
+      Future<Map<String, Object?>> plan() async => keepForeverRule({
         'revisions': [
-          for (final v in revs)
+          for (final v in await drive.listRevisions(fileId))
             {
               'id': v.id,
               'modifiedTime': v.modifiedTime,
@@ -342,6 +438,12 @@ class VersionRestorer {
         ],
         'target': revisionId,
       });
+      var r = await plan();
+      // The listing may not have caught up with the verified head: once more.
+      if (r['error'] != null) {
+        await _delay(const Duration(milliseconds: 500));
+        r = await plan();
+      }
       if (r['error'] != null) return false;
       final released = <String>[];
       for (final id in (r['release'] as List).cast<String>()) {

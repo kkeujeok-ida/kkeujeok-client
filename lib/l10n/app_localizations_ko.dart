@@ -560,7 +560,13 @@ class AppLocalizationsKo extends AppLocalizations {
   String get versionHistory => '버전 기록';
 
   @override
-  String get versionHistoryEmpty => '아직 이전 버전이 없어요';
+  String get versionHistoryEmpty => '아직 이전 버전이 없어요. 새로고침하면 다시 확인해요.';
+
+  @override
+  String get versionHistoryRefresh => '새로고침';
+
+  @override
+  String get versionRestoreChanged => '그사이 노트가 바뀌어서 복원하지 않았어요. 다시 눌러 주세요.';
 
   @override
   String get versionHistoryOffline => '연결되면 버전 기록을 볼 수 있어요.';

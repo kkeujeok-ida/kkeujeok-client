@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
+import '../model/ids.dart' show canonicalNow;
 import 'drive_client.dart';
 
 const _defaultFields = 'id,name,parents,appProperties,createdTime,trashed';
@@ -346,10 +347,13 @@ class HttpDriveClient implements DriveClient {
         if (r is! Map || r['id'] is! String || r['modifiedTime'] is! String) {
           throw const DriveError('parse');
         }
+        // Normalized to `YYYY-MM-DDTHH:mm:ss.sssZ` (Drive may omit the
+        // milliseconds); one odd time must not void the whole history.
+        final at = DateTime.tryParse(r['modifiedTime'] as String);
         out.add(
           DriveRevision(
             r['id'] as String,
-            r['modifiedTime'] as String,
+            at == null ? r['modifiedTime'] as String : canonicalNow(at),
             keepForever: r['keepForever'] == true,
           ),
         );

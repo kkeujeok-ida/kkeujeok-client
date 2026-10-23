@@ -602,7 +602,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get versionHistory => 'Version history';
 
   @override
-  String get versionHistoryEmpty => 'No earlier versions yet';
+  String get versionHistoryEmpty =>
+      'No earlier versions yet. Refresh to check again.';
+
+  @override
+  String get versionHistoryRefresh => 'Refresh';
+
+  @override
+  String get versionRestoreChanged =>
+      'The note changed in the meantime, so nothing was restored. Press again.';
 
   @override
   String get versionHistoryOffline =>
