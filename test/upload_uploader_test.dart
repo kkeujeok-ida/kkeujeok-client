@@ -110,6 +110,29 @@ void main() {
       },
     );
 
+    test(
+      'a file of the same kkeujeokId with other content is not adopted',
+      () async {
+        await env.save(makeNote());
+        var n = 0;
+        env.drive.before = (c) {
+          if (c == 'upload:new' && n++ == 0) {
+            env.drive.foreignNote(makeNote(rev: 9), parent: env.root.id);
+            throw const DriveError('network');
+          }
+        };
+
+        expect(await up(), UploadOutcome.uploaded);
+
+        final theirs = env.drive.items.firstWhere(
+          (i) => i.appProperties['kkeujeokId'] == noteId,
+        );
+        expect(env.info.baseHeadRevisionId, isNot(theirs.headRevisionId));
+        final base = (await env.store.readSync(noteId)).base!;
+        expect(base.pages.first['rev'], endsWith('51')); // ours, not theirs
+      },
+    );
+
     test('crash before the request: the whole upload is repeated', () async {
       await env.save(makeNote());
       env.drive.before = (c) {
@@ -284,6 +307,68 @@ void main() {
         endsWith('59'),
         reason: 'the remote page won, ours is in the sidecar',
       );
+    });
+
+    test(
+      'an external revision before our PATCH is merged once, then synced',
+      () async {
+        await env.save(makeNote(rev: 2));
+        var n = 0;
+        env.drive.before = (c) {
+          if (c.startsWith('upload:') && n++ == 0) {
+            env.drive.foreignRevision(env.note, encodeKkj(makeNote(rev: 9)));
+          }
+        };
+
+        expect(await up(), UploadOutcome.uploaded);
+
+        // R1 (ours, after the external F) is not a candidate of round 2.
+        expect(
+          env.drive.uploads.where((u) => u.metadata['name'] == 'a.kkj'),
+          hasLength(2),
+        );
+        expect(env.info.state, SyncState.conflict);
+        expect(env.info.lastError, isNull);
+        expect(env.info.baseHeadRevisionId, env.note.headRevisionId);
+      },
+    );
+
+    test('a lost answer of an update that landed is not sent again', () async {
+      await env.save(makeNote(rev: 2));
+      env.drive.after = (c) {
+        if (c.startsWith('upload:') && env.drive.uploads.length == 1) {
+          throw const DriveError('network');
+        }
+      };
+
+      expect(await up(), UploadOutcome.uploaded);
+
+      expect(env.drive.uploads, hasLength(1)); // not sent again
+      expect(env.info.state, SyncState.synced);
+      expect(env.info.baseHeadRevisionId, env.note.headRevisionId);
+    });
+
+    test('a head that moved before the PATCH goes back to the merge', () async {
+      await env.save(makeNote(rev: 2));
+      var gets = 0;
+      env.drive.before = (c) {
+        // 1: step 1, 2: the check before the PATCH.
+        if (c.startsWith('get:') && ++gets == 2) {
+          env.drive.foreignRevision(env.note, encodeKkj(makeNote(rev: 9)));
+        }
+      };
+
+      expect(await up(), UploadOutcome.uploaded);
+
+      expect(
+        env.drive.uploads.where((u) => u.metadata['name'] == 'a.kkj'),
+        hasLength(1), // one PATCH, after the merge
+      );
+      expect([
+        for (final e in await env.events()) e['reason'],
+      ], contains('headMoved'));
+      expect(env.info.conflicts, hasLength(1));
+      expect(env.info.baseHeadRevisionId, env.note.headRevisionId);
     });
 
     test('a merged answer is uploaded again with round + 1, up to 3', () async {

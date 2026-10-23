@@ -115,9 +115,9 @@ void main() {
 
       env.drive.before = null;
       env.drive.calls.clear();
+      await open.clear(); // what `main` does once at process start
       await coordinator.appStarted();
 
-      expect(await open.read(), isNull);
       expect(env.drive.uploads, hasLength(1)); // not uploaded again
       expect(env.info.state, SyncState.synced);
     },
@@ -189,6 +189,43 @@ void main() {
     expect(await b.acquire('01926f3a-0000-7000-8000-0000000000aa'), isFalse);
   });
 
+  test('app start does not clear the mark and skips the open note', () async {
+    await env.save(makeNote());
+    await open.set(noteId);
+    await coordinator.appStarted();
+    expect(await open.read(), noteId);
+    expect(env.drive.calls, isEmpty);
+    expect(env.drive.uploads, isEmpty);
+  });
+
+  test(
+    'md5Mismatch is retried once per process, not at every trigger',
+    () async {
+      await env.save(makeNote());
+      await env.store.updateSync(
+        noteId,
+        (c) => c.copyWith(
+          state: SyncState.error,
+          lastError: {'class': 'fatal', 'reason': 'md5Mismatch'},
+        ),
+      );
+      await coordinator.foreground(); // the one retry
+      final first = env.drive.uploads.length;
+      expect(first, 1);
+      await env.save(makeNote(rev: 2));
+      await env.store.updateSync(
+        noteId,
+        (c) => c.copyWith(
+          state: SyncState.error,
+          lastError: {'class': 'fatal', 'reason': 'md5Mismatch'},
+        ),
+      );
+      await coordinator.foreground(); // not again
+      expect(env.drive.uploads.length, first);
+      expect(env.info.state, SyncState.error);
+    },
+  );
+
   test('OpenNote clears only its own note', () async {
     await open.set(noteId);
     await open.clear('01926f3a-0000-7000-8000-0000000000aa');
@@ -201,9 +238,7 @@ void main() {
     'rootReady: the first call is app start, later calls only upload',
     () async {
       await env.save(makeNote());
-      await open.set(noteId);
-      await coordinator.rootReady(); // first: app start clears the stale marker
-      expect(await open.read(), isNull);
+      await coordinator.rootReady(); // first: app start
       expect(env.info.state, SyncState.synced);
 
       await open.set(noteId);

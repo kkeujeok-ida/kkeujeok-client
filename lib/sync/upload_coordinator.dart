@@ -212,6 +212,11 @@ class UploadCoordinator {
     'duplicatePageId',
     'verifyParse',
     'parse',
+    // A `fatal` that only a person can end: a manual retry only.
+    'md5Mismatch',
+    'noRevisionId',
+    'localWrite',
+    'rootMissing',
   };
   final _retried = <String>{};
 
@@ -230,8 +235,15 @@ class UploadCoordinator {
     );
   }
 
-  Future<void> _one(String noteId, {bool recover = false}) async {
+  Future<void> _one(
+    String noteId, {
+    bool recover = false,
+    bool skipOpen = false,
+  }) async {
     try {
+      // The mark is read per note: an editor may have opened since the loop
+      // began.
+      if (skipOpen && await openNote.read() == noteId) return;
       final (stuck, upload, mark) = await _needs(noteId);
       if (stuck) {
         // Story 11.2: `syncing` with nothing to send ends here, offline too.
@@ -284,11 +296,12 @@ class UploadCoordinator {
     bool retryErrors = true,
   }) async {
     try {
-      final open = includeOpen ? null : await openNote.read();
       for (final id in await store.ids()) {
-        if (id == open) continue;
+        // An open note is skipped before `_retry`: its retry-once budget is
+        // not spent without an upload.
+        if (!includeOpen && await openNote.read() == id) continue;
         if (retryErrors) await _retry(id);
-        await _one(id, recover: recover);
+        await _one(id, recover: recover, skipOpen: !includeOpen);
       }
     } catch (_) {}
   }
@@ -308,9 +321,9 @@ class UploadCoordinator {
   /// "Start": interrupted uploads are finished first, then unsent notes go.
   Future<void> appStarted() async {
     _started = true;
-    await openNote.clear(); // nothing is open when the app starts
-    await _all(includeOpen: true, recover: true);
-    await _all(includeOpen: true);
+    // The stale mark of a dead process is cleared once, in `main`.
+    await _all(includeOpen: false, recover: true);
+    await _all(includeOpen: false);
     try {
       await uploader.cleanResolvedSidecars(await store.ids());
     } catch (_) {}

@@ -561,6 +561,9 @@ class NoteUploader {
     String? ours;
     Note? uploaded;
     var skipPre = false;
+    // Revisions this session uploaded: never a candidate of a verify round.
+    final own = <String>{};
+    var moved = 0;
 
     // "Start": an unfinished upload.
     final pv = info.pendingVerify;
@@ -681,22 +684,47 @@ class NoteUploader {
           // note too. The snapshot is the queue state after that.
           await _sendSidecars(noteId);
           // Step 2.
+          final fid = fileId, par = parent;
           final up = await _send(
             noteId,
-            fileId: fileId,
+            fileId: fid,
             snapshot: (await store.read(noteId))?.note ?? working0,
-            parent: parent,
+            parent: par,
             round: round,
             intent: info.createIntent,
+            // Just before the PATCH: the head is still what the merge used
+            // (or a revision of this session).
+            headStill: fid == null
+                ? null
+                : () async {
+                    final h = (await _call(
+                      noteId,
+                      () => drive.get(fid, fields: 'headRevisionId'),
+                    )).headRevisionId;
+                    return h == par || (h != null && own.contains(h));
+                  },
           );
+          if (up == null) {
+            // Drive has no If-Match: the head moved, so merge again first.
+            if (++moved > 3) throw _Failure('backoff', reason: 'headMoved');
+            await log.append('error', {
+              'class': 'backoff',
+              'noteId': noteId,
+              'reason': 'headMoved',
+            });
+            skipPre = false;
+            continue;
+          }
           fileId = up.fileId;
           ours = up.ours;
           uploaded = up.note;
+          own.add(up.ours);
         }
       }
 
       // Step 3.
       final id = fileId!;
+      own.add(ours);
       final again = await _verify(
         noteId,
         id,
@@ -704,6 +732,7 @@ class NoteUploader {
         ours: ours,
         round: round,
         baseNote: baseNote,
+        own: own,
       );
       if (again == null) {
         await _finish(noteId, id, ours, uploaded!);
@@ -802,16 +831,20 @@ class NoteUploader {
   }
 
   /// Step 2: one request that carries content, name and summary.
-  Future<({String fileId, String ours, Note note})> _send(
+  ///
+  /// Null when [headStill] says the head moved (nothing was sent).
+  Future<({String fileId, String ours, Note note})?> _send(
     String noteId, {
     required String? fileId,
     required Note snapshot,
     required String? parent,
     required int round,
     required JsonMap? intent,
+    Future<bool> Function()? headStill,
   }) async {
     final pkg = await _package(snapshot, fileId, intent);
     final bytes = pkg.bytes, sum = pkg.sum, metadata = pkg.metadata;
+    if (headStill != null && !await headStill()) return null;
 
     // The intent of this upload is on disk before the request goes out.
     await _commit(
@@ -839,8 +872,11 @@ class NoteUploader {
           bytes: bytes,
         ),
         // A create whose answer was lost may have happened: look for the
-        // file by its kkeujeokId before creating another.
-        beforeRetry: fileId != null ? null : () => _adopt(noteId),
+        // file by its kkeujeokId before creating another. An update whose
+        // answer was lost may have landed: its head's MD5 says so.
+        beforeRetry: fileId != null
+            ? () => _landed(noteId, fileId, sum, parent)
+            : () => _adopt(noteId, sum),
       );
     } else {
       file = await _resumable(noteId, fileId, metadata, bytes);
@@ -869,15 +905,37 @@ class NoteUploader {
 
   /// The file with this note's kkeujeokId that stays (with its head), or
   /// null. Several files are folded into one ([_foldDuplicates]).
-  Future<DriveFile?> _adopt(String noteId) async {
+  /// Only a file whose content is [sum] is ours; any other goes the normal
+  /// way (null).
+  Future<DriveFile?> _adopt(String noteId, String sum) async {
     final found = await _all(noteId, kkeujeokIdQuery(noteId));
     if (found.isEmpty) return null;
     final keep = await _foldDuplicates(noteId, found);
-    final head = await _call(
+    return _landed(noteId, keep, sum, null);
+  }
+
+  /// The file [id] when its head holds [sum] and is not [parent] (the lost
+  /// request did happen).
+  Future<DriveFile?> _landed(
+    String noteId,
+    String id,
+    String sum,
+    String? parent,
+  ) async {
+    final f = await _call(
       noteId,
-      () => drive.get(keep, fields: 'headRevisionId'),
+      () => drive.get(id, fields: 'headRevisionId,md5Checksum'),
     );
-    return DriveFile(id: keep, headRevisionId: head.headRevisionId);
+    if (f.headRevisionId == null ||
+        f.headRevisionId == parent ||
+        f.md5Checksum != sum) {
+      return null;
+    }
+    return DriveFile(
+      id: id,
+      headRevisionId: f.headRevisionId,
+      md5Checksum: f.md5Checksum,
+    );
   }
 
   /// Several note files with one `kkeujeokId` (spec `drive-layout`,
@@ -902,19 +960,30 @@ class NoteUploader {
     final others = (rule['merge'] as List).cast<String>();
     if (others.isEmpty) return keep;
 
+    // The head each file was read at, to find a move before the upload.
+    final heads = <String, String>{};
     Future<Note?> read(String id) async {
       final head = (await _call(
         noteId,
         () => drive.get(id, fields: 'headRevisionId'),
       )).headRevisionId;
       if (head == null) return null;
+      heads[id] = head;
       final bytes = await _call(noteId, () => drive.downloadRevision(id, head));
       final n = decodeKkj(bytes).note;
       return n != null && n.noteId == noteId ? n : null;
     }
 
     final kept = await read(keep);
-    if (kept == null) throw _Failure('unreadable', reason: 'parse');
+    // A target that cannot be read is not folded into.
+    if (kept == null) {
+      await log.append('error', {
+        'class': 'fatal',
+        'noteId': noteId,
+        'reason': 'parse',
+      });
+      return keep;
+    }
     var acc = kept;
     final folded = <String>[];
     final records = <Map<String, Object?>>[];
@@ -929,11 +998,24 @@ class NoteUploader {
         'lastSeenRemoteSeq': 0,
       });
       if (out['result'] != 'merged') continue;
+      // The page's place is its place in the kept note (the working copy).
+      for (final c
+          in ((out['conflicts'] as List?) ?? const [])
+              .cast<Map<String, dynamic>>()) {
+        final at = acc.pages.indexWhere((p) => p['id'] == c['pageId']);
+        if (at >= 0) c['originalIndex'] = at;
+      }
       acc = Note.trusted(out['note'] as Map<String, dynamic>);
       folded.add(id);
       records.add(out);
     }
     if (folded.isEmpty) return keep;
+    // The target moved while it was read and merged: no upload on top of it.
+    final now = (await _call(
+      noteId,
+      () => drive.get(keep, fields: 'headRevisionId'),
+    )).headRevisionId;
+    if (now != heads[keep]) return keep;
     // The conflicts of the folds belong to this device like any other.
     for (final out in records) {
       final rec = mergeRecords(out);
@@ -958,10 +1040,18 @@ class NoteUploader {
     } else {
       await _resumable(noteId, keep, pkg.metadata, pkg.bytes);
     }
+    // A duplicate that changed after it was read holds more than was folded.
+    var trashed = 0;
     for (final id in folded) {
+      final h = (await _call(
+        noteId,
+        () => drive.get(id, fields: 'headRevisionId'),
+      )).headRevisionId;
+      if (h != heads[id]) continue;
       await _call(noteId, () => drive.update(id, trashed: true));
+      trashed++;
     }
-    await log.append('duplicatesCleaned', {'count': folded.length});
+    await log.append('duplicatesCleaned', {'count': trashed});
     return keep;
   }
 
@@ -1206,6 +1296,7 @@ class NoteUploader {
     required String ours,
     required int round,
     required Note? baseNote,
+    required Set<String> own,
   }) async {
     final plan = await _call(noteId, () async {
       // An `invalidInput` plan is asked once more without using a backoff
@@ -1227,8 +1318,12 @@ class NoteUploader {
         final p = verifyPlanRule({
           'base': parent,
           'ours': ours,
+          // Revisions of this session (not `ours` of this round, the rule
+          // drops that) are ours too, not another device's.
           'revisions': [
-            for (final r in revs) {'id': r.id, 'modifiedTime': r.modifiedTime},
+            for (final r in revs)
+              if (r.id == ours || r.id == head || !own.contains(r.id))
+                {'id': r.id, 'modifiedTime': r.modifiedTime},
           ],
           'head': head,
           'round': round,

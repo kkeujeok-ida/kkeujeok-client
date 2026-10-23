@@ -465,6 +465,89 @@ void main() {
     );
   });
 
+  group('duplicate folding', () {
+    const p2 = '01926f3a-0000-7000-8000-000000000002';
+
+    /// [makeNote] with page [p2] (rev ending [rev]) after (or alone, [only]) the first page.
+    Note two(String rev, {bool only = false}) {
+      final j = makeNote().copyJson();
+      final pages = (j['pages'] as List).cast<Map<String, dynamic>>();
+      final extra = {
+        ...pages.first,
+        'id': p2,
+        'rev': '01926f3a-0000-7000-8000-0000000000$rev',
+      };
+      j['pages'] = only ? [extra] : [pages.first, extra];
+      return Note.trusted(j);
+    }
+
+    Future<UploadOutcome> up() => env.uploader().upload(noteId);
+
+    test('a conflict of a fold gets the page index of the kept note', () async {
+      await env.save(makeNote());
+      final kept = env.drive.foreignNote(two('c1'), parent: env.root.id);
+      env.drive.foreignNote(two('c2', only: true), parent: env.root.id);
+      await up();
+      final c = env.info.conflicts.firstWhere((c) => c['pageId'] == p2);
+      expect(c['originalIndex'], 1); // index 0 in the duplicate
+      expect(env.note.id, kept.id);
+    });
+
+    test('a target that got a revision during the fold is not uploaded on top of; no trashing', () async {
+      await env.save(makeNote());
+      final kept = env.drive.foreignNote(two('c1'), parent: env.root.id);
+      final dup = env.drive.foreignNote(
+        two('c2', only: true),
+        parent: env.root.id,
+      );
+      var gets = 0;
+      env.drive.before = (c) {
+        // 1-2: reading kept and the duplicate; 2nd get of kept: the recheck.
+        if (c == 'get:${kept.id}' && ++gets == 2) {
+          env.drive.foreignRevision(kept, encodeKkj(two('c3')));
+        }
+      };
+      await up();
+      expect(dup.trashed, isFalse);
+      expect(await env.eventNames(), isNot(contains('duplicatesCleaned')));
+      // Only the normal upload (after the merge) wrote to the kept file.
+      expect(
+        env.drive.uploads.where(
+          (u) => u.fileId == kept.id && u.metadata['name'] == 'a.kkj',
+        ),
+        hasLength(1),
+      );
+    });
+
+    test(
+      'an unreadable kept file: no fold, keep is returned, an error is logged',
+      () async {
+        await env.save(makeNote());
+        final kept = env.drive.foreignNote(
+          makeNote(),
+          parent: env.root.id,
+          bytes: utf8.encode('not a kkj'),
+        );
+        final dup = env.drive.foreignNote(
+          two('c2', only: true),
+          parent: env.root.id,
+        );
+        expect(
+          await up(),
+          UploadOutcome.failed,
+        ); // the normal path then cannot read it either
+        expect(dup.trashed, isFalse);
+        expect(env.drive.uploads, isEmpty);
+        expect(env.info.fileId, kept.id);
+        final err = (await env.events())
+            .where((e) => e['event'] == 'error')
+            .first;
+        expect(err, containsPair('reason', 'parse'));
+        expect(err, containsPair('class', 'fatal'));
+      },
+    );
+  });
+
   group('runBackgroundUpload gate', () {
     Future<void> run({
       Map<String, Object> prefs = const {

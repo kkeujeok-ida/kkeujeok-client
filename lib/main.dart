@@ -30,17 +30,22 @@ Future<void> main() async {
   } catch (_) {
     // Uploads still run from the app's own triggers.
   }
-  runApp(
-    ProviderScope(
-      overrides: [
-        languageStoreProvider.overrideWithValue(LanguageStore(prefs)),
-        newNoteDefaultsStoreProvider.overrideWithValue(
-          NewNoteDefaultsStore(prefs),
-        ),
-        penSlotsStoreProvider.overrideWithValue(PenSlotsStore(prefs)),
-        sessionHintProvider.overrideWithValue(SessionHint(prefs)),
-      ],
-      child: const App(),
-    ),
+  final container = ProviderContainer(
+    overrides: [
+      languageStoreProvider.overrideWithValue(LanguageStore(prefs)),
+      newNoteDefaultsStoreProvider.overrideWithValue(
+        NewNoteDefaultsStore(prefs),
+      ),
+      penSlotsStoreProvider.overrideWithValue(PenSlotsStore(prefs)),
+      sessionHintProvider.overrideWithValue(SessionHint(prefs)),
+    ],
   );
+  // Nothing is open when the process starts: the mark of a dead process goes
+  // here, once, never at a later upload trigger.
+  try {
+    await container.read(openNoteProvider).clear();
+  } catch (_) {
+    // Not fatal: a stale mark only keeps one note from the background task.
+  }
+  runApp(UncontrolledProviderScope(container: container, child: const App()));
 }
