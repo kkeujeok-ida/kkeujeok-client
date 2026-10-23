@@ -448,6 +448,17 @@ void main() {
       );
       await open(t, 'Local');
       await t.tap(find.text('Local'));
+      // Opening reads the note from disk first (real I/O): let it finish.
+      for (
+        var i = 0;
+        i < 300 && find.byTooltip('Back to library').evaluate().isEmpty;
+        i++
+      ) {
+        await t.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await t.pump();
+      }
       await t.pumpAndSettle();
       await t.tap(find.byTooltip('Back to library'));
       await t.pumpAndSettle();
