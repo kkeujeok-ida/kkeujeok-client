@@ -638,6 +638,12 @@ abstract class AppLocalizations {
   /// **'There are no notes to save.'**
   String get accountMismatchDownloadNone;
 
+  /// No description provided for @accountMismatchDownloadSkipped.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save {skipped} of {total, plural, =1{1 note} other{{total} notes}}.'**
+  String accountMismatchDownloadSkipped(int skipped, int total);
+
   /// No description provided for @accountClearFailed.
   ///
   /// In en, this message translates to:

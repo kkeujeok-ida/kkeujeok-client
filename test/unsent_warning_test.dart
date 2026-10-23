@@ -49,6 +49,18 @@ class _FailingList extends NoteStore {
   Future<List<String>> ids() => throw const FileSystemException('x');
 }
 
+/// The notes clear fine, but the device record stays (a delete that fails
+/// is swallowed by the real store) or cannot be read back.
+class _StuckDevice extends SyncDeviceStore {
+  _StuckDevice(super.data, {this.readFails = false});
+  final bool readFails;
+  @override
+  Future<void> clear() async {}
+  @override
+  Future<SyncDevice> read() =>
+      readFails ? throw const FileSystemException('x') : super.read();
+}
+
 class _FailingClear extends NoteData {
   _FailingClear(super.documents);
   @override
@@ -226,6 +238,36 @@ void main() {
         expect(find.text('Sign in with Google'), findsOneWidget);
       });
 
+      testWidgets('edited while the plain confirm is open: the confirm press '
+          'counts again and returns to the warning', (t) async {
+        ids = [];
+        await pump(t);
+        await openSettings(t);
+        await t.tap(find.text('Log out'));
+        await t.pumpAndSettle();
+        ids = ['n1'];
+        await t.tap(find.widgetWithText(FilledButton, 'Log out'));
+        await t.pumpAndSettle();
+        expect(gate.signOutCalls, 0);
+        expect(find.text("Changes weren't sent"), findsOneWidget);
+        expect(find.text('Log out?'), findsNothing);
+      });
+
+      testWidgets('the armed discard button relaxes after about 5 s', (
+        t,
+      ) async {
+        await pump(t);
+        await openSettings(t);
+        await t.tap(find.text('Log out'));
+        await t.pumpAndSettle();
+        await t.tap(find.text(discardLogout));
+        await t.pumpAndSettle();
+        expect(find.text(again), findsOneWidget);
+        await t.pump(const Duration(seconds: 6));
+        expect(find.text(again), findsNothing);
+        expect(find.text(discardLogout), findsOneWidget);
+      });
+
       testWidgets('two presses while counting count once and open one '
           'dialog', (t) async {
         hold = Completer<void>();
@@ -312,6 +354,21 @@ void main() {
         expect(gate.disconnectCalls, 1);
       });
 
+      testWidgets('edited while the plain confirm is open: the confirm press '
+          'counts again and returns to the warning', (t) async {
+        ids = [];
+        await pump(t);
+        await openSettings(t);
+        await t.tap(find.text('Disconnect'));
+        await t.pumpAndSettle();
+        ids = ['n1'];
+        await t.tap(find.widgetWithText(FilledButton, 'Disconnect'));
+        await t.pumpAndSettle();
+        expect(gate.disconnectCalls, 0);
+        expect(find.text(discardDisconnect), findsOneWidget);
+        expect(find.textContaining("1 change wasn't sent"), findsOneWidget);
+      });
+
       testWidgets('two presses while counting count once', (t) async {
         hold = Completer<void>();
         await pump(t);
@@ -388,6 +445,16 @@ void main() {
       expect(log.existsSync(), isTrue);
       // The same account can be adopted again after the erase.
       expect(await device.adoptAccount('sub-b', 'b@example.com'), isTrue);
+    });
+
+    test('the device record surviving clear(), or unreadable after it, is '
+        'a failed discard', () async {
+      final stuck = _StuckDevice(data);
+      await stuck.adoptAccount('sub-a', 'a@example.com');
+      expect(await container(data, stuck).read(discardLocalDataProvider)(), isFalse);
+      expect((await stuck.read()).sub, 'sub-a');
+      final broken = _StuckDevice(data, readFails: true);
+      expect(await container(data, broken).read(discardLocalDataProvider)(), isFalse);
     });
 
     test(

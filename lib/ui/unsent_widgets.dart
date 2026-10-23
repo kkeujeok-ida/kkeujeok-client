@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -32,13 +34,26 @@ class TwoStepButton extends StatefulWidget {
 
 class _TwoStepButtonState extends State<TwoStepButton> {
   bool _armed = false;
+  Timer? _timer;
 
   void _press() {
+    _timer?.cancel();
     if (!_armed) {
       setState(() => _armed = true);
+      _timer = Timer(const Duration(seconds: 5), () {
+        if (mounted) setState(() => _armed = false);
+      });
       return;
     }
+    // Back to the first state at once: a failed run must not leave it armed.
+    setState(() => _armed = false);
     widget.onConfirm();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 
   @override

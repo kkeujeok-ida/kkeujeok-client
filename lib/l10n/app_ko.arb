@@ -121,6 +121,17 @@
   "discardAgain": "한 번 더 누르면 버려져요",
   "accountMismatchDownloadFailed": "파일로 내려받지 못했어요. 다시 시도해 주세요.",
   "accountMismatchDownloadNone": "내려받을 수 있는 노트가 없어요.",
+  "accountMismatchDownloadSkipped": "노트 {total}개 중 {skipped}개를 저장하지 못했어요.",
+  "@accountMismatchDownloadSkipped": {
+    "placeholders": {
+      "skipped": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "accountClearFailed": "이전 계정의 노트 사본을 지우지 못했어요. 다시 시도해 주세요.",
   "unsentLogoutTitle": "보내지 못한 변경이 있어요",
   "unsentLogoutBody": "보내지 못한 변경 {count}개가 있어요. 로그아웃하면 이 변경이 사라져요.",

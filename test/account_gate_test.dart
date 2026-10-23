@@ -8,6 +8,7 @@ import 'package:kkeujeok/drive/auth_gateway.dart';
 import 'package:kkeujeok/storage/note_data.dart';
 import 'package:kkeujeok/storage/note_store.dart';
 import 'package:kkeujeok/storage/sync_device_store.dart';
+import 'package:kkeujeok/ui/account_gate.dart' show cleanStaleExports;
 import 'package:kkeujeok/ui/library.dart';
 import 'package:kkeujeok/ui/providers.dart';
 import 'package:kkeujeok/ui/shell.dart';
@@ -247,10 +248,25 @@ void main() {
         findsOneWidget,
       );
       expectNoShell();
+      // back at the first state after the failure: two presses again
+      expect(find.text(again), findsNothing);
+      await t.tap(find.text(discard2));
+      await t.pumpAndSettle();
       await t.tap(find.text(again));
       await t.pumpAndSettle();
       expect(rec.discardCalls, 2);
       expect(find.byType(Shell), findsOneWidget);
+    });
+
+    testWidgets('an armed discard button relaxes after about 5 s', (t) async {
+      await pump(t);
+      await t.tap(find.text(discard2));
+      await t.pumpAndSettle();
+      expect(find.text(again), findsOneWidget);
+      await t.pump(const Duration(seconds: 6));
+      expect(find.text(again), findsNothing);
+      expect(find.text(discard2), findsOneWidget);
+      expect(rec.discardCalls, 0);
     });
 
     testWidgets('a second discard press while it runs is ignored', (t) async {
@@ -273,8 +289,8 @@ void main() {
       await t.pumpAndSettle();
       await t.tap(find.text(again));
       await t.pump();
-      await t.tap(find.text(again));
-      await t.pump();
+      await t.tap(find.text('Discard 1 change from the previous account'));
+      await t.pump(); // only arms again: no second run
       expect(rec.discardCalls, 1);
       hold.complete(true);
       await t.pumpAndSettle();
@@ -317,7 +333,12 @@ void main() {
         },
       ]);
       expect(find.text('Signed in with a different account'), findsOneWidget);
-      expect(exportDir.listSync(), isEmpty);
+      // 'n2' has no working copy: told, not silently left out
+      expect(find.text("Couldn't save 1 of 3 notes."), findsOneWidget);
+      // The folder stays for the share target; only stale ones are cleaned.
+      final kept = exportDir.listSync().whereType<Directory>().single;
+      expect(kept.path, contains('kkj-unsent-'));
+      expect(kept.listSync().length, 2);
       expect(rec.discardCalls, 0);
       expect(focused(t, find.textContaining('Discard')), isFalse);
     });
@@ -343,8 +364,43 @@ void main() {
       await pump(t, notes: notes);
       await t.tap(find.text(download));
       await settleIo(t);
-      expect(find.text('There are no notes to save.'), findsOneWidget);
+      expect(find.text("Couldn't save 1 of 1 note."), findsOneWidget);
       expect(rec.shared, isEmpty);
+    });
+
+    testWidgets('an unknown list hides the save button', (t) async {
+      rec.ids = null;
+      await pump(t, notes: notes);
+      expect(find.text(download), findsNothing);
+    });
+
+    testWidgets('mounting the gate removes an old kkj-unsent folder', (t) async {
+      final old = Directory('${exportDir.path}/kkj-unsent-x')..createSync();
+      final fresh = Directory('${exportDir.path}/kkj-unsent-y')..createSync();
+      await t.runAsync(() async {
+        // Dart cannot set a directory's mtime: ask the OS.
+        final r = Platform.isWindows
+            ? await Process.run('powershell', [
+                '-Command',
+                "(Get-Item '${old.path}').LastWriteTime = (Get-Date).AddHours(-3)",
+              ])
+            : await Process.run('touch', ['-d', '3 hours ago', old.path]);
+        expect(r.exitCode, 0);
+      });
+      await pump(t);
+      await settleIo(t);
+      expect(old.existsSync(), isFalse);
+      expect(fresh.existsSync(), isTrue);
+    });
+
+    test('cleanStaleExports removes only old kkj-unsent folders', () async {
+      final unsent = Directory('${exportDir.path}/kkj-unsent-a')..createSync();
+      final other = Directory('${exportDir.path}/kkj-copy-x')..createSync();
+      await cleanStaleExports(exportDir); // just made: stays
+      expect(unsent.existsSync(), isTrue);
+      await cleanStaleExports(exportDir, age: Duration.zero);
+      expect(unsent.existsSync(), isFalse);
+      expect(other.existsSync(), isTrue);
     });
 
     testWidgets('a failed share shows an error line, dialog stays', (t) async {
@@ -358,7 +414,6 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Signed in with a different account'), findsOneWidget);
-      expect(exportDir.listSync(), isEmpty);
     });
   });
 

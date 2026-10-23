@@ -38,6 +38,7 @@ class _AccountGateState extends ConsumerState<AccountGate> {
   @override
   void initState() {
     super.initState();
+    unawaited(_cleanStale());
     if (_view == _View.checking) unawaited(_check());
   }
 
@@ -122,32 +123,45 @@ class _AccountGateState extends ConsumerState<AccountGate> {
         error = l10n.accountMismatchDownloadFailed;
       } else {
         final store = ref.read(noteStoreProvider);
+        await _cleanStale();
         final files = <File>[];
+        var skipped = 0;
         for (final id in ids) {
           final bytes = await store.workingBytes(id);
           if (!_current) return;
-          if (bytes == null) continue;
+          if (bytes == null) {
+            skipped++;
+            continue;
+          }
           dir ??= await (await ref.read(
             exportDirProvider,
           )()).createTemp('kkj-unsent-');
           files.add(await File('${dir.path}/$id.kkj').writeAsBytes(bytes));
         }
         if (!_current) return;
-        if (files.isEmpty) {
-          error = l10n.accountMismatchDownloadNone;
-        } else {
+        if (files.isNotEmpty) {
+          // The folder stays: the share target reads it after the sheet is
+          // up. [_cleanStale] removes it later.
           await ref.read(noteFilesSharerProvider)(files);
+        }
+        if (skipped > 0) {
+          error = l10n.accountMismatchDownloadSkipped(skipped, ids.length);
+        } else if (files.isEmpty) {
+          error = l10n.accountMismatchDownloadNone;
         }
       }
     } catch (_) {
       error = l10n.accountMismatchDownloadFailed;
     } finally {
-      try {
-        await dir?.delete(recursive: true);
-      } catch (_) {}
       _busy = false;
     }
     if (mounted) setState(() => _message = error);
+  }
+
+  Future<void> _cleanStale() async {
+    try {
+      await cleanStaleExports(await ref.read(exportDirProvider)());
+    } catch (_) {}
   }
 
   @override
@@ -208,11 +222,12 @@ class _AccountGateState extends ConsumerState<AccountGate> {
                   child: Text(l10n.retry),
                 )
               else ...[
-                OutlinedButton(
-                  style: OutlinedButton.styleFrom(minimumSize: _hit),
-                  onPressed: _download,
-                  child: Text(l10n.accountMismatchDownload),
-                ),
+                if (n != null) // nothing to export when the list is unknown
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(minimumSize: _hit),
+                    onPressed: _download,
+                    child: Text(l10n.accountMismatchDownload),
+                  ),
                 TwoStepButton(
                   label: n == null
                       ? l10n.accountMismatchDiscardUnknown
@@ -226,4 +241,29 @@ class _AccountGateState extends ConsumerState<AccountGate> {
       ),
     );
   }
+}
+
+/// Removes `kkj-unsent-*` export folders in [root] older than [age] (best
+/// effort). The share target reads them after the sheet is up, so a folder is
+/// never removed when it is made.
+Future<void> cleanStaleExports(
+  Directory root, {
+  Duration age = const Duration(hours: 1),
+}) async {
+  final cutoff = DateTime.now().subtract(age);
+  try {
+    await for (final e in root.list()) {
+      if (e is! Directory) continue;
+      final name = e.uri.pathSegments.lastWhere(
+        (s) => s.isNotEmpty,
+        orElse: () => '',
+      );
+      if (!name.startsWith('kkj-unsent-')) continue;
+      try {
+        if (!(await e.stat()).modified.isAfter(cutoff)) {
+          await e.delete(recursive: true);
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
 }

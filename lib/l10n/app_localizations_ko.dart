@@ -295,6 +295,11 @@ class AppLocalizationsKo extends AppLocalizations {
   String get accountMismatchDownloadNone => '내려받을 수 있는 노트가 없어요.';
 
   @override
+  String accountMismatchDownloadSkipped(int skipped, int total) {
+    return '노트 $total개 중 $skipped개를 저장하지 못했어요.';
+  }
+
+  @override
   String get accountClearFailed => '이전 계정의 노트 사본을 지우지 못했어요. 다시 시도해 주세요.';
 
   @override

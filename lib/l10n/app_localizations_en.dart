@@ -312,6 +312,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get accountMismatchDownloadNone => 'There are no notes to save.';
 
   @override
+  String accountMismatchDownloadSkipped(int skipped, int total) {
+    String _temp0 = intl.Intl.pluralLogic(
+      total,
+      locale: localeName,
+      other: '$total notes',
+      one: '1 note',
+    );
+    return 'Couldn\'t save $skipped of $_temp0.';
+  }
+
+  @override
   String get accountClearFailed =>
       'Couldn\'t erase the previous account\'s note copies. Please try again.';
 

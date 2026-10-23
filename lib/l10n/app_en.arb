@@ -144,6 +144,17 @@
   "discardAgain": "Press again to discard",
   "accountMismatchDownloadFailed": "Couldn't save the files. Please try again.",
   "accountMismatchDownloadNone": "There are no notes to save.",
+  "accountMismatchDownloadSkipped": "Couldn't save {skipped} of {total, plural, =1{1 note} other{{total} notes}}.",
+  "@accountMismatchDownloadSkipped": {
+    "placeholders": {
+      "skipped": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "accountClearFailed": "Couldn't erase the previous account's note copies. Please try again.",
   "unsentLogoutTitle": "Changes weren't sent",
   "unsentLogoutBody": "{count, plural, =1{1 change wasn't} other{{count} changes weren't}} sent. If you log out, they will be lost.",

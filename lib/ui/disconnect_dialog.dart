@@ -27,10 +27,28 @@ class DisconnectDialog extends ConsumerStatefulWidget {
 
 class _DisconnectDialogState extends ConsumerState<DisconnectDialog> {
   _Step _step = _Step.confirm;
+  late bool _warn = widget.warn;
+  late int? _unsent = widget.unsent;
 
   Future<void> _run() async {
     if (_step == _Step.busy) return; // a double tap must not start a second run
     setState(() => _step = _Step.busy);
+    if (!_warn) {
+      // Edited while the box was open: count again, warn if it grew.
+      List<String>? ids;
+      try {
+        ids = await ref.read(unsentIdsProvider)();
+      } catch (_) {} // unknown: warn
+      if (!mounted) return;
+      if (ids == null || ids.isNotEmpty) {
+        setState(() {
+          _warn = true;
+          _unsent = ids?.length;
+          _step = _Step.confirm;
+        });
+        return;
+      }
+    }
     final result = await ref.read(authProvider.notifier).disconnect();
     if (!mounted) return;
     if (result == DisconnectResult.done) {
@@ -49,7 +67,7 @@ class _DisconnectDialogState extends ConsumerState<DisconnectDialog> {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final busy = _step == _Step.busy;
-    final unsent = widget.unsent;
+    final unsent = _unsent;
     final unsentLine = unsent == null
         ? l10n.unsentDisconnectLineUnknown
         : l10n.unsentDisconnectLine(unsent);
@@ -59,7 +77,7 @@ class _DisconnectDialogState extends ConsumerState<DisconnectDialog> {
 
     final Widget content = switch (_step) {
       _Step.confirm => Text(
-        widget.warn
+        _warn
             ? '$unsentLine ${l10n.disconnectBody}'
             : l10n.disconnectBody,
       ),
@@ -93,7 +111,7 @@ class _DisconnectDialogState extends ConsumerState<DisconnectDialog> {
                   onPressed: () => Navigator.of(context).pop(false),
                   child: Text(l10n.cancel),
                 ),
-                if (widget.warn && _step == _Step.confirm)
+                if (_warn && _step == _Step.confirm)
                   TwoStepButton(
                     label: l10n.unsentDisconnectConfirm,
                     onConfirm: _run,

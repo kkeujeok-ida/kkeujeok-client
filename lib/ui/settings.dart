@@ -134,7 +134,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final nav = Navigator.of(context);
     final counted = await _count();
     if (counted == null || !mounted) return;
-    final ids = counted.ids;
+    var ids = counted.ids;
     if (ids != null && ids.isEmpty) {
       // Nothing unsent: the plain confirm. The unsent warning below replaces
       // it, so two boxes never follow each other.
@@ -143,9 +143,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         builder: (_) => const _LogOutConfirm(),
       );
       if (yes != true || !mounted) return;
-      await ref.read(authProvider.notifier).signOut();
-      nav.popUntil((r) => r.isFirst);
-      return;
+      // Edited while the box was open: count again, warn if it grew.
+      try {
+        ids = await ref.read(unsentIdsProvider)();
+      } catch (_) {
+        ids = null; // unknown: warn
+      }
+      if (!mounted) return;
+      if (ids != null && ids.isEmpty) {
+        await ref.read(authProvider.notifier).signOut();
+        nav.popUntil((r) => r.isFirst);
+        return;
+      }
     }
     final done = await showDialog<bool>(
       context: context,

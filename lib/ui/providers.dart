@@ -408,8 +408,13 @@ final discardLocalDataProvider = Provider<Future<bool> Function()>(
     }
     ref.read(noteHistoriesProvider).clear();
     ref.read(_adoptedAccountProvider).key = null;
-    await ref.read(syncDeviceStoreProvider).clear();
-    return true;
+    final device = ref.read(syncDeviceStoreProvider);
+    await device.clear(); // swallows a failed delete, so look again
+    try {
+      return (await device.read()).sub == null;
+    } catch (_) {
+      return false;
+    }
   },
 );
 
