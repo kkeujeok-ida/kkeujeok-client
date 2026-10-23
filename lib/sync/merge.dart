@@ -158,6 +158,9 @@ Map<String, Object?> _merge(
           };
         } else if (l['rev'] == r['rev']) {
           out = l;
+        } else if (lineageOf(r).contains(l['rev'])) {
+          // Our earlier edit is already in the remote page (lost upload reply).
+          out = r;
         } else {
           out = r;
           conflict(id, 'bothEdited', l, r);
@@ -175,6 +178,8 @@ Map<String, Object?> _merge(
     } else if (l != null && r != null) {
       if (l['rev'] == r['rev']) {
         out = l;
+      } else if (lineageOf(r).contains(l['rev'])) {
+        out = r;
       } else {
         out = r;
         conflict(id, 'bothEdited', l, r);
@@ -245,19 +250,17 @@ Map<String, Object?> _merge(
     for (final k in _knownMeta)
       if ((win['meta'] as Json).containsKey(k)) k: (win['meta'] as Json)[k],
   };
-  for (final src in [local, remote]) {
-    (src['meta'] as Json).forEach((k, v) {
-      if (!_knownMeta.contains(k)) meta[k] = v;
-    });
-  }
+  // Unknown fields: an equal metaRev counts as remote (a newer client's field).
+  final unk = local['metaRev'] == remote['metaRev'] ? remote : win;
+  (unk['meta'] as Json).forEach((k, v) {
+    if (!_knownMeta.contains(k)) meta[k] = v;
+  });
 
   // merge.unknownFields (top level) and the result note.
   final note = <String, dynamic>{};
-  for (final src in [local, remote]) {
-    src.forEach((k, v) {
-      if (!_knownTop.contains(k)) note[k] = v;
-    });
-  }
+  unk.forEach((k, v) {
+    if (!_knownTop.contains(k)) note[k] = v;
+  });
   note
     ..['formatVersion'] = local['formatVersion']
     ..['noteId'] = local['noteId']
