@@ -238,6 +238,22 @@ void main() {
     },
   );
 
+  test(
+    'a merge the queue cannot take now (queueBusy) is deferred, not fatal',
+    () async {
+      await env.save(twoPages(rev: 2));
+      env.drive.foreignRevision(env.note, encodeKkj(twoPages(rev: 9)));
+      env.merge = StubMerge(env.store, (_) => const MergeFailed('queueBusy'));
+
+      expect(await up(), UploadOutcome.failed);
+
+      expect(env.info.lastError, {
+        'class': 'backoff',
+        'reason': 'mergeDeferred',
+      });
+    },
+  );
+
   test('no mergeUnavailable: the default step is the real one', () async {
     await env.save(twoPages(rev: 2));
     env.drive.foreignRevision(env.note, encodeKkj(twoPages(rev: 9)));

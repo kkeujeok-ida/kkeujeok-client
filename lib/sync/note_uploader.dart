@@ -775,6 +775,11 @@ class NoteUploader {
           clearVerify: true,
         );
       case MergeFailed(:final code):
+        // The queue was busy (a stroke, leaving the note): not final, the
+        // next trigger merges again and `pendingVerify` stays.
+        if (code == 'queueBusy') {
+          throw _Failure('backoff', reason: 'mergeDeferred');
+        }
         throw _Failure('fatal', reason: code, clearVerify: true);
     }
   }
