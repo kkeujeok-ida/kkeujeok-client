@@ -8,6 +8,8 @@ typedef JsonMap = Map<String, Object?>;
 
 /// `sync.json` of one note (spec `sync` "On the device"). Fields this client
 /// does not know are kept in [extra] and written back.
+const pendingTrashKey = 'pendingTrash';
+
 class SyncInfo {
   const SyncInfo({
     this.fileId,
@@ -40,6 +42,10 @@ class SyncInfo {
     final v = extra['lastSeenRemoteSeq'];
     return v is int && v > 0 ? v : 0;
   }
+
+  /// Story 7.7: the person deleted the note; it waits to be uploaded and
+  /// trashed on Drive (an unknown key of `sync.json`, so it survives commits).
+  bool get pendingTrash => extra[pendingTrashKey] == true;
 
   /// The entries of [conflicts] nobody has resolved yet.
   List<JsonMap> get unresolvedConflicts => [

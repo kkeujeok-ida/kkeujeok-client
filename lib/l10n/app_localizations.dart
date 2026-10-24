@@ -1213,6 +1213,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This version cannot be read.'**
   String get versionRestoreUnreadable;
+
+  /// No description provided for @noteDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get noteDelete;
+
+  /// No description provided for @noteDeleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this note? It moves to the Drive trash. You can restore it from Drive.'**
+  String get noteDeleteBody;
+
+  /// No description provided for @noteDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get noteDeleteConfirm;
 }
 
 class _AppLocalizationsDelegate

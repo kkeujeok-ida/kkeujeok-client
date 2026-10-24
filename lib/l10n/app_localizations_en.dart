@@ -674,4 +674,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get versionRestoreUnreadable => 'This version cannot be read.';
+
+  @override
+  String get noteDelete => 'Delete';
+
+  @override
+  String get noteDeleteBody =>
+      'Delete this note? It moves to the Drive trash. You can restore it from Drive.';
+
+  @override
+  String get noteDeleteConfirm => 'Delete';
 }

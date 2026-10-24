@@ -244,6 +244,10 @@ class UploadCoordinator {
       // The mark is read per note: an editor may have opened since the loop
       // began.
       if (skipOpen && await openNote.read() == noteId) return;
+      if ((await store.readSync(noteId)).info.pendingTrash) {
+        await _trash(noteId);
+        return;
+      }
       final (stuck, upload, mark) = await _needs(noteId);
       if (stuck) {
         // Story 11.2: `syncing` with nothing to send ends here, offline too.
@@ -287,6 +291,28 @@ class UploadCoordinator {
     } catch (_) {
       // Whatever went wrong is in `sync.json` and the log, or it was a
       // crash; "Start" repeats the step.
+    }
+  }
+
+  /// Story 7.7: the note is hidden at once; what is unsent goes up, then the
+  /// Drive file is trashed. Offline, it is done when the network is back.
+  Future<void> deleteNote(String noteId) async {
+    if (!await uploader.markTrash(noteId)) return;
+    await _one(noteId);
+  }
+
+  Future<void> _trash(String noteId) async {
+    if (!await lease.acquire(noteId)) {
+      await _schedule();
+      return;
+    }
+    try {
+      if (!await uploader.trashNote(noteId) &&
+          (!await allowed() || !await online())) {
+        await _schedule();
+      }
+    } finally {
+      await lease.release(noteId);
     }
   }
 

@@ -318,4 +318,23 @@ void main() {
       expect(env.drive.uploads, hasLength(2));
     });
   });
+
+  test('a deleted note is sent, trashed on Drive and removed locally', () async {
+    await env.save(makeNote());
+    await coordinator.deleteNote(noteId);
+    expect(env.drive.uploads, hasLength(1));
+    expect(env.drive.calls.last, contains('update'));
+    expect(await env.store.read(noteId), isNull);
+  });
+
+  test('a note deleted offline is hidden and trashed when connected', () async {
+    await env.save(makeNote());
+    env.online = false;
+    await coordinator.deleteNote(noteId);
+    expect(env.info.pendingTrash, isTrue);
+    expect(await env.store.read(noteId), isNotNull);
+    env.online = true;
+    await coordinator.reconnected();
+    expect(await env.store.read(noteId), isNull);
+  });
 }

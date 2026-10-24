@@ -193,6 +193,60 @@ class NoteUploader {
         }
       });
 
+  // ---- delete (Story 7.7) -------------------------------------------------
+
+  /// Marks [noteId] as deleted by the person: the library hides it and every
+  /// trigger runs [trashNote] until it is done. False when `sync.json`
+  /// cannot be written (nothing is deleted).
+  Future<bool> markTrash(String noteId) => _chained(noteId, () async {
+    try {
+      await store.updateSync(
+        noteId,
+        (c) => c.copyWith(extra: {...c.extra, pendingTrashKey: true}),
+      );
+      return true;
+    } on NoteSaveException {
+      return false;
+    }
+  });
+
+  /// Sends what is unsent, trashes the Drive file, then removes the local
+  /// note. False while it must wait (offline, a failed upload): the mark
+  /// stays and the next trigger repeats this.
+  Future<bool> trashNote(String noteId) => _chained(noteId, () async {
+    try {
+      var s = await store.readSync(noteId);
+      if (s.hasUnsent || s.info.pendingVerify != null) {
+        if (await _upload(noteId, recoverOnly: false) !=
+            UploadOutcome.uploaded) {
+          return false;
+        }
+        s = await store.readSync(noteId);
+        if (s.hasUnsent || s.info.pendingVerify != null) return false;
+      }
+      final fileId = s.info.fileId;
+      if (fileId != null) {
+        if (!await allowed() || !await online()) return false;
+        try {
+          await _call(
+            noteId,
+            () => drive.update(fileId, trashed: true),
+            pass: (e) => e.status == 404, // already gone
+          );
+        } on DriveError {
+          // 404: nothing left to trash.
+        }
+      }
+      final note = (await store.read(noteId))?.note;
+      return note == null || await store.removeNote(noteId, expected: note);
+    } on _Failure catch (f) {
+      await _fail(noteId, f);
+      return false;
+    } on NoteSaveException {
+      return false;
+    }
+  });
+
   // ---- resolved conflicts (Story 3.21) ------------------------------------
 
   static bool _sameConflict(JsonMap a, JsonMap b) =>

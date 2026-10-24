@@ -257,5 +257,8 @@
   "versionRestoreOffline": "연결되면 복원할 수 있어요.",
   "versionRestoreNotSaved": "지금 상태를 Drive에 저장하지 못해서 복원하지 않았어요.",
   "versionRestorePinFailed": "복원 전 버전을 표시하지 못해서 복원하지 않았어요.",
-  "versionRestoreUnreadable": "이 버전을 읽을 수 없어요."
+  "versionRestoreUnreadable": "이 버전을 읽을 수 없어요.",
+  "noteDelete": "삭제",
+  "noteDeleteBody": "노트를 지울까요? Drive 휴지통으로 옮겨져요. 복원은 Drive에서 할 수 있어요.",
+  "noteDeleteConfirm": "지우기"
 }

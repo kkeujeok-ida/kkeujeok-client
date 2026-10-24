@@ -620,4 +620,14 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get versionRestoreUnreadable => '이 버전을 읽을 수 없어요.';
+
+  @override
+  String get noteDelete => '삭제';
+
+  @override
+  String get noteDeleteBody =>
+      '노트를 지울까요? Drive 휴지통으로 옮겨져요. 복원은 Drive에서 할 수 있어요.';
+
+  @override
+  String get noteDeleteConfirm => '지우기';
 }

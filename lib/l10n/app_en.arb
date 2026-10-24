@@ -294,5 +294,8 @@
   "versionRestoreOffline": "You can restore once you are connected.",
   "versionRestoreNotSaved": "Could not save the current state to Drive, so nothing was restored.",
   "versionRestorePinFailed": "Could not mark the version before restore, so nothing was restored.",
-  "versionRestoreUnreadable": "This version cannot be read."
+  "versionRestoreUnreadable": "This version cannot be read.",
+  "noteDelete": "Delete",
+  "noteDeleteBody": "Delete this note? It moves to the Drive trash. You can restore it from Drive.",
+  "noteDeleteConfirm": "Delete"
 }

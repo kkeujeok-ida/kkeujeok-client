@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -233,8 +234,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   Future<void> _open(Note cached) => _guarded(() async {
     // The list may hold a note a receive has replaced since: open the disk's.
     final note =
-        (await ref.read(noteStoreProvider).read(cached.noteId))?.note ??
-        cached;
+        (await ref.read(noteStoreProvider).read(cached.noteId))?.note ?? cached;
     if (!mounted) return;
     await _afterEditor(
       _push(note, resolve: ref.read(noteSyncProvider(note.noteId)).hasConflict),
@@ -245,6 +245,34 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   Future<void> _openById(String noteId) => _guarded(() async {
     final note = (await ref.read(noteStoreProvider).read(noteId))?.note;
     if (note != null && mounted) await _afterEditor(_push(note), note);
+  });
+
+  /// Story 7.7: asks in place, then hides the card at once; the upload of
+  /// unsent changes and the Drive trash follow (offline: when connected).
+  Future<void> _delete(String noteId) => _guarded(() async {
+    final l = AppLocalizations.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        content: Text(l.noteDeleteBody),
+        actions: [
+          TextButton(
+            autofocus: true,
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(l.noteDeleteConfirm),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final coordinator = ref.read(uploadCoordinatorProvider);
+    final notifier = ref.read(libraryProvider.notifier);
+    await coordinator.deleteNote(noteId);
+    if (mounted) notifier.reload();
   });
 
   /// The first conflict shown in the foreground asks for the permission of
@@ -363,6 +391,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 entry: e,
                 receiving: recv.receiving.contains(e.noteId),
                 onTap: () => _open(e.note!),
+                onDelete: () => _delete(e.noteId),
               )
             : _UnreadableCard(noteId: e.noteId),
     ];
@@ -710,11 +739,13 @@ class _NoteCard extends ConsumerWidget {
   const _NoteCard({
     required this.entry,
     required this.onTap,
+    required this.onDelete,
     this.receiving = false,
   });
 
   final LibraryEntry entry;
   final VoidCallback onTap;
+  final VoidCallback onDelete;
   final bool receiving;
 
   @override
@@ -742,8 +773,12 @@ class _NoteCard extends ConsumerWidget {
       value: [if (label != null) _badgeText(l, label), ?date].join(', '),
       excludeSemantics: true,
       onTap: onTap,
+      customSemanticsActions: {
+        CustomSemanticsAction(label: l.noteDelete): onDelete,
+      },
       child: InkWell(
         onTap: onTap,
+        onLongPress: onDelete,
         borderRadius: BorderRadius.circular(
           KkjLight.componentsCoverCardRounded,
         ),
@@ -755,11 +790,25 @@ class _NoteCard extends ConsumerWidget {
               label: label,
             ),
             const SizedBox(height: KkjTokens.spacing2),
-            Text(
-              note.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelMedium,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    note.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelMedium,
+                  ),
+                ),
+                PopupMenuButton<void>(
+                  tooltip: l.moreMenu,
+                  icon: const Icon(Icons.more_horiz),
+                  onSelected: (_) => onDelete(),
+                  itemBuilder: (_) => [
+                    PopupMenuItem<void>(child: Text(l.noteDelete)),
+                  ],
+                ),
+              ],
             ),
             if (date != null) Text(date, style: theme.textTheme.bodySmall),
           ],

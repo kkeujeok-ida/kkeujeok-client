@@ -497,14 +497,17 @@ class LibraryNotifier extends AsyncNotifier<List<LibraryEntry>> {
   Future<List<LibraryEntry>> build() => _load();
 
   Future<List<LibraryEntry>> _load() async {
-    final rows = await ref.read(noteStoreProvider).list();
+    final store = ref.read(noteStoreProvider);
+    final rows = await store.list();
     return [
       for (final r in rows)
-        LibraryEntry(
-          r.noteId,
-          r.result.note,
-          r.result.note == null ? null : _lastEdited(r.result.note!),
-        ),
+        // Story 7.7: a deleted note waiting to be trashed is not shown.
+        if (!(await store.readSync(r.noteId)).info.pendingTrash)
+          LibraryEntry(
+            r.noteId,
+            r.result.note,
+            r.result.note == null ? null : _lastEdited(r.result.note!),
+          ),
     ]..sort(_compare);
   }
 
