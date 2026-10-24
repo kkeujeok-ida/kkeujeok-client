@@ -14,6 +14,9 @@ import 'providers.dart';
 
 /// The floating rounded bar: grip (inert, not in the a11y tree) | one pen
 /// slot. Tapping the selected slot opens the pen edit popover.
+/// Touch size of a toolbar button: tighter than the 48 dp default so the bar is short.
+const _hit = 40.0;
+
 class PenToolbar extends StatelessWidget {
   const PenToolbar({
     super.key,
@@ -61,7 +64,7 @@ class PenToolbar extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(
-          vertical: KkjLight.componentsToolbarPaddingBlock,
+          vertical: 2,
           horizontal: KkjLight.componentsToolbarPaddingInline,
         ),
         child: Row(
@@ -91,7 +94,7 @@ class PenToolbar extends StatelessWidget {
               ),
               child: SizedBox(
                 width: 1,
-                height: 24,
+                height: 20,
                 child: ColoredBox(color: KkjLight.colorBorderHairline),
               ),
             ),
@@ -99,8 +102,8 @@ class PenToolbar extends StatelessWidget {
               tooltip: l10n.lassoTool,
               isSelected: lassoSelected,
               constraints: const BoxConstraints(
-                minWidth: KkjTokens.spacingHitMinAndroid,
-                minHeight: KkjTokens.spacingHitMinAndroid,
+                minWidth: _hit,
+                minHeight: _hit,
               ),
               style: IconButton.styleFrom(
                 backgroundColor: lassoSelected
@@ -114,8 +117,8 @@ class PenToolbar extends StatelessWidget {
               tooltip: l10n.textTool,
               isSelected: textSelected,
               constraints: const BoxConstraints(
-                minWidth: KkjTokens.spacingHitMinAndroid,
-                minHeight: KkjTokens.spacingHitMinAndroid,
+                minWidth: _hit,
+                minHeight: _hit,
               ),
               style: IconButton.styleFrom(
                 backgroundColor: textSelected ? KkjLight.colorAccentSoft : null,
@@ -126,8 +129,8 @@ class PenToolbar extends StatelessWidget {
             IconButton(
               tooltip: l10n.imageTool,
               constraints: const BoxConstraints(
-                minWidth: KkjTokens.spacingHitMinAndroid,
-                minHeight: KkjTokens.spacingHitMinAndroid,
+                minWidth: _hit,
+                minHeight: _hit,
               ),
               disabledColor: KkjLight.colorInkDisabled,
               icon: const Icon(Icons.image_outlined),
@@ -165,8 +168,8 @@ class _HistoryButton extends StatelessWidget {
   Widget build(BuildContext context) => IconButton(
     tooltip: tooltip,
     constraints: const BoxConstraints(
-      minWidth: KkjTokens.spacingHitMinAndroid,
-      minHeight: KkjTokens.spacingHitMinAndroid,
+      minWidth: _hit,
+      minHeight: _hit,
     ),
     icon: Icon(icon),
     disabledColor: KkjLight.colorInkDisabled,
@@ -179,7 +182,7 @@ class _Grip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => const SizedBox.square(
-    dimension: KkjLight.componentsToolbarGripSize,
+    dimension: _hit,
     child: Icon(Icons.more_vert, color: KkjLight.componentsToolbarGripGlyph),
   );
 }
@@ -191,7 +194,7 @@ class _PenSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const hit = KkjLight.componentsPenSlotHitSize;
+    const hit = _hit;
     return SizedBox.square(
       dimension: hit,
       child: ClipRect(
@@ -214,7 +217,7 @@ class _PenSlot extends StatelessWidget {
             ),
             Positioned(
               left: (hit - 8) / 2,
-              top: 33,
+              top: 27,
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
@@ -228,7 +231,7 @@ class _PenSlot extends StatelessWidget {
             ),
             const Positioned(
               right: 2,
-              top: 20,
+              top: 16,
               child: Icon(
                 Icons.arrow_drop_down,
                 size: 16,
@@ -342,7 +345,7 @@ class PenEditDialog extends ConsumerWidget {
                     onTap: () => toggle(!on),
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(
-                        minHeight: KkjTokens.spacingHitMinAndroid,
+                        minHeight: _hit,
                       ),
                       child: Row(
                         children: [
