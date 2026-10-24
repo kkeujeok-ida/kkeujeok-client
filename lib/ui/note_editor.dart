@@ -1807,7 +1807,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
           setState(() {});
           return;
         }
-        if (!_stylusSeen && at >= 0) {
+        // With a stylus around a finger only pans, except for a text-tool tap.
+        if ((!_stylusSeen || _tool == _Tool.text) && at >= 0) {
           _mode = _Mode.touchStroke;
           _begin(e, p, at);
         } else {

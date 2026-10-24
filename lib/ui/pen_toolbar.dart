@@ -15,7 +15,8 @@ import 'providers.dart';
 /// The floating rounded bar: grip (inert, not in the a11y tree) | one pen
 /// slot. Tapping the selected slot opens the pen edit popover.
 /// Touch size of a toolbar button: tighter than the 48 dp default so the bar is short.
-const _hit = 40.0;
+const _hit = 32.0;
+const _icon = 20.0;
 
 class PenToolbar extends StatelessWidget {
   const PenToolbar({
@@ -64,7 +65,7 @@ class PenToolbar extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(
-          vertical: 2,
+          vertical: 1,
           horizontal: KkjLight.componentsToolbarPaddingInline,
         ),
         child: Row(
@@ -94,7 +95,7 @@ class PenToolbar extends StatelessWidget {
               ),
               child: SizedBox(
                 width: 1,
-                height: 20,
+                height: 16,
                 child: ColoredBox(color: KkjLight.colorBorderHairline),
               ),
             ),
@@ -110,6 +111,8 @@ class PenToolbar extends StatelessWidget {
                     ? KkjLight.colorAccentSoft
                     : null,
               ),
+              iconSize: _icon,
+              padding: EdgeInsets.zero,
               icon: const Icon(Icons.highlight_alt),
               onPressed: onLasso,
             ),
@@ -123,6 +126,8 @@ class PenToolbar extends StatelessWidget {
               style: IconButton.styleFrom(
                 backgroundColor: textSelected ? KkjLight.colorAccentSoft : null,
               ),
+              iconSize: _icon,
+              padding: EdgeInsets.zero,
               icon: const Icon(Icons.text_fields),
               onPressed: onText,
             ),
@@ -133,6 +138,8 @@ class PenToolbar extends StatelessWidget {
                 minHeight: _hit,
               ),
               disabledColor: KkjLight.colorInkDisabled,
+              iconSize: _icon,
+              padding: EdgeInsets.zero,
               icon: const Icon(Icons.image_outlined),
               onPressed: onImage,
             ),
@@ -171,6 +178,8 @@ class _HistoryButton extends StatelessWidget {
       minWidth: _hit,
       minHeight: _hit,
     ),
+    iconSize: _icon,
+    padding: EdgeInsets.zero,
     icon: Icon(icon),
     disabledColor: KkjLight.colorInkDisabled,
     onPressed: onPressed,
@@ -217,7 +226,7 @@ class _PenSlot extends StatelessWidget {
             ),
             Positioned(
               left: (hit - 8) / 2,
-              top: 27,
+              top: 20,
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
@@ -231,7 +240,7 @@ class _PenSlot extends StatelessWidget {
             ),
             const Positioned(
               right: 2,
-              top: 16,
+              top: 12,
               child: Icon(
                 Icons.arrow_drop_down,
                 size: 16,

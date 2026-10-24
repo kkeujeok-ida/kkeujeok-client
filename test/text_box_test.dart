@@ -168,6 +168,37 @@ void main() {
     await t.pump();
   }
 
+  testWidgets('text tool: a finger tap works after a stylus was seen', (t) async {
+    await open(t);
+    await textTool(t);
+    await drag(t, [(50, 250)]); // the stylus: a finger only pans from now on
+    await t.enterText(find.byType(TextField), 'a');
+    await drag(t, [(500, 150)]); // confirms
+    final n = els(t).length;
+    Future<void> finger(double x, double y) async {
+      final pos = at(t, x, y);
+      final p = ++ptr;
+      t.binding.handlePointerEvent(
+        PointerDownEvent(pointer: p, kind: PointerDeviceKind.touch, position: pos),
+      );
+      await t.pump();
+      t.binding.handlePointerEvent(
+        PointerUpEvent(pointer: p, kind: PointerDeviceKind.touch, position: pos),
+      );
+      await t.pump();
+    }
+
+    await finger(300, 350); // blank: a new box
+    await t.pumpAndSettle();
+    expect(find.byType(TextField), findsOneWidget);
+    await t.enterText(find.byType(TextField), 'b');
+    await drag(t, [(500, 150)]);
+    expect(els(t), hasLength(n + 1));
+    await finger(60, 255); // on the first box: edits it
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.text('a'), findsOneWidget);
+  });
+
   testWidgets('text tool: tap makes a half page box; confirm saves one op', (
     t,
   ) async {

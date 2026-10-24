@@ -165,12 +165,12 @@ void main() {
     (80, 62),
   ];
 
-  testWidgets('lasso button semantics, 40 dp, selected state', (t) async {
+  testWidgets('lasso button semantics, 32 dp, selected state', (t) async {
     final h = t.ensureSemantics();
     await open(t);
     final b = find.byTooltip('Lasso');
     expect(b, findsOneWidget);
-    expect(t.getSize(find.byTooltip('Lasso')).height, greaterThanOrEqualTo(40));
+    expect(t.getSize(find.byTooltip('Lasso')).height, greaterThanOrEqualTo(32));
     await t.tap(find.byTooltip('Lasso'));
     await t.pump();
     expect(
