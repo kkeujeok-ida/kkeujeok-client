@@ -701,7 +701,8 @@ class NoteUploader {
                       noteId,
                       () => drive.get(fid, fields: 'headRevisionId'),
                     )).headRevisionId;
-                    return h == par || (h != null && own.contains(h));
+                    // A missing head (null) is no move, as on the web.
+                    return h == null || h == par || own.contains(h);
                   },
           );
           if (up == null) {

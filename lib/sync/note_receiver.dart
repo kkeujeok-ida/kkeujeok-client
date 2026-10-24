@@ -349,6 +349,10 @@ class NoteReceiver {
   final _pendingReceive = <String, DriveFile>{};
   final _loggedSkips = <String>{};
 
+  /// Notes whose commit was rejected three times in this batch: only they wait
+  /// (in [_pendingReceive]); the batch ends without saving the token.
+  final _rejected = <String>{};
+
   bool _skip(SyncInfo i, DriveFile f) {
     final same = i.baseHeadRevisionId == f.headRevisionId;
     final byError = i.state == SyncState.error;
@@ -509,6 +513,10 @@ class NoteReceiver {
       await _guard(sub);
       await _renameLocal(f.appProperties['kkeujeokId']!, f.id, f.name!);
     }
+    if (_rejected.isNotEmpty) {
+      _rejected.clear();
+      throw _Failure('backoff', reason: 'receiveRejected'); // the token stays
+    }
   }
 
   // ---- the Drive file of a note that is here was renamed (drive.remoteTitle)
@@ -657,8 +665,14 @@ class NoteReceiver {
       await _mergeIn(id, f.id, head, note, s2.base, remote);
       return;
     }
-    // Three rejections: end the check, so the token is not saved.
-    throw _Failure('backoff', reason: 'receiveRejected');
+    // Three rejections: only this note waits; the batch goes on, the token is not saved.
+    _pendingReceive[id] = f;
+    _rejected.add(id);
+    await log.append('error', {
+      'class': 'backoff',
+      'noteId': id,
+      'reason': 'receiveRejected',
+    });
   }
 
   Future<bool> _commitNew(String id, String fileId, String head, Note n) async {
