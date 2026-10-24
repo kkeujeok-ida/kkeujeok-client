@@ -632,6 +632,18 @@ class AppLocalizationsKo extends AppLocalizations {
   String get noteDeleteConfirm => '지우기';
 
   @override
+  String get ratioLock => '비율 잠금';
+
+  @override
+  String get scaleUp => '크게';
+
+  @override
+  String get scaleDown => '작게';
+
+  @override
+  String get rotate90 => '90° 회전';
+
+  @override
   String get lassoTool => '올가미';
 
   @override

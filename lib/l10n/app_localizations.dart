@@ -1232,6 +1232,30 @@ abstract class AppLocalizations {
   /// **'Delete'**
   String get noteDeleteConfirm;
 
+  /// No description provided for @ratioLock.
+  ///
+  /// In en, this message translates to:
+  /// **'Lock aspect ratio'**
+  String get ratioLock;
+
+  /// No description provided for @scaleUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Scale up'**
+  String get scaleUp;
+
+  /// No description provided for @scaleDown.
+  ///
+  /// In en, this message translates to:
+  /// **'Scale down'**
+  String get scaleDown;
+
+  /// No description provided for @rotate90.
+  ///
+  /// In en, this message translates to:
+  /// **'Rotate 90°'**
+  String get rotate90;
+
   /// No description provided for @lassoTool.
   ///
   /// In en, this message translates to:

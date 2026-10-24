@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/gestures.dart';
@@ -23,6 +24,7 @@ import '../sync/version_history.dart' show RestoreFailure;
 import 'conflict_sheet.dart';
 import 'pen_toolbar.dart';
 import 'providers.dart';
+import 'selection_menu.dart';
 import 'sync_banner.dart';
 import 'sync_display.dart';
 import 'sync_indicator.dart';
@@ -65,6 +67,22 @@ bool _stylusSeen = false;
 void resetStylusSeen() => _stylusSeen = false;
 
 enum _Tool { pen, lasso }
+
+enum _XKind { move, scale, rotate }
+
+// A selection drag: [box] is the selection's document box, [down] where it
+// began (document coordinates), [last] the latest pointer position (screen).
+class _Xf {
+  _Xf(this.kind, this.corner, this.box, this.down, this.last);
+  final _XKind kind;
+  final int corner; // scale: 0 top-left, clockwise
+  final Rect box;
+  final Offset down;
+  Offset last;
+}
+
+// No resize goes below this factor (the op rejects non-positive ones).
+const _minScale = 0.05;
 
 /// What the view does when the screen size changes.
 enum _Fit { width, page, free }
@@ -190,24 +208,185 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     if (_selected.isNotEmpty) _select(null, {});
   }
 
-  /// A finger on the selection box or its handles is a selection gesture,
-  /// not a scroll (what it does is Story 4.4's).
-  bool _onSelection(Offset local) {
-    // Not on a page that takes no writes: a stale box must not block panning.
-    if (_readOnly || _receiving || _history.isLocked(_selPage)) return false;
+  // The aspect lock of the selection menu: UI state only, kept when the
+  // selection goes away.
+  bool _ratioLock = true;
+  // The drag of the selection in progress (move, scale or rotate).
+  _Xf? _xf;
+
+  bool get _canEditSel =>
+      _selPage != null &&
+      !_readOnly &&
+      !_receiving &&
+      !_history.isLocked(_selPage);
+
+  Offset _pageOrigin(String? pageId) =>
+      _geometry().rects[_pages.indexWhere((p) => p['id'] == pageId)].topLeft;
+
+  /// Starts a move, scale or rotate when [e] lands on the selection box or a
+  /// handle. Screen-space hits: handles are 48 dp wide, the box itself moves.
+  bool _beginXform(PointerDownEvent e) {
+    if (_tool != _Tool.lasso || _pointer != null || !_canEditSel) return false;
     final b = _selectionBox(), vp = _vp;
     if (b == null || vp == null) return false;
     final r = Rect.fromPoints(
       vp.offset + b.topLeft * vp.scale,
       vp.offset + b.bottomRight * vp.scale,
     );
-    const slop = KkjTokens.spacingHitMinAndroid / 2;
-    return Rect.fromLTRB(
-      r.left - slop,
-      r.top - selectionRotateGap - slop,
-      r.right + slop,
-      r.bottom + slop,
-    ).contains(local);
+    const reach = KkjTokens.spacingHitMinAndroid / 2;
+    final at = e.localPosition;
+    final corners = [r.topLeft, r.topRight, r.bottomRight, r.bottomLeft];
+    final corner = corners.indexWhere((c) => (at - c).distance <= reach);
+    final inside = r.inflate(reach / 2).contains(at); // flat strokes too
+    // A box smaller than the handles moves first; handles only outside it.
+    final small = r.width < reach * 2 || r.height < reach * 2;
+    final _XKind kind;
+    if ((at - Offset(r.center.dx, r.top - selectionRotateGap)).distance <=
+        reach) {
+      kind = _XKind.rotate;
+    } else if (corner >= 0 && !(small && inside)) {
+      kind = _XKind.scale;
+    } else if (inside) {
+      kind = _XKind.move;
+    } else {
+      return false;
+    }
+    _pointer = e.pointer;
+    _strokePageId = _selPage;
+    _origin = _pageOrigin(_selPage);
+    _xf = _Xf(kind, corner, b, vp.toPage(at), at);
+    _tick.value++;
+    return true;
+  }
+
+  /// What the drag to [local] would do: the op, and the box it would leave
+  /// (document coordinates, turned by `angle` radians). Null when it changes
+  /// nothing.
+  ({Map<String, dynamic> op, Rect box, double angle})? _xfResult(
+    _Xf x,
+    Offset local,
+  ) {
+    final p = _vp!.toPage(local), b = x.box;
+    switch (x.kind) {
+      case _XKind.move:
+        final d = p - x.down;
+        if (d.distance * _vp!.scale < 1) return null;
+        return (
+          op: {'op': 'move', 'dx': d.dx, 'dy': d.dy},
+          box: b.shift(d),
+          angle: 0.0,
+        );
+      case _XKind.scale:
+        final cs = [b.topLeft, b.topRight, b.bottomRight, b.bottomLeft];
+        final c = cs[x.corner], anchor = cs[(x.corner + 2) % 4];
+        final v0 = c - anchor;
+        final v = p - x.down + v0; // dragged corner, from the anchor
+        var sx = 1.0, sy = 1.0;
+        if (_ratioLock) {
+          final l2 = v0.dx * v0.dx + v0.dy * v0.dy;
+          if (l2 > 0) sx = sy = (v.dx * v0.dx + v.dy * v0.dy) / l2;
+        } else {
+          if (v0.dx != 0) sx = v.dx / v0.dx;
+          if (v0.dy != 0) sy = v.dy / v0.dy;
+        }
+        sx = math.max(sx, _minScale);
+        sy = math.max(sy, _minScale);
+        if (sx == 1 && sy == 1) return null;
+        Offset m(Offset q) =>
+            anchor + Offset((q.dx - anchor.dx) * sx, (q.dy - anchor.dy) * sy);
+        final a = anchor - _origin;
+        return (
+          op: {
+            'op': 'scale',
+            'sx': sx,
+            'sy': sy,
+            'anchor': [a.dx, a.dy],
+          },
+          box: Rect.fromPoints(m(b.topLeft), m(b.bottomRight)),
+          angle: 0.0,
+        );
+      case _XKind.rotate:
+        final o = b.center;
+        var a =
+            math.atan2(p.dy - o.dy, p.dx - o.dx) -
+            math.atan2(x.down.dy - o.dy, x.down.dx - o.dx);
+        a = math.atan2(math.sin(a), math.cos(a)); // into (-pi, pi]
+        final deg = a * 180 / math.pi;
+        if (deg.abs() < 0.01) return null;
+        return (op: {'op': 'rotate', 'angle': deg}, box: b, angle: a);
+    }
+  }
+
+  /// Ends the drag: one op, one undo step; nothing for a zero change.
+  void _finishXform(Offset local) {
+    final x = _xf, pageId = _selPage;
+    final r = x == null ? null : _xfResult(x, local);
+    final ids = _selected.toList();
+    _xf = null;
+    _pointer = null;
+    if (_mode == _Mode.pen || _mode == _Mode.ignored) _mode = _Mode.none;
+    if (r != null && pageId != null) _doSel({...r.op, 'ids': ids}, pageId);
+    setState(() {});
+    _tick.value++;
+    _strokeEnded(pageId);
+  }
+
+  /// Applies a selection op to [pageId] and saves it.
+  void _doSel(Map<String, dynamic> op, String pageId) {
+    if (!_canEditSel) return;
+    final err = _history.doOp({...op, 'pageId': pageId}, _ctx());
+    if (err == 'pageReadOnly') {
+      _blocked();
+    } else if (err == 'elementNotFound') {
+      _clearSelection(); // a merge took the element away
+    } else if (err != null) {
+      _snack(AppLocalizations.of(context).strokeNotAdded);
+    }
+    setState(() {});
+    _tick.value++;
+    if (err == null) _commit();
+  }
+
+  /// A menu step about the selection center: scale by [f], or rotate 90.
+  void _step(_XKind kind, [double f = 1]) {
+    final b = _selectionBox(), page = _selPage;
+    if (b == null || page == null || _xf != null || _pointer != null) return;
+    final o = b.center - _pageOrigin(page);
+    _doSel({
+      'ids': _selected.toList(),
+      ...kind == _XKind.rotate
+          ? {'op': 'rotate', 'angle': 90}
+          : {
+              'op': 'scale',
+              'sx': f,
+              'sy': f,
+              'anchor': [o.dx, o.dy],
+            },
+    }, page);
+  }
+
+  /// Top-left of the floating menu: above the box (below when there is no
+  /// room), clamped into the screen.
+  Offset _menuAt(Rect box, EdgeInsets pad) {
+    final vp = _vp!;
+    final r = Rect.fromPoints(
+      vp.offset + box.topLeft * vp.scale,
+      vp.offset + box.bottomRight * vp.scale,
+    );
+    const gap = KkjTokens.spacing3, m = selectionHandleRadius + 8;
+    final size = selectionMenuSize;
+    final min = pad.top + gap + _toolbarHeight + gap;
+    final max = math.max(min, _size.height - pad.bottom - size.height);
+    final above = r.top - selectionRotateGap - m - size.height;
+    final below = r.bottom + m;
+    final top = selectionMenuPrefersAbove
+        ? (above >= min ? above : below)
+        : (below <= max ? below : above);
+    final left = ((r.center.dx - size.width / 2).clamp(
+      pad.left,
+      math.max(pad.left, _size.width - pad.right - size.width),
+    )).toDouble();
+    return Offset(left, top.clamp(min, max).toDouble());
   }
 
   Pen get _pen => ref.read(penSlotsProvider).first;
@@ -967,8 +1146,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
         _firstDown = e.timeStamp;
         final p = _vp!.toPage(e.localPosition);
         final at = _pageAt(p);
-        if (_stylusSeen && _onSelection(e.localPosition)) {
+        if (_beginXform(e)) {
           _mode = _Mode.ignored;
+          setState(() {});
           return;
         }
         if (!_stylusSeen && at >= 0) {
@@ -1004,6 +1184,11 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     // Fingers still down stay in [_touches], so they never turn into ink.
     _discardStroke();
     _mode = _Mode.none;
+    if (_beginXform(e)) {
+      _mode = _Mode.pen;
+      setState(() {});
+      return;
+    }
     final p = _vp!.toPage(e.localPosition);
     final at = _pageAt(p);
     if (at < 0) {
@@ -1056,6 +1241,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _points.clear();
     _lassoing = false;
     _lassoPts.clear();
+    final dragged = _xf != null;
+    _xf = null;
+    if (dragged && mounted) setState(() {});
     _tick.value++;
     _strokeEnded(null);
   }
@@ -1115,6 +1303,11 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       }
     }
     if (e.pointer != _pointer) return;
+    if (_xf != null) {
+      _xf!.last = e.localPosition;
+      _tick.value++;
+      return;
+    }
     if (_lassoing) {
       _lassoPts.add(_vp!.toPage(e.localPosition));
       if ((e.localPosition - _lassoDown).distance > 8) _lassoMoved = true;
@@ -1129,6 +1322,11 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   void _up(PointerUpEvent e) {
     final vp = _vp;
     if (!_leaving && vp != null && e.pointer == _pointer) {
+      if (_xf != null) {
+        _finishXform(e.localPosition);
+        _release(e.pointer);
+        return;
+      }
       if (_lassoing) {
         _lassoPts.add(vp.toPage(e.localPosition));
         // A flick can move only between the last move and the up.
@@ -1146,7 +1344,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   }
 
   void _cancel(PointerCancelEvent e) {
-    if (e.pointer == _pointer) _lassoing ? _discardStroke() : _finish();
+    if (e.pointer == _pointer) {
+      _lassoing || _xf != null ? _discardStroke() : _finish();
+    }
     _release(e.pointer);
   }
 
@@ -1163,6 +1363,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   /// Ends the stroke with the points so far (also for a cancel).
   void _finish() {
     if (_pointer == null) return;
+    if (_xf != null) {
+      _discardStroke(); // leaving mid-drag: no half-done change
+      return;
+    }
     final pageId = _strokePageId;
     if (pageId == null || !_pages.any((p) => p['id'] == pageId)) {
       // A merge took the page away while the stroke was being drawn.
@@ -1394,6 +1598,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                                 viewport: _vp!,
                                 box: _selectionBox(),
                                 lasso: () => _lassoing ? _lassoPts : const [],
+                                preview: () {
+                                  final x = _xf;
+                                  if (x == null) return null;
+                                  final r = _xfResult(x, x.last);
+                                  return r == null ? null : (r.box, r.angle);
+                                },
                                 repaint: _tick,
                               ),
                             ),
@@ -1483,6 +1693,26 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                 ),
               ),
             ),
+            if (page != null && _xf == null && !_lassoing && _canEditSel)
+              Builder(
+                builder: (context) {
+                  final box = _selectionBox();
+                  if (box == null) return const SizedBox.shrink();
+                  final at = _menuAt(box, pad);
+                  return Positioned(
+                    left: at.dx,
+                    top: at.dy,
+                    child: SelectionMenu(
+                      ratioLock: _ratioLock,
+                      onRatioLock: () =>
+                          setState(() => _ratioLock = !_ratioLock),
+                      onScaleUp: () => _step(_XKind.scale, 1.25),
+                      onScaleDown: () => _step(_XKind.scale, 0.8),
+                      onRotate90: () => _step(_XKind.rotate),
+                    ),
+                  );
+                },
+              ),
             Positioned(
               top: pad.top + gap,
               left: pad.left + gap,

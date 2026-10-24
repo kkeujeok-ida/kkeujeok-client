@@ -15,12 +15,18 @@ class SelectionPainter extends CustomPainter {
     required this.viewport,
     required this.box,
     required this.lasso,
+    required this.preview,
     required Listenable repaint,
   }) : super(repaint: repaint);
 
   final PageViewport viewport;
   final Rect? box;
   final List<Offset> Function() lasso;
+
+  /// The box a drag would leave (document coordinates, turned by the angle in
+  /// radians about its center); null when nothing is being dragged. While it
+  /// is set it is drawn instead of the box and its handles.
+  final (Rect, double)? Function() preview;
 
   Offset _s(Offset d) => viewport.offset + d * viewport.scale;
 
@@ -43,6 +49,19 @@ class SelectionPainter extends CustomPainter {
       ..color = KkjLight.componentsSelectionOutline
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
+    final pv = preview();
+    if (pv != null) {
+      final (pb, angle) = pv;
+      final pr = Rect.fromPoints(_s(pb.topLeft), _s(pb.bottomRight));
+      canvas
+        ..save()
+        ..translate(pr.center.dx, pr.center.dy)
+        ..rotate(angle)
+        ..translate(-pr.center.dx, -pr.center.dy)
+        ..drawRect(pr, line)
+        ..restore();
+      return;
+    }
     final outline = Path()..addRect(r);
     for (final m in outline.computeMetrics()) {
       for (var d = 0.0; d < m.length; d += 8) {

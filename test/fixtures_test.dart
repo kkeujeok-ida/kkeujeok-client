@@ -129,6 +129,9 @@ final runners = <String, void Function(Case)>{
     );
   },
   'ops.addStroke': _runOp,
+  'ops.move': _runOp,
+  'ops.scale': _runOp,
+  'ops.rotate': _runOp,
   'ops.removeStroke': _runOp,
   'stroke.outline.pen': (c) {
     final i = c['input'] as Map<String, dynamic>;
@@ -352,6 +355,15 @@ void _runOp(Case c) {
     i['op'] as Map<String, dynamic>,
     Ctx.fromJson(i['ctx'] as Map<String, dynamic>),
   );
+  if (i['undoCtx'] != null && r.error == null && r.inverse != null) {
+    final u = applyOp(
+      r.note!,
+      r.inverse!,
+      Ctx.fromJson(i['undoCtx'] as Map<String, dynamic>),
+    );
+    _same({'note': u.note?.copyJson()}, c['expected']);
+    return;
+  }
   _same(_opOutput(r), c['expected']);
 }
 
@@ -360,9 +372,6 @@ void _runOp(Case c) {
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6.
 const pendingRules = <String>{
-  'ops.move',
-  'ops.scale',
-  'ops.rotate',
   'ops.setStrokeColor',
   'ops.setStrokeWidth',
   'ops.delete',

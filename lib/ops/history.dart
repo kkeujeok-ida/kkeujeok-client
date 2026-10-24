@@ -39,8 +39,11 @@ class History {
     final r = applyOp(note, op, ctx);
     if (r.error != null) return r.error;
     note = r.note!;
-    _undo.add(r.inverse!);
-    _redo.clear();
+    final inv = r.inverse;
+    if (inv != null) {
+      _undo.add(inv);
+      _redo.clear();
+    }
     return null;
   }
 

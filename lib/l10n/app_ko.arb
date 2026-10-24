@@ -261,6 +261,10 @@
   "noteDelete": "삭제",
   "noteDeleteBody": "노트를 지울까요? Drive 휴지통으로 옮겨져요. 복원은 Drive에서 할 수 있어요.",
   "noteDeleteConfirm": "지우기",
+  "ratioLock": "비율 잠금",
+  "scaleUp": "크게",
+  "scaleDown": "작게",
+  "rotate90": "90° 회전",
   "lassoTool": "올가미",
   "selectedCount": "요소 {count}개 선택됨",
   "@selectedCount": {

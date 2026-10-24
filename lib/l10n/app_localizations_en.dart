@@ -686,6 +686,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noteDeleteConfirm => 'Delete';
 
   @override
+  String get ratioLock => 'Lock aspect ratio';
+
+  @override
+  String get scaleUp => 'Scale up';
+
+  @override
+  String get scaleDown => 'Scale down';
+
+  @override
+  String get rotate90 => 'Rotate 90°';
+
+  @override
   String get lassoTool => 'Lasso';
 
   @override

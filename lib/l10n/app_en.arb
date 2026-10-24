@@ -298,6 +298,10 @@
   "noteDelete": "Delete",
   "noteDeleteBody": "Delete this note? It moves to the Drive trash. You can restore it from Drive.",
   "noteDeleteConfirm": "Delete",
+  "ratioLock": "Lock aspect ratio",
+  "scaleUp": "Scale up",
+  "scaleDown": "Scale down",
+  "rotate90": "Rotate 90°",
   "lassoTool": "Lasso",
   "selectedCount": "{count, plural, =1{1 element selected} other{{count} elements selected}}",
   "@selectedCount": {
