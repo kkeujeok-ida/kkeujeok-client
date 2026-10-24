@@ -34,6 +34,7 @@ class AssetSync extends ChangeNotifier {
   final _failed = <String>{};
   final _confirmed = <String>{};
   final _busy = <String>{};
+  final _unconfirmed = <String>{}; // Drive said no; asked again on an event
   bool _disposed = false;
 
   /// Hashes whose bytes are on this device and verified.
@@ -57,11 +58,13 @@ class AssetSync extends ChangeNotifier {
 
   /// Bytes were just stored here (an insert); Drive has not seen them.
   void markLocal(String hash) {
+    _unconfirmed.remove(hash);
     if (_local.add(hash)) _changed();
   }
 
   /// The uploader found [hash] on Drive.
   void markConfirmed(String hash) {
+    _unconfirmed.remove(hash);
     if (_confirmed.add(hash)) _changed();
   }
 
@@ -74,7 +77,10 @@ class AssetSync extends ChangeNotifier {
       final h = e.key;
       if (!isAssetHash(h) || _busy.contains(h)) continue;
       if (!_local.contains(h)) {
-        if (await store.read(h) != null) {
+        _busy.add(h); // before the await: an overlapping call skips it
+        final here = await store.read(h) != null;
+        _busy.remove(h);
+        if (here) {
           _local.add(h);
           _changed();
         } else if (!_failed.contains(h)) {
@@ -82,7 +88,11 @@ class AssetSync extends ChangeNotifier {
           continue;
         }
       }
-      if (_local.contains(h) && !_confirmed.contains(h)) unawaited(_confirm(h));
+      if (_local.contains(h) &&
+          !_confirmed.contains(h) &&
+          !_unconfirmed.contains(h)) {
+        unawaited(_confirm(h));
+      }
     }
   }
 
@@ -90,6 +100,7 @@ class AssetSync extends ChangeNotifier {
   void retry(String hash, String ext) {
     if (_busy.contains(hash) || _local.contains(hash)) return;
     _failed.remove(hash);
+    _unconfirmed.remove(hash);
     unawaited(_fetch(hash, ext));
   }
 
@@ -109,6 +120,8 @@ class AssetSync extends ChangeNotifier {
       if (bytes != null &&
           found.any((f) => f.size == bytes.length && f.md5Checksum == md5)) {
         _confirmed.add(hash);
+      } else {
+        _unconfirmed.add(hash);
       }
     } catch (_) {
       // unknown stays unconfirmed

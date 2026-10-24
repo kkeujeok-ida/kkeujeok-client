@@ -48,6 +48,7 @@ class AssetImages extends ChangeNotifier implements PageImages {
 
   final _images = <String, ui.Image>{};
   final _loading = <String>{};
+  final _undecodable = <String>{};
   bool _disposed = false;
 
   @override
@@ -72,7 +73,9 @@ class AssetImages extends ChangeNotifier implements PageImages {
     final h = e['asset'];
     if (h is! String || !sync.local.contains(h)) return null;
     final img = _images[h];
-    if (img == null && _loading.add(h)) _load(h, e);
+    if (img == null && !_undecodable.contains(h) && _loading.add(h)) {
+      _load(h, e);
+    }
     return img;
   }
 
@@ -96,7 +99,8 @@ class AssetImages extends ChangeNotifier implements PageImages {
       }
       _images[hash] = frame.image;
     } catch (_) {
-      // undecodable: stays a placeholder
+      // undecodable: stays a placeholder, not tried again
+      _undecodable.add(hash);
     } finally {
       _loading.remove(hash);
       if (!_disposed) notifyListeners();

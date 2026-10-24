@@ -756,13 +756,15 @@ class NoteUploader {
           // note too. The snapshot is the queue state after that.
           await _sendSidecars(noteId);
           // Image assets go before the note (spec `image` "Upload order").
-          await _sendAssets(noteId, working0);
+          final checked = await _sendAssets(noteId, working0);
           // Step 2.
           final fid = fileId, par = parent;
           final up = await _send(
             noteId,
             fileId: fid,
-            snapshot: (await store.read(noteId))?.note ?? working0,
+            // The note whose assets were just checked: an edit after that
+            // waits for the next upload.
+            snapshot: checked,
             parent: par,
             round: round,
             intent: info.createIntent,
@@ -1316,13 +1318,13 @@ class NoteUploader {
   /// Drive (`.assets`, found by `asset:<hash>`, size and MD5 checked) before
   /// the note. A missing asset, or one that fails, stops the upload: the note
   /// stays unsent and the whole upload is retried later.
-  Future<void> _sendAssets(String noteId, Note working0) async {
+  Future<Note> _sendAssets(String noteId, Note working0) async {
     final confirmed = <String>{};
     String? folder;
     for (var round = 0; round < 3; round++) {
       final note = (await store.read(noteId))?.note ?? working0;
       final referenced = referencedAssets(note);
-      if (referenced.isEmpty) return;
+      if (referenced.isEmpty) return note;
       final exts = <String, String>{
         for (final p in note.pages)
           for (final e in p['elements'] as List)
@@ -1378,7 +1380,7 @@ class NoteUploader {
       if (plan['blocked'] == true) {
         throw _Failure('backoff', reason: 'assetMissing');
       }
-      if (upload.isEmpty) return;
+      if (upload.isEmpty) return note;
       // Edited while the assets went: look at the note again.
     }
     throw _Failure('backoff', reason: 'assetsChanging');
