@@ -324,7 +324,19 @@ void _runOp(Case c) {
 // Rules whose fixture exists but whose client code is a later story's. Each
 // needs a valid fixture file and must not have a runner yet: when its story
 // adds the runner, the entry has to go (a stale entry fails the run).
-const pendingRules = <String>{};
+// Selection and edit rules (Story 4.1) arrive with the Android stories 4.2, 4.4, 4.6.
+const pendingRules = <String>{
+  'select.lasso',
+  'select.tap',
+  'select.rect',
+  'ops.move',
+  'ops.scale',
+  'ops.rotate',
+  'ops.setStrokeColor',
+  'ops.setStrokeWidth',
+  'ops.delete',
+  'ops.paste',
+};
 
 final _sep = Platform.pathSeparator;
 
