@@ -10,6 +10,7 @@ import 'storage/new_note_defaults_store.dart';
 import 'storage/pen_slots_store.dart';
 import 'storage/session_hint.dart';
 import 'sync/background_upload.dart';
+import 'ui/account_gate.dart' show cleanStaleExports;
 import 'ui/app.dart';
 import 'ui/providers.dart';
 
@@ -47,5 +48,9 @@ Future<void> main() async {
   } catch (_) {
     // Not fatal: a stale mark only keeps one note from the background task.
   }
+  // Exports of unsent notes a dead process left behind.
+  try {
+    await cleanStaleExports(await container.read(exportDirProvider)());
+  } catch (_) {}
   runApp(UncontrolledProviderScope(container: container, child: const App()));
 }

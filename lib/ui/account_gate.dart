@@ -72,6 +72,7 @@ class _AccountGateState extends ConsumerState<AccountGate> {
     final failure = AppLocalizations.of(context).accountClearFailed;
     try {
       final ok = await ref.read(discardLocalDataProvider)();
+      if (ok) unawaited(_cleanStale(all: true));
       if (!_current) return;
       setState(() {
         _message = ok ? null : failure;
@@ -89,6 +90,7 @@ class _AccountGateState extends ConsumerState<AccountGate> {
       // The device record and the notes stay; signing in as the old account
       // continues the upload.
       await ref.read(authProvider.notifier).signOut();
+      unawaited(_cleanStale(all: true));
     } finally {
       _busy = false;
     }
@@ -100,6 +102,7 @@ class _AccountGateState extends ConsumerState<AccountGate> {
     final failure = AppLocalizations.of(context).accountClearFailed;
     try {
       final ok = await ref.read(discardLocalDataProvider)();
+      if (ok) unawaited(_cleanStale(all: true));
       if (!_current) return;
       setState(() {
         _message = ok ? null : failure;
@@ -158,9 +161,14 @@ class _AccountGateState extends ConsumerState<AccountGate> {
     if (mounted) setState(() => _message = error);
   }
 
-  Future<void> _cleanStale() async {
+  /// [all]: the account's data is gone or the person left, so no export of it
+  /// stays (the share sheet is closed by then).
+  Future<void> _cleanStale({bool all = false}) async {
     try {
-      await cleanStaleExports(await ref.read(exportDirProvider)());
+      await cleanStaleExports(
+        await ref.read(exportDirProvider)(),
+        age: all ? Duration.zero : const Duration(hours: 1),
+      );
     } catch (_) {}
   }
 
