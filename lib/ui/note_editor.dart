@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
+import '../model/element_clipboard.dart';
 import '../model/ids.dart';
 import '../model/note.dart';
 import '../model/pen.dart';
@@ -174,7 +175,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _select(null, {});
   }
 
+  // Where a blank lasso tap landed (page id, document point): the small
+  // paste / select-all menu hangs there until anything else happens.
+  (String, Offset)? _blank;
+
   void _select(String? pageId, Set<String> ids) {
+    _blank = null;
     final same = ids.length == _selected.length && _selected.containsAll(ids);
     setState(() {
       _selPage = ids.isEmpty ? null : pageId;
@@ -205,7 +211,102 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   }
 
   void _clearSelection() {
-    if (_selected.isNotEmpty) _select(null, {});
+    if (_selected.isNotEmpty) {
+      _select(null, {});
+    } else if (_blank != null) {
+      setState(() => _blank = null);
+    }
+  }
+
+  List<Map<String, dynamic>> _selEls() => [
+    for (final e
+        in (_pages.firstWhere(
+              (p) => p['id'] == _selPage,
+              orElse: () => {'elements': []},
+            )['elements']
+            as List))
+      if (_selected.contains((e as Map)['id'])) e.cast<String, dynamic>(),
+  ];
+
+  void _copy() => ref.read(elementClipboardProvider.notifier).set(_selEls());
+
+  void _cut() {
+    if (!_canEditSel) return;
+    _copy();
+    _delete();
+  }
+
+  void _delete() {
+    final page = _selPage;
+    if (page == null) return;
+    _doSel({'op': 'delete', 'ids': _selected.toList()}, page);
+    _clearSelection();
+  }
+
+  Future<void> _pickColor() async {
+    final page = _selPage, ids = _selected.toList();
+    final c = await pickStrokeColor(context);
+    if (c != null && page != null && mounted) {
+      _doSel({'op': 'setStrokeColor', 'ids': ids, 'color': c}, page);
+    }
+  }
+
+  Future<void> _pickWidth() async {
+    final page = _selPage, ids = _selected.toList();
+    final first = _selEls().where((e) => e['type'] == 'stroke').firstOrNull;
+    final w = await pickStrokeWidth(
+      context,
+      ((first?['width'] as num?) ?? 2).toDouble(),
+    );
+    if (w != null && page != null && mounted) {
+      _doSel({'op': 'setStrokeWidth', 'ids': ids, 'width': w}, page);
+    }
+  }
+
+  bool get _canPasteBlank {
+    final b = _blank;
+    return b != null &&
+        !_readOnly &&
+        !_receiving &&
+        !_history.isLocked(b.$1) &&
+        ref.read(elementClipboardProvider).isNotEmpty;
+  }
+
+  /// The blank-tap spot, or null (and cleared) when a merge removed its page.
+  (String, Offset)? _liveBlank() {
+    final b = _blank;
+    if (b != null && !_pages.any((p) => p['id'] == b.$1)) _blank = null;
+    return _blank;
+  }
+
+  void _pasteBlank() {
+    final b = _liveBlank(), clip = ref.read(elementClipboardProvider);
+    if (b == null || !_canPasteBlank) return;
+    final at = b.$2 - _pageOrigin(b.$1);
+    final ids = [for (final _ in clip) newId()];
+    final err = _history.doOp({
+      'op': 'paste',
+      'pageId': b.$1,
+      'elements': clip,
+      'target': {
+        'pageId': b.$1,
+        'center': [at.dx, at.dy],
+      },
+    }, _ctx(ids: ids));
+    if (err != null) {
+      _snack(AppLocalizations.of(context).strokeNotAdded);
+      return;
+    }
+    _select(b.$1, ids.toSet());
+    _tick.value++;
+    _commit();
+  }
+
+  void _selectAllBlank() {
+    final b = _liveBlank();
+    if (b == null) return;
+    final els = _pages.firstWhere((p) => p['id'] == b.$1)['elements'] as List;
+    _select(b.$1, {for (final e in els) (e as Map)['id'] as String});
   }
 
   // The aspect lock of the selection menu: UI state only, kept when the
@@ -367,14 +468,13 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   /// Top-left of the floating menu: above the box (below when there is no
   /// room), clamped into the screen.
-  Offset _menuAt(Rect box, EdgeInsets pad) {
+  Offset _menuAt(Rect box, EdgeInsets pad, Size size) {
     final vp = _vp!;
     final r = Rect.fromPoints(
       vp.offset + box.topLeft * vp.scale,
       vp.offset + box.bottomRight * vp.scale,
     );
     const gap = KkjTokens.spacing3, m = selectionHandleRadius + 8;
-    final size = selectionMenuSize;
     final min = pad.top + gap + _toolbarHeight + gap;
     final max = math.max(min, _size.height - pad.bottom - size.height);
     final above = r.top - selectionRotateGap - m - size.height;
@@ -427,7 +527,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     return a == b;
   }
 
-  Ctx _ctx() => Ctx(
+  Ctx _ctx({List<String> ids = const []}) => Ctx(
+    ids: ids,
     rev: newId(),
     now: canonicalNow(DateTime.now()),
     editedBy: deviceEditedBy,
@@ -1203,14 +1304,16 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     // A page with an unresolved conflict is read-only (Story 3.19): no
     // stroke; a finger may still pinch.
     final target = _pages[index];
-    if (_history.isLocked(target['id'] as String?)) {
+    // Selecting (to copy) works on read-only and locked pages too.
+    final select = _tool == _Tool.lasso;
+    if (!select && _history.isLocked(target['id'] as String?)) {
       _blocked();
       _mode = _mode == _Mode.touchStroke ? _Mode.touchIdle : _Mode.ignored;
       return;
     }
     // The note is being received or is read-only: no stroke (Stories 3.13,
     // 3.17).
-    if (_receiving || _readOnly) {
+    if (!select && (_receiving || _readOnly)) {
       _mode = _Mode.ignored;
       return;
     }
@@ -1397,6 +1500,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   }
 
   void _finishLasso(String pageId) {
+    final tapDoc = _lassoPts.first;
     final els = [
       for (final e
           in _pages.firstWhere((p) => p['id'] == pageId)['elements'] as List)
@@ -1417,6 +1521,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _lassoPts.clear();
     if (_mode == _Mode.pen || _mode == _Mode.touchStroke) _mode = _Mode.none;
     _select(pageId, ids.toSet());
+    if (ids.isEmpty && !_lassoMoved) {
+      setState(() => _blank = (pageId, tapDoc));
+    }
     _tick.value++;
     // Only releases a merge waiting for the pointer; nothing is saved here.
     _strokeEnded(pageId);
@@ -1693,22 +1800,63 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                 ),
               ),
             ),
-            if (page != null && _xf == null && !_lassoing && _canEditSel)
+            if (page != null &&
+                _xf == null &&
+                !_lassoing &&
+                (_selected.isNotEmpty || _blank != null))
               Builder(
                 builder: (context) {
                   final box = _selectionBox();
-                  if (box == null) return const SizedBox.shrink();
-                  final at = _menuAt(box, pad);
+                  final blank = _liveBlank();
+                  final vp = _vp;
+                  if (box == null) {
+                    if (blank == null || vp == null || _tool != _Tool.lasso) {
+                      return const Positioned(child: SizedBox.shrink());
+                    }
+                    final p = vp.offset + (blank.$2 * vp.scale);
+                    return Positioned(
+                      left: (p.dx - 100).clamp(
+                        pad.left,
+                        math.max(pad.left, _size.width - pad.right - 200),
+                      ),
+                      top: (p.dy + 8).clamp(
+                        pad.top + gap + _toolbarHeight + gap,
+                        math.max(
+                          pad.top + gap + _toolbarHeight + gap,
+                          _size.height - pad.bottom - 64,
+                        ),
+                      ),
+                      child: BlankTapMenu(
+                        canPaste: _canPasteBlank,
+                        onPaste: _pasteBlank,
+                        onSelectAll: _selectAllBlank,
+                      ),
+                    );
+                  }
+                  final edit = _canEditSel;
+                  final strokes = _selEls().any((e) => e['type'] == 'stroke');
+                  final at = _menuAt(
+                    box,
+                    pad,
+                    selectionMenuSize(edit: edit, strokes: strokes),
+                  );
                   return Positioned(
                     left: at.dx,
                     top: at.dy,
                     child: SelectionMenu(
+                      edit: edit,
+                      strokes: strokes,
                       ratioLock: _ratioLock,
                       onRatioLock: () =>
                           setState(() => _ratioLock = !_ratioLock),
                       onScaleUp: () => _step(_XKind.scale, 1.25),
                       onScaleDown: () => _step(_XKind.scale, 0.8),
                       onRotate90: () => _step(_XKind.rotate),
+                      onCopy: _copy,
+                      onColor: _pickColor,
+                      onWidth: _pickWidth,
+                      onCut: _cut,
+                      onDelete: _delete,
                     ),
                   );
                 },

@@ -1256,6 +1256,48 @@ abstract class AppLocalizations {
   /// **'Rotate 90°'**
   String get rotate90;
 
+  /// No description provided for @strokeColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Color'**
+  String get strokeColor;
+
+  /// No description provided for @strokeWidth.
+  ///
+  /// In en, this message translates to:
+  /// **'Thickness'**
+  String get strokeWidth;
+
+  /// No description provided for @copy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get copy;
+
+  /// No description provided for @cut.
+  ///
+  /// In en, this message translates to:
+  /// **'Cut'**
+  String get cut;
+
+  /// No description provided for @delete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get delete;
+
+  /// No description provided for @paste.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste'**
+  String get paste;
+
+  /// No description provided for @selectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all'**
+  String get selectAll;
+
   /// No description provided for @lassoTool.
   ///
   /// In en, this message translates to:

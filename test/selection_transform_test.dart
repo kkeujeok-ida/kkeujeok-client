@@ -251,7 +251,7 @@ void main() {
     expectBox(t, const Rect.fromLTRB(120, 80, 180, 180));
   });
 
-  testWidgets('no menu on a locked page', (t) async {
+  testWidgets('no edit menu on a locked page', (t) async {
     await select(t);
     expect(find.byType(SelectionMenu), findsOneWidget);
     final c = ProviderScope.containerOf(t.element(find.byType(NoteEditor)));
@@ -260,7 +260,9 @@ void main() {
     t.view.physicalSize = const Size(800, 900);
     addTearDown(t.view.resetPhysicalSize);
     await t.pump();
-    expect(find.byType(SelectionMenu), findsNothing);
+    // Only [copy] is left (Story 4.6).
+    expect(find.byTooltip('Scale up'), findsNothing);
+    expect(find.byTooltip('Copy'), findsOneWidget);
   });
 
   testWidgets('a small selection can still be moved', (t) async {

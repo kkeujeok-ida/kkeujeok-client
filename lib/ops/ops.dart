@@ -12,6 +12,7 @@ class Ctx {
     required this.now,
     required this.editedBy,
     this.lastSeenRemoteSeq = 0,
+    this.ids = const [],
   });
 
   factory Ctx.fromJson(Map<String, dynamic> j) => Ctx(
@@ -19,10 +20,14 @@ class Ctx {
     now: j['now'] as String,
     editedBy: j['editedBy'] as String,
     lastSeenRemoteSeq: (j['lastSeenRemoteSeq'] as num?)?.toInt() ?? 0,
+    ids: [for (final i in (j['ids'] as List? ?? const [])) i as String],
   );
 
   final String rev, now, editedBy;
   final int lastSeenRemoteSeq;
+
+  /// New element ids for `paste`, one per pasted element.
+  final List<String> ids;
 }
 
 /// Either a new note plus its inverse, or an error code.
@@ -86,6 +91,11 @@ OpResult applyOp(Note note, Map<String, dynamic> op, Ctx ctx) =>
       'scale' => _transformOp(note, op, ctx),
       'rotate' => _transformOp(note, op, ctx),
       'replaceElements' => replaceElements(note, op, ctx),
+      'setStrokeColor' => _strokeOp(note, op, ctx),
+      'setStrokeWidth' => _strokeOp(note, op, ctx),
+      'delete' => _delete(note, op, ctx),
+      'insertElements' => insertElements(note, op, ctx),
+      'paste' => _paste(note, op, ctx),
       _ => const OpResult.error('unknownOp'),
     };
 
@@ -282,5 +292,159 @@ OpResult replaceElements(Note note, Map<String, dynamic> op, Ctx ctx) {
     'op': 'replaceElements',
     'pageId': op['pageId'],
     'elements': before,
+  });
+}
+
+final _colorRe = RegExp(r'^#[0-9a-f]{6}$');
+
+// ops.setStrokeColor / ops.setStrokeWidth: strokes only.
+OpResult _strokeOp(Note note, Map<String, dynamic> op, Ctx ctx) {
+  final json = note.copyJson();
+  final color = op['op'] == 'setStrokeColor';
+  double width = 0;
+  final (page, idx, err) = _select(json, op, () {
+    if (color) {
+      final c = op['color'];
+      return c is String && _colorRe.hasMatch(c) ? null : 'invalidColor';
+    }
+    final w = op['width'];
+    if (w is! num || !w.isFinite || w.abs() > 100) return 'invalidWidth';
+    width = (w * 10).round() / 10; // Dart rounds half away from zero
+    return width >= 0.5 && width <= 10 ? null : 'invalidWidth';
+  });
+  if (err != null) return OpResult.error(err);
+  final els = page!['elements'] as List;
+  final strokes = [
+    for (final i in idx)
+      if (_isStroke(els[i] as Map)) i,
+  ];
+  if (strokes.isEmpty) return OpResult.ok(note, null);
+  final before = [for (final i in strokes) copyJsonValue(els[i]) as Map];
+  for (final i in strokes) {
+    (els[i] as Map<String, dynamic>)[color ? 'color' : 'width'] = color
+        ? op['color']
+        : width;
+  }
+  _touch(page, ctx);
+  return OpResult.ok(Note.trusted(json), {
+    'op': 'replaceElements',
+    'pageId': op['pageId'],
+    'elements': before,
+  });
+}
+
+OpResult _delete(Note note, Map<String, dynamic> op, Ctx ctx) {
+  final json = note.copyJson();
+  final (page, idx, err) = _select(json, op, () => null);
+  if (err != null) return OpResult.error(err);
+  final els = page!['elements'] as List;
+  final items = [
+    for (final i in idx) {'index': i, 'element': els[i]},
+  ];
+  for (final i in idx.reversed) {
+    els.removeAt(i);
+  }
+  _touch(page, ctx);
+  return OpResult.ok(Note.trusted(json), {
+    'op': 'insertElements',
+    'pageId': op['pageId'],
+    'items': items,
+  });
+}
+
+/// Inverse-only: puts elements back at their indices, in the given order.
+OpResult insertElements(Note note, Map<String, dynamic> op, Ctx ctx) {
+  final json = note.copyJson();
+  final page = _page(json, op['pageId']);
+  if (page == null) return const OpResult.error('pageNotFound');
+  final els = page['elements'] as List;
+  final items = [for (final i in op['items'] as List) i as Map];
+  final ids = <Object?>{for (final e in els) (e as Map)['id']};
+  for (final it in items) {
+    if (!ids.add((it['element'] as Map)['id'])) {
+      return const OpResult.error('duplicateId');
+    }
+  }
+  var n = els.length;
+  for (final it in items) {
+    final i = it['index'];
+    if (i is! num || i != i.truncateToDouble() || i < 0 || i > n) {
+      return const OpResult.error('indexOutOfRange');
+    }
+    els.insert(i.toInt(), copyJsonValue(it['element']));
+    n++;
+  }
+  _touch(page, ctx);
+  return OpResult.ok(Note.trusted(json), {
+    'op': 'delete',
+    'pageId': op['pageId'],
+    'ids': [for (final it in items) (it['element'] as Map)['id']],
+  });
+}
+
+// ops.paste: copies with new ids, centered, nudged off equal boxes.
+OpResult _paste(Note note, Map<String, dynamic> op, Ctx ctx) {
+  final json = note.copyJson();
+  final page = _page(json, op['pageId']);
+  if (page == null) return const OpResult.error('pageNotFound');
+  final src = [for (final e in op['elements'] as List? ?? const []) e as Map];
+  if (src.isEmpty) return const OpResult.error('emptySelection');
+  final els = page['elements'] as List;
+  final copies = [
+    for (var i = 0; i < src.length; i++)
+      (copyJsonValue(src[i]) as Map<String, dynamic>)..['id'] = ctx.ids[i],
+  ];
+  var dx = 0.0, dy = 0.0;
+  final c = (op['target'] as Map?)?['center'] as List?;
+  final union = selectionBounds(copies);
+  if (c != null && union != null) {
+    dx = _d(c[0]) - union.center.dx;
+    dy = _d(c[1]) - union.center.dy;
+  }
+  List<double>? key(Map<String, dynamic> e) {
+    final b = selectionBounds([e]);
+    return b == null
+        ? null
+        : [b.left, b.top, b.right, b.bottom].map(round2).toList();
+  }
+
+  bool same(List<double>? a, List<double>? b) =>
+      a != null &&
+      b != null &&
+      a[0] == b[0] &&
+      a[1] == b[1] &&
+      a[2] == b[2] &&
+      a[3] == b[3];
+
+  final taken = [for (final e in els) key(e as Map<String, dynamic>)];
+  List<Map<String, dynamic>> shifted(double sx, double sy) {
+    final out = <Map<String, dynamic>>[];
+    for (final s in copies) {
+      final e = copyJsonValue(s) as Map<String, dynamic>;
+      if (_isStroke(e)) {
+        for (final p in (e['points'] as List? ?? const [])) {
+          (p as List)[0] = round2(_d(p[0]) + sx);
+          p[1] = round2(_d(p[1]) + sy);
+        }
+      } else if (selectionBounds([e]) != null) {
+        e['x'] = round2(_d(e['x']) + sx);
+        e['y'] = round2(_d(e['y']) + sy);
+      }
+      out.add(e);
+    }
+    return out;
+  }
+
+  var out = shifted(dx, dy);
+  for (var k = 1; k <= 20; k++) {
+    if (!out.any((e) => taken.any((t) => same(key(e), t)))) break;
+    out = shifted(dx + 12 * k, dy + 12 * k);
+  }
+  els.addAll(out);
+  _touch(page, ctx);
+  return OpResult.ok(Note.trusted(json), {
+    'op': 'delete',
+    'pageId': op['pageId'],
+    'ids': [for (final e in out) e['id']],
   });
 }

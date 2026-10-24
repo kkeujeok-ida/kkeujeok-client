@@ -644,6 +644,27 @@ class AppLocalizationsKo extends AppLocalizations {
   String get rotate90 => '90° 회전';
 
   @override
+  String get strokeColor => '색';
+
+  @override
+  String get strokeWidth => '두께';
+
+  @override
+  String get copy => '복사';
+
+  @override
+  String get cut => '잘라내기';
+
+  @override
+  String get delete => '삭제';
+
+  @override
+  String get paste => '붙여넣기';
+
+  @override
+  String get selectAll => '전체 선택';
+
+  @override
   String get lassoTool => '올가미';
 
   @override

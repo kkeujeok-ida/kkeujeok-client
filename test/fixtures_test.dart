@@ -132,6 +132,10 @@ final runners = <String, void Function(Case)>{
   'ops.move': _runOp,
   'ops.scale': _runOp,
   'ops.rotate': _runOp,
+  'ops.setStrokeColor': _runOp,
+  'ops.setStrokeWidth': _runOp,
+  'ops.delete': _runOp,
+  'ops.paste': _runOp,
   'ops.removeStroke': _runOp,
   'stroke.outline.pen': (c) {
     final i = c['input'] as Map<String, dynamic>;
@@ -371,12 +375,7 @@ void _runOp(Case c) {
 // needs a valid fixture file and must not have a runner yet: when its story
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6.
-const pendingRules = <String>{
-  'ops.setStrokeColor',
-  'ops.setStrokeWidth',
-  'ops.delete',
-  'ops.paste',
-};
+const pendingRules = <String>{};
 
 final _sep = Platform.pathSeparator;
 

@@ -698,6 +698,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get rotate90 => 'Rotate 90°';
 
   @override
+  String get strokeColor => 'Color';
+
+  @override
+  String get strokeWidth => 'Thickness';
+
+  @override
+  String get copy => 'Copy';
+
+  @override
+  String get cut => 'Cut';
+
+  @override
+  String get delete => 'Delete';
+
+  @override
+  String get paste => 'Paste';
+
+  @override
+  String get selectAll => 'Select all';
+
+  @override
   String get lassoTool => 'Lasso';
 
   @override

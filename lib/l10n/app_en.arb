@@ -302,6 +302,13 @@
   "scaleUp": "Scale up",
   "scaleDown": "Scale down",
   "rotate90": "Rotate 90°",
+  "strokeColor": "Color",
+  "strokeWidth": "Thickness",
+  "copy": "Copy",
+  "cut": "Cut",
+  "delete": "Delete",
+  "paste": "Paste",
+  "selectAll": "Select all",
   "lassoTool": "Lasso",
   "selectedCount": "{count, plural, =1{1 element selected} other{{count} elements selected}}",
   "@selectedCount": {
