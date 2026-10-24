@@ -171,6 +171,7 @@ class PagePainter extends CustomPainter {
     this.viewport,
     this.live,
     this.hidden,
+    this.draft,
     this.images,
     super.repaint,
   });
@@ -184,6 +185,9 @@ class PagePainter extends CustomPainter {
 
   /// Id of a text box that is being edited and so not drawn.
   final String? Function()? hidden;
+
+  /// The text box being edited as it reads now: drawn here, so the box looks the same in edit and after it. The field over it draws no glyphs.
+  final Map<String, dynamic>? Function()? draft;
 
   /// Decoded assets for image elements; null draws grey placeholders.
   final PageImages? images;
@@ -253,6 +257,8 @@ class PagePainter extends CustomPainter {
       ids.add(s['id'] as String);
       _fill(canvas, cache.pathOf(s), s['color']);
     }
+    final d = draft?.call();
+    if (d != null && drawableText(d)) paintTextBox(canvas, d);
     cache.keepOnly(ids);
     final s = live?.call();
     if (s != null && drawableStroke(s)) {

@@ -27,6 +27,9 @@ class StyledTextController extends TextEditingController {
   /// Screen pixels per page point.
   double scale;
 
+  /// The page draws the glyphs: the field keeps the caret and the selection.
+  bool hideGlyphs = false;
+
   List<Style> _styles;
 
   /// A style picked with nothing selected: it applies to what is typed next.
@@ -141,7 +144,7 @@ class StyledTextController extends TextEditingController {
       fontFamily: textFontFamily,
       fontSize: size * scale,
       height: lineHeight,
-      color: parseColor(_value(st, 'color')),
+      color: hideGlyphs ? Colors.transparent : parseColor(_value(st, 'color')),
       fontWeight: _value(st, 'bold') == true
           ? FontWeight.w600
           : FontWeight.w400,

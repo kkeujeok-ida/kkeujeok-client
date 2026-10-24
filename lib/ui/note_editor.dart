@@ -427,7 +427,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       runs: el?['runs'] is List ? el!['runs'] as List : const [],
       base: base,
       scale: _vp?.scale ?? 1,
-    );
+    )..hideGlyphs = true;
     ctl.selection = TextSelection.collapsed(offset: text.length);
     final te = _TextEdit(
       pageId: pageId,
@@ -2362,6 +2362,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                   // build, when `_strokePageId` was still null.
                   live: () => id == _strokePageId ? _live() : null,
                   hidden: () => _te?.element?['id'] as String?,
+                  draft: () {
+                    final te = _te;
+                    return te != null && te.pageId == id ? _teElement(te) : null;
+                  },
                   images: _images,
                   repaint: _tick,
                 ),

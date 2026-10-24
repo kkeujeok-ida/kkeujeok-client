@@ -109,6 +109,16 @@ class PenToolbar extends StatelessWidget {
                 child: ColoredBox(color: KkjLight.colorBorderHairline),
               ),
             ),
+            _HistoryButton(
+              icon: Icons.undo,
+              tooltip: l10n.undo,
+              onPressed: canUndo ? onUndo : null,
+            ),
+            _HistoryButton(
+              icon: Icons.redo,
+              tooltip: l10n.redo,
+              onPressed: canRedo ? onRedo : null,
+            ),
             IconButton(
               tooltip: l10n.lassoTool,
               isSelected: lassoSelected,
@@ -152,16 +162,6 @@ class PenToolbar extends StatelessWidget {
               style: _compact,
               icon: const Icon(Icons.image_outlined),
               onPressed: onImage,
-            ),
-            _HistoryButton(
-              icon: Icons.undo,
-              tooltip: l10n.undo,
-              onPressed: canUndo ? onUndo : null,
-            ),
-            _HistoryButton(
-              icon: Icons.redo,
-              tooltip: l10n.redo,
-              onPressed: canRedo ? onRedo : null,
             ),
           ],
         ),
