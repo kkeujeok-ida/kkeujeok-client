@@ -18,3 +18,7 @@ Map<String, Object?> driveDuplicatesRule(Map<String, Object?> input) {
     'merge': [for (final i in items.skip(1)) i.id],
   };
 }
+
+/// Spec `drive.assetsFolder`: `drive.duplicates` with `kkeujeokId` `assets`.
+Map<String, Object?> driveAssetsFolderRule(Map<String, Object?> input) =>
+    driveDuplicatesRule({...input, 'kkeujeokId': 'assets'});

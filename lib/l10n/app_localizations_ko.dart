@@ -671,6 +671,55 @@ class AppLocalizationsKo extends AppLocalizations {
   String get textTool => '텍스트';
 
   @override
+  String get imageTool => '이미지';
+
+  @override
+  String get imageFromGallery => '갤러리';
+
+  @override
+  String get imageFromCamera => '카메라';
+
+  @override
+  String get imageTooLarge => '10MB보다 큰 이미지는 넣을 수 없어요.';
+
+  @override
+  String get imageUnsupported => '이 형식의 이미지는 넣을 수 없어요. JPEG, PNG, WebP만 가능해요.';
+
+  @override
+  String get imageConvertFailed => '이미지를 변환하지 못해서 넣을 수 없어요.';
+
+  @override
+  String get imageConverted => 'JPEG로 변환해서 넣었어요.';
+
+  @override
+  String get imageStoreFailed => '이미지를 저장하지 못했어요.';
+
+  @override
+  String get imagePermissionTitle => '권한이 필요해요';
+
+  @override
+  String get imagePermissionReason =>
+      '사진을 넣으려면 카메라나 사진 접근 권한이 필요해요. 설정에서 허용해 주세요.';
+
+  @override
+  String get openSettings => '설정 열기';
+
+  @override
+  String get imageSemantics => '이미지';
+
+  @override
+  String get imagePendingSemantics => '저장 대기 중';
+
+  @override
+  String get imageDownloading => '이미지 받는 중';
+
+  @override
+  String get imageDownloadFailed => '받기 실패';
+
+  @override
+  String get imageRetry => '다시 시도';
+
+  @override
   String get fontSize => '글자 크기';
 
   @override

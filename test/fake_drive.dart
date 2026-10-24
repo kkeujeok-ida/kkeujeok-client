@@ -224,6 +224,7 @@ class FakeDrive implements DriveClient {
       md5Checksum: asked('md5Checksum') ? i.md5Checksum : null,
       modifiedTime: i.modifiedTime,
       mimeType: i.mimeType,
+      size: asked('size') && i.revisions.isNotEmpty ? i.bytes.length : null,
     );
   }
 

@@ -725,6 +725,57 @@ class AppLocalizationsEn extends AppLocalizations {
   String get textTool => 'Text';
 
   @override
+  String get imageTool => 'Image';
+
+  @override
+  String get imageFromGallery => 'Gallery';
+
+  @override
+  String get imageFromCamera => 'Camera';
+
+  @override
+  String get imageTooLarge => 'Images larger than 10 MB cannot be added.';
+
+  @override
+  String get imageUnsupported =>
+      'This image format cannot be added. Only JPEG, PNG and WebP work.';
+
+  @override
+  String get imageConvertFailed =>
+      'The image could not be converted, so it was not added.';
+
+  @override
+  String get imageConverted => 'Converted to JPEG and added.';
+
+  @override
+  String get imageStoreFailed => 'Could not save the image.';
+
+  @override
+  String get imagePermissionTitle => 'Permission needed';
+
+  @override
+  String get imagePermissionReason =>
+      'Adding a photo needs camera or photo access. Allow it in Settings.';
+
+  @override
+  String get openSettings => 'Open settings';
+
+  @override
+  String get imageSemantics => 'Image';
+
+  @override
+  String get imagePendingSemantics => 'waiting to be saved';
+
+  @override
+  String get imageDownloading => 'Downloading image';
+
+  @override
+  String get imageDownloadFailed => 'Download failed';
+
+  @override
+  String get imageRetry => 'Try again';
+
+  @override
   String get fontSize => 'Font size';
 
   @override

@@ -28,6 +28,7 @@ class PenToolbar extends StatelessWidget {
     this.onLasso,
     this.textSelected = false,
     this.onText,
+    this.onImage,
   });
 
   final Pen pen;
@@ -41,6 +42,9 @@ class PenToolbar extends StatelessWidget {
   final VoidCallback? onLasso;
   final bool textSelected;
   final VoidCallback? onText;
+
+  /// [이미지]: opens the gallery / camera choice. Null disables it.
+  final VoidCallback? onImage;
 
   @override
   Widget build(BuildContext context) {
@@ -118,6 +122,16 @@ class PenToolbar extends StatelessWidget {
               ),
               icon: const Icon(Icons.text_fields),
               onPressed: onText,
+            ),
+            IconButton(
+              tooltip: l10n.imageTool,
+              constraints: const BoxConstraints(
+                minWidth: KkjTokens.spacingHitMinAndroid,
+                minHeight: KkjTokens.spacingHitMinAndroid,
+              ),
+              disabledColor: KkjLight.colorInkDisabled,
+              icon: const Icon(Icons.image_outlined),
+              onPressed: onImage,
             ),
             _HistoryButton(
               icon: Icons.undo,

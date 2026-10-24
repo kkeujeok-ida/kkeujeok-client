@@ -11,6 +11,7 @@ import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
 import '../model/element_clipboard.dart';
 import '../model/ids.dart';
+import '../model/image_rules.dart';
 import '../model/note.dart';
 import '../model/pen.dart';
 import '../model/select.dart';
@@ -18,9 +19,11 @@ import '../model/text_layout.dart';
 import '../ops/history.dart';
 import '../ops/ops.dart';
 import '../ops/resolve_conflict.dart';
+import '../render/asset_images.dart';
 import '../render/page_painter.dart';
 import '../render/selection_painter.dart';
 import '../render/zoom_snap.dart';
+import '../storage/image_intake.dart';
 import '../sync/merge_step.dart';
 import '../sync/version_history.dart' show RestoreFailure;
 import 'conflict_sheet.dart';
@@ -132,6 +135,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   // One outline cache per page: a shared one would drop the other pages'.
   final _caches = <String, StrokePathCache>{};
   final _tick = ValueNotifier<int>(0);
+  late final _assetSync = ref.read(assetSyncProvider);
+  late final _assetStore = ref.read(assetStoreProvider);
+  late final _images = AssetImages(_assetStore, _assetSync);
 
   // Saves coalesce: at most one write runs, and only the newest snapshot
   // waits behind it. [_failed] is the snapshot the last write could not save.
@@ -193,6 +199,197 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   final _lassoPts = <Offset>[];
   Offset _lassoDown = Offset.zero;
   bool _lassoMoved = false;
+
+  // ---- images (Story 4.12) ----------------------------------------------
+
+  void _onAssets() {
+    if (!mounted) return;
+    _tick.value++;
+    setState(() {});
+  }
+
+  /// Fetches the assets the note lacks and asks Drive about the others.
+  void _syncAssets() {
+    final m = <String, String>{};
+    for (final p in _pages) {
+      for (final e in p['elements'] as List) {
+        if (e is Map && e['type'] == 'image' && e['asset'] is String) {
+          m[e['asset'] as String] = '${e['ext']}';
+        }
+      }
+    }
+    if (m.isNotEmpty) unawaited(_assetSync.ensure(m));
+  }
+
+  /// [이미지]: gallery or camera, then the insert.
+  Future<void> _chooseImage() async {
+    _commitText();
+    final id = _page?['id'] as String?;
+    if (id == null || !_canEditPage(id)) {
+      _blocked();
+      return;
+    }
+    final l10n = AppLocalizations.of(context);
+    final src = await showModalBottomSheet<IntakeSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: Text(l10n.imageFromGallery),
+              onTap: () => Navigator.pop(context, IntakeSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: Text(l10n.imageFromCamera),
+              onTap: () => Navigator.pop(context, IntakeSource.camera),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (src != null && mounted) await _insertImage(src, id);
+  }
+
+  /// One image into the page the sheet was opened for, at the center of what
+  /// is in view, selected. One `insertImage` = one undo step. The bytes are
+  /// stored first: the element is never put in without them.
+  Future<void> _insertImage(IntakeSource src, String pageId) async {
+    final l10n = AppLocalizations.of(context);
+    final r = await ref.read(imageIntakeProvider).pick(src);
+    if (!mounted) return;
+    final failure = r.failure;
+    if (failure != null) {
+      switch (failure) {
+        case IntakeFailure.cancelled:
+          break;
+        case IntakeFailure.denied:
+          await _permissionDialog();
+        case IntakeFailure.tooLarge:
+          _snack(l10n.imageTooLarge);
+        case IntakeFailure.unsupported:
+          _snack(l10n.imageUnsupported);
+        case IntakeFailure.convertFailed:
+          _snack(l10n.imageConvertFailed);
+      }
+      return;
+    }
+    final img = r.image!;
+    final String hash;
+    try {
+      hash = await _assetStore.write(img.bytes, img.ext);
+    } catch (_) {
+      if (mounted) _snack(l10n.imageStoreFailed);
+      return;
+    }
+    if (!mounted) return;
+    _assetSync.markLocal(hash);
+    final i = _pages.indexWhere((p) => p['id'] == pageId);
+    if (i < 0 || !_canEditPage(pageId)) {
+      _blocked();
+      return;
+    }
+    final pw = (_pages[i]['width'] as num).toDouble();
+    final ph = (_pages[i]['height'] as num).toDouble();
+    final fit = imageInitialSize(img.pxWidth, img.pxHeight, pw, ph);
+    final w = fit['width']!.toDouble(), h = fit['height']!.toDouble();
+    // Centered on what is in view, kept on the page.
+    final vp = _vp;
+    final view = vp == null
+        ? Offset(pw / 2, ph / 2)
+        : vp.toPage(
+                Offset(
+                  _padding.left + (_size.width - _padding.horizontal) / 2,
+                  _padding.top + (_size.height - _padding.vertical) / 2,
+                ),
+              ) -
+              _geometry().rects[i].topLeft;
+    final cx = view.dx.clamp(w / 2, math.max(w / 2, pw - w / 2));
+    final cy = view.dy.clamp(h / 2, math.max(h / 2, ph - h / 2));
+    final id = newId();
+    final err = _history.doOp({
+      'op': 'insertImage',
+      'pageId': pageId,
+      'asset': hash,
+      'ext': img.ext,
+      'pxWidth': img.pxWidth,
+      'pxHeight': img.pxHeight,
+      'x': cx - w / 2,
+      'y': cy - h / 2,
+      'width': w,
+      'height': h,
+    }, _ctx(ids: [id]));
+    if (err != null) {
+      _snack(l10n.strokeNotAdded);
+      return;
+    }
+    if (img.converted) _snack(l10n.imageConverted);
+    _setTool(_Tool.lasso);
+    _select(pageId, {id});
+    _tick.value++;
+    _commit();
+  }
+
+  Future<void> _permissionDialog() async {
+    final l10n = AppLocalizations.of(context);
+    final open = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.imagePermissionTitle),
+        content: Text(l10n.imagePermissionReason),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(l10n.openSettings),
+          ),
+        ],
+      ),
+    );
+    if (open == true) await ref.read(imageIntakeProvider).openSettings();
+  }
+
+  /// A [다시 시도] over each placeholder whose fetch failed.
+  List<Widget> _retryButtons(AppLocalizations l10n) {
+    final vp = _vp;
+    if (vp == null) return const [];
+    final rects = _geometry().rects;
+    return [
+      for (var i = 0; i < _pages.length; i++)
+        for (final e in _pages[i]['elements'] as List)
+          if (drawableImage(e) &&
+              _images.state('${(e as Map)['asset']}') == AssetState.failed)
+            () {
+              final m = e as Map<String, dynamic>;
+              final c =
+                  vp.offset +
+                  (rects[i].topLeft +
+                          Offset(
+                            (m['x'] as num).toDouble() +
+                                (m['width'] as num).toDouble() / 2,
+                            (m['y'] as num).toDouble() +
+                                (m['height'] as num).toDouble() / 2,
+                          )) *
+                      vp.scale;
+              return Positioned(
+                left: c.dx - 56,
+                top: c.dy + 8,
+                width: 112,
+                height: KkjTokens.spacingHitMinAndroid,
+                child: TextButton(
+                  onPressed: () =>
+                      _assetSync.retry('${m['asset']}', '${m['ext']}'),
+                  child: Text(l10n.imageRetry),
+                ),
+              );
+            }(),
+    ];
+  }
 
   void _setTool(_Tool t) {
     if (t == _tool || _pointer != null) return;
@@ -883,6 +1080,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   /// Queues the history's current note for saving.
   void _commit() {
+    _syncAssets();
     _latest = _history.note;
     _running ??= _drain().whenComplete(() => _running = null);
   }
@@ -1062,6 +1260,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _coordinator.flushOpen = _flush;
     // A sync result for this note is merged into this queue and history.
     _hosts.register(widget.note.noteId, _host);
+    _images.addListener(_onAssets);
+    _syncAssets();
     _loadLastSeen();
     // A receive may have replaced the note before the mark was set.
     unawaited(_rereadDisk());
@@ -1091,6 +1291,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _history.adopt(disk, {
         for (final p in _history.note.pages) p['id'] as String,
       });
+      _syncAssets();
       _relayout();
       setState(() {});
       _tick.value++;
@@ -1459,6 +1660,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _strokeEnded(null);
     if (_coordinator.flushOpen == _flush) _coordinator.flushOpen = null;
     _hosts.unregister(widget.note.noteId, _host);
+    _images.removeListener(_onAssets);
+    _images.dispose();
     _openNote.clear(widget.note.noteId);
     _anim.dispose();
     _tick.dispose();
@@ -2105,6 +2308,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                   // build, when `_strokePageId` was still null.
                   live: () => id == _strokePageId ? _live() : null,
                   hidden: () => _te?.element?['id'] as String?,
+                  images: _images,
                   repaint: _tick,
                 ),
               ),
@@ -2116,6 +2320,11 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   Widget _body(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    _images
+      ..downloadingLabel = l10n.imageDownloading
+      ..failedLabel = l10n.imageDownloadFailed
+      ..imageLabel = l10n.imageSemantics
+      ..pendingLabel = l10n.imagePendingSemantics;
     final pad = MediaQuery.paddingOf(context);
     const gap = KkjTokens.spacing3;
     final page = _page;
@@ -2180,6 +2389,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                       ),
               ),
             ),
+            if (page != null) ..._retryButtons(l10n),
             if (_showLatest)
               Positioned(
                 bottom: pad.bottom + gap,
@@ -2372,6 +2582,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                           onLasso: () => _setTool(_Tool.lasso),
                           textSelected: _tool == _Tool.text,
                           onText: () => _setTool(_Tool.text),
+                          onImage: readOnly || receiving || locked
+                              ? null
+                              : _chooseImage,
                           slotFocus: _slotFocus,
                           canUndo:
                               !readOnly && !locked && _history.undoDepth > 0,

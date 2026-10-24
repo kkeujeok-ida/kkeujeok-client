@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../model/image_rules.dart';
 import '../model/note.dart';
 import '../model/note_title.dart';
 import '../model/number.dart';
@@ -98,6 +99,7 @@ OpResult applyOp(Note note, Map<String, dynamic> op, Ctx ctx) =>
       'insertElements' => insertElements(note, op, ctx),
       'paste' => _paste(note, op, ctx),
       'createTextBox' => _createTextBox(note, op, ctx),
+      'insertImage' => _insertImage(note, op, ctx),
       'editText' => _editText(note, op, ctx),
       'setTextBoxWidth' => _editText(note, op, ctx),
       _ => const OpResult.error('unknownOp'),
@@ -273,7 +275,11 @@ OpResult _transformOp(Note note, Map<String, dynamic> op, Ctx ctx) {
         }
         continue;
       }
-      final nw = w * sx, nh = h * sy;
+      var nw = w * sx, nh = h * sy;
+      if (e['type'] == 'image') {
+        nw = math.max(imageSizeMin, nw);
+        nh = math.max(imageSizeMin, nh);
+      }
       e['x'] = round2(cx - nw / 2);
       e['y'] = round2(cy - nh / 2);
       e['width'] = round2(nw);
@@ -565,5 +571,49 @@ OpResult _editText(Note note, Map<String, dynamic> op, Ctx ctx) {
     'op': 'replaceElements',
     'pageId': op['pageId'],
     'elements': [before],
+  });
+}
+
+// ---- ops.insertImage (spec/ops.md) ----
+
+bool _px(Object? v) =>
+    v is num && v.isFinite && v >= 1 && v == v.truncateToDouble();
+
+bool _sizeOk(Object? v) =>
+    v is num && v.isFinite && round2(v.toDouble()) >= imageSizeMin;
+
+OpResult _insertImage(Note note, Map<String, dynamic> op, Ctx ctx) {
+  final json = note.copyJson();
+  final page = _page(json, op['pageId']);
+  if (page == null) return const OpResult.error('pageNotFound');
+  if (!_px(op['pxWidth']) ||
+      !_px(op['pxHeight']) ||
+      !_sizeOk(op['width']) ||
+      !_sizeOk(op['height'])) {
+    return const OpResult.error('invalidSize');
+  }
+  if (!isAssetHash(op['asset'])) return const OpResult.error('invalidAsset');
+  if (!const {'jpg', 'png', 'webp'}.contains(op['ext'])) {
+    return const OpResult.error('unsupportedExt');
+  }
+  final id = ctx.ids[0];
+  (page['elements'] as List).add({
+    'id': id,
+    'type': 'image',
+    'x': round2(_d(op['x'])),
+    'y': round2(_d(op['y'])),
+    'width': round2(_d(op['width'])),
+    'height': round2(_d(op['height'])),
+    'rotation': 0,
+    'asset': op['asset'],
+    'ext': op['ext'],
+    'pxWidth': op['pxWidth'],
+    'pxHeight': op['pxHeight'],
+  });
+  _touch(page, ctx);
+  return OpResult.ok(Note.trusted(json), {
+    'op': 'delete',
+    'pageId': op['pageId'],
+    'ids': [id],
   });
 }

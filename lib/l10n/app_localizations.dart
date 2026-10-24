@@ -1310,6 +1310,102 @@ abstract class AppLocalizations {
   /// **'Text'**
   String get textTool;
 
+  /// No description provided for @imageTool.
+  ///
+  /// In en, this message translates to:
+  /// **'Image'**
+  String get imageTool;
+
+  /// No description provided for @imageFromGallery.
+  ///
+  /// In en, this message translates to:
+  /// **'Gallery'**
+  String get imageFromGallery;
+
+  /// No description provided for @imageFromCamera.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera'**
+  String get imageFromCamera;
+
+  /// No description provided for @imageTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'Images larger than 10 MB cannot be added.'**
+  String get imageTooLarge;
+
+  /// No description provided for @imageUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This image format cannot be added. Only JPEG, PNG and WebP work.'**
+  String get imageUnsupported;
+
+  /// No description provided for @imageConvertFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The image could not be converted, so it was not added.'**
+  String get imageConvertFailed;
+
+  /// No description provided for @imageConverted.
+  ///
+  /// In en, this message translates to:
+  /// **'Converted to JPEG and added.'**
+  String get imageConverted;
+
+  /// No description provided for @imageStoreFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the image.'**
+  String get imageStoreFailed;
+
+  /// No description provided for @imagePermissionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Permission needed'**
+  String get imagePermissionTitle;
+
+  /// No description provided for @imagePermissionReason.
+  ///
+  /// In en, this message translates to:
+  /// **'Adding a photo needs camera or photo access. Allow it in Settings.'**
+  String get imagePermissionReason;
+
+  /// No description provided for @openSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open settings'**
+  String get openSettings;
+
+  /// No description provided for @imageSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'Image'**
+  String get imageSemantics;
+
+  /// No description provided for @imagePendingSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'waiting to be saved'**
+  String get imagePendingSemantics;
+
+  /// No description provided for @imageDownloading.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading image'**
+  String get imageDownloading;
+
+  /// No description provided for @imageDownloadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Download failed'**
+  String get imageDownloadFailed;
+
+  /// No description provided for @imageRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get imageRetry;
+
   /// No description provided for @fontSize.
   ///
   /// In en, this message translates to:

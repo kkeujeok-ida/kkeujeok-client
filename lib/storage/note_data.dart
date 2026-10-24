@@ -26,8 +26,16 @@ class NoteData {
     return Directory('${root.path}${Platform.pathSeparator}$noteDataDirName');
   }
 
-  /// Deletes the note data directory. Nothing stored yet is not an error.
+  /// Deletes the note data directory and the asset cache beside it. Nothing
+  /// stored yet is not an error.
   Future<void> clear() async {
+    final root = await _documents();
+    final assets = Directory('${root.path}${Platform.pathSeparator}assets');
+    try {
+      if (await assets.exists()) await assets.delete(recursive: true);
+    } on PathNotFoundException {
+      // already gone
+    }
     final dir = await notesDir();
     try {
       if (await dir.exists()) await dir.delete(recursive: true);

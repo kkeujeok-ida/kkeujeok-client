@@ -27,6 +27,7 @@ class DriveFile {
     this.modifiedTime,
     this.mimeType,
     this.thumbnailLink,
+    this.size,
   });
 
   final String id;
@@ -46,6 +47,9 @@ class DriveFile {
   final String? modifiedTime;
   final String? mimeType;
   final String? thumbnailLink;
+
+  /// Byte count of the content, when asked for.
+  final int? size;
 }
 
 /// One entry of `changes.list`: [file] is null for a removed file.

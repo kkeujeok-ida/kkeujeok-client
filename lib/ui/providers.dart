@@ -17,6 +17,8 @@ import '../model/note.dart';
 import '../model/pen.dart';
 import '../ops/history.dart';
 import '../ops/ops.dart';
+import '../storage/asset_store.dart';
+import '../storage/image_intake.dart';
 import '../storage/language_store.dart';
 import '../storage/new_note_defaults_store.dart';
 import '../storage/note_data.dart';
@@ -24,6 +26,7 @@ import '../storage/note_store.dart';
 import '../storage/pen_slots_store.dart';
 import '../storage/session_hint.dart';
 import '../storage/sync_device_store.dart';
+import '../sync/asset_sync.dart';
 import '../sync/background_upload.dart';
 import '../sync/conflict_notifier.dart';
 import '../sync/merge_step.dart';
@@ -275,6 +278,28 @@ final uploadLeaseProvider = Provider<UploadLease>(
 /// One run per note at a time, shared by uploads and receives.
 final noteChainProvider = Provider<NoteChain>((ref) => NoteChain());
 
+/// Bytes of image assets on this device.
+final assetStoreProvider = Provider<AssetStore>(
+  (ref) => AssetStore(ref.read(noteDataProvider)),
+);
+
+/// Fetches the assets the open note lacks and knows which Drive holds.
+final assetSyncProvider = Provider<AssetSync>((ref) {
+  final s = AssetSync(
+    store: ref.read(assetStoreProvider),
+    drive: ref.read(driveClientProvider),
+    online: ref.read(networkProbeProvider),
+    allowed: () async => ref.read(uploadsAllowedProvider),
+    sleep: Future<void>.delayed,
+    jitter: Random().nextDouble,
+  );
+  ref.onDispose(s.dispose);
+  return s;
+});
+
+/// Gallery, camera and the format check of the image insert.
+final imageIntakeProvider = Provider<ImageIntake>((ref) => PluginImageIntake());
+
 final noteUploaderProvider = Provider<NoteUploader>(
   (ref) => NoteUploader(
     chain: ref.read(noteChainProvider),
@@ -289,6 +314,8 @@ final noteUploaderProvider = Provider<NoteUploader>(
     jitter: Random().nextDouble,
     thumbnail: renderThumbnail,
     heartbeat: ref.read(uploadLeaseProvider).renew,
+    assets: ref.read(assetStoreProvider),
+    onAssetConfirmed: ref.read(assetSyncProvider).markConfirmed,
   ),
 );
 

@@ -3,6 +3,8 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Local notification of a conflict found by a background upload (Android 13+). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Camera button of the image insert (Story 4.12). -->
+    <uses-permission android:name="android.permission.CAMERA"/>
     <application
         android:label="Kkeujeok"
         android:localeConfig="@xml/locales_config"
@@ -46,6 +48,10 @@
         <intent>
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="https"/>
+        </intent>
+        <!-- image_picker: the camera app that takes the photo. -->
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE"/>
         </intent>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>

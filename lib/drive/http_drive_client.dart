@@ -154,6 +154,8 @@ class HttpDriveClient implements DriveClient {
         modifiedTime: m['modifiedTime'] as String?,
         mimeType: m['mimeType'] as String?,
         thumbnailLink: m['thumbnailLink'] as String?,
+        // Drive sends `size` as a string.
+        size: int.tryParse('${m['size'] ?? ''}'),
       );
     } catch (_) {
       throw const DriveError('parse');

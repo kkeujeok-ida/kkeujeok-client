@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/drive/duplicates.dart';
 import 'package:kkeujeok/drive/note_summary.dart';
+import 'package:kkeujeok/model/image_rules.dart';
 import 'package:kkeujeok/model/kkj_codec.dart';
 import 'package:kkeujeok/model/note.dart';
 import 'package:kkeujeok/model/note_title.dart';
@@ -140,19 +141,13 @@ final runners = <String, void Function(Case)>{
   'ops.paste': _runOp,
   'ops.removeStroke': _runOp,
   'ops.createTextBox': _runOp,
+  'ops.insertImage': _runOp,
+  'ops.image': _runOp,
   'ops.editText': _runOp,
   'ops.setTextBoxWidth': _runOp,
   'ops.textBox': _runOp,
-  'text.unknownFields': (c) {
-    final i = c['input'] as Map<String, dynamic>;
-    if (i['op'] == null) return _same(_roundTrip(i), c['expected']);
-    final r = applyOp(
-      _note(i['note']),
-      i['op'] as Map<String, dynamic>,
-      Ctx.fromJson(i['ctx'] as Map<String, dynamic>),
-    );
-    _same({'note': r.note?.copyJson()}, c['expected']);
-  },
+  'image.unknownFields': _unknownFields,
+  'text.unknownFields': _unknownFields,
   'text.layout': (c) {
     final l = layoutText(
       (c['input'] as Map<String, dynamic>)['element'] as Map<String, dynamic>,
@@ -176,6 +171,44 @@ final runners = <String, void Function(Case)>{
       near(y.height, x['height'], 'line $k height');
     }
   },
+  'image.accept': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    _same(imageAccept(i['head'] as String, i['size'] as int), c['expected']);
+  },
+  'image.initialSize': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    _same(
+      imageInitialSize(
+        i['pxWidth'] as num,
+        i['pxHeight'] as num,
+        i['pageWidth'] as num,
+        i['pageHeight'] as num,
+      ),
+      c['expected'],
+    );
+  },
+  'image.referencedAssets': (c) => _same(
+    referencedAssets(_note((c['input'] as Map)['note'])),
+    c['expected'],
+  ),
+  'image.uploadPlan': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    List<String> l(String k) => [for (final h in i[k] as List) h as String];
+    _same(
+      imageUploadPlan(l('referenced'), l('confirmed'), l('onDevice')),
+      c['expected'],
+    );
+  },
+  'image.assetState': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final st = assetState(
+      i['asset'] as String,
+      {for (final h in i['local'] as List) h as String},
+      {for (final h in i['failed'] as List) h as String},
+    );
+    _same({'state': st.name}, c['expected']);
+  },
+  'select.image': (c) => _selectRunners[(c['input'] as Map)['fn']]!(c),
   'select.textBox': (c) => _selectRunners[(c['input'] as Map)['fn']]!(c),
   'stroke.outline.pen': (c) {
     final i = c['input'] as Map<String, dynamic>;
@@ -245,6 +278,10 @@ final runners = <String, void Function(Case)>{
     stateMachineRule((c['input'] as Map).cast<String, Object?>()),
     c['expected'],
   ),
+  'drive.assetsFolder': (c) {
+    final items = (c['input'] as Map)['items'] as List;
+    _same(driveAssetsFolderRule({'items': items}), c['expected']);
+  },
   'drive.fileName': (c) => _same(
     driveFileNameRule((c['input'] as Map).cast<String, Object?>()),
     c['expected'],
@@ -337,6 +374,17 @@ final runners = <String, void Function(Case)>{
   'select.tap': _selectTap,
   'select.rect': _selectRect,
 };
+
+void _unknownFields(Case c) {
+  final i = c['input'] as Map<String, dynamic>;
+  if (i['op'] == null) return _same(_roundTrip(i), c['expected']);
+  final r = applyOp(
+    _note(i['note']),
+    i['op'] as Map<String, dynamic>,
+    Ctx.fromJson(i['ctx'] as Map<String, dynamic>),
+  );
+  _same({'note': r.note?.copyJson()}, c['expected']);
+}
 
 final _selectRunners = <Object?, void Function(Case)>{
   'lasso': _selectLasso,
@@ -433,19 +481,7 @@ void _runOp(Case c) {
 // needs a valid fixture file and must not have a runner yet: when its story
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6.
-// Image rules (Story 4.11) arrive with Story 4.12.
-const pendingRules = <String>{
-  'drive.assetsFolder',
-  'image.accept',
-  'image.assetState',
-  'image.initialSize',
-  'image.referencedAssets',
-  'image.unknownFields',
-  'image.uploadPlan',
-  'ops.image',
-  'ops.insertImage',
-  'select.image',
-};
+const pendingRules = <String>{};
 
 final _sep = Platform.pathSeparator;
 

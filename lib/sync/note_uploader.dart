@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io' show FileSystemException;
+import 'dart:math' as math;
 
 import 'package:crypto/crypto.dart' as crypto;
 
@@ -7,8 +8,10 @@ import '../drive/drive_client.dart';
 import '../drive/duplicates.dart';
 import '../drive/note_summary.dart';
 import '../model/ids.dart' as mid;
+import '../model/image_rules.dart';
 import '../model/kkj_codec.dart';
 import '../model/note.dart';
+import '../storage/asset_store.dart';
 import '../storage/note_store.dart';
 import '../storage/sync_device_store.dart';
 import '../storage/sync_info.dart';
@@ -74,6 +77,8 @@ class NoteUploader {
     required this.jitter,
     this.thumbnail,
     this.heartbeat,
+    this.assets,
+    this.onAssetConfirmed,
     NoteChain? chain,
     DateTime Function()? clock,
     String Function()? newRev,
@@ -106,6 +111,12 @@ class NoteUploader {
   /// Called before every Drive call and between chunks: keeps the upload
   /// lease of the note fresh while a long upload runs.
   final Future<void> Function(String noteId)? heartbeat;
+
+  /// Bytes of image assets on this device; null = none are held.
+  final AssetStore? assets;
+
+  /// Told of every asset known to be on Drive (for the pending mark).
+  final void Function(String hash)? onAssetConfirmed;
 
   /// For the `ctx` of the duplicate folds (the merge reads no clock itself).
   final DateTime Function() _clock;
@@ -595,11 +606,18 @@ class NoteUploader {
     return r.note!;
   }
 
-  Future<List<DriveFile>> _all(String noteId, String q) async {
+  Future<List<DriveFile>> _all(
+    String noteId,
+    String q, {
+    String? fields,
+  }) async {
     final out = <DriveFile>[];
     String? token;
     do {
-      final p = await _call(noteId, () => drive.list(q, pageToken: token));
+      final p = await _call(
+        noteId,
+        () => drive.list(q, fields: fields, pageToken: token),
+      );
       out.addAll(p.files);
       token = p.nextPageToken;
     } while (token != null);
@@ -737,6 +755,8 @@ class NoteUploader {
           // Step 0 again: sidecars a merge of step 1 just made go before the
           // note too. The snapshot is the queue state after that.
           await _sendSidecars(noteId);
+          // Image assets go before the note (spec `image` "Upload order").
+          await _sendAssets(noteId, working0);
           // Step 2.
           final fid = fileId, par = parent;
           final up = await _send(
@@ -1289,6 +1309,134 @@ class NoteUploader {
           ],
         ),
       );
+    }
+  }
+
+  /// Spec `image` "Upload order": the assets the note references are put on
+  /// Drive (`.assets`, found by `asset:<hash>`, size and MD5 checked) before
+  /// the note. A missing asset, or one that fails, stops the upload: the note
+  /// stays unsent and the whole upload is retried later.
+  Future<void> _sendAssets(String noteId, Note working0) async {
+    final confirmed = <String>{};
+    String? folder;
+    for (var round = 0; round < 3; round++) {
+      final note = (await store.read(noteId))?.note ?? working0;
+      final referenced = referencedAssets(note);
+      if (referenced.isEmpty) return;
+      final exts = <String, String>{
+        for (final p in note.pages)
+          for (final e in p['elements'] as List)
+            if (e is Map && e['type'] == 'image')
+              '${e['asset']}': '${e['ext']}',
+      };
+      final bytes = <String, List<int>>{};
+      for (final h in referenced) {
+        if (!isAssetHash(h)) continue;
+        final b = await assets?.read(h);
+        if (b != null) bytes[h] = b;
+        if (confirmed.contains(h)) continue;
+        final found = await _all(
+          noteId,
+          kkeujeokIdQuery('asset:$h'),
+          fields: 'id,size,md5Checksum',
+        );
+        // Bytes we hold are compared; without them any file stands.
+        if (found.any(
+          (f) =>
+              b == null ||
+              (f.size == b.length &&
+                  f.md5Checksum == crypto.md5.convert(b).toString()),
+        )) {
+          confirmed.add(h);
+          onAssetConfirmed?.call(h);
+        }
+      }
+      final plan = imageUploadPlan(referenced, confirmed, bytes.keys);
+      final upload = (plan['upload'] as List).cast<String>();
+      if (upload.isNotEmpty) {
+        final root = (await device.read()).rootFolderId;
+        if (root == null) throw _Failure('fatal', reason: 'rootMissing');
+        folder ??= await _ensureItem(
+          noteId,
+          kkeujeokId: 'assets',
+          kind: 'assets',
+          parentId: root,
+          folder: true,
+          create: () => drive.create({
+            'name': '.assets',
+            'mimeType': _folderMime,
+            'parents': [root],
+            'appProperties': {'kkeujeokId': 'assets'},
+          }),
+        );
+        for (final h in upload) {
+          await _putAsset(noteId, folder, h, exts[h] ?? 'jpg', bytes[h]!);
+          confirmed.add(h);
+          onAssetConfirmed?.call(h);
+        }
+      }
+      if (plan['blocked'] == true) {
+        throw _Failure('backoff', reason: 'assetMissing');
+      }
+      if (upload.isEmpty) return;
+      // Edited while the assets went: look at the note again.
+    }
+    throw _Failure('backoff', reason: 'assetsChanging');
+  }
+
+  Future<void> _putAsset(
+    String noteId,
+    String folder,
+    String hash,
+    String ext,
+    List<int> bytes,
+  ) async {
+    final meta = {
+      'name': '$hash.$ext',
+      'mimeType': ext == 'jpg' ? 'image/jpeg' : 'image/$ext',
+      'parents': [folder],
+      'appProperties': {'kkeujeokId': 'asset:$hash'},
+    };
+    final DriveFile made;
+    if (bytes.length <= simpleUploadLimit) {
+      made = await _call(
+        noteId,
+        () => drive.uploadSimple(metadata: meta, bytes: bytes),
+      );
+    } else {
+      // At most 10 MB: one or two chunks; Drive says how far it got.
+      final uri = await _call(
+        noteId,
+        () => drive.startResumable(metadata: meta, size: bytes.length),
+      );
+      var offset = 0;
+      DriveFile? done;
+      for (var i = 0; i < 20 && done == null; i++) {
+        final from = offset;
+        final to = math.min(from + resumableChunk, bytes.length);
+        final r = await _call(
+          noteId,
+          () => drive.putResumable(
+            uri,
+            bytes.length,
+            from,
+            bytes.sublist(from, to),
+          ),
+        );
+        done = r.file;
+        offset = r.received;
+      }
+      if (done == null) throw _Failure('fatal', reason: 'sessionLost');
+      made = done;
+    }
+    final got = await _call(
+      noteId,
+      () => drive.get(made.id, fields: 'id,size,md5Checksum'),
+    );
+    if (got.size != bytes.length ||
+        got.md5Checksum != crypto.md5.convert(bytes).toString()) {
+      await _call(noteId, () => drive.update(made.id, trashed: true));
+      throw _Failure('backoff', reason: 'assetMismatch');
     }
   }
 

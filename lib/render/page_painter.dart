@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
+import 'asset_images.dart';
 import 'page_background.dart';
 import 'stroke_outline.dart';
 import 'text_painter.dart';
@@ -168,6 +171,7 @@ class PagePainter extends CustomPainter {
     this.viewport,
     this.live,
     this.hidden,
+    this.images,
     super.repaint,
   });
 
@@ -180,6 +184,9 @@ class PagePainter extends CustomPainter {
 
   /// Id of a text box that is being edited and so not drawn.
   final String? Function()? hidden;
+
+  /// Decoded assets for image elements; null draws grey placeholders.
+  final PageImages? images;
 
   Map<String, dynamic>? _bg; // page is fixed for this painter
 
@@ -232,6 +239,10 @@ class PagePainter extends CustomPainter {
     final ids = <String>{};
     final skip = hidden?.call();
     for (final e in page['elements'] as List) {
+      if (drawableImage(e)) {
+        paintImageElement(canvas, e as Map<String, dynamic>, images, vp.scale);
+        continue;
+      }
       if (drawableText(e)) {
         final t = e as Map<String, dynamic>;
         if (t['id'] != skip) paintTextBox(canvas, t);
@@ -277,7 +288,34 @@ class PagePainter extends CustomPainter {
     final vp = viewport ?? PageViewport.fit(size, w, h, EdgeInsets.zero);
     return [
       for (final e in page['elements'] as List)
-        if (drawableText(e) && (e as Map)['text'].toString().trim().isNotEmpty)
+        if (drawableImage(e))
+          () {
+            final m = e as Map<String, dynamic>;
+            final w = (m['width'] as num).toDouble();
+            final h = (m['height'] as num).toDouble();
+            final x = (m['x'] as num).toDouble(),
+                y = (m['y'] as num).toDouble();
+            final r = _rotatedBounds(x, y, w, h, m['rotation']);
+            final src = images;
+            return CustomPainterSemantics(
+              key: ValueKey(m['id']),
+              rect: Rect.fromPoints(
+                vp.offset + r.topLeft * vp.scale,
+                vp.offset + r.bottomRight * vp.scale,
+              ),
+              properties: SemanticsProperties(
+                label: src == null
+                    ? null
+                    : src.pending('${m['asset']}')
+                    ? '${src.imageLabel}, ${src.pendingLabel}'
+                    : src.imageLabel,
+                image: true,
+                textDirection: TextDirection.ltr,
+              ),
+            );
+          }()
+        else if (drawableText(e) &&
+            (e as Map)['text'].toString().trim().isNotEmpty)
           () {
             final t = e as Map<String, dynamic>;
             final r = textBounds(t);
@@ -295,6 +333,20 @@ class PagePainter extends CustomPainter {
           }(),
     ];
   };
+
+  static Rect _rotatedBounds(
+    double x,
+    double y,
+    double w,
+    double h,
+    Object? r,
+  ) {
+    final a = ((r as num?) ?? 0).toDouble() * math.pi / 180;
+    final c = Offset(x + w / 2, y + h / 2);
+    final dx = (w / 2) * math.cos(a).abs() + (h / 2) * math.sin(a).abs();
+    final dy = (w / 2) * math.sin(a).abs() + (h / 2) * math.cos(a).abs();
+    return Rect.fromLTRB(c.dx - dx, c.dy - dy, c.dx + dx, c.dy + dy);
+  }
 
   @override
   bool shouldRebuildSemantics(PagePainter oldDelegate) =>

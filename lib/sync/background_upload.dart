@@ -9,6 +9,7 @@ import '../drive/drive_client.dart';
 import '../drive/google_auth_gateway.dart';
 import '../drive/http_drive_client.dart';
 import '../storage/note_data.dart';
+import '../storage/asset_store.dart';
 import '../storage/note_store.dart';
 import '../storage/session_hint.dart';
 import '../storage/sync_device_store.dart';
@@ -133,6 +134,7 @@ Future<void> runBackgroundUpload({
     jitter: Random().nextDouble,
     thumbnail: renderThumbnail,
     heartbeat: lease.renew,
+    assets: AssetStore(noteData),
   );
   final coordinator = UploadCoordinator(
     store: store,
