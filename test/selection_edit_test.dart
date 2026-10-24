@@ -175,6 +175,20 @@ void main() {
     expect(box(t), const Rect.fromLTRB(100, 100, 200, 160));
   }
 
+  // Press and hold the stylus on a page point, then let go.
+  Future<void> longPress(WidgetTester t, double x, double y) async {
+    final p = ++id;
+    final pos = at(t, x, y);
+    t.binding.handlePointerEvent(
+      PointerDownEvent(pointer: p, kind: PointerDeviceKind.stylus, position: pos),
+    );
+    await t.pump(const Duration(milliseconds: 700));
+    t.binding.handlePointerEvent(
+      PointerUpEvent(pointer: p, kind: PointerDeviceKind.stylus, position: pos),
+    );
+    await t.pump();
+  }
+
   Future<void> undo(WidgetTester t) async {
     await t.tap(find.byTooltip('Undo'));
     await t.pump();
@@ -208,13 +222,15 @@ void main() {
     expect(els(t).single['width'], 2);
   });
 
-  testWidgets('copy, blank tap, paste; undo removes the copy', (t) async {
+  testWidgets('copy, blank long press, paste; undo removes the copy', (t) async {
     await select(t);
     await t.tap(find.byTooltip('Copy'));
     await t.pump();
     expect(cont(t).read(elementClipboardProvider), hasLength(1));
     expect(hist(t).undoDepth, 0);
-    await drag(t, [(400, 150)]);
+    await drag(t, [(400, 150)]); // a tap only lets go of the selection
+    expect(find.text('Select all'), findsNothing);
+    await longPress(t, 400, 150);
     expect(find.text('Select all'), findsOneWidget);
     await t.tap(find.text('Paste'));
     await t.pump();
@@ -230,6 +246,8 @@ void main() {
     await t.tap(find.byTooltip('Lasso'));
     await t.pump();
     await drag(t, [(400, 150)]);
+    expect(find.text('Select all'), findsNothing);
+    await longPress(t, 400, 150);
     final paste = t.widget<TextButton>(
       find.widgetWithText(TextButton, 'Paste'),
     );

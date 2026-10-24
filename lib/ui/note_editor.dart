@@ -1792,6 +1792,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _latestTimer?.cancel();
+    _lpTimer?.cancel();
     _emphasisTimer?.cancel();
     _zoomBadgeTimer?.cancel();
     _zoomBadge.dispose();
@@ -1977,6 +1978,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
           _begin(e, p, at);
         } else {
           if (!_stylusSeen && _tool == _Tool.lasso) _clearSelection();
+          if (_stylusSeen && _tool == _Tool.lasso && at >= 0) {
+            _startLongPress(e.pointer, e.localPosition, _pages[at]['id'] as String, p);
+          }
           _mode = _Mode
               .touchIdle; // pen mode or off page: a finger only moves the view
         }
@@ -2063,6 +2067,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _lassoPts
         ..clear()
         ..add(doc);
+      _startLongPress(e.pointer, e.localPosition, target['id'] as String, doc);
       _tick.value++;
       return;
     }
@@ -2222,6 +2227,11 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   void _move(PointerMoveEvent e) {
     if (_leaving || _vp == null) return;
+    if (e.pointer == _lpPointer &&
+        (e.localPosition - _lpScreen).distance > _tapSlop) {
+      _lpTimer?.cancel();
+      _lpTimer = null;
+    }
     if ((e.pointer == _tapPointer || _textTap?.pointer == e.pointer) &&
         (e.localPosition - _tapAt).distance > _tapSlop) {
       _tapPointer = -1;
@@ -2261,6 +2271,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   void _up(PointerUpEvent e) {
     final vp = _vp;
+    if (e.pointer == _lpPointer) {
+      _lpTimer?.cancel();
+      _lpTimer = null;
+    }
     final tapped =
         e.pointer == _tapPointer &&
         (e.localPosition - _tapAt).distance < _tapSlop &&
@@ -2317,6 +2331,11 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   }
 
   void _cancel(PointerCancelEvent e) {
+    if (e.pointer == _lpPointer) {
+      _lpTimer?.cancel();
+      _lpTimer = null;
+      _lpFired = false;
+    }
     if (e.pointer == _tapPointer) _tapPointer = -1;
     if (_textTap?.pointer == e.pointer) _textTap = null;
     if (_spA >= 0 && (e.pointer == _spA || e.pointer == _spB)) {
@@ -2402,8 +2421,35 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     }
   }
 
+  // A long press with the lasso on a blank spot opens the paste / select-all
+  // menu; a plain tap only lets go of the selection.
+  Timer? _lpTimer;
+  int _lpPointer = -1;
+  Offset _lpScreen = Offset.zero;
+  bool _lpFired = false;
+  static const _longPress = Duration(milliseconds: 500);
+
+  void _startLongPress(int pointer, Offset screen, String pageId, Offset doc) {
+    _lpTimer?.cancel();
+    _lpPointer = pointer;
+    _lpScreen = screen;
+    _lpFired = false;
+    _lpTimer = Timer(_longPress, () {
+      _lpTimer = null;
+      if (!mounted ||
+          _tool != _Tool.lasso ||
+          _lpPointer != pointer ||
+          _xf != null ||
+          (_lassoing && _lassoMoved)) {
+        return;
+      }
+      _lpFired = true;
+      _select(null, {});
+      setState(() => _blank = (pageId, doc));
+    });
+  }
+
   void _finishLasso(String pageId) {
-    final tapDoc = _lassoPts.first;
     final els = [
       for (final e
           in _pages.firstWhere((p) => p['id'] == pageId)['elements'] as List)
@@ -2423,9 +2469,11 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _lassoing = false;
     _lassoPts.clear();
     if (_mode == _Mode.pen || _mode == _Mode.touchStroke) _mode = _Mode.none;
-    _select(pageId, ids.toSet());
-    if (ids.isEmpty && !_lassoMoved) {
-      setState(() => _blank = (pageId, tapDoc));
+    if (_lpFired && !_lassoMoved) {
+      _lpFired = false; // the long press already opened the menu
+      setState(() {});
+    } else {
+      _select(pageId, ids.toSet());
     }
     _tick.value++;
     // Only releases a merge waiting for the pointer; nothing is saved here.

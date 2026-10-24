@@ -337,6 +337,33 @@ void main() {
     expect(box(t), isNotNull);
   });
 
+  testWidgets('a finger long press on a blank spot opens paste / select all', (
+    t,
+  ) async {
+    await open(t);
+    await t.tap(find.byTooltip('Lasso'));
+    await t.pump();
+    await drag(t, around); // a stylus: a finger only pans now
+    final pos = at(t, 400, 150);
+    const kind = PointerDeviceKind.touch;
+    final p = ++id;
+    t.binding.handlePointerEvent(
+      PointerDownEvent(pointer: p, kind: kind, position: pos),
+    );
+    await t.pump(const Duration(milliseconds: 700));
+    t.binding.handlePointerEvent(
+      PointerUpEvent(
+        pointer: p,
+        kind: kind,
+        position: pos,
+        timeStamp: const Duration(milliseconds: 700),
+      ),
+    );
+    await t.pump();
+    expect(find.text('Select all'), findsOneWidget);
+    expect(box(t), isNull);
+  });
+
   testWidgets('a finger tap off the box clears the selection once a stylus was seen', (
     t,
   ) async {
