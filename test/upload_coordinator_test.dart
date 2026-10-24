@@ -301,5 +301,21 @@ void main() {
       expect(env.info.state, SyncState.synced);
       expect(env.drive.uploads, hasLength(2));
     });
+
+    test('an offline edit of the open note uploads when the connection '
+        'returns', () async {
+      await env.save(makeNote());
+      await coordinator.noteClosed(noteId);
+      env.online = false;
+      await open.set(noteId);
+      await env.save(makeNote(rev: 2));
+      await coordinator.appBackgrounded(); // offline: stays pending
+      expect((await env.store.readSync(noteId)).state, SyncState.pending);
+
+      env.online = true;
+      await coordinator.reconnected();
+      expect(env.info.state, SyncState.synced);
+      expect(env.drive.uploads, hasLength(2));
+    });
   });
 }

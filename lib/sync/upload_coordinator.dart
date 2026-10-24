@@ -391,9 +391,16 @@ class UploadCoordinator {
     await _all(includeOpen: false);
   }
 
-  /// The connection came back: unsent notes except the open one go, a note
-  /// in `error` waits for its own retry (a full Drive is not hammered).
-  Future<void> reconnected() => _all(includeOpen: false, retryErrors: false);
+  /// The connection came back: unsent notes go, the open one too (its queue
+  /// is flushed first; it waited offline, so it is not left at "pending"
+  /// until it is closed). A note in `error` waits for its own retry (a full
+  /// Drive is not hammered).
+  Future<void> reconnected() async {
+    try {
+      await flushOpen?.call();
+    } catch (_) {}
+    await _all(includeOpen: true, retryErrors: false);
+  }
 
   /// [지금 동기화]: the open note's queue reaches the disk, the note is
   /// uploaded without closing it, then Drive is asked for changes. A note in
