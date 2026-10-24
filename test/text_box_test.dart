@@ -231,24 +231,30 @@ void main() {
     ]);
   });
 
-  testWidgets('double tap edits a box: one editText', (t) async {
+  testWidgets('text tool tap on a box edits it: one editText', (t) async {
     await open(t);
-    await drag(t, [(150, 110)]);
+    await textTool(t);
     await drag(t, [(150, 110)]);
     expect(find.byType(TextField), findsOneWidget);
     expect(find.text('hello'), findsOneWidget);
     await t.enterText(find.byType(TextField), 'hello world');
-    await drag(t, [(500, 150)]);
+    await t.tap(find.byTooltip('Lasso')); // another tool confirms
+    await t.pump();
     expect(texts(t).single['text'], 'hello world');
-    expect(hist(t).undoDepth, greaterThanOrEqualTo(1));
     final depth = hist(t).undoDepth;
-    // An unchanged edit saves nothing (lasso: its first tap draws no dot).
+    // An unchanged edit saves nothing.
+    await textTool(t);
+    await drag(t, [(150, 110)]);
     await t.tap(find.byTooltip('Lasso'));
     await t.pump();
-    await drag(t, [(150, 110)]);
-    await drag(t, [(150, 110)]);
-    await drag(t, [(500, 150)]);
     expect(hist(t).undoDepth, depth);
+  });
+
+  testWidgets('a double tap with the pen no longer edits a box', (t) async {
+    await open(t);
+    await drag(t, [(150, 110)]);
+    await drag(t, [(150, 110)]);
+    expect(find.byType(TextField), findsNothing);
   });
 
   testWidgets('side handle drag: setTextBoxWidth', (t) async {

@@ -540,33 +540,39 @@ class _Thumb extends StatelessWidget {
   Widget build(BuildContext context) {
     final w = (page?['width'] as num?)?.toDouble();
     final h = (page?['height'] as num?)?.toDouble();
+    if (child == null && w != null && h != null) {
+      // Only the page, like the web library: no card frame or margin around it.
+      return AspectRatio(
+        aspectRatio: 3 / 4,
+        child: Center(
+          child: AspectRatio(
+            aspectRatio: w / h,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: KkjLight.componentsCoverCardFallbackBackground,
+                borderRadius: BorderRadius.circular(
+                  KkjLight.componentsCoverCardRounded,
+                ),
+                boxShadow: kkjShadow(KkjLight.componentsCoverCardShadow),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(
+                  KkjLight.componentsCoverCardRounded,
+                ),
+                child: _PageThumb(page: page!),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return AspectRatio(
       aspectRatio: 3 / 4,
       child: DecoratedBox(
         decoration: _coverBox(
           border: disabled ? KkjLight.colorInkDisabled : null,
         ),
-        child:
-            child ??
-            (w == null || h == null
-                ? null
-                : Padding(
-                    padding: const EdgeInsets.all(KkjTokens.spacing2),
-                    child: Center(
-                      child: AspectRatio(
-                        aspectRatio: w / h,
-                        child: DecoratedBox(
-                          position: DecorationPosition.foreground,
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: KkjLight.componentsCoverCardFallbackBorder,
-                            ),
-                          ),
-                          child: _PageThumb(page: page!),
-                        ),
-                      ),
-                    ),
-                  )),
+        child: child,
       ),
     );
   }

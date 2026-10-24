@@ -221,7 +221,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     if (m.isNotEmpty) unawaited(_assetSync.ensure(m));
   }
 
-  /// [이미지]: gallery or camera, then the insert.
+  /// [이미지]: the gallery, then the insert (no camera).
   Future<void> _chooseImage() async {
     _commitText();
     final id = _page?['id'] as String?;
@@ -229,28 +229,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _blocked();
       return;
     }
-    final l10n = AppLocalizations.of(context);
-    final src = await showModalBottomSheet<IntakeSource>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: Text(l10n.imageFromGallery),
-              onTap: () => Navigator.pop(context, IntakeSource.gallery),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: Text(l10n.imageFromCamera),
-              onTap: () => Navigator.pop(context, IntakeSource.camera),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (src != null && mounted) await _insertImage(src, id);
+    await _insertImage(IntakeSource.gallery, id);
   }
 
   /// One image into the page the sheet was opened for, at the center of what
@@ -408,10 +387,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   int _tapPointer = -1;
   Offset _tapAt = Offset.zero;
   Duration _tapTime = Duration.zero;
-  ({Duration t, Offset at, int depth})? _lastTap;
 
   static const _tapSlop = 10.0;
-  static const _doubleTapGap = Duration(milliseconds: 350);
   static const _caretGap = 24.0;
 
   bool _canEditPage(String pageId) =>
@@ -528,11 +505,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     if (op != null && err == null) _commit();
   }
 
-  /// The text box under [local] (screen), topmost, with its page.
-  (String, Map<String, dynamic>)? _textAt(Offset local) {
-    final vp = _vp;
-    if (vp == null) return null;
-    final p = vp.toPage(local);
+  /// The text box under [p] (document space), topmost, with its page.
+  (String, Map<String, dynamic>)? _textAtDoc(Offset p) {
     final i = _pageAt(p);
     if (i < 0) return null;
     final page = _pages[i], o = p - _geometry().rects[i].topLeft;
@@ -1802,30 +1776,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   }
 
   /// Text editing owns a press first: outside the box a press only confirms
-  /// the box; a second tap on a box starts editing it.
+  /// the box. Editing an existing box is a tap with the text tool.
   bool _consumedByText(PointerDownEvent e) {
     if (_te != null) {
       _commitText();
       if (_mode == _Mode.none) _mode = _Mode.ignored;
       return true;
-    }
-    final last = _lastTap;
-    if (last != null &&
-        _touches.isEmpty &&
-        e.timeStamp - last.t < _doubleTapGap &&
-        (e.localPosition - last.at).distance < 48) {
-      _lastTap = null;
-      final hit = _textAt(e.localPosition);
-      if (hit != null && _canEditPage(hit.$1)) {
-        // The first tap of the pair may have drawn a pen dot: take it back.
-        if (_tool == _Tool.pen && _history.undoDepth == last.depth + 1) {
-          _history.undo(_ctx());
-          _commit();
-        }
-        if (_mode == _Mode.none) _mode = _Mode.ignored;
-        _beginText(hit.$1, Offset.zero, hit.$2);
-        return true;
-      }
     }
     _tapPointer = _touches.isEmpty && _pointer == null ? e.pointer : -1;
     _tapAt = e.localPosition;
@@ -2045,9 +2001,15 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
         _mode != _Mode.gesture;
     if (e.pointer == _tapPointer) {
       _tapPointer = -1;
-      _lastTap = tapped
-          ? (t: e.timeStamp, at: e.localPosition, depth: _history.undoDepth)
-          : null;
+    }
+    // With a stylus around a finger only moves the view, but a finger tap
+    // still lets go of the selection and the paste menu.
+    if (tapped &&
+        _tool == _Tool.lasso &&
+        e.kind == PointerDeviceKind.touch &&
+        _stylusSeen &&
+        _xf == null) {
+      _clearSelection();
     }
     final tt = _textTap;
     if (tt != null && tt.pointer == e.pointer) {
@@ -2076,16 +2038,15 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _release(e.pointer);
   }
 
-  /// A text-tool tap: a new box on a blank spot (an element there: nothing).
+  /// A text-tool tap: edits the text box under it, else starts a new box there.
   void _textTapped(({int pointer, String pageId, Offset page}) tt) {
     if (!_pages.any((p) => p['id'] == tt.pageId)) return;
-    final o = tt.page - _pageOrigin(tt.pageId);
-    final els = [
-      for (final e
-          in _pages.firstWhere((p) => p['id'] == tt.pageId)['elements'] as List)
-        (e as Map).cast<String, dynamic>(),
-    ];
-    if (selectTap(els, (o.dx, o.dy), 0) == null) _beginText(tt.pageId, o);
+    final hit = _textAtDoc(tt.page);
+    if (hit != null && hit.$1 == tt.pageId) {
+      _beginText(hit.$1, Offset.zero, hit.$2);
+      return;
+    }
+    _beginText(tt.pageId, tt.page - _pageOrigin(tt.pageId));
   }
 
   void _cancel(PointerCancelEvent e) {
