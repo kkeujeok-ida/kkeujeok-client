@@ -1162,25 +1162,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
         },
         child: Scaffold(
           backgroundColor: KkjLight.colorSurfaceSunken,
-          body: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SyncBanner(
-                noteId: widget.note.noteId,
-                onCloseNote: () => Navigator.of(context).maybePop(),
-                onResolve: _openSheet,
-                emphasis: _emphasis,
-              ),
-              Expanded(
-                child: MediaQuery.removePadding(
-                  context: context,
-                  // The banner takes the status bar's place.
-                  removeTop: syncBannerShown(ref, noteId: widget.note.noteId),
-                  child: Builder(builder: _body),
-                ),
-              ),
-            ],
-          ),
+          body: Builder(builder: _body),
         ),
       ),
     );
@@ -1331,6 +1313,23 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                             ),
                           ),
                         ),
+                ),
+              ),
+            ),
+            // Over the page, under the toolbar: it stays put while the page
+            // scrolls and never pushes the toolbar or the menu down.
+            Positioned(
+              top: pad.top + gap + _toolbarHeight + gap,
+              left: 0,
+              right: 0,
+              child: MediaQuery.removePadding(
+                context: context,
+                removeTop: true,
+                child: SyncBanner(
+                  noteId: widget.note.noteId,
+                  onCloseNote: () => Navigator.of(context).maybePop(),
+                  onResolve: _openSheet,
+                  emphasis: _emphasis,
                 ),
               ),
             ),
