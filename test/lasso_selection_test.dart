@@ -292,6 +292,27 @@ void main() {
     expect(box(t), isNull);
   });
 
+  testWidgets('a finger tap off the box clears the selection once a stylus was seen', (
+    t,
+  ) async {
+    await open(t);
+    await t.tap(find.byTooltip('Lasso'));
+    await t.pump();
+    await drag(t, around); // a stylus: a finger only moves the view now
+    expect(box(t), isNotNull);
+    final off = at(t, 400, 150);
+    const kind = PointerDeviceKind.touch;
+    t.binding.handlePointerEvent(
+      PointerDownEvent(pointer: ++id, kind: kind, position: off),
+    );
+    await t.pump();
+    t.binding.handlePointerEvent(
+      PointerUpEvent(pointer: id, kind: kind, position: off),
+    );
+    await t.pump();
+    expect(box(t), isNull);
+  });
+
   test('selectionBounds: rotated box, empty stroke and invalid elements', () {
     final els = <Map<String, dynamic>>[
       {
