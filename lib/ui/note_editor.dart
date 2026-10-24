@@ -56,10 +56,8 @@ class NoteEditor extends ConsumerStatefulWidget {
   ConsumerState<NoteEditor> createState() => _NoteEditorState();
 }
 
-// Toolbar height: block padding twice plus one 48 dp hit area.
-const double _toolbarHeight =
-    2 * KkjLight.componentsToolbarPaddingBlock +
-    KkjLight.componentsPenSlotHitSize;
+// Toolbar height: the 34 dp buttons of the pen toolbar.
+const double _toolbarHeight = 34;
 
 /// Who owns the touches right now. The first input keeps them until every
 /// contact is up; a stylus/mouse is the one exception and takes over.

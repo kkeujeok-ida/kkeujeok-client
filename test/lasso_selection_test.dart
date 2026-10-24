@@ -293,6 +293,16 @@ void main() {
     expect(box(t), isNull);
   });
 
+  testWidgets('toolbar order: pen, undo, redo, then the tools (like the web)', (
+    t,
+  ) async {
+    await open(t);
+    double x(String tip) => t.getCenter(find.byTooltip(tip)).dx;
+    expect(x('Undo'), lessThan(x('Redo')));
+    expect(x('Redo'), lessThan(x('Lasso')));
+    expect(x('Lasso'), lessThan(x('Text')));
+  });
+
   testWidgets('the pen toolbar is compact: no 48 dp tap target padding', (
     t,
   ) async {
