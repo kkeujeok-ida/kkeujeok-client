@@ -6,15 +6,18 @@ import '../model/pen.dart';
 import '../render/page_painter.dart' show parseColor;
 import 'library_fab.dart' show kkjShadow;
 
-const _hit = KkjTokens.spacingHitMinAndroid;
+/// Same button size as the pen toolbar.
+const _hit = 40.0;
+// Same inset as the pen toolbar.
+const _barPad = EdgeInsets.symmetric(horizontal: 8, vertical: 2);
 const _pad = KkjLight.componentsPopoverPadding;
 
 /// Size of [SelectionMenu], so the editor can place it without measuring.
-/// Editable: [color] and [width] on top of copy, cut, delete (first row), the
-/// step buttons on a second row. Read only: copy alone.
+/// One row like the pen toolbar. Editable: [color] and [width] (strokes only),
+/// copy, cut, delete, aspect lock, the step buttons. Read only: copy alone.
 Size selectionMenuSize({required bool edit, required bool strokes}) {
-  final top = edit ? (strokes ? 5 : 3) : 1;
-  return Size(top * _hit + 2 * _pad, (edit ? 2 : 1) * _hit + 2 * _pad);
+  final n = edit ? (strokes ? 9 : 7) : 1;
+  return Size(n * _hit + _barPad.horizontal, _hit + _barPad.vertical);
 }
 
 /// Colors the menu offers: the pen palette the client has (spec default pen).
@@ -75,45 +78,33 @@ class SelectionMenu extends StatelessWidget {
     );
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: KkjLight.componentsPopoverBackground,
-        borderRadius: BorderRadius.circular(KkjLight.componentsPopoverRounded),
-        boxShadow: kkjShadow(KkjLight.componentsPopoverShadow),
+        color: KkjLight.componentsToolbarBackground,
+        borderRadius: BorderRadius.circular(KkjLight.componentsToolbarRounded),
+        boxShadow: kkjShadow(KkjLight.componentsToolbarShadow),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(_pad),
-        child: Column(
+        padding: _barPad,
+        child: Row(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (edit && strokes) ...[
-                  button(Icons.palette_outlined, l10n.strokeColor, onColor!),
-                  button(Icons.line_weight, l10n.strokeWidth, onWidth!),
-                ],
-                button(Icons.copy, l10n.copy, onCopy),
-                if (edit) ...[
-                  button(Icons.content_cut, l10n.cut, onCut!),
-                  button(Icons.delete_outline, l10n.delete, onDelete!),
-                ],
-              ],
-            ),
-            if (edit)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  button(
-                    ratioLock ? Icons.lock : Icons.lock_open,
-                    l10n.ratioLock,
-                    onRatioLock,
-                    toggled: ratioLock,
-                  ),
-                  button(Icons.zoom_in, l10n.scaleUp, onScaleUp),
-                  button(Icons.zoom_out, l10n.scaleDown, onScaleDown),
-                  button(Icons.rotate_right, l10n.rotate90, onRotate90),
-                ],
+            if (edit && strokes) ...[
+              button(Icons.palette_outlined, l10n.strokeColor, onColor!),
+              button(Icons.line_weight, l10n.strokeWidth, onWidth!),
+            ],
+            button(Icons.copy, l10n.copy, onCopy),
+            if (edit) ...[
+              button(Icons.content_cut, l10n.cut, onCut!),
+              button(Icons.delete_outline, l10n.delete, onDelete!),
+              button(
+                ratioLock ? Icons.lock : Icons.lock_open,
+                l10n.ratioLock,
+                onRatioLock,
+                toggled: ratioLock,
               ),
+              button(Icons.zoom_in, l10n.scaleUp, onScaleUp),
+              button(Icons.zoom_out, l10n.scaleDown, onScaleDown),
+              button(Icons.rotate_right, l10n.rotate90, onRotate90),
+            ],
           ],
         ),
       ),
