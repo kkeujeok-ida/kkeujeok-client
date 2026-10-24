@@ -15,8 +15,8 @@ import 'providers.dart';
 /// The floating rounded bar: grip (inert, not in the a11y tree) | one pen
 /// slot. Tapping the selected slot opens the pen edit popover.
 /// Touch size of a toolbar button: tighter than the 48 dp default so the bar is short.
-const _hit = 28.0;
-const _icon = 18.0;
+const _hit = 34.0;
+const _icon = 20.0;
 
 /// A button as small as its icon: no 48 dp tap-target padding around it.
 final _compact = IconButton.styleFrom(
@@ -105,7 +105,7 @@ class PenToolbar extends StatelessWidget {
               ),
               child: SizedBox(
                 width: 1,
-                height: 14,
+                height: 18,
                 child: ColoredBox(color: KkjLight.colorBorderHairline),
               ),
             ),
@@ -214,7 +214,7 @@ class _PenSlot extends StatelessWidget {
   // A little wider than a button: the caret sits right of the nib.
   static const _w = _hit + 6;
   static const _nibW = 12.0;
-  static const _nibH = 26.0;
+  static const _nibH = 24.0;
 
   @override
   Widget build(BuildContext context) {
@@ -237,7 +237,7 @@ class _PenSlot extends StatelessWidget {
             ),
             Positioned(
               left: (_hit - 6) / 2,
-              top: 16,
+              top: 22,
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
@@ -251,7 +251,7 @@ class _PenSlot extends StatelessWidget {
             ),
             const Positioned(
               right: 0,
-              top: 7,
+              top: 10,
               child: Icon(
                 Icons.arrow_drop_down,
                 size: 14,

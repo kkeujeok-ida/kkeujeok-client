@@ -166,12 +166,12 @@ void main() {
     (80, 62),
   ];
 
-  testWidgets('lasso button semantics, 28 dp, selected state', (t) async {
+  testWidgets('lasso button semantics, 34 dp, selected state', (t) async {
     final h = t.ensureSemantics();
     await open(t);
     final b = find.byTooltip('Lasso');
     expect(b, findsOneWidget);
-    expect(t.getSize(find.byTooltip('Lasso')).height, greaterThanOrEqualTo(28));
+    expect(t.getSize(find.byTooltip('Lasso')).height, greaterThanOrEqualTo(34));
     await t.tap(find.byTooltip('Lasso'));
     await t.pump();
     expect(
@@ -298,7 +298,7 @@ void main() {
   ) async {
     await open(t);
     final h = t.getSize(find.byType(PenToolbar)).height;
-    expect(h, lessThanOrEqualTo(32));
+    expect(h, lessThanOrEqualTo(38));
   });
 
   testWidgets('a finger tap off the box clears the selection once a stylus was seen', (
