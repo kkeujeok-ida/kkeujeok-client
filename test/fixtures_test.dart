@@ -433,7 +433,19 @@ void _runOp(Case c) {
 // needs a valid fixture file and must not have a runner yet: when its story
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6.
-const pendingRules = <String>{};
+// Image rules (Story 4.11) arrive with Story 4.12.
+const pendingRules = <String>{
+  'drive.assetsFolder',
+  'image.accept',
+  'image.assetState',
+  'image.initialSize',
+  'image.referencedAssets',
+  'image.unknownFields',
+  'image.uploadPlan',
+  'ops.image',
+  'ops.insertImage',
+  'select.image',
+};
 
 final _sep = Platform.pathSeparator;
 
