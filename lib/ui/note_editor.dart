@@ -11,10 +11,12 @@ import '../l10n/app_localizations.dart';
 import '../model/ids.dart';
 import '../model/note.dart';
 import '../model/pen.dart';
+import '../model/select.dart';
 import '../ops/history.dart';
 import '../ops/ops.dart';
 import '../ops/resolve_conflict.dart';
 import '../render/page_painter.dart';
+import '../render/selection_painter.dart';
 import '../render/zoom_snap.dart';
 import '../sync/merge_step.dart';
 import '../sync/version_history.dart' show RestoreFailure;
@@ -61,6 +63,8 @@ bool _stylusSeen = false;
 
 @visibleForTesting
 void resetStylusSeen() => _stylusSeen = false;
+
+enum _Tool { pen, lasso }
 
 /// What the view does when the screen size changes.
 enum _Fit { width, page, free }
@@ -134,6 +138,77 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   final _slotFocus = FocusNode();
   final _canvasFocus = FocusNode();
   bool _sheetOpen = false;
+
+  _Tool _tool = _Tool.pen;
+  // The selection is UI state only: no op, no save. One page (Epic 4).
+  String? _selPage;
+  Set<String> _selected = {};
+  // The lasso in progress (document coordinates) and whether the pointer has
+  // left the tap slop since it went down.
+  bool _lassoing = false;
+  final _lassoPts = <Offset>[];
+  Offset _lassoDown = Offset.zero;
+  bool _lassoMoved = false;
+
+  void _setTool(_Tool t) {
+    if (t == _tool || _pointer != null) return;
+    setState(() => _tool = t);
+    _select(null, {});
+  }
+
+  void _select(String? pageId, Set<String> ids) {
+    final same = ids.length == _selected.length && _selected.containsAll(ids);
+    setState(() {
+      _selPage = ids.isEmpty ? null : pageId;
+      _selected = ids;
+    });
+    if (!same && ids.isNotEmpty && mounted) {
+      _announce(AppLocalizations.of(context).selectedCount(ids.length));
+    }
+  }
+
+  /// Document-space box of the selection. Ids that are gone (undo, a merge,
+  /// a removed page) are pruned here; an empty selection is cleared.
+  Rect? _selectionBox() {
+    if (_selected.isEmpty) return null;
+    final i = _pages.indexWhere((p) => p['id'] == _selPage);
+    final els = i < 0
+        ? <Map<String, dynamic>>[]
+        : [
+            for (final e in _pages[i]['elements'] as List)
+              if (_selected.contains((e as Map)['id']))
+                e.cast<String, dynamic>(),
+          ];
+    if (els.length != _selected.length) {
+      _selected = {for (final e in els) e['id'] as String};
+      if (_selected.isEmpty) _selPage = null;
+    }
+    return selectionBounds(els)?.shift(_geometry().rects[i].topLeft);
+  }
+
+  void _clearSelection() {
+    if (_selected.isNotEmpty) _select(null, {});
+  }
+
+  /// A finger on the selection box or its handles is a selection gesture,
+  /// not a scroll (what it does is Story 4.4's).
+  bool _onSelection(Offset local) {
+    // Not on a page that takes no writes: a stale box must not block panning.
+    if (_readOnly || _receiving || _history.isLocked(_selPage)) return false;
+    final b = _selectionBox(), vp = _vp;
+    if (b == null || vp == null) return false;
+    final r = Rect.fromPoints(
+      vp.offset + b.topLeft * vp.scale,
+      vp.offset + b.bottomRight * vp.scale,
+    );
+    const slop = KkjTokens.spacingHitMinAndroid / 2;
+    return Rect.fromLTRB(
+      r.left - slop,
+      r.top - selectionRotateGap - slop,
+      r.right + slop,
+      r.bottom + slop,
+    ).contains(local);
+  }
 
   Pen get _pen => ref.read(penSlotsProvider).first;
 
@@ -892,10 +967,15 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
         _firstDown = e.timeStamp;
         final p = _vp!.toPage(e.localPosition);
         final at = _pageAt(p);
+        if (_stylusSeen && _onSelection(e.localPosition)) {
+          _mode = _Mode.ignored;
+          return;
+        }
         if (!_stylusSeen && at >= 0) {
           _mode = _Mode.touchStroke;
           _begin(e, p, at);
         } else {
+          if (!_stylusSeen && _tool == _Tool.lasso) _clearSelection();
           _mode = _Mode
               .touchIdle; // pen mode or off page: a finger only moves the view
         }
@@ -926,7 +1006,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _mode = _Mode.none;
     final p = _vp!.toPage(e.localPosition);
     final at = _pageAt(p);
-    if (at < 0) return;
+    if (at < 0) {
+      if (_tool == _Tool.lasso) _clearSelection(); // a tap in the margin
+      return;
+    }
     _mode = _Mode.pen;
     _begin(e, p, at);
   }
@@ -949,6 +1032,16 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _pointer = e.pointer;
     _strokePageId = target['id'] as String;
     _origin = _geometry().rects[index].topLeft;
+    if (_tool == _Tool.lasso) {
+      _lassoing = true;
+      _lassoMoved = false;
+      _lassoDown = e.localPosition;
+      _lassoPts
+        ..clear()
+        ..add(doc);
+      _tick.value++;
+      return;
+    }
     _t0 = e.timeStamp;
     _points
       ..clear()
@@ -961,6 +1054,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     if (_pointer == null) return;
     _pointer = null;
     _points.clear();
+    _lassoing = false;
+    _lassoPts.clear();
     _tick.value++;
     _strokeEnded(null);
   }
@@ -1020,6 +1115,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       }
     }
     if (e.pointer != _pointer) return;
+    if (_lassoing) {
+      _lassoPts.add(_vp!.toPage(e.localPosition));
+      if ((e.localPosition - _lassoDown).distance > 8) _lassoMoved = true;
+      _tick.value++;
+      return;
+    }
     // Not clipped here: points outside the page are kept.
     _points.add(_point(e, _vp!.toPage(e.localPosition) - _origin));
     _tick.value++;
@@ -1028,6 +1129,14 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   void _up(PointerUpEvent e) {
     final vp = _vp;
     if (!_leaving && vp != null && e.pointer == _pointer) {
+      if (_lassoing) {
+        _lassoPts.add(vp.toPage(e.localPosition));
+        // A flick can move only between the last move and the up.
+        if ((e.localPosition - _lassoDown).distance > 8) _lassoMoved = true;
+        _finish();
+        _release(e.pointer);
+        return;
+      }
       final p = vp.toPage(e.localPosition) - _origin;
       final last = _points.last;
       if (last[0] != p.dx || last[1] != p.dy) _points.add(_point(e, p));
@@ -1037,7 +1146,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   }
 
   void _cancel(PointerCancelEvent e) {
-    if (e.pointer == _pointer) _finish();
+    if (e.pointer == _pointer) _lassoing ? _discardStroke() : _finish();
     _release(e.pointer);
   }
 
@@ -1060,6 +1169,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _discardStroke();
       return;
     }
+    if (_lassoing) {
+      _finishLasso(pageId);
+      return;
+    }
     final stroke = _stroke(List.of(_points));
     _pointer = null;
     _points.clear();
@@ -1077,6 +1190,32 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     } else {
       _snack(AppLocalizations.of(context).strokeNotAdded);
     }
+  }
+
+  void _finishLasso(String pageId) {
+    final els = [
+      for (final e
+          in _pages.firstWhere((p) => p['id'] == pageId)['elements'] as List)
+        (e as Map).cast<String, dynamic>(),
+    ];
+    final List<String> ids;
+    if (_lassoMoved) {
+      ids = selectLasso(els, [
+        for (final p in _lassoPts) (p.dx - _origin.dx, p.dy - _origin.dy),
+      ]);
+    } else {
+      final p = _lassoPts.first - _origin;
+      final hit = selectTap(els, (p.dx, p.dy), 6);
+      ids = hit == null ? [] : [hit];
+    }
+    _pointer = null;
+    _lassoing = false;
+    _lassoPts.clear();
+    if (_mode == _Mode.pen || _mode == _Mode.touchStroke) _mode = _Mode.none;
+    _select(pageId, ids.toSet());
+    _tick.value++;
+    // Only releases a merge waiting for the pointer; nothing is saved here.
+    _strokeEnded(pageId);
   }
 
   void _snack(String text) {
@@ -1247,7 +1386,18 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                         focusNode: _canvasFocus,
                         child: Stack(
                           fit: StackFit.expand,
-                          children: _pageViews(l10n),
+                          children: [
+                            ..._pageViews(l10n),
+                            CustomPaint(
+                              size: Size.infinite,
+                              painter: SelectionPainter(
+                                viewport: _vp!,
+                                box: _selectionBox(),
+                                lasso: () => _lassoing ? _lassoPts : const [],
+                                repaint: _tick,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
               ),
@@ -1372,7 +1522,11 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                       ),
                       PenToolbar(
                         pen: ref.watch(penSlotsProvider).first,
-                        onPenTap: _editPen,
+                        onPenTap: _tool == _Tool.lasso
+                            ? () => _setTool(_Tool.pen)
+                            : _editPen,
+                        lassoSelected: _tool == _Tool.lasso,
+                        onLasso: () => _setTool(_Tool.lasso),
                         slotFocus: _slotFocus,
                         canUndo: !readOnly && !locked && _history.undoDepth > 0,
                         canRedo: !readOnly && !locked && _history.redoDepth > 0,

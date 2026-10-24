@@ -260,5 +260,14 @@
   "versionRestoreUnreadable": "이 버전을 읽을 수 없어요.",
   "noteDelete": "삭제",
   "noteDeleteBody": "노트를 지울까요? Drive 휴지통으로 옮겨져요. 복원은 Drive에서 할 수 있어요.",
-  "noteDeleteConfirm": "지우기"
+  "noteDeleteConfirm": "지우기",
+  "lassoTool": "올가미",
+  "selectedCount": "요소 {count}개 선택됨",
+  "@selectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

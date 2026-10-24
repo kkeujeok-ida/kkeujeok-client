@@ -297,5 +297,14 @@
   "versionRestoreUnreadable": "This version cannot be read.",
   "noteDelete": "Delete",
   "noteDeleteBody": "Delete this note? It moves to the Drive trash. You can restore it from Drive.",
-  "noteDeleteConfirm": "Delete"
+  "noteDeleteConfirm": "Delete",
+  "lassoTool": "Lasso",
+  "selectedCount": "{count, plural, =1{1 element selected} other{{count} elements selected}}",
+  "@selectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

@@ -10,6 +10,7 @@ import 'package:kkeujeok/model/kkj_codec.dart';
 import 'package:kkeujeok/model/note.dart';
 import 'package:kkeujeok/model/note_title.dart';
 import 'package:kkeujeok/model/number.dart';
+import 'package:kkeujeok/model/select.dart';
 import 'package:kkeujeok/ops/history.dart';
 import 'package:kkeujeok/ops/ops.dart';
 import 'package:kkeujeok/ops/resolve_conflict.dart';
@@ -44,6 +45,15 @@ Map<String, dynamic> _opOutput(OpResult r) => r.error != null
 
 void _same(Object? actual, Object? expected) =>
     expect(actual, equals(expected)); // == on numbers: 1 equals 1.0
+
+List<Map<String, dynamic>> _els(Map<String, dynamic> i) => [
+  for (final e in i['elements'] as List) e as Map<String, dynamic>,
+];
+
+List<(double, double)> _poly(Object? v) => [
+  for (final p in v as List)
+    ((p[0] as num).toDouble(), (p[1] as num).toDouble()),
+];
 
 // Rule id -> how to judge one case. A new spec rule adds one line here.
 final runners = <String, void Function(Case)>{
@@ -276,6 +286,30 @@ final runners = <String, void Function(Case)>{
       'errors': errors,
     }, c['expected']);
   },
+  'select.lasso': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    _same(selectLasso(_els(i), _poly(i['polygon'])), c['expected']);
+  },
+  'select.tap': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final p = i['point'] as List;
+    _same(
+      selectTap(_els(i), (
+        (p[0] as num).toDouble(),
+        (p[1] as num).toDouble(),
+      ), (i['tolerance'] as num?)?.toDouble() ?? 6),
+      c['expected'],
+    );
+  },
+  'select.rect': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    _same(
+      selectRect(_els(i), [
+        for (final v in i['rect'] as List) (v as num).toDouble(),
+      ]),
+      c['expected'],
+    );
+  },
 };
 
 Json _json(Object? v) => v as Json;
@@ -324,11 +358,8 @@ void _runOp(Case c) {
 // Rules whose fixture exists but whose client code is a later story's. Each
 // needs a valid fixture file and must not have a runner yet: when its story
 // adds the runner, the entry has to go (a stale entry fails the run).
-// Selection and edit rules (Story 4.1) arrive with the Android stories 4.2, 4.4, 4.6.
+// The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6.
 const pendingRules = <String>{
-  'select.lasso',
-  'select.tap',
-  'select.rect',
   'ops.move',
   'ops.scale',
   'ops.rotate',

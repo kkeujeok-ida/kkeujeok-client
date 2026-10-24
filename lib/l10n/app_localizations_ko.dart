@@ -630,4 +630,12 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get noteDeleteConfirm => '지우기';
+
+  @override
+  String get lassoTool => '올가미';
+
+  @override
+  String selectedCount(int count) {
+    return '요소 $count개 선택됨';
+  }
 }

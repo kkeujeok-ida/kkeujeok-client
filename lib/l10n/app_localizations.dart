@@ -1231,6 +1231,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delete'**
   String get noteDeleteConfirm;
+
+  /// No description provided for @lassoTool.
+  ///
+  /// In en, this message translates to:
+  /// **'Lasso'**
+  String get lassoTool;
+
+  /// No description provided for @selectedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 element selected} other{{count} elements selected}}'**
+  String selectedCount(int count);
 }
 
 class _AppLocalizationsDelegate

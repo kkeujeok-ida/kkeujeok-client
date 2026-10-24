@@ -24,6 +24,8 @@ class PenToolbar extends StatelessWidget {
     this.onRedo,
     this.onPenTap,
     this.slotFocus,
+    this.lassoSelected = false,
+    this.onLasso,
   });
 
   final Pen pen;
@@ -33,6 +35,8 @@ class PenToolbar extends StatelessWidget {
   final VoidCallback? onRedo;
   final VoidCallback? onPenTap;
   final FocusNode? slotFocus;
+  final bool lassoSelected;
+  final VoidCallback? onLasso;
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +63,7 @@ class PenToolbar extends StatelessWidget {
             Semantics(
               label: l10n.penSlotLabel(color, pen.width.toStringAsFixed(1)),
               button: true,
-              selected: true,
+              selected: !lassoSelected,
               onTap: onPenTap,
               excludeSemantics: true,
               child: InkResponse(
@@ -82,6 +86,21 @@ class PenToolbar extends StatelessWidget {
                 height: 24,
                 child: ColoredBox(color: KkjLight.colorBorderHairline),
               ),
+            ),
+            IconButton(
+              tooltip: l10n.lassoTool,
+              isSelected: lassoSelected,
+              constraints: const BoxConstraints(
+                minWidth: KkjTokens.spacingHitMinAndroid,
+                minHeight: KkjTokens.spacingHitMinAndroid,
+              ),
+              style: IconButton.styleFrom(
+                backgroundColor: lassoSelected
+                    ? KkjLight.colorAccentSoft
+                    : null,
+              ),
+              icon: const Icon(Icons.highlight_alt),
+              onPressed: onLasso,
             ),
             _HistoryButton(
               icon: Icons.undo,

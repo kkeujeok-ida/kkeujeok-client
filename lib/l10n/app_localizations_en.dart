@@ -684,4 +684,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noteDeleteConfirm => 'Delete';
+
+  @override
+  String get lassoTool => 'Lasso';
+
+  @override
+  String selectedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count elements selected',
+      one: '1 element selected',
+    );
+    return '$_temp0';
+  }
 }
