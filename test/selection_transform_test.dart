@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:io';
 
 import 'package:flutter/gestures.dart';
@@ -174,6 +175,22 @@ void main() {
     expect(box(t), const Rect.fromLTRB(100, 100, 200, 160));
   }
 
+  // The angle (radians) the selection box is turned by.
+  double angle(WidgetTester t) {
+    final paints = find
+        .descendant(
+          of: find.byType(NoteEditor),
+          matching: find.byWidgetPredicate(
+            (w) => w is CustomPaint && w.painter is SelectionPainter,
+          ),
+        )
+        .evaluate();
+    return ((paints.first.widget as CustomPaint).painter as SelectionPainter)
+            .angle
+            ?.call() ??
+        0;
+  }
+
   void expectBox(WidgetTester t, Rect r) {
     final b = box(t)!;
     expect(
@@ -231,9 +248,12 @@ void main() {
     await select(t);
     final y = 100 - selectionRotateGap / vp(t).scale;
     await drag(t, [(150, y), (200, 100), (250, 130)]);
-    expectBox(t, const Rect.fromLTRB(120, 80, 180, 180));
+    // The box is turned with the selection: same box, turned a quarter.
+    expectBox(t, const Rect.fromLTRB(100, 100, 200, 160));
+    expect(angle(t), closeTo(math.pi / 2, 0.01));
     await undo(t);
     expectBox(t, const Rect.fromLTRB(100, 100, 200, 160));
+    expect(angle(t), closeTo(0, 0.01));
   });
 
   testWidgets('menu steps: bigger, smaller, rotate 90', (t) async {
@@ -248,7 +268,51 @@ void main() {
     await undo(t);
     await t.tap(find.byTooltip('Rotate 90°'));
     await t.pump();
-    expectBox(t, const Rect.fromLTRB(120, 80, 180, 180));
+    expectBox(t, const Rect.fromLTRB(100, 100, 200, 160));
+    expect(angle(t), closeTo(math.pi / 2, 0.01));
+  });
+
+  testWidgets('two fingers on the selection scale and turn it: one undo step', (
+    t,
+  ) async {
+    await select(t);
+    final h = ProviderScope.containerOf(
+      t.element(find.byType(NoteEditor)),
+    ).read(noteHistoriesProvider)[_id(1)]!;
+    final depth = h.undoDepth;
+    const kind = PointerDeviceKind.touch;
+    final a = ++id, b = ++id;
+    Future<void> ev(PointerEvent e) async {
+      t.binding.handlePointerEvent(e);
+      await t.pump();
+    }
+
+    await ev(PointerDownEvent(pointer: a, kind: kind, position: at(t, 150, 130)));
+    await ev(PointerDownEvent(pointer: b, kind: kind, position: at(t, 250, 130)));
+    // Twice as far apart and a quarter turn: the second finger goes below.
+    await ev(PointerMoveEvent(pointer: b, kind: kind, position: at(t, 150, 330)));
+    await ev(PointerUpEvent(pointer: b, kind: kind, position: at(t, 150, 330)));
+    await ev(PointerUpEvent(pointer: a, kind: kind, position: at(t, 150, 130)));
+    expect(h.undoDepth, depth + 1);
+    expect(angle(t), closeTo(math.pi / 2, 0.02));
+    expectBox(t, const Rect.fromLTRB(50, 70, 250, 190));
+    await undo(t);
+    expect(h.undoDepth, depth);
+    expectBox(t, const Rect.fromLTRB(100, 100, 200, 160));
+    expect(angle(t), closeTo(0, 0.01));
+  });
+
+  testWidgets('a corner of a turned box still scales it', (t) async {
+    await select(t);
+    final y = 100 - selectionRotateGap / vp(t).scale;
+    await drag(t, [(150, y), (200, 100), (250, 130)]); // a quarter turn
+    expect(angle(t), closeTo(math.pi / 2, 0.01));
+    // The turned frame's corners are 2x the box about the center (150, 130);
+    // its top-left corner now sits at the page point (180, 80).
+    await drag(t, [(180, 80), (210, 50)]);
+    final r = box(t)!;
+    expect(r.width, greaterThan(100));
+    expect(angle(t), closeTo(math.pi / 2, 0.01));
   });
 
   testWidgets('no edit menu on a locked page', (t) async {

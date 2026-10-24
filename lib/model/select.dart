@@ -1,5 +1,5 @@
 import 'dart:math' as math;
-import 'dart:ui' show Rect;
+import 'dart:ui' show Offset, Rect, Size;
 
 import 'text_layout.dart';
 
@@ -215,4 +215,31 @@ Rect? selectionBounds(Iterable<El> elements) {
     out = out == null ? box : out.expandToInclude(box);
   }
   return out;
+}
+
+/// The box of [elements] in a frame turned by [angle] (radians, clockwise):
+/// its [center] in document coordinates and its [size] along the frame's axes.
+/// With angle 0 it is [selectionBounds]. Null when no element has a box.
+({Offset center, Size size})? selectionFrame(
+  Iterable<El> elements,
+  double angle,
+) {
+  final c = math.cos(angle), s = math.sin(angle);
+  double? l, t, r, b;
+  for (final e in _withHeights(elements).where(_usable)) {
+    final pts = _isStroke(e) ? _points(e) : boxCorners(e);
+    for (final (x, y) in pts) {
+      final u = x * c + y * s, v = -x * s + y * c;
+      l = l == null ? u : math.min(l, u);
+      r = r == null ? u : math.max(r, u);
+      t = t == null ? v : math.min(t, v);
+      b = b == null ? v : math.max(b, v);
+    }
+  }
+  if (l == null || r == null || t == null || b == null) return null;
+  final cu = (l + r) / 2, cv = (t + b) / 2;
+  return (
+    center: Offset(cu * c - cv * s, cu * s + cv * c),
+    size: Size(r - l, b - t),
+  );
 }

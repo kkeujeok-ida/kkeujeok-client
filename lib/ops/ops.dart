@@ -89,6 +89,7 @@ OpResult applyOp(Note note, Map<String, dynamic> op, Ctx ctx) =>
     switch (op['op']) {
       'addStroke' => addStroke(note, op, ctx),
       'removeStroke' => removeStroke(note, op, ctx),
+      'group' => _groupOp(note, op, ctx),
       'move' => _transformOp(note, op, ctx),
       'scale' => _transformOp(note, op, ctx),
       'rotate' => _transformOp(note, op, ctx),
@@ -104,6 +105,24 @@ OpResult applyOp(Note note, Map<String, dynamic> op, Ctx ctx) =>
       'setTextBoxWidth' => _editText(note, op, ctx),
       _ => const OpResult.error('unknownOp'),
     };
+
+/// Several ops as one: one history entry, so one undo step (a two-finger
+/// scale and turn). Nothing is applied when one of them fails.
+OpResult _groupOp(Note note, Map<String, dynamic> op, Ctx ctx) {
+  var cur = note;
+  final inverses = <Map<String, dynamic>>[];
+  for (final o in op['ops'] as List) {
+    final r = applyOp(cur, (o as Map).cast<String, dynamic>(), ctx);
+    if (r.error != null) return OpResult.error(r.error!);
+    cur = r.note!;
+    if (r.inverse != null) inverses.insert(0, r.inverse!);
+  }
+  return OpResult.ok(cur, {
+    'op': 'group',
+    'pageId': op['pageId'],
+    'ops': inverses,
+  });
+}
 
 OpResult addStroke(Note note, Map<String, dynamic> op, Ctx ctx) {
   final json = note.copyJson();

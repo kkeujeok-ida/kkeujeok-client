@@ -78,10 +78,13 @@ enum _XKind { move, scale, rotate, width }
 // A selection drag: [box] is the selection's document box, [down] where it
 // began (document coordinates), [last] the latest pointer position (screen).
 class _Xf {
-  _Xf(this.kind, this.corner, this.box, this.down, this.last);
+  _Xf(this.kind, this.corner, this.box, this.down, this.last, [this.angle = 0]);
   final _XKind kind;
   final int corner; // scale: 0 top-left, clockwise
+  // The selection frame (document coordinates, centered where the frame is)
+  // and the angle in radians the frame is turned by.
   final Rect box;
+  final double angle;
   final Offset down;
   Offset last;
 }
@@ -706,6 +709,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   void _select(String? pageId, Set<String> ids) {
     _blank = null;
     final same = ids.length == _selected.length && _selected.containsAll(ids);
+    if (!same) _selTurn = 0;
     setState(() {
       _selPage = ids.isEmpty ? null : pageId;
       _selected = ids;
@@ -732,6 +736,44 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       if (_selected.isEmpty) _selPage = null;
     }
     return selectionBounds(els)?.shift(_geometry().rects[i].topLeft);
+  }
+
+  // How far the selection was turned since it was picked (radians): the angle
+  // of the frame of strokes and groups. A single box element uses its own.
+  double _selTurn = 0;
+
+  Offset _rot(Offset v, double a) => Offset(
+    v.dx * math.cos(a) - v.dy * math.sin(a),
+    v.dx * math.sin(a) + v.dy * math.cos(a),
+  );
+
+  double _selAngle() {
+    final els = _selEls();
+    if (els.length == 1 &&
+        els.first['type'] != 'stroke' &&
+        els.first['rotation'] is num) {
+      return (els.first['rotation'] as num).toDouble() * math.pi / 180;
+    }
+    return _selTurn;
+  }
+
+  /// The selection box turned with the selection: a rect centered where the
+  /// selection is (document coordinates) and the angle it is turned by.
+  ({Rect rect, double angle})? _selFrame() {
+    if (_selectionBox() == null) return null; // also prunes the selection
+    final i = _pages.indexWhere((p) => p['id'] == _selPage);
+    final a = _selAngle();
+    final f = selectionFrame(_selEls(), a);
+    if (f == null || i < 0) return null;
+    final c = f.center + _geometry().rects[i].topLeft;
+    return (
+      rect: Rect.fromCenter(
+        center: c,
+        width: f.size.width,
+        height: f.size.height,
+      ),
+      angle: a,
+    );
   }
 
   void _clearSelection() {
@@ -852,23 +894,27 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   /// handle. Screen-space hits: handles are 48 dp wide, the box itself moves.
   bool _beginXform(PointerDownEvent e) {
     if (_tool != _Tool.lasso || _pointer != null || !_canEditSel) return false;
-    final b = _selectionBox(), vp = _vp;
-    if (b == null || vp == null) return false;
-    final r = Rect.fromPoints(
-      vp.offset + b.topLeft * vp.scale,
-      vp.offset + b.bottomRight * vp.scale,
+    final fr = _selFrame(), vp = _vp;
+    if (fr == null || vp == null) return false;
+    final r = Rect.fromCenter(
+      center: vp.offset + fr.rect.center * vp.scale,
+      width: fr.rect.width * vp.scale,
+      height: fr.rect.height * vp.scale,
     );
     const reach = KkjTokens.spacingHitMinAndroid / 2;
     final at = e.localPosition;
+    // The tests of the corners, the rotate handle and the inside are made in
+    // the frame of the selection, so a turned box is hit where it is drawn.
+    final atL = _rot(at - r.center, -fr.angle) + r.center;
     final corners = [r.topLeft, r.topRight, r.bottomRight, r.bottomLeft];
-    final corner = corners.indexWhere((c) => (at - c).distance <= reach);
-    final inside = r.inflate(reach / 2).contains(at); // flat strokes too
+    final corner = corners.indexWhere((c) => (atL - c).distance <= reach);
+    final inside = r.inflate(reach / 2).contains(atL); // flat strokes too
     // A box smaller than the handles moves first; handles only outside it.
     final small = r.width < reach * 2 || r.height < reach * 2;
     // The side handles of a single text box change its width.
     final ts = _textSel();
     // A corner at least as near as a side handle wins (short boxes).
-    final nearCorner = corners.map((c) => (at - c).distance).reduce(math.min);
+    final nearCorner = corners.map((c) => (atL - c).distance).reduce(math.min);
     final dl = ts == null
         ? double.infinity
         : (at - (vp.offset + ts.l * vp.scale)).distance;
@@ -883,7 +929,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     if (wk >= 0) {
       kind = _XKind.width;
       xc = wk;
-    } else if ((at - Offset(r.center.dx, r.top - selectionRotateGap))
+    } else if ((atL - Offset(r.center.dx, r.top - selectionRotateGap))
             .distance <=
         reach) {
       kind = _XKind.rotate;
@@ -897,7 +943,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _pointer = e.pointer;
     _strokePageId = _selPage;
     _origin = _pageOrigin(_selPage);
-    _xf = _Xf(kind, xc, b, vp.toPage(at), at);
+    _xf = _Xf(kind, xc, fr.rect, vp.toPage(at), at, fr.angle);
     _tick.value++;
     return true;
   }
@@ -931,7 +977,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _Xf x,
     Offset local,
   ) {
-    final p = _vp!.toPage(local), b = x.box;
+    final p = _vp!.toPage(local), b = x.box, ang = x.angle;
     switch (x.kind) {
       case _XKind.move:
         final d = p - x.down;
@@ -939,9 +985,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
         return (
           op: {'op': 'move', 'dx': d.dx, 'dy': d.dy},
           box: b.shift(d),
-          angle: 0.0,
+          angle: ang,
         );
       case _XKind.scale:
+        if (ang != 0) return _turnedScale(x, p);
         final cs = [b.topLeft, b.topRight, b.bottomRight, b.bottomLeft];
         final c = cs[x.corner], anchor = cs[(x.corner + 2) % 4];
         final v0 = c - anchor;
@@ -997,8 +1044,52 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
         a = math.atan2(math.sin(a), math.cos(a)); // into (-pi, pi]
         final deg = a * 180 / math.pi;
         if (deg.abs() < 0.01) return null;
-        return (op: {'op': 'rotate', 'angle': deg}, box: b, angle: a);
+        // The op turns the elements about the center of their plain bounds.
+        final pivot = _selectionBox()?.center ?? o;
+        return (
+          op: {'op': 'rotate', 'angle': deg},
+          box: Rect.fromCenter(
+            center: pivot + _rot(o - pivot, a),
+            width: b.width,
+            height: b.height,
+          ),
+          angle: ang + a,
+        );
     }
+  }
+
+  /// A corner drag on a turned selection: the box keeps its shape (the op
+  /// scales both axes alike), the opposite corner stays.
+  ({Map<String, dynamic> op, Rect box, double angle})? _turnedScale(
+    _Xf x,
+    Offset p,
+  ) {
+    final b = x.box, a = x.angle, cen = b.center;
+    Offset toL(Offset q) => _rot(q - cen, -a) + cen;
+    final cs = [b.topLeft, b.topRight, b.bottomRight, b.bottomLeft];
+    final c = cs[x.corner], anchorL = cs[(x.corner + 2) % 4];
+    final v0 = c - anchorL;
+    final v = toL(p) - toL(x.down) + v0;
+    final l2 = v0.dx * v0.dx + v0.dy * v0.dy;
+    if (l2 == 0) return null;
+    final sc = math.max(_minScale, (v.dx * v0.dx + v.dy * v0.dy) / l2);
+    if ((sc - 1).abs() < 0.001) return null;
+    final anchor = _rot(anchorL - cen, a) + cen;
+    final ao = anchor - _origin;
+    return (
+      op: {
+        'op': 'scale',
+        'sx': sc,
+        'sy': sc,
+        'anchor': [ao.dx, ao.dy],
+      },
+      box: Rect.fromCenter(
+        center: anchor + (cen - anchor) * sc,
+        width: b.width * sc,
+        height: b.height * sc,
+      ),
+      angle: a,
+    );
   }
 
   /// Ends the drag: one op, one undo step; nothing for a zero change.
@@ -1009,7 +1100,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _xf = null;
     _pointer = null;
     if (_mode == _Mode.pen || _mode == _Mode.ignored) _mode = _Mode.none;
-    if (r != null && pageId != null) _doSel({...r.op, 'ids': ids}, pageId);
+    if (r != null && pageId != null) {
+      if (r.op['op'] == 'rotate') {
+        _selTurn += (r.op['angle'] as num).toDouble() * math.pi / 180;
+      }
+      _doSel({...r.op, 'ids': ids}, pageId);
+    }
     setState(() {});
     _tick.value++;
     _strokeEnded(pageId);
@@ -1036,6 +1132,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     final b = _selectionBox(), page = _selPage;
     if (b == null || page == null || _xf != null || _pointer != null) return;
     final o = b.center - _pageOrigin(page);
+    if (kind == _XKind.rotate) _selTurn += math.pi / 2;
     _doSel({
       'ids': _selected.toList(),
       ...kind == _XKind.rotate
@@ -1137,6 +1234,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     }
     final depth = undo ? _history.undoDepth : _history.redoDepth;
     if (depth == 0) return;
+    _selTurn = 0; // the frame of a turned group is forgotten
     final err = undo ? _history.undo(_ctx()) : _history.redo(_ctx());
     if (err != null) {
       _snack(AppLocalizations.of(context).historyNotApplied);
@@ -1891,6 +1989,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
           _discardStroke();
           _startGesture(_firstId, e.pointer);
         } // later fingers are ignored; the stroke goes on
+      case _Mode.ignored
+          when _xf?.kind == _XKind.move &&
+              _touches.length == 2 &&
+              _tool == _Tool.lasso &&
+              _canEditSel:
+        _startSelPinch(e.pointer);
       case _Mode.gesture || _Mode.ignored || _Mode.pen:
         break;
     }
@@ -1983,6 +2087,98 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _strokeEnded(null);
   }
 
+  // Two fingers on the selection scale and turn it: [_spA] is the first
+  // finger (-1: not going on), [_spS] the factor and [_spTurn] the angle so
+  // far, [_spO] the center of the plain bounds both are made about.
+  int _spA = -1, _spB = -1;
+  double _spD0 = 1, _spAng0 = 0, _spS = 1, _spTurn = 0;
+  Offset _spO = Offset.zero;
+
+  /// The second finger lands while the first drags the selection: the drag
+  /// becomes a scale and turn by the two fingers.
+  void _startSelPinch(int second) {
+    final first = _pointer;
+    final pa = first == null ? null : _touches[first];
+    final pb = _touches[second];
+    final box = _selectionBox();
+    if (first == null || pa == null || pb == null || box == null) return;
+    _discardStroke(); // the move preview goes, nothing was applied
+    _mode = _Mode.gesture;
+    _gA = first;
+    _gB = second;
+    _spA = first;
+    _spB = second;
+    _spD0 = math.max(1.0, (pa - pb).distance);
+    _spAng0 = math.atan2(pb.dy - pa.dy, pb.dx - pa.dx);
+    _spS = 1;
+    _spTurn = 0;
+    _spO = box.center;
+    _strokePageId = _selPage;
+    _origin = _pageOrigin(_selPage);
+    _tick.value++;
+  }
+
+  void _selPinchMove() {
+    final pa = _touches[_spA], pb = _touches[_spB];
+    if (pa == null || pb == null) return;
+    _spS = ((pa - pb).distance / _spD0).clamp(_minScale, 20.0);
+    final t = math.atan2(pb.dy - pa.dy, pb.dx - pa.dx) - _spAng0;
+    _spTurn = math.atan2(math.sin(t), math.cos(t));
+    _tick.value++;
+  }
+
+  /// The box the fingers would leave, for the painter.
+  (Rect, double)? _selPinchPreview() {
+    if (_spA < 0) return null;
+    final f = _selFrame();
+    if (f == null) return null;
+    final c = _spO + _rot((f.rect.center - _spO) * _spS, _spTurn);
+    return (
+      Rect.fromCenter(
+        center: c,
+        width: f.rect.width * _spS,
+        height: f.rect.height * _spS,
+      ),
+      f.angle + _spTurn,
+    );
+  }
+
+  /// Both fingers up: one undo step for the scale and the turn together.
+  void _commitSelPinch() {
+    if (_spA < 0) return;
+    final page = _selPage;
+    final ids = _selected.toList();
+    final s = _spS, turn = _spTurn;
+    _spA = -1;
+    _spB = -1;
+    _pointer = null;
+    final ops = <Map<String, dynamic>>[
+      if ((s - 1).abs() > 0.005)
+        {
+          'op': 'scale',
+          'sx': s,
+          'sy': s,
+          'anchor': [(_spO - _origin).dx, (_spO - _origin).dy],
+          'ids': ids,
+          'pageId': page,
+        },
+      if (turn.abs() > 0.002)
+        {
+          'op': 'rotate',
+          'angle': turn * 180 / math.pi,
+          'ids': ids,
+          'pageId': page,
+        },
+    ];
+    if (page != null && ops.isNotEmpty) {
+      _selTurn += turn;
+      _doSel(ops.length == 1 ? ops.first : {'op': 'group', 'ops': ops}, page);
+    }
+    setState(() {});
+    _tick.value++;
+    _strokeEnded(page);
+  }
+
   void _startGesture(int a, int b) {
     _snap();
     _fit = _Fit.free;
@@ -1997,6 +2193,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   }
 
   void _pinch() {
+    if (_spA >= 0) {
+      _selPinchMove();
+      return;
+    }
     final pa = _touches[_gA], pb = _touches[_gB];
     if (pa == null || pb == null) return;
     final focal = (pa + pb) / 2;
@@ -2119,6 +2319,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   void _cancel(PointerCancelEvent e) {
     if (e.pointer == _tapPointer) _tapPointer = -1;
     if (_textTap?.pointer == e.pointer) _textTap = null;
+    if (_spA >= 0 && (e.pointer == _spA || e.pointer == _spB)) {
+      _spA = -1; // a cancelled gesture changes nothing
+      _spB = -1;
+      _pointer = null;
+      _tick.value++;
+    }
     if (e.pointer == _pointer) {
       _lassoing || _xf != null ? _discardStroke() : _finish();
     }
@@ -2129,6 +2335,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     final known = _touches.remove(id) != null;
     // One finger left after a gesture: nothing until all are up.
     if (known && _mode == _Mode.gesture && (id == _gA || id == _gB)) {
+      _commitSelPinch();
       _mode = _Mode.ignored;
     }
     // All contacts up and nothing drawing: clean slate.
@@ -2362,7 +2569,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                   hidden: () => _te?.element?['id'] as String?,
                   draft: () {
                     final te = _te;
-                    return te != null && te.pageId == id ? _teElement(te) : null;
+                    return te != null && te.pageId == id
+                        ? _teElement(te)
+                        : null;
                   },
                   images: _images,
                   repaint: _tick,
@@ -2425,9 +2634,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                               size: Size.infinite,
                               painter: SelectionPainter(
                                 viewport: _vp!,
-                                box: _selectionBox(),
+                                box: _selFrame()?.rect,
+                                angle: () => _selFrame()?.angle ?? 0,
                                 lasso: () => _lassoing ? _lassoPts : const [],
                                 preview: () {
+                                  final sp = _selPinchPreview();
+                                  if (sp != null) return sp;
                                   final x = _xf;
                                   if (x == null) return null;
                                   final r = _xfResult(x, x.last);
@@ -2529,6 +2741,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
             ),
             if (page != null &&
                 _xf == null &&
+                _spA < 0 &&
                 !_lassoing &&
                 (_selected.isNotEmpty || _blank != null))
               Builder(

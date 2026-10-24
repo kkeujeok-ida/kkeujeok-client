@@ -13,6 +13,7 @@ class SelectionPainter extends CustomPainter {
   SelectionPainter({
     required this.viewport,
     required this.box,
+    this.angle,
     required this.lasso,
     required this.preview,
     required Listenable repaint,
@@ -21,6 +22,9 @@ class SelectionPainter extends CustomPainter {
 
   final PageViewport viewport;
   final Rect? box;
+
+  /// The angle in radians the selection box is turned by about its center.
+  final double Function()? angle;
   final List<Offset> Function() lasso;
 
   /// The box a drag would leave (document coordinates, turned by the angle in
@@ -66,6 +70,14 @@ class SelectionPainter extends CustomPainter {
         ..restore();
       return;
     }
+    final turn = angle?.call() ?? 0;
+    canvas.save();
+    if (turn != 0) {
+      canvas
+        ..translate(r.center.dx, r.center.dy)
+        ..rotate(turn)
+        ..translate(-r.center.dx, -r.center.dy);
+    }
     final outline = Path()..addRect(r);
     for (final m in outline.computeMetrics()) {
       for (var d = 0.0; d < m.length; d += 8) {
@@ -75,14 +87,7 @@ class SelectionPainter extends CustomPainter {
     final top = Offset(r.center.dx, r.top - selectionRotateGap);
     canvas.drawLine(Offset(r.center.dx, r.top), top, line);
     final fill = Paint()..color = KkjLight.componentsSelectionHandleFill;
-    for (final c in [
-      r.topLeft,
-      r.topRight,
-      r.bottomLeft,
-      r.bottomRight,
-      top,
-      for (final h in widthHandles?.call() ?? const <Offset>[]) _s(h),
-    ]) {
+    void handle(Offset c) {
       canvas
         ..drawCircle(c, selectionHandleRadius, fill)
         ..drawCircle(
@@ -93,6 +98,15 @@ class SelectionPainter extends CustomPainter {
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.5,
         );
+    }
+
+    for (final c in [r.topLeft, r.topRight, r.bottomLeft, r.bottomRight, top]) {
+      handle(c);
+    }
+    canvas.restore();
+    // The side handles of a text box are already placed in the document.
+    for (final h in widthHandles?.call() ?? const <Offset>[]) {
+      handle(_s(h));
     }
   }
 
