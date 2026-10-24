@@ -86,28 +86,31 @@ class SelectionMenu extends StatelessWidget {
       ),
       child: Padding(
         padding: _barPad,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (edit && strokes) ...[
-              button(Icons.palette_outlined, l10n.strokeColor, onColor!),
-              button(Icons.line_weight, l10n.strokeWidth, onWidth!),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (edit && strokes) ...[
+                button(Icons.palette_outlined, l10n.strokeColor, onColor!),
+                button(Icons.line_weight, l10n.strokeWidth, onWidth!),
+              ],
+              button(Icons.copy, l10n.copy, onCopy),
+              if (edit) ...[
+                button(Icons.content_cut, l10n.cut, onCut!),
+                button(Icons.delete_outline, l10n.delete, onDelete!),
+                button(
+                  ratioLock ? Icons.lock : Icons.lock_open,
+                  l10n.ratioLock,
+                  onRatioLock,
+                  toggled: ratioLock,
+                ),
+                button(Icons.zoom_in, l10n.scaleUp, onScaleUp),
+                button(Icons.zoom_out, l10n.scaleDown, onScaleDown),
+                button(Icons.rotate_right, l10n.rotate90, onRotate90),
+              ],
             ],
-            button(Icons.copy, l10n.copy, onCopy),
-            if (edit) ...[
-              button(Icons.content_cut, l10n.cut, onCut!),
-              button(Icons.delete_outline, l10n.delete, onDelete!),
-              button(
-                ratioLock ? Icons.lock : Icons.lock_open,
-                l10n.ratioLock,
-                onRatioLock,
-                toggled: ratioLock,
-              ),
-              button(Icons.zoom_in, l10n.scaleUp, onScaleUp),
-              button(Icons.zoom_out, l10n.scaleDown, onScaleDown),
-              button(Icons.rotate_right, l10n.rotate90, onRotate90),
-            ],
-          ],
+          ),
         ),
       ),
     );

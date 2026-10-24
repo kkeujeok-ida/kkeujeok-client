@@ -301,6 +301,32 @@ void main() {
     expect(h, lessThanOrEqualTo(38));
   });
 
+  testWidgets('a finger tap on an element selects it once a stylus was seen', (
+    t,
+  ) async {
+    await open(t);
+    await t.tap(find.byTooltip('Lasso'));
+    await t.pump();
+    await drag(t, around); // a stylus: a finger only pans now
+    expect(box(t), isNotNull);
+    Future<void> finger(Offset pos) async {
+      const kind = PointerDeviceKind.touch;
+      t.binding.handlePointerEvent(
+        PointerDownEvent(pointer: ++id, kind: kind, position: pos),
+      );
+      await t.pump();
+      t.binding.handlePointerEvent(
+        PointerUpEvent(pointer: id, kind: kind, position: pos),
+      );
+      await t.pump();
+    }
+
+    await finger(at(t, 400, 150)); // blank: lets go
+    expect(box(t), isNull);
+    await finger(at(t, 150, 100)); // on the stroke: picks it
+    expect(box(t), isNotNull);
+  });
+
   testWidgets('a finger tap off the box clears the selection once a stylus was seen', (
     t,
   ) async {

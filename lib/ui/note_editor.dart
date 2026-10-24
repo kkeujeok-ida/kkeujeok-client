@@ -2078,7 +2078,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
         e.kind == PointerDeviceKind.touch &&
         _stylusSeen &&
         _xf == null) {
-      _clearSelection();
+      _fingerTapSelect(e.localPosition);
     }
     final tt = _textTap;
     if (tt != null && tt.pointer == e.pointer) {
@@ -2170,6 +2170,30 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _commit();
     } else {
       _snack(AppLocalizations.of(context).strokeNotAdded);
+    }
+  }
+
+  /// A finger tap with the lasso (a stylus was seen, so a finger only pans):
+  /// picks the element under it, else lets go of the selection.
+  void _fingerTapSelect(Offset local) {
+    final vp = _vp;
+    final doc = vp?.toPage(local);
+    final i = doc == null ? -1 : _pageAt(doc);
+    if (doc == null || i < 0) {
+      _clearSelection();
+      return;
+    }
+    final o = doc - _geometry().rects[i].topLeft;
+    final els = [
+      for (final e in _pages[i]['elements'] as List)
+        (e as Map).cast<String, dynamic>(),
+    ];
+    // A fingertip is wider than a pen tip.
+    final hit = selectTap(els, (o.dx, o.dy), 12);
+    if (hit == null) {
+      _clearSelection();
+    } else {
+      _select(_pages[i]['id'] as String, {hit});
     }
   }
 
@@ -2536,14 +2560,15 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                   }
                   final edit = _canEditSel;
                   final strokes = _selEls().any((e) => e['type'] == 'stroke');
-                  final at = _menuAt(
-                    box,
-                    pad,
-                    selectionMenuSize(edit: edit, strokes: strokes),
-                  );
+                  final full = selectionMenuSize(edit: edit, strokes: strokes);
+                  // A narrow screen: the menu is as wide as the room and scrolls.
+                  final room = _size.width - pad.left - pad.right;
+                  final size = Size(math.min(full.width, room), full.height);
+                  final at = _menuAt(box, pad, size);
                   return Positioned(
                     left: at.dx,
                     top: at.dy,
+                    width: size.width,
                     child: SelectionMenu(
                       edit: edit,
                       strokes: strokes,
