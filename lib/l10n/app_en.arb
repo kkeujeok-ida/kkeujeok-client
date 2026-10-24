@@ -310,6 +310,21 @@
   "paste": "Paste",
   "selectAll": "Select all",
   "lassoTool": "Lasso",
+  "textTool": "Text",
+  "fontSize": "Font size",
+  "fontSizeValue": "Font size {size}",
+  "@fontSizeValue": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "textColor": "Text color",
+  "bold": "Bold",
+  "italic": "Italic",
+  "on": "on",
+  "off": "off",
   "selectedCount": "{count, plural, =1{1 element selected} other{{count} elements selected}}",
   "@selectedCount": {
     "placeholders": {

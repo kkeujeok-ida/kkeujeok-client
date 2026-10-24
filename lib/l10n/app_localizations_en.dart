@@ -722,6 +722,32 @@ class AppLocalizationsEn extends AppLocalizations {
   String get lassoTool => 'Lasso';
 
   @override
+  String get textTool => 'Text';
+
+  @override
+  String get fontSize => 'Font size';
+
+  @override
+  String fontSizeValue(String size) {
+    return 'Font size $size';
+  }
+
+  @override
+  String get textColor => 'Text color';
+
+  @override
+  String get bold => 'Bold';
+
+  @override
+  String get italic => 'Italic';
+
+  @override
+  String get on => 'on';
+
+  @override
+  String get off => 'off';
+
+  @override
   String selectedCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

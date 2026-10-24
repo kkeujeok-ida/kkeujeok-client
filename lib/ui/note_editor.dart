@@ -14,6 +14,7 @@ import '../model/ids.dart';
 import '../model/note.dart';
 import '../model/pen.dart';
 import '../model/select.dart';
+import '../model/text_layout.dart';
 import '../ops/history.dart';
 import '../ops/ops.dart';
 import '../ops/resolve_conflict.dart';
@@ -29,6 +30,8 @@ import 'selection_menu.dart';
 import 'sync_banner.dart';
 import 'sync_display.dart';
 import 'sync_indicator.dart';
+import 'text_edit.dart';
+import 'text_format_bar.dart';
 import 'version_history.dart';
 
 /// The writing screen: page, toolbar and the top-left `editor-corner`.
@@ -67,9 +70,9 @@ bool _stylusSeen = false;
 @visibleForTesting
 void resetStylusSeen() => _stylusSeen = false;
 
-enum _Tool { pen, lasso }
+enum _Tool { pen, lasso, text }
 
-enum _XKind { move, scale, rotate }
+enum _XKind { move, scale, rotate, width }
 
 // A selection drag: [box] is the selection's document box, [down] where it
 // began (document coordinates), [last] the latest pointer position (screen).
@@ -85,6 +88,28 @@ class _Xf {
 // No resize goes below this factor (the op rejects non-positive ones).
 const _minScale = 0.05;
 
+/// The text box being edited: nothing is stored until it is confirmed.
+/// [element] is null for a new box.
+class _TextEdit {
+  _TextEdit({
+    required this.pageId,
+    required this.element,
+    required this.base,
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.rotation,
+    required this.ctl,
+  });
+
+  final String pageId;
+  final Map<String, dynamic>? element;
+  final Map<String, dynamic> base;
+  final double x, y, width, rotation;
+  final StyledTextController ctl;
+  final focus = FocusNode();
+}
+
 /// What the view does when the screen size changes.
 enum _Fit { width, page, free }
 
@@ -93,7 +118,7 @@ const _secondFinger = Duration(milliseconds: 150);
 const _zoomStep = 1.25;
 
 class _NoteEditorState extends ConsumerState<NoteEditor>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final History _history = _sessionHistory();
   late final _store = ref.read(noteStoreProvider);
   late final _openNote = ref.read(openNoteProvider);
@@ -171,8 +196,270 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   void _setTool(_Tool t) {
     if (t == _tool || _pointer != null) return;
+    _commitText();
     setState(() => _tool = t);
     _select(null, {});
+  }
+
+  // ---- text boxes (Story 4.9) -------------------------------------------
+
+  // The text box being edited: nothing is stored until it is confirmed.
+  _TextEdit? _te;
+  // A text-tool press that becomes a new box when it ends as a tap.
+  ({int pointer, String pageId, Offset page})? _textTap;
+  // The press that may become the first tap of a double tap.
+  int _tapPointer = -1;
+  Offset _tapAt = Offset.zero;
+  Duration _tapTime = Duration.zero;
+  ({Duration t, Offset at, int depth})? _lastTap;
+
+  static const _tapSlop = 10.0;
+  static const _doubleTapGap = Duration(milliseconds: 350);
+  static const _caretGap = 24.0;
+
+  bool _canEditPage(String pageId) =>
+      !_readOnly && !_receiving && !_history.isLocked(pageId);
+
+  /// The element the edit shows now (stored fields, current text and runs).
+  Map<String, dynamic> _teElement(_TextEdit te) => {
+    ...te.base,
+    'type': 'text',
+    'x': te.x,
+    'y': te.y,
+    'width': te.width,
+    'rotation': te.rotation,
+    'text': te.ctl.text,
+    'runs': te.ctl.runs,
+  };
+
+  void _beginText(String pageId, Offset at, [Map<String, dynamic>? el]) {
+    _commitText();
+    if (!_canEditPage(pageId) || !_pages.any((p) => p['id'] == pageId)) return;
+    final page = _pages.firstWhere((p) => p['id'] == pageId);
+    final base = <String, dynamic>{
+      'size': el?['size'] is num
+          ? (el!['size'] as num).toDouble().clamp(sizeMin, sizeMax)
+          : sizeDefault,
+      'color': el?['color'] is String ? el!['color'] : colorDefault,
+      'bold': el?['bold'] == true,
+      'italic': el?['italic'] == true,
+    };
+    final text = el?['text'] as String? ?? '';
+    final ctl = StyledTextController(
+      text: text,
+      runs: el?['runs'] is List ? el!['runs'] as List : const [],
+      base: base,
+      scale: _vp?.scale ?? 1,
+    );
+    ctl.selection = TextSelection.collapsed(offset: text.length);
+    final te = _TextEdit(
+      pageId: pageId,
+      element: el,
+      base: base,
+      x: el == null ? at.dx : (el['x'] as num).toDouble(),
+      y: el == null ? at.dy : (el['y'] as num).toDouble(),
+      width: el == null
+          ? (page['width'] as num).toDouble() / 2
+          : (el['width'] as num).toDouble(),
+      rotation: ((el?['rotation'] as num?) ?? 0).toDouble(),
+      ctl: ctl,
+    );
+    ctl.addListener(_teChanged);
+    _select(null, {});
+    setState(() => _te = te);
+    _tick.value++;
+  }
+
+  void _teChanged() {
+    if (!mounted) return;
+    setState(() {});
+    _tick.value++;
+  }
+
+  /// Confirms the box being edited: one op, one undo step (none for an
+  /// unchanged box or a blank new one).
+  void _commitText() {
+    final te = _te;
+    if (te == null) return;
+    _te = null;
+    te.ctl.removeListener(_teChanged);
+    te.focus.unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      te.ctl.dispose();
+      te.focus.dispose();
+    });
+    final text = te.ctl.text, runs = te.ctl.runs, el = te.element;
+    final ids = <String>[];
+    Map<String, dynamic>? op;
+    if (el == null) {
+      ids.add(newId());
+      op = {
+        'op': 'createTextBox',
+        'pageId': te.pageId,
+        'x': te.x,
+        'y': te.y,
+        'width': te.width,
+        'text': text,
+        'runs': runs,
+      };
+    } else if (text != el['text'] ||
+        !jsonEqual(
+          runs,
+          normalizeRuns(el['runs'] as List? ?? const [], cpLen(text)),
+        )) {
+      op = {
+        'op': 'editText',
+        'pageId': te.pageId,
+        'id': el['id'],
+        'text': text,
+        'runs': runs,
+      };
+    }
+    String? err;
+    if (op != null && _canEditPage(te.pageId)) {
+      err = _history.doOp(op, _ctx(ids: ids));
+    }
+    if (err == 'pageReadOnly') {
+      _blocked();
+    } else if (err != null) {
+      _snack(AppLocalizations.of(context).strokeNotAdded);
+    }
+    // The keyboard is gone: the view may sit past the page end again.
+    if (_vp != null && _fit == _Fit.free) _vp = _clamp(_vp!);
+    setState(() {});
+    _tick.value++;
+    if (op != null && err == null) _commit();
+  }
+
+  /// The text box under [local] (screen), topmost, with its page.
+  (String, Map<String, dynamic>)? _textAt(Offset local) {
+    final vp = _vp;
+    if (vp == null) return null;
+    final p = vp.toPage(local);
+    final i = _pageAt(p);
+    if (i < 0) return null;
+    final page = _pages[i], o = p - _geometry().rects[i].topLeft;
+    final texts = [
+      for (final e in page['elements'] as List)
+        if ((e as Map)['type'] == 'text' && e['text'] is String)
+          e.cast<String, dynamic>(),
+    ];
+    final id = selectTap(texts, (o.dx, o.dy), 0);
+    if (id == null) return null;
+    return (page['id'] as String, texts.firstWhere((e) => e['id'] == id));
+  }
+
+  /// Scrolls so that the caret ends [_caretGap] above the keyboard.
+  void _revealCaret(double keyboard) {
+    final te = _te, vp = _vp;
+    if (te == null || vp == null || keyboard <= 0) return;
+    final i = _pages.indexWhere((p) => p['id'] == te.pageId);
+    if (i < 0) return;
+    final lay = layoutText(_teElement(te));
+    final cp = te.ctl.caretCp;
+    final line = lay.lines.firstWhere(
+      (l) => cp < l.end,
+      orElse: () => lay.lines.last,
+    );
+    final doc =
+        _geometry().rects[i].topLeft +
+        Offset(te.x, te.y + line.top + line.height);
+    final y = vp.offset.dy + doc.dy * vp.scale;
+    final over = y - (_size.height - keyboard - _caretGap);
+    if (over > 0.5) {
+      _fit = _Fit.free;
+      setState(() => _vp = PageViewport(vp.scale, vp.offset - Offset(0, over)));
+    }
+  }
+
+  /// Overlay widgets of the box being edited: the field and the format bar.
+  List<Widget> _editOverlay(EdgeInsets pad, double keyboard) {
+    final te = _te!, vp = _vp!;
+    final i = _pages.indexWhere((p) => p['id'] == te.pageId);
+    if (i < 0) {
+      // A merge took the page away: the edit is gone with it.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _te == te) {
+          _te = null;
+          te.ctl.removeListener(_teChanged);
+          te.focus.unfocus();
+          te.ctl.dispose();
+          te.focus.dispose();
+          setState(() {});
+          _tick.value++;
+        }
+      });
+      return const [];
+    }
+    final s = vp.scale;
+    te.ctl.scale = s;
+    final tl =
+        vp.offset + (_geometry().rects[i].topLeft + Offset(te.x, te.y)) * s;
+    final h = layoutText(_teElement(te)).height * s;
+    const gap = KkjTokens.spacing3;
+    final bar = textFormatBarSize;
+    final minTop = pad.top + gap + _toolbarHeight + gap;
+    final maxBottom = _size.height - math.max(keyboard, pad.bottom);
+    final aboveRoom = tl.dy - 8 - bar.height >= minTop;
+    final left = tl.dx
+        .clamp(
+          pad.left,
+          math.max(pad.left, _size.width - pad.right - bar.width),
+        )
+        .toDouble();
+    final base = te.base;
+    final color = parseColor(base['color']);
+    return [
+      Positioned(
+        left: tl.dx,
+        top: tl.dy,
+        width: te.width * s,
+        child: Transform.rotate(
+          angle: te.rotation * math.pi / 180,
+          child: DecoratedBox(
+            position: DecorationPosition.foreground,
+            decoration: BoxDecoration(
+              border: Border.all(color: KkjLight.componentsSelectionOutline),
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: h),
+              child: TextField(
+                controller: te.ctl,
+                focusNode: te.focus,
+                autofocus: true,
+                maxLines: null,
+                keyboardType: TextInputType.multiline,
+                textInputAction: TextInputAction.newline,
+                decoration: const InputDecoration.collapsed(hintText: null),
+                scrollPadding: EdgeInsets.zero,
+                cursorColor: color,
+                style: TextStyle(
+                  fontFamily: 'Pretendard',
+                  fontSize: (base['size'] as double) * s,
+                  height: lineHeight,
+                  color: color,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      if (aboveRoom)
+        Positioned(
+          left: left,
+          bottom: _size.height - tl.dy + 8,
+          child: TextFormatBar(controller: te.ctl, panelFirst: true),
+        )
+      else
+        Positioned(
+          left: left,
+          top: math.min(
+            tl.dy + h + 8,
+            math.max(minTop, maxBottom - bar.height),
+          ),
+          child: TextFormatBar(controller: te.ctl),
+        ),
+    ];
   }
 
   // Where a blank lasso tap landed (page id, document point): the small
@@ -341,8 +628,26 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     final inside = r.inflate(reach / 2).contains(at); // flat strokes too
     // A box smaller than the handles moves first; handles only outside it.
     final small = r.width < reach * 2 || r.height < reach * 2;
+    // The side handles of a single text box change its width.
+    final ts = _textSel();
+    // A corner at least as near as a side handle wins (short boxes).
+    final nearCorner = corners.map((c) => (at - c).distance).reduce(math.min);
+    final dl = ts == null
+        ? double.infinity
+        : (at - (vp.offset + ts.l * vp.scale)).distance;
+    final dr = ts == null
+        ? double.infinity
+        : (at - (vp.offset + ts.r * vp.scale)).distance;
+    final wk = math.min(dl, dr) > reach || math.min(dl, dr) >= nearCorner
+        ? -1
+        : (dl <= dr ? 0 : 1);
+    var xc = corner;
     final _XKind kind;
-    if ((at - Offset(r.center.dx, r.top - selectionRotateGap)).distance <=
+    if (wk >= 0) {
+      kind = _XKind.width;
+      xc = wk;
+    } else if ((at - Offset(r.center.dx, r.top - selectionRotateGap))
+            .distance <=
         reach) {
       kind = _XKind.rotate;
     } else if (corner >= 0 && !(small && inside)) {
@@ -355,9 +660,31 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _pointer = e.pointer;
     _strokePageId = _selPage;
     _origin = _pageOrigin(_selPage);
-    _xf = _Xf(kind, corner, b, vp.toPage(at), at);
+    _xf = _Xf(kind, xc, b, vp.toPage(at), at);
     _tick.value++;
     return true;
+  }
+
+  /// A single selected text box that can be edited: the element and the
+  /// points of its two side handles (document coordinates).
+  ({Map<String, dynamic> el, Offset l, Offset r, double angle})? _textSel() {
+    if (_tool != _Tool.lasso || _selected.length != 1 || !_canEditSel) {
+      return null;
+    }
+    final el = _selEls().firstOrNull;
+    if (el == null || el['type'] != 'text' || el['text'] is! String) {
+      return null;
+    }
+    final w = math.max(widthMin, (el['width'] as num).toDouble());
+    final c =
+        _pageOrigin(_selPage) +
+        Offset(
+          (el['x'] as num).toDouble() + w / 2,
+          (el['y'] as num).toDouble() + layoutText(el).height / 2,
+        );
+    final a = ((el['rotation'] as num?) ?? 0).toDouble() * math.pi / 180;
+    final u = Offset(math.cos(a), math.sin(a)) * (w / 2);
+    return (el: el, l: c - u, r: c + u, angle: a);
   }
 
   /// What the drag to [local] would do: the op, and the box it would leave
@@ -405,6 +732,25 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
           },
           box: Rect.fromPoints(m(b.topLeft), m(b.bottomRight)),
           angle: 0.0,
+        );
+      case _XKind.width:
+        final t = _textSel();
+        if (t == null) return null;
+        final w = math.max(widthMin, (t.el['width'] as num).toDouble());
+        final d = p - x.down;
+        final along = d.dx * math.cos(t.angle) + d.dy * math.sin(t.angle);
+        final nw = math.max(widthMin, w + (x.corner == 1 ? along : -along));
+        if ((nw - w).abs() < 0.01) return null;
+        final o = _pageOrigin(_selPage);
+        return (
+          op: {'op': 'setTextBoxWidth', 'id': t.el['id'], 'width': nw},
+          box: Rect.fromLTWH(
+            o.dx + (t.el['x'] as num).toDouble(),
+            o.dy + (t.el['y'] as num).toDouble(),
+            nw,
+            layoutText({...t.el, 'width': nw}).height,
+          ),
+          angle: t.angle,
         );
       case _XKind.rotate:
         final o = b.center;
@@ -545,6 +891,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   void _redo() => _replay(false);
 
   void _replay(bool undo) {
+    _commitText();
     if (!mounted || _pointer != null || _leaving || _readOnly) return;
     if (_pageLocked) {
       _blocked();
@@ -708,6 +1055,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // No upload of this note while it is open; a background upload asks the
     // queue to reach the disk first.
     _openNote.set(widget.note.noteId);
@@ -977,7 +1325,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     final id = widget.note.noteId;
     late final Future<void> f;
     f = _coordinator.syncNow(id).catchError((Object _) {}).whenComplete(() {
-      if (identical(_lastSync, f)) _lastSync = null; // done: nothing to wait for
+      if (identical(_lastSync, f))
+        _lastSync = null; // done: nothing to wait for
     });
     _lastSync = f;
   }
@@ -1059,7 +1408,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
           _tick.value++;
         }
         _commit();
-        if (!await _flush()) return false; // not on disk: no upload, `_lastSeen` stays
+        if (!await _flush())
+          return false; // not on disk: no upload, `_lastSeen` stays
         // Only once the merge is adopted and saved: a stroke that follows takes a seq above it.
         if (r.lastSeen > _lastSeen) _lastSeen = r.lastSeen;
       }
@@ -1094,7 +1444,14 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Typed text must not wait for a process the OS may kill.
+    if (state != AppLifecycleState.resumed) _commitText();
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _latestTimer?.cancel();
     _emphasisTimer?.cancel();
     _zoomBadgeTimer?.cancel();
@@ -1107,6 +1464,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _tick.dispose();
     _slotFocus.dispose();
     _canvasFocus.dispose();
+    final te = _te;
+    if (te != null) {
+      te.ctl.removeListener(_teChanged);
+      te.ctl.dispose();
+      te.focus.dispose();
+    }
     super.dispose();
   }
 
@@ -1224,6 +1587,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   void _down(PointerDownEvent e) {
     if (_leaving || _vp == null || _page == null) return;
     _snap();
+    if (_consumedByText(e)) return;
     switch (e.kind) {
       case PointerDeviceKind.touch:
         _touchDown(e);
@@ -1232,6 +1596,38 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       default:
         break; // eraser (Epic 4), trackpad, unknown: no input
     }
+  }
+
+  /// Text editing owns a press first: outside the box a press only confirms
+  /// the box; a second tap on a box starts editing it.
+  bool _consumedByText(PointerDownEvent e) {
+    if (_te != null) {
+      _commitText();
+      if (_mode == _Mode.none) _mode = _Mode.ignored;
+      return true;
+    }
+    final last = _lastTap;
+    if (last != null &&
+        _touches.isEmpty &&
+        e.timeStamp - last.t < _doubleTapGap &&
+        (e.localPosition - last.at).distance < 48) {
+      _lastTap = null;
+      final hit = _textAt(e.localPosition);
+      if (hit != null && _canEditPage(hit.$1)) {
+        // The first tap of the pair may have drawn a pen dot: take it back.
+        if (_tool == _Tool.pen && _history.undoDepth == last.depth + 1) {
+          _history.undo(_ctx());
+          _commit();
+        }
+        if (_mode == _Mode.none) _mode = _Mode.ignored;
+        _beginText(hit.$1, Offset.zero, hit.$2);
+        return true;
+      }
+    }
+    _tapPointer = _touches.isEmpty && _pointer == null ? e.pointer : -1;
+    _tapAt = e.localPosition;
+    _tapTime = e.timeStamp;
+    return false;
   }
 
   void _touchDown(PointerDownEvent e) {
@@ -1317,6 +1713,16 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _mode = _Mode.ignored;
       return;
     }
+    if (_tool == _Tool.text) {
+      // A tap on a blank spot makes a box when the press ends.
+      _textTap = (
+        pointer: e.pointer,
+        pageId: target['id'] as String,
+        page: doc,
+      );
+      if (_mode == _Mode.touchStroke) _mode = _Mode.touchIdle;
+      return;
+    }
     _pointer = e.pointer;
     _strokePageId = target['id'] as String;
     _origin = _geometry().rects[index].topLeft;
@@ -1390,6 +1796,11 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   void _move(PointerMoveEvent e) {
     if (_leaving || _vp == null) return;
+    if ((e.pointer == _tapPointer || _textTap?.pointer == e.pointer) &&
+        (e.localPosition - _tapAt).distance > _tapSlop) {
+      _tapPointer = -1;
+      _textTap = null;
+    }
     if (_touches.containsKey(e.pointer)) {
       _touches[e.pointer] = e.localPosition;
       if (_mode == _Mode.gesture && (e.pointer == _gA || e.pointer == _gB)) {
@@ -1424,6 +1835,22 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   void _up(PointerUpEvent e) {
     final vp = _vp;
+    final tapped =
+        e.pointer == _tapPointer &&
+        (e.localPosition - _tapAt).distance < _tapSlop &&
+        e.timeStamp - _tapTime < const Duration(milliseconds: 400) &&
+        _mode != _Mode.gesture;
+    if (e.pointer == _tapPointer) {
+      _tapPointer = -1;
+      _lastTap = tapped
+          ? (t: e.timeStamp, at: e.localPosition, depth: _history.undoDepth)
+          : null;
+    }
+    final tt = _textTap;
+    if (tt != null && tt.pointer == e.pointer) {
+      _textTap = null;
+      if (tapped && !_leaving) _textTapped(tt);
+    }
     if (!_leaving && vp != null && e.pointer == _pointer) {
       if (_xf != null) {
         _finishXform(e.localPosition);
@@ -1446,7 +1873,21 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _release(e.pointer);
   }
 
+  /// A text-tool tap: a new box on a blank spot (an element there: nothing).
+  void _textTapped(({int pointer, String pageId, Offset page}) tt) {
+    if (!_pages.any((p) => p['id'] == tt.pageId)) return;
+    final o = tt.page - _pageOrigin(tt.pageId);
+    final els = [
+      for (final e
+          in _pages.firstWhere((p) => p['id'] == tt.pageId)['elements'] as List)
+        (e as Map).cast<String, dynamic>(),
+    ];
+    if (selectTap(els, (o.dx, o.dy), 0) == null) _beginText(tt.pageId, o);
+  }
+
   void _cancel(PointerCancelEvent e) {
+    if (e.pointer == _tapPointer) _tapPointer = -1;
+    if (_textTap?.pointer == e.pointer) _textTap = null;
     if (e.pointer == _pointer) {
       _lassoing || _xf != null ? _discardStroke() : _finish();
     }
@@ -1553,6 +1994,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   Future<void> _leave() async {
     if (_leaving) return;
+    _commitText();
     _leaving = true;
     _finish();
     // Every queued save is on disk before the route is gone, so the upload
@@ -1608,9 +2050,17 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       child: PopScope(
         canPop: false,
         onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) _leave();
+          if (didPop) return;
+          // Back confirms a text box being edited and stays.
+          if (_te != null) {
+            _commitText();
+          } else {
+            _leave();
+          }
         },
         child: Scaffold(
+          // The keyboard is handled here: the page scrolls to the caret.
+          resizeToAvoidBottomInset: false,
           backgroundColor: KkjLight.colorSurfaceSunken,
           body: Builder(builder: _body),
         ),
@@ -1654,6 +2104,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                   // Read at paint time: the first stroke of a session starts after this
                   // build, when `_strokePageId` was still null.
                   live: () => id == _strokePageId ? _live() : null,
+                  hidden: () => _te?.element?['id'] as String?,
                   repaint: _tick,
                 ),
               ),
@@ -1677,6 +2128,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
         (r) => r.receiving.contains(widget.note.noteId),
       ),
     );
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    if (_te != null && keyboard > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _revealCaret(keyboard);
+      });
+    }
     return LayoutBuilder(
       builder: (context, c) {
         if (page != null) _layout(c.biggest, pad);
@@ -1710,6 +2167,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                                   if (x == null) return null;
                                   final r = _xfResult(x, x.last);
                                   return r == null ? null : (r.box, r.angle);
+                                },
+                                widthHandles: () {
+                                  final t = _textSel();
+                                  return t == null ? const [] : [t.l, t.r];
                                 },
                                 repaint: _tick,
                               ),
@@ -1861,6 +2322,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                   );
                 },
               ),
+            if (_te != null && page != null && _vp != null)
+              ..._editOverlay(pad, keyboard),
             Positioned(
               top: pad.top + gap,
               left: pad.left + gap,
@@ -1898,19 +2361,25 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                           child: left,
                         ),
                       ),
-                      PenToolbar(
-                        pen: ref.watch(penSlotsProvider).first,
-                        onPenTap: _tool == _Tool.lasso
-                            ? () => _setTool(_Tool.pen)
-                            : _editPen,
-                        lassoSelected: _tool == _Tool.lasso,
-                        onLasso: () => _setTool(_Tool.lasso),
-                        slotFocus: _slotFocus,
-                        canUndo: !readOnly && !locked && _history.undoDepth > 0,
-                        canRedo: !readOnly && !locked && _history.redoDepth > 0,
-                        onUndo: _undo,
-                        onRedo: _redo,
-                      ),
+                      // Hidden while the keyboard is open.
+                      if (keyboard <= 0)
+                        PenToolbar(
+                          pen: ref.watch(penSlotsProvider).first,
+                          onPenTap: _tool != _Tool.pen
+                              ? () => _setTool(_Tool.pen)
+                              : _editPen,
+                          lassoSelected: _tool == _Tool.lasso,
+                          onLasso: () => _setTool(_Tool.lasso),
+                          textSelected: _tool == _Tool.text,
+                          onText: () => _setTool(_Tool.text),
+                          slotFocus: _slotFocus,
+                          canUndo:
+                              !readOnly && !locked && _history.undoDepth > 0,
+                          canRedo:
+                              !readOnly && !locked && _history.redoDepth > 0,
+                          onUndo: _undo,
+                          onRedo: _redo,
+                        ),
                       if (wide)
                         Expanded(
                           child: Align(

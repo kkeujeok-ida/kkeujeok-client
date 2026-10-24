@@ -4,6 +4,7 @@ import '../model/note.dart';
 import '../model/note_title.dart';
 import '../model/number.dart';
 import '../model/select.dart';
+import '../model/text_layout.dart';
 
 /// Values the caller injects so results are deterministic.
 class Ctx {
@@ -96,6 +97,9 @@ OpResult applyOp(Note note, Map<String, dynamic> op, Ctx ctx) =>
       'delete' => _delete(note, op, ctx),
       'insertElements' => insertElements(note, op, ctx),
       'paste' => _paste(note, op, ctx),
+      'createTextBox' => _createTextBox(note, op, ctx),
+      'editText' => _editText(note, op, ctx),
+      'setTextBoxWidth' => _editText(note, op, ctx),
       _ => const OpResult.error('unknownOp'),
     };
 
@@ -163,6 +167,14 @@ void _touch(Map<String, dynamic> page, Ctx ctx) {
 }
 
 bool _isStroke(Map e) => e['type'] == 'stroke';
+bool _isText(Map e) => e['type'] == 'text';
+
+// A text box has a string `text`; a bare `type: text` box (4.1 fixtures) keeps
+// its stored height and is moved like any box element.
+bool _isTextBox(Map e) => _isText(e) && e['text'] is String;
+
+// A stored `height` of a text box is ignored and dropped on any write.
+Map _noHeight(Map e) => _isTextBox(e) ? (e..remove('height')) : e;
 
 /// Shared front of the selection ops: errors in spec order (own parameter
 /// check runs between emptySelection and elementNotFound). Returns the page,
@@ -208,7 +220,7 @@ OpResult _transformOp(Note note, Map<String, dynamic> op, Ctx ctx) {
   });
   if (err != null) return OpResult.error(err);
   final els = page!['elements'] as List;
-  final before = [for (final i in idx) copyJsonValue(els[i]) as Map];
+  final before = [for (final i in idx) _noHeight(copyJsonValue(els[i]) as Map)];
   final bounds = selectionBounds([
     for (final i in idx) els[i] as Map<String, dynamic>,
   ]);
@@ -246,19 +258,27 @@ OpResult _transformOp(Note note, Map<String, dynamic> op, Ctx ctx) {
         pt[1] = round2(y);
       }
     } else {
-      final w = _d(e['width']), h = _d(e['height']);
+      final text = _isTextBox(e);
+      final w = _d(e['width']), h = text ? textHeight(e) : _d(e['height']);
       final (cx, cy) = f(_d(e['x']) + w / 2, _d(e['y']) + h / 2);
+      if (text) {
+        e.remove('height');
+        if (name == 'scale') {
+          _scaleText(e, sx, cx, cy);
+        } else {
+          e['x'] = round2(cx - w / 2);
+          e['y'] = round2(cy - h / 2);
+          e['width'] = round2(w);
+          if (name == 'rotate') e['rotation'] = _turned(e, turn);
+        }
+        continue;
+      }
       final nw = w * sx, nh = h * sy;
       e['x'] = round2(cx - nw / 2);
       e['y'] = round2(cy - nh / 2);
       e['width'] = round2(nw);
       e['height'] = round2(nh);
-      if (name == 'rotate') {
-        // round2 can reach 360 (359.999), which is stored as 0.
-        e['rotation'] =
-            round2((((_d(e['rotation'] ?? 0) + turn) % 360) + 360) % 360) %
-            360;
-      }
+      if (name == 'rotate') e['rotation'] = _turned(e, turn);
     }
   }
   _touch(page, ctx);
@@ -267,6 +287,27 @@ OpResult _transformOp(Note note, Map<String, dynamic> op, Ctx ctx) {
     'pageId': op['pageId'],
     'elements': before,
   });
+}
+
+// round2 can reach 360 (359.999), which is stored as 0.
+double _turned(Map e, double turn) =>
+    round2((((_d(e['rotation'] ?? 0) + turn) % 360) + 360) % 360) % 360;
+
+// spec/transform.md "Text boxes": scale. (cx, cy) is the mapped center.
+void _scaleText(Map<String, dynamic> e, double sx, double cx, double cy) {
+  double clampSize(double v) => round2(v.clamp(sizeMin, sizeMax));
+  final nw = math.max(widthMin, round2(_d(e['width']) * sx));
+  e['width'] = nw;
+  e['size'] = clampSize(_d(e['size'] ?? sizeDefault) * sx);
+  final runs = e['runs'];
+  if (runs is List) {
+    for (final r in runs) {
+      if ((r as Map)['size'] != null) r['size'] = clampSize(_d(r['size']) * sx);
+    }
+    e['runs'] = normalizeRuns(runs, cpLen(e['text'] as String));
+  }
+  e['x'] = round2(cx - nw / 2);
+  e['y'] = round2(cy - textHeight(e) / 2);
 }
 
 /// Inverse-only: each given element replaces the page element with its id.
@@ -339,7 +380,7 @@ OpResult _delete(Note note, Map<String, dynamic> op, Ctx ctx) {
   if (err != null) return OpResult.error(err);
   final els = page!['elements'] as List;
   final items = [
-    for (final i in idx) {'index': i, 'element': els[i]},
+    for (final i in idx) {'index': i, 'element': _noHeight(els[i] as Map)},
   ];
   for (final i in idx.reversed) {
     els.removeAt(i);
@@ -392,7 +433,8 @@ OpResult _paste(Note note, Map<String, dynamic> op, Ctx ctx) {
   final els = page['elements'] as List;
   final copies = [
     for (var i = 0; i < src.length; i++)
-      (copyJsonValue(src[i]) as Map<String, dynamic>)..['id'] = ctx.ids[i],
+      (_noHeight(copyJsonValue(src[i]) as Map) as Map<String, dynamic>)
+        ..['id'] = ctx.ids[i],
   ];
   var dx = 0.0, dy = 0.0;
   final c = (op['target'] as Map?)?['center'] as List?;
@@ -446,5 +488,82 @@ OpResult _paste(Note note, Map<String, dynamic> op, Ctx ctx) {
     'op': 'delete',
     'pageId': op['pageId'],
     'ids': [for (final e in out) e['id']],
+  });
+}
+
+// ---- text box operations (spec/ops.md "Text box operations") ----
+
+bool _widthOk(Object? w) =>
+    w is num && w.isFinite && round2(w.toDouble()) >= widthMin;
+
+OpResult _createTextBox(Note note, Map<String, dynamic> op, Ctx ctx) {
+  final json = note.copyJson();
+  final page = _page(json, op['pageId']);
+  if (page == null) return const OpResult.error('pageNotFound');
+  if (!_widthOk(op['width'])) return const OpResult.error('invalidWidth');
+  final runs = op.containsKey('runs') ? op['runs'] : const [];
+  if (!validRuns(runs)) return const OpResult.error('invalidRuns');
+  final text = normalizeNewlines(op['text'] as String);
+  if (isBlankText(text)) return OpResult.ok(note, null);
+  final id = ctx.ids[0];
+  (page['elements'] as List).add({
+    'id': id,
+    'type': 'text',
+    'x': round2(_d(op['x'])),
+    'y': round2(_d(op['y'])),
+    'width': round2(_d(op['width'])),
+    'rotation': 0,
+    'text': text,
+    'runs': normalizeRuns(runs as List, cpLen(text)),
+    'size': sizeDefault,
+    'color': colorDefault,
+    'bold': false,
+    'italic': false,
+  });
+  _touch(page, ctx);
+  return OpResult.ok(Note.trusted(json), {
+    'op': 'delete',
+    'pageId': op['pageId'],
+    'ids': [id],
+  });
+}
+
+// editText and setTextBoxWidth share the error order and the lookup.
+OpResult _editText(Note note, Map<String, dynamic> op, Ctx ctx) {
+  final width = op['op'] == 'setTextBoxWidth';
+  final json = note.copyJson();
+  final page = _page(json, op['pageId']);
+  if (page == null) return const OpResult.error('pageNotFound');
+  if (width ? !_widthOk(op['width']) : !validRuns(op['runs'])) {
+    return OpResult.error(width ? 'invalidWidth' : 'invalidRuns');
+  }
+  final els = page['elements'] as List;
+  final index = els.indexWhere((e) => (e as Map)['id'] == op['id']);
+  if (index < 0) return const OpResult.error('elementNotFound');
+  final e = els[index] as Map<String, dynamic>;
+  if (!_isText(e)) return const OpResult.error('notTextBox');
+  final before = copyJsonValue(e) as Map;
+  e.remove('height');
+  final String? text = width ? null : normalizeNewlines(op['text'] as String);
+  _touch(page, ctx);
+  if (width) {
+    e['width'] = round2(_d(op['width']));
+  } else if (isBlankText(text!)) {
+    els.removeAt(index);
+    return OpResult.ok(Note.trusted(json), {
+      'op': 'insertElements',
+      'pageId': op['pageId'],
+      'items': [
+        {'index': index, 'element': before},
+      ],
+    });
+  } else {
+    e['text'] = text;
+    e['runs'] = normalizeRuns(op['runs'] as List, cpLen(text));
+  }
+  return OpResult.ok(Note.trusted(json), {
+    'op': 'replaceElements',
+    'pageId': op['pageId'],
+    'elements': [before],
   });
 }

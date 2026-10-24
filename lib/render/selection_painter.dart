@@ -1,4 +1,3 @@
-
 import 'package:flutter/widgets.dart';
 
 import '../design_tokens/build/tokens.dart';
@@ -17,6 +16,7 @@ class SelectionPainter extends CustomPainter {
     required this.lasso,
     required this.preview,
     required Listenable repaint,
+    this.widthHandles,
   }) : super(repaint: repaint);
 
   final PageViewport viewport;
@@ -27,6 +27,10 @@ class SelectionPainter extends CustomPainter {
   /// radians about its center); null when nothing is being dragged. While it
   /// is set it is drawn instead of the box and its handles.
   final (Rect, double)? Function() preview;
+
+  /// The two side handles of a single selected text box (document
+  /// coordinates), if any.
+  final List<Offset> Function()? widthHandles;
 
   Offset _s(Offset d) => viewport.offset + d * viewport.scale;
 
@@ -71,7 +75,14 @@ class SelectionPainter extends CustomPainter {
     final top = Offset(r.center.dx, r.top - selectionRotateGap);
     canvas.drawLine(Offset(r.center.dx, r.top), top, line);
     final fill = Paint()..color = KkjLight.componentsSelectionHandleFill;
-    for (final c in [r.topLeft, r.topRight, r.bottomLeft, r.bottomRight, top]) {
+    for (final c in [
+      r.topLeft,
+      r.topRight,
+      r.bottomLeft,
+      r.bottomRight,
+      top,
+      for (final h in widthHandles?.call() ?? const <Offset>[]) _s(h),
+    ]) {
       canvas
         ..drawCircle(c, selectionHandleRadius, fill)
         ..drawCircle(

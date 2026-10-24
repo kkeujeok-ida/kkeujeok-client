@@ -1304,6 +1304,54 @@ abstract class AppLocalizations {
   /// **'Lasso'**
   String get lassoTool;
 
+  /// No description provided for @textTool.
+  ///
+  /// In en, this message translates to:
+  /// **'Text'**
+  String get textTool;
+
+  /// No description provided for @fontSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Font size'**
+  String get fontSize;
+
+  /// No description provided for @fontSizeValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Font size {size}'**
+  String fontSizeValue(String size);
+
+  /// No description provided for @textColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Text color'**
+  String get textColor;
+
+  /// No description provided for @bold.
+  ///
+  /// In en, this message translates to:
+  /// **'Bold'**
+  String get bold;
+
+  /// No description provided for @italic.
+  ///
+  /// In en, this message translates to:
+  /// **'Italic'**
+  String get italic;
+
+  /// No description provided for @on.
+  ///
+  /// In en, this message translates to:
+  /// **'on'**
+  String get on;
+
+  /// No description provided for @off.
+  ///
+  /// In en, this message translates to:
+  /// **'off'**
+  String get off;
+
   /// No description provided for @selectedCount.
   ///
   /// In en, this message translates to:

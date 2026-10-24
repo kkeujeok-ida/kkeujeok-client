@@ -668,6 +668,32 @@ class AppLocalizationsKo extends AppLocalizations {
   String get lassoTool => '올가미';
 
   @override
+  String get textTool => '텍스트';
+
+  @override
+  String get fontSize => '글자 크기';
+
+  @override
+  String fontSizeValue(String size) {
+    return '글자 크기 $size';
+  }
+
+  @override
+  String get textColor => '글자 색';
+
+  @override
+  String get bold => '굵게';
+
+  @override
+  String get italic => '기울임';
+
+  @override
+  String get on => '켜짐';
+
+  @override
+  String get off => '꺼짐';
+
+  @override
   String selectedCount(int count) {
     return '요소 $count개 선택됨';
   }

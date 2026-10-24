@@ -26,6 +26,8 @@ class PenToolbar extends StatelessWidget {
     this.slotFocus,
     this.lassoSelected = false,
     this.onLasso,
+    this.textSelected = false,
+    this.onText,
   });
 
   final Pen pen;
@@ -37,6 +39,8 @@ class PenToolbar extends StatelessWidget {
   final FocusNode? slotFocus;
   final bool lassoSelected;
   final VoidCallback? onLasso;
+  final bool textSelected;
+  final VoidCallback? onText;
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +67,7 @@ class PenToolbar extends StatelessWidget {
             Semantics(
               label: l10n.penSlotLabel(color, pen.width.toStringAsFixed(1)),
               button: true,
-              selected: !lassoSelected,
+              selected: !lassoSelected && !textSelected,
               onTap: onPenTap,
               excludeSemantics: true,
               child: InkResponse(
@@ -101,6 +105,19 @@ class PenToolbar extends StatelessWidget {
               ),
               icon: const Icon(Icons.highlight_alt),
               onPressed: onLasso,
+            ),
+            IconButton(
+              tooltip: l10n.textTool,
+              isSelected: textSelected,
+              constraints: const BoxConstraints(
+                minWidth: KkjTokens.spacingHitMinAndroid,
+                minHeight: KkjTokens.spacingHitMinAndroid,
+              ),
+              style: IconButton.styleFrom(
+                backgroundColor: textSelected ? KkjLight.colorAccentSoft : null,
+              ),
+              icon: const Icon(Icons.text_fields),
+              onPressed: onText,
             ),
             _HistoryButton(
               icon: Icons.undo,
@@ -281,7 +298,9 @@ class PenEditDialog extends ConsumerWidget {
       child: Dialog(
         backgroundColor: KkjLight.componentsPopoverBackground,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(KkjLight.componentsPopoverRounded),
+          borderRadius: BorderRadius.circular(
+            KkjLight.componentsPopoverRounded,
+          ),
         ),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 320),
@@ -326,9 +345,7 @@ class PenEditDialog extends ConsumerWidget {
                 ExcludeSemantics(
                   child: SizedBox(
                     height: 64,
-                    child: CustomPaint(
-                      painter: PenPreviewPainter(pen),
-                    ),
+                    child: CustomPaint(painter: PenPreviewPainter(pen)),
                   ),
                 ),
               ],

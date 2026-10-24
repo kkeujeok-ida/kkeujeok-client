@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'storage/language_store.dart';
 import 'storage/new_note_defaults_store.dart';
+import 'model/text_metrics.dart';
 import 'storage/pen_slots_store.dart';
 import 'storage/session_hint.dart';
 import 'sync/background_upload.dart';
@@ -16,6 +17,7 @@ import 'ui/providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await TextMetrics.load(); // advance widths for the text box layout
   // Full screen by default: no status bar or navigation bar over the page. A
   // swipe from an edge shows them for a moment and they hide again.
   unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky));

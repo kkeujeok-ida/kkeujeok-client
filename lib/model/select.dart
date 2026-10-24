@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 import 'dart:ui' show Rect;
 
+import 'text_layout.dart';
+
 // spec rules select.lasso, select.tap, select.rect (spec/select.md) and the
 // bounding box of spec/transform.md. Pure functions over raw element maps.
 
@@ -8,6 +10,15 @@ typedef P = (double, double);
 typedef El = Map<String, dynamic>;
 
 const _eps = 1e-9;
+
+// A text box is a box element whose height is computed (spec/transform.md).
+List<El> _withHeights(Iterable<El> els) => [
+  for (final e in els)
+    if (e['type'] == 'text' && e['text'] is String)
+      {...e, 'height': textHeight(e)}
+    else
+      e,
+];
 
 double _n(Object? v) => (v as num).toDouble();
 
@@ -118,7 +129,7 @@ P _cut(P a, P b, double da, double db) {
 List<String> selectLasso(List<El> elements, List<P> polygon) {
   if (polygon.length < 3 || _area(polygon) == 0) return [];
   final ids = <String>[];
-  for (final e in elements.where(_usable)) {
+  for (final e in _withHeights(elements).where(_usable)) {
     if (_isStroke(e)) {
       final pts = _points(e);
       if (pts.isEmpty) continue;
@@ -151,7 +162,7 @@ double _segDist(P p, P a, P b) {
 
 /// `select.tap`: the topmost hit element id, or null.
 String? selectTap(List<El> elements, P point, [double tolerance = 6]) {
-  for (final e in elements.reversed.where(_usable)) {
+  for (final e in _withHeights(elements).reversed.where(_usable)) {
     if (_isStroke(e)) {
       final pts = _points(e);
       if (pts.isEmpty) continue;
@@ -190,7 +201,7 @@ List<String> selectRect(List<El> elements, List<double> r) => selectLasso(
 /// has one.
 Rect? selectionBounds(Iterable<El> elements) {
   Rect? out;
-  for (final e in elements.where(_usable)) {
+  for (final e in _withHeights(elements).where(_usable)) {
     final pts = _isStroke(e) ? _points(e) : boxCorners(e);
     if (pts.isEmpty) continue;
     var l = pts.first.$1, t = pts.first.$2, r = l, b = t;

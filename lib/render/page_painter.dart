@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 
 import 'page_background.dart';
 import 'stroke_outline.dart';
+import 'text_painter.dart';
 
 /// How the page sits in its widget: page point = (local - offset) / scale.
 class PageViewport {
@@ -166,6 +167,7 @@ class PagePainter extends CustomPainter {
     required this.cache,
     this.viewport,
     this.live,
+    this.hidden,
     super.repaint,
   });
 
@@ -175,6 +177,9 @@ class PagePainter extends CustomPainter {
 
   /// The in-progress stroke (same shape as a stored one); rebuilt per paint.
   final Map<String, dynamic>? Function()? live;
+
+  /// Id of a text box that is being edited and so not drawn.
+  final String? Function()? hidden;
 
   Map<String, dynamic>? _bg; // page is fixed for this painter
 
@@ -225,7 +230,13 @@ class PagePainter extends CustomPainter {
     }
 
     final ids = <String>{};
+    final skip = hidden?.call();
     for (final e in page['elements'] as List) {
+      if (drawableText(e)) {
+        final t = e as Map<String, dynamic>;
+        if (t['id'] != skip) paintTextBox(canvas, t);
+        continue;
+      }
       if (!drawableStroke(e)) continue;
       final s = e as Map<String, dynamic>;
       ids.add(s['id'] as String);
@@ -256,6 +267,38 @@ class PagePainter extends CustomPainter {
       ..style = PaintingStyle.fill
       ..isAntiAlias = true,
   );
+
+  // Text boxes are readable: each is a node with its text as label.
+  @override
+  SemanticsBuilderCallback get semanticsBuilder => (size) {
+    final w = (page['width'] as num).toDouble();
+    final h = (page['height'] as num).toDouble();
+    if (!(w.isFinite && h.isFinite && w > 0 && h > 0)) return const [];
+    final vp = viewport ?? PageViewport.fit(size, w, h, EdgeInsets.zero);
+    return [
+      for (final e in page['elements'] as List)
+        if (drawableText(e) && (e as Map)['text'].toString().trim().isNotEmpty)
+          () {
+            final t = e as Map<String, dynamic>;
+            final r = textBounds(t);
+            return CustomPainterSemantics(
+              key: ValueKey(t['id']),
+              rect: Rect.fromPoints(
+                vp.offset + r.topLeft * vp.scale,
+                vp.offset + r.bottomRight * vp.scale,
+              ),
+              properties: SemanticsProperties(
+                label: t['text'] as String,
+                textDirection: TextDirection.ltr,
+              ),
+            );
+          }(),
+    ];
+  };
+
+  @override
+  bool shouldRebuildSemantics(PagePainter oldDelegate) =>
+      shouldRepaint(oldDelegate);
 
   // The page map and the live stroke change by identity or by repaint tick.
   @override

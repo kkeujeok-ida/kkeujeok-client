@@ -11,6 +11,8 @@ import 'package:kkeujeok/model/note.dart';
 import 'package:kkeujeok/model/note_title.dart';
 import 'package:kkeujeok/model/number.dart';
 import 'package:kkeujeok/model/select.dart';
+import 'package:kkeujeok/model/text_layout.dart';
+import 'package:kkeujeok/model/text_metrics.dart';
 import 'package:kkeujeok/ops/history.dart';
 import 'package:kkeujeok/ops/ops.dart';
 import 'package:kkeujeok/ops/resolve_conflict.dart';
@@ -137,6 +139,44 @@ final runners = <String, void Function(Case)>{
   'ops.delete': _runOp,
   'ops.paste': _runOp,
   'ops.removeStroke': _runOp,
+  'ops.createTextBox': _runOp,
+  'ops.editText': _runOp,
+  'ops.setTextBoxWidth': _runOp,
+  'ops.textBox': _runOp,
+  'text.unknownFields': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    if (i['op'] == null) return _same(_roundTrip(i), c['expected']);
+    final r = applyOp(
+      _note(i['note']),
+      i['op'] as Map<String, dynamic>,
+      Ctx.fromJson(i['ctx'] as Map<String, dynamic>),
+    );
+    _same({'note': r.note?.copyJson()}, c['expected']);
+  },
+  'text.layout': (c) {
+    final l = layoutText(
+      (c['input'] as Map<String, dynamic>)['element'] as Map<String, dynamic>,
+    );
+    final e = c['expected'] as Map<String, dynamic>;
+    final tol = (c['tolerance'] as num).toDouble();
+    void near(Object? a, Object? b, String what) => expect(
+      (a as num) - (b as num),
+      inInclusiveRange(-tol, tol),
+      reason: what,
+    );
+    near(l.height, e['height'], 'height');
+    final lines = e['lines'] as List;
+    expect(l.lines.length, lines.length, reason: 'line count');
+    for (var k = 0; k < lines.length; k++) {
+      final x = lines[k] as Map<String, dynamic>, y = l.lines[k];
+      expect([y.start, y.end], [x['start'], x['end']], reason: 'line $k range');
+      near(y.width, x['width'], 'line $k width');
+      near(y.top, x['top'], 'line $k top');
+      near(y.baseline, x['baseline'], 'line $k baseline');
+      near(y.height, x['height'], 'line $k height');
+    }
+  },
+  'select.textBox': (c) => _selectRunners[(c['input'] as Map)['fn']]!(c),
   'stroke.outline.pen': (c) {
     final i = c['input'] as Map<String, dynamic>;
     final t = c['tolerance'];
@@ -293,11 +333,26 @@ final runners = <String, void Function(Case)>{
       'errors': errors,
     }, c['expected']);
   },
-  'select.lasso': (c) {
+  'select.lasso': _selectLasso,
+  'select.tap': _selectTap,
+  'select.rect': _selectRect,
+};
+
+final _selectRunners = <Object?, void Function(Case)>{
+  'lasso': _selectLasso,
+  'tap': _selectTap,
+  'rect': _selectRect,
+};
+
+void _selectLasso(Case c) {
+  {
     final i = c['input'] as Map<String, dynamic>;
     _same(selectLasso(_els(i), _poly(i['polygon'])), c['expected']);
-  },
-  'select.tap': (c) {
+  }
+}
+
+void _selectTap(Case c) {
+  {
     final i = c['input'] as Map<String, dynamic>;
     final p = i['point'] as List;
     _same(
@@ -307,8 +362,11 @@ final runners = <String, void Function(Case)>{
       ), (i['tolerance'] as num?)?.toDouble() ?? 6),
       c['expected'],
     );
-  },
-  'select.rect': (c) {
+  }
+}
+
+void _selectRect(Case c) {
+  {
     final i = c['input'] as Map<String, dynamic>;
     _same(
       selectRect(_els(i), [
@@ -316,8 +374,8 @@ final runners = <String, void Function(Case)>{
       ]),
       c['expected'],
     );
-  },
-};
+  }
+}
 
 Json _json(Object? v) => v as Json;
 
@@ -375,16 +433,7 @@ void _runOp(Case c) {
 // needs a valid fixture file and must not have a runner yet: when its story
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6.
-// Text box rules (Story 4.8) arrive with Story 4.9.
-const pendingRules = <String>{
-  'ops.createTextBox',
-  'ops.editText',
-  'ops.setTextBoxWidth',
-  'ops.textBox',
-  'select.textBox',
-  'text.layout',
-  'text.unknownFields',
-};
+const pendingRules = <String>{};
 
 final _sep = Platform.pathSeparator;
 
@@ -493,6 +542,11 @@ Matcher throwsMessage(Pattern p) =>
     throwsA(predicate((e) => e.toString().contains(p), 'message contains $p'));
 
 void main() {
+  // A font file that is not the one of spec/decisions/text-font.md fails here.
+  TextMetrics.install(
+    File('assets/fonts/Pretendard-Regular.otf').readAsBytesSync(),
+    File('assets/fonts/Pretendard-SemiBold.otf').readAsBytesSync(),
+  );
   // Thrown at load time on purpose: a broken setup fails the run, never skips.
   loadFixtures(sharedDir).forEach((id, cases) {
     group(id, () {
