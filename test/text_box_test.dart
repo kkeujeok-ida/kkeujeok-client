@@ -288,6 +288,25 @@ void main() {
     expect(find.byType(TextField), findsNothing);
   });
 
+  testWidgets('side handle of the box in edit sets the width: one setTextBoxWidth', (
+    t,
+  ) async {
+    await open(t);
+    await textTool(t);
+    await drag(t, [(150, 110)]); // edit the stored box (x 100, width 200)
+    expect(find.byType(TextField), findsOneWidget);
+    final before = hist(t).undoDepth;
+    await t.dragFrom(at(t, 296, 111), const Offset(60, 0));
+    await t.pump();
+    expect(find.byType(TextField), findsOneWidget); // still editing
+    await drag(t, [(500, 150)]); // outside: confirms
+    expect(texts(t).single['width'], greaterThan(200));
+    expect(hist(t).undoDepth, before + 1);
+    await t.tap(find.byTooltip('Undo'));
+    await t.pump();
+    expect(texts(t).single['width'], 200);
+  });
+
   testWidgets('side handle drag: setTextBoxWidth', (t) async {
     await open(t);
     await t.tap(find.byTooltip('Lasso'));

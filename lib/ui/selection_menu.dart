@@ -7,9 +7,9 @@ import '../render/page_painter.dart' show parseColor;
 import 'library_fab.dart' show kkjShadow;
 
 /// Same button size as the pen toolbar.
-const _hit = 32.0;
+const _hit = 28.0;
 // Same inset as the pen toolbar.
-const _barPad = EdgeInsets.symmetric(horizontal: 8, vertical: 1);
+const _barPad = EdgeInsets.symmetric(horizontal: 8);
 const _pad = KkjLight.componentsPopoverPadding;
 
 /// Size of [SelectionMenu], so the editor can place it without measuring.
@@ -71,8 +71,9 @@ class SelectionMenu extends StatelessWidget {
           padding: EdgeInsets.zero,
           style: IconButton.styleFrom(
             backgroundColor: toggled == true ? KkjLight.colorAccentSoft : null,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
-          iconSize: 20,
+          iconSize: 18,
           icon: Icon(icon),
         ),
       ),

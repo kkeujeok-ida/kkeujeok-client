@@ -15,8 +15,15 @@ import 'providers.dart';
 /// The floating rounded bar: grip (inert, not in the a11y tree) | one pen
 /// slot. Tapping the selected slot opens the pen edit popover.
 /// Touch size of a toolbar button: tighter than the 48 dp default so the bar is short.
-const _hit = 32.0;
-const _icon = 20.0;
+const _hit = 28.0;
+const _icon = 18.0;
+
+/// A button as small as its icon: no 48 dp tap-target padding around it.
+final _compact = IconButton.styleFrom(
+  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  padding: EdgeInsets.zero,
+  minimumSize: const Size(_hit, _hit),
+);
 
 class PenToolbar extends StatelessWidget {
   const PenToolbar({
@@ -65,7 +72,7 @@ class PenToolbar extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(
-          vertical: 1,
+          vertical: 0,
           horizontal: KkjLight.componentsToolbarPaddingInline,
         ),
         child: Row(
@@ -83,6 +90,9 @@ class PenToolbar extends StatelessWidget {
                 onTap: onPenTap,
                 containedInkWell: true,
                 highlightShape: BoxShape.rectangle,
+                focusColor: Colors.transparent,
+                hoverColor: Colors.transparent,
+                highlightColor: Colors.transparent,
                 borderRadius: BorderRadius.circular(
                   KkjLight.componentsToolbarRounded,
                 ),
@@ -95,7 +105,7 @@ class PenToolbar extends StatelessWidget {
               ),
               child: SizedBox(
                 width: 1,
-                height: 16,
+                height: 14,
                 child: ColoredBox(color: KkjLight.colorBorderHairline),
               ),
             ),
@@ -106,13 +116,12 @@ class PenToolbar extends StatelessWidget {
                 minWidth: _hit,
                 minHeight: _hit,
               ),
-              style: IconButton.styleFrom(
-                backgroundColor: lassoSelected
-                    ? KkjLight.colorAccentSoft
-                    : null,
+              style: _compact.copyWith(
+                backgroundColor: WidgetStatePropertyAll(
+                  lassoSelected ? KkjLight.colorAccentSoft : null,
+                ),
               ),
               iconSize: _icon,
-              padding: EdgeInsets.zero,
               icon: const Icon(Icons.highlight_alt),
               onPressed: onLasso,
             ),
@@ -123,11 +132,12 @@ class PenToolbar extends StatelessWidget {
                 minWidth: _hit,
                 minHeight: _hit,
               ),
-              style: IconButton.styleFrom(
-                backgroundColor: textSelected ? KkjLight.colorAccentSoft : null,
+              style: _compact.copyWith(
+                backgroundColor: WidgetStatePropertyAll(
+                  textSelected ? KkjLight.colorAccentSoft : null,
+                ),
               ),
               iconSize: _icon,
-              padding: EdgeInsets.zero,
               icon: const Icon(Icons.text_fields),
               onPressed: onText,
             ),
@@ -139,7 +149,7 @@ class PenToolbar extends StatelessWidget {
               ),
               disabledColor: KkjLight.colorInkDisabled,
               iconSize: _icon,
-              padding: EdgeInsets.zero,
+              style: _compact,
               icon: const Icon(Icons.image_outlined),
               onPressed: onImage,
             ),
@@ -179,7 +189,7 @@ class _HistoryButton extends StatelessWidget {
       minHeight: _hit,
     ),
     iconSize: _icon,
-    padding: EdgeInsets.zero,
+    style: _compact,
     icon: Icon(icon),
     disabledColor: KkjLight.colorInkDisabled,
     onPressed: onPressed,
@@ -201,32 +211,33 @@ class _PenSlot extends StatelessWidget {
 
   final Pen pen;
 
+  // A little wider than a button: the caret sits right of the nib.
+  static const _w = _hit + 6;
+  static const _nibW = 12.0;
+  static const _nibH = 26.0;
+
   @override
   Widget build(BuildContext context) {
-    const hit = _hit;
-    return SizedBox.square(
-      dimension: hit,
+    final center = (_hit - _nibW) / 2;
+    return SizedBox(
+      width: _w,
+      height: _hit,
       child: ClipRect(
         child: Stack(
           children: [
             // The nib hangs from the toolbar's top edge: its top is cut off,
             // and the selected pen sits `selected-offset` lower.
             Positioned(
-              left: (hit - KkjLight.componentsPenSlotGlyphWidth) / 2,
-              top:
-                  -KkjTokens.spacing2 +
-                  KkjLight.componentsPenSlotSelectedOffset,
+              left: center,
+              top: -8 + KkjLight.componentsPenSlotSelectedOffset,
               child: CustomPaint(
-                size: const Size(
-                  KkjLight.componentsPenSlotGlyphWidth,
-                  KkjLight.componentsPenSlotGlyphHeight,
-                ),
+                size: const Size(_nibW, _nibH),
                 painter: _NibPainter(parseColor(pen.color)),
               ),
             ),
             Positioned(
-              left: (hit - 8) / 2,
-              top: 20,
+              left: (_hit - 6) / 2,
+              top: 16,
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
@@ -235,21 +246,21 @@ class _PenSlot extends StatelessWidget {
                     color: KkjLight.componentsPenSlotThicknessDotOutline,
                   ),
                 ),
-                child: const SizedBox.square(dimension: 8),
+                child: const SizedBox.square(dimension: 6),
               ),
             ),
             const Positioned(
-              right: 2,
-              top: 12,
+              right: 0,
+              top: 7,
               child: Icon(
                 Icons.arrow_drop_down,
-                size: 16,
+                size: 14,
                 color: KkjLight.componentsPenSlotCaret,
               ),
             ),
             Positioned(
-              left: (hit - KkjLight.componentsPenSlotSelectedWidth) / 2,
-              bottom: 1,
+              left: (_hit - KkjLight.componentsPenSlotSelectedWidth) / 2,
+              bottom: 0,
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: KkjLight.componentsPenSlotSelectedIndicator,

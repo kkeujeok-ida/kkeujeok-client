@@ -108,7 +108,10 @@ class _TextEdit {
   final String pageId;
   final Map<String, dynamic>? element;
   final Map<String, dynamic> base;
-  final double x, y, width, rotation;
+  final double x, y, rotation;
+
+  /// Changes while a side handle is dragged.
+  double width;
   final StyledTextController ctl;
   final focus = FocusNode();
 }
@@ -489,9 +492,22 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
         'runs': runs,
       };
     }
+    // A new width on a stored box is its own op (and undo step).
+    final widthOp = el != null && (te.width - (el['width'] as num)).abs() > 0.01
+        ? {
+            'op': 'setTextBoxWidth',
+            'pageId': te.pageId,
+            'id': el['id'],
+            'width': te.width,
+          }
+        : null;
     String? err;
     if (op != null && _canEditPage(te.pageId)) {
       err = _history.doOp(op, _ctx(ids: ids));
+    }
+    if (err == null && widthOp != null && _canEditPage(te.pageId)) {
+      err = _history.doOp(widthOp, _ctx(ids: ids));
+      op ??= widthOp;
     }
     if (err == 'pageReadOnly') {
       _blocked();
@@ -543,6 +559,47 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     }
   }
 
+  /// A side handle of the box in edit: dragging it sets the width (the left
+  /// one only narrows or widens, like the lasso's side handle).
+  Widget _widthHandle(
+    _TextEdit te,
+    double s, {
+    required bool right,
+    required Object? pageWidth,
+  }) {
+    final a = te.rotation * math.pi / 180;
+    return Positioned(
+      top: 0,
+      bottom: 0,
+      left: right ? null : 0,
+      right: right ? 0 : null,
+      width: 22,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onPanUpdate: (d) {
+          final along =
+              (d.delta.dx * math.cos(a) + d.delta.dy * math.sin(a)) / s;
+          final max = (pageWidth as num).toDouble();
+          te.width = (te.width + (right ? along : -along)).clamp(widthMin, max);
+          setState(() {});
+          _tick.value++;
+        },
+        child: Align(
+          alignment: right ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            width: 6,
+            height: 28,
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            decoration: BoxDecoration(
+              color: KkjLight.componentsSelectionOutline,
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Overlay widgets of the box being edited: the field and the format bar.
   List<Widget> _editOverlay(EdgeInsets pad, double keyboard) {
     final te = _te!, vp = _vp!;
@@ -592,25 +649,36 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
             decoration: BoxDecoration(
               border: Border.all(color: KkjLight.componentsSelectionOutline),
             ),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: h),
-              child: TextField(
-                controller: te.ctl,
-                focusNode: te.focus,
-                autofocus: true,
-                maxLines: null,
-                keyboardType: TextInputType.multiline,
-                textInputAction: TextInputAction.newline,
-                decoration: const InputDecoration.collapsed(hintText: null),
-                scrollPadding: EdgeInsets.zero,
-                cursorColor: color,
-                style: TextStyle(
-                  fontFamily: 'Pretendard',
-                  fontSize: (base['size'] as double) * s,
-                  height: lineHeight,
-                  color: color,
+            child: Stack(
+              children: [
+                ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: h),
+                  child: TextField(
+                    controller: te.ctl,
+                    focusNode: te.focus,
+                    autofocus: true,
+                    maxLines: null,
+                    keyboardType: TextInputType.multiline,
+                    textInputAction: TextInputAction.newline,
+                    decoration: const InputDecoration.collapsed(hintText: null),
+                    scrollPadding: EdgeInsets.zero,
+                    cursorColor: color,
+                    style: TextStyle(
+                      fontFamily: 'Pretendard',
+                      fontSize: (base['size'] as double) * s,
+                      height: lineHeight,
+                      color: color,
+                    ),
+                  ),
                 ),
-              ),
+                _widthHandle(
+                  te,
+                  s,
+                  right: false,
+                  pageWidth: _pages[i]['width'],
+                ),
+                _widthHandle(te, s, right: true, pageWidth: _pages[i]['width']),
+              ],
             ),
           ),
         ),

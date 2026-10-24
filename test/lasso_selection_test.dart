@@ -12,6 +12,7 @@ import 'package:kkeujeok/render/page_painter.dart';
 import 'package:kkeujeok/render/selection_painter.dart';
 import 'package:kkeujeok/storage/note_data.dart';
 import 'package:kkeujeok/ui/note_editor.dart';
+import 'package:kkeujeok/ui/pen_toolbar.dart';
 
 import 'shell_test.dart' show pumpApp;
 
@@ -165,12 +166,12 @@ void main() {
     (80, 62),
   ];
 
-  testWidgets('lasso button semantics, 32 dp, selected state', (t) async {
+  testWidgets('lasso button semantics, 28 dp, selected state', (t) async {
     final h = t.ensureSemantics();
     await open(t);
     final b = find.byTooltip('Lasso');
     expect(b, findsOneWidget);
-    expect(t.getSize(find.byTooltip('Lasso')).height, greaterThanOrEqualTo(32));
+    expect(t.getSize(find.byTooltip('Lasso')).height, greaterThanOrEqualTo(28));
     await t.tap(find.byTooltip('Lasso'));
     await t.pump();
     expect(
@@ -290,6 +291,14 @@ void main() {
     );
     await t.pump();
     expect(box(t), isNull);
+  });
+
+  testWidgets('the pen toolbar is compact: no 48 dp tap target padding', (
+    t,
+  ) async {
+    await open(t);
+    final h = t.getSize(find.byType(PenToolbar)).height;
+    expect(h, lessThanOrEqualTo(32));
   });
 
   testWidgets('a finger tap off the box clears the selection once a stylus was seen', (
