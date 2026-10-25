@@ -376,7 +376,7 @@ OpResult _strokeOp(Note note, Map<String, dynamic> op, Ctx ctx) {
     final w = op['width'];
     if (w is! num || !w.isFinite || w.abs() > 100) return 'invalidWidth';
     width = (w * 10).round() / 10; // Dart rounds half away from zero
-    return width >= 0.5 && width <= 10 ? null : 'invalidWidth';
+    return width >= 0.5 && width <= 30 ? null : 'invalidWidth';
   });
   if (err != null) return OpResult.error(err);
   final els = page!['elements'] as List;
@@ -387,9 +387,14 @@ OpResult _strokeOp(Note note, Map<String, dynamic> op, Ctx ctx) {
   if (strokes.isEmpty) return OpResult.ok(note, null);
   final before = [for (final i in strokes) copyJsonValue(els[i]) as Map];
   for (final i in strokes) {
-    (els[i] as Map<String, dynamic>)[color ? 'color' : 'width'] = color
-        ? op['color']
-        : width;
+    final el = els[i] as Map<String, dynamic>;
+    if (color) {
+      el['color'] = op['color'];
+    } else {
+      // Each stroke is clamped to its own tool's range (spec/ops.md).
+      final hl = el['tool'] == 'highlighter';
+      el['width'] = width.clamp(hl ? 4.0 : 0.5, hl ? 30.0 : 10.0);
+    }
   }
   _touch(page, ctx);
   return OpResult.ok(Note.trusted(json), {

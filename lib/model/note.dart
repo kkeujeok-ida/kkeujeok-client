@@ -158,7 +158,7 @@ bool _validElement(Object? e) {
   }
   if (e['type'] != 'stroke') return true;
   final pts = e['points'];
-  return e['tool'] == 'pen' &&
+  return (e['tool'] == 'pen' || e['tool'] == 'highlighter') &&
       _isStr(e['color']) &&
       e['width'] is num &&
       e['usePressure'] is bool &&
