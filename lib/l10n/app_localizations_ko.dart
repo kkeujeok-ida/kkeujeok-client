@@ -600,6 +600,15 @@ class AppLocalizationsKo extends AppLocalizations {
   String get conflictResolveFailed => '정하지 못했어요. 다시 시도해 주세요.';
 
   @override
+  String get viewModeVertical => '세로 연속';
+
+  @override
+  String get viewModeHorizontal => '가로 스크롤';
+
+  @override
+  String get viewModeTwoPage => '두 페이지';
+
+  @override
   String get versionHistory => '버전 기록';
 
   @override

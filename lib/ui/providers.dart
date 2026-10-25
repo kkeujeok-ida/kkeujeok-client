@@ -13,6 +13,7 @@ import '../drive/google_auth_gateway.dart';
 import '../drive/http_drive_client.dart';
 import '../drive/root_folder.dart';
 import '../model/eraser.dart';
+import '../model/page_view_mode.dart';
 import '../model/ids.dart';
 import '../model/note.dart';
 import '../model/pen.dart';
@@ -627,6 +628,22 @@ class ToolbarPosNotifier extends Notifier<ToolbarPos> {
 final toolbarPosProvider = NotifierProvider<ToolbarPosNotifier, ToolbarPos>(
   ToolbarPosNotifier.new,
 );
+
+/// How pages are laid out: a device setting, stored at once.
+class PageViewModeNotifier extends Notifier<PageViewMode> {
+  @override
+  PageViewMode build() => ref.read(penSlotsStoreProvider).readViewMode();
+
+  void set(PageViewMode m) {
+    state = m;
+    ref.read(penSlotsStoreProvider).writeViewMode(m);
+  }
+}
+
+final pageViewModeProvider =
+    NotifierProvider<PageViewModeNotifier, PageViewMode>(
+      PageViewModeNotifier.new,
+    );
 
 /// "Write with pen only": a device setting, stored at once.
 class PenOnlyNotifier extends Notifier<PenOnlyMode> {

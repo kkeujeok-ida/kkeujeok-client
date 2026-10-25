@@ -648,6 +648,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get conflictResolveFailed => 'Could not resolve. Try again.';
 
   @override
+  String get viewModeVertical => 'Vertical scroll';
+
+  @override
+  String get viewModeHorizontal => 'Horizontal scroll';
+
+  @override
+  String get viewModeTwoPage => 'Two pages';
+
+  @override
   String get versionHistory => 'Version history';
 
   @override

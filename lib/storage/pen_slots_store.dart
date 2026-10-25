@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../model/eraser.dart';
+import '../model/page_view_mode.dart';
 import '../model/pen.dart';
 import '../model/pen_only.dart';
 import '../model/toolbar_pos.dart';
@@ -144,6 +145,32 @@ class PenSlotsStore {
       try {
         await _prefs?.setString(_modeKey, s.mode.name);
         await _prefs?.setBool(_returnKey, s.returnToPen);
+      } catch (_) {
+        // Save failed: the setting still applies for this session.
+      }
+    });
+  }
+
+  static const _viewModeKey = 'pageViewMode';
+
+  PageViewMode? _viewModeSession;
+
+  /// [PageViewMode.vertical] for a missing or invalid stored value.
+  PageViewMode readViewMode() {
+    final session = _viewModeSession;
+    if (session != null) return session;
+    try {
+      return PageViewMode.parse(_prefs?.get(_viewModeKey));
+    } catch (_) {
+      return PageViewMode.vertical;
+    }
+  }
+
+  Future<void> writeViewMode(PageViewMode m) {
+    _viewModeSession = m;
+    return _pending = _pending.then((_) async {
+      try {
+        await _prefs?.setString(_viewModeKey, m.name);
       } catch (_) {
         // Save failed: the setting still applies for this session.
       }

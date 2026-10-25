@@ -23,6 +23,7 @@ import '../model/eraser.dart';
 import '../model/ids.dart';
 import '../model/image_rules.dart';
 import '../model/note.dart';
+import '../model/page_view_mode.dart';
 import '../model/pen.dart';
 import '../model/pen_only.dart';
 import '../model/select.dart';
@@ -41,6 +42,7 @@ import '../sync/merge_step.dart';
 import '../sync/version_history.dart' show RestoreFailure;
 import 'conflict_sheet.dart';
 import 'eraser_dialog.dart';
+import 'page_layout.dart';
 import 'pen_toolbar.dart';
 import 'providers.dart';
 import 'selection_menu.dart';
@@ -1401,30 +1403,16 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     );
   }
 
-  // Pages sit one under the other in document coordinates, centered on the
-  // widest, with this gap (page units) between them. A one-page note is the
-  // document itself, as before.
-  static const _pageGap = 24.0;
-
+  // Page rectangles in document coordinates come from [layoutPages].
   List<Map<String, dynamic>> get _pages => _history.note.pages;
 
-  ({List<Rect> rects, double w, double h}) _geometry() {
-    final pages = _pages;
-    var w = 0.0, y = 0.0;
-    final sizes = [
-      for (final p in pages)
-        ((p['width'] as num).toDouble(), (p['height'] as num).toDouble()),
-    ];
-    for (final (pw, _) in sizes) {
-      if (pw > w) w = pw;
-    }
-    final rects = <Rect>[];
-    for (final (pw, ph) in sizes) {
-      rects.add(Rect.fromLTWH((w - pw) / 2, y, pw, ph));
-      y += ph + _pageGap;
-    }
-    return (rects: rects, w: w, h: sizes.isEmpty ? 0 : y - _pageGap);
-  }
+  // The view mode the current layout was made for (see [_layout]).
+  PageViewMode _laidMode = PageViewMode.vertical;
+
+  ({List<Rect> rects, double w, double h}) _geometry() => layoutPages([
+    for (final p in _pages)
+      Size((p['width'] as num).toDouble(), (p['height'] as num).toDouble()),
+  ], _laidMode);
 
   /// The page nearest the middle of what is on screen: the one that undo,
   /// the read-only mark and "fit page" talk about.
@@ -1438,22 +1426,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
         _padding.top + (_size.height - _padding.vertical) / 2,
       ),
     );
-    final rects = _geometry().rects;
-    var best = 0;
-    var bestD = double.infinity;
-    for (var i = 0; i < n; i++) {
-      final r = rects[i];
-      final d = mid.dy < r.top
-          ? r.top - mid.dy
-          : mid.dy > r.bottom
-          ? mid.dy - r.bottom
-          : 0.0;
-      if (d < bestD) {
-        bestD = d;
-        best = i;
-      }
-    }
-    return best;
+    return activeIndexOf(_geometry().rects, mid);
   }
 
   Map<String, dynamic>? get _page {
@@ -1849,7 +1822,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   void _relayout() {
     if (_vp == null || _pages.isEmpty) return;
     _anim.stop();
-    _vp = _fit != _Fit.free ? _laidOut(_fit) : _clamp(_vp!);
+    _vp = _fit != _Fit.free ? _laidOut(_fit, _keepPage) : _clamp(_vp!);
   }
 
   /// Waits until every queued save is on disk (one more try for a failed
@@ -1961,25 +1934,88 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   PageViewport _clamp(PageViewport v) =>
       v.clamped(_size, _pageW, _pageH, _padding, extraBottom: _extraBottom);
 
-  PageViewport _laidOut(_Fit f) {
-    final w = _pageW, h = _pageH;
+  // Outside vertical a fit keeps the page on screen (vertical goes to the top).
+  int? get _keepPage =>
+      _laidMode == PageViewMode.vertical ? null : _activeIndex();
+
+  /// The mode's default fit: page width for vertical, the whole document
+  /// height otherwise.
+  double get _fitScale => _fitScaleFor(_group(_activeIndex()));
+
+  /// Page [i] with its book partner in two-page mode (they sit 4 apart).
+  Rect _group(int i) {
+    final rects = _geometry().rects;
+    if (rects.isEmpty) return Rect.zero;
+    var g = rects[i];
+    if (_laidMode == PageViewMode.twoPage) {
+      for (final r in rects) {
+        if (r != rects[i] &&
+            (r.left - g.right).abs() <= spineGap + 0.01 &&
+            (r.top < g.bottom && r.bottom > g.top)) {
+          g = g.expandToInclude(r);
+        } else if (r != rects[i] &&
+            (g.left - r.right).abs() <= spineGap + 0.01 &&
+            (r.top < g.bottom && r.bottom > g.top)) {
+          g = g.expandToInclude(r);
+        }
+      }
+    }
+    return g;
+  }
+
+  // Document height fits the padded view; a lone group is capped to fit the
+  // width too, so a landscape page is not cropped.
+  double _fitScaleFor(Rect g) {
+    if (_laidMode == PageViewMode.vertical) {
+      return (_size.width - _padding.horizontal) / _pageW;
+    }
+    final byH = (_size.height - _padding.vertical) / _pageH;
+    final byW = g.width <= 0
+        ? byH
+        : (_size.width - _padding.horizontal) / g.width;
+    return (byH < byW ? byH : byW).clamp(
+      PageViewport.zoomMin,
+      PageViewport.zoomMax,
+    );
+  }
+
+  /// [anchor] is the page to keep in view (default: the one on screen for a
+  /// page fit, the first otherwise).
+  PageViewport _laidOut(_Fit f, [int? anchor]) {
+    final rects = _geometry().rects;
+    if (rects.isEmpty) return _vp ?? PageViewport(1, _padding.topLeft);
+    final i = (anchor ?? (f == _Fit.page ? _activeIndex() : 0)).clamp(
+      0,
+      rects.length - 1,
+    );
+    final r = rects[i];
     switch (f) {
       case _Fit.page:
         // The page on screen (the only one of a one-page note), whole.
-        final rects = _geometry().rects;
-        if (rects.isEmpty) return _vp ?? PageViewport(1, _padding.topLeft);
-        final r = rects[_activeIndex()];
         final v = PageViewport.fit(_size, r.width, r.height, _padding);
         final at = PageViewport(v.scale, v.offset - r.topLeft * v.scale);
         return _clamp(at.zoomAbout(at.offset + r.topLeft * at.scale, at.scale));
       case _Fit.width:
       case _Fit.free:
-        return _clamp(PageViewport.fitWidth(_size, w, h, _padding));
+        if (_laidMode == PageViewMode.vertical) {
+          final v = PageViewport.fitWidth(_size, _pageW, _pageH, _padding);
+          // The anchor page's top meets the top of the padded area.
+          return _clamp(
+            PageViewport(
+              v.scale,
+              Offset(v.offset.dx, _padding.top - r.top * v.scale),
+            ),
+          );
+        }
+        final g = _group(i);
+        final s = _fitScaleFor(g);
+        final mid = Offset(
+          _size.width / 2,
+          _padding.top + (_size.height - _padding.vertical) / 2,
+        );
+        return _clamp(PageViewport(s, mid - g.center * s));
     }
   }
-
-  /// The scale where the page is as wide as the padded view (spec zoom.snap).
-  double get _fitScale => (_size.width - _padding.horizontal) / _pageW;
 
   void _flashZoom(double scale) {
     _zoomBadge.value = (scale * 100).round();
@@ -3150,7 +3186,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   /// Places the view for this size (also on the first build); a free view
   /// is only brought back into range.
-  void _layout(Size size, EdgeInsets pad, {bool wrapped = false}) {
+  void _layout(
+    Size size,
+    EdgeInsets pad,
+    PageViewMode mode, {
+    bool wrapped = false,
+  }) {
     const gap = KkjTokens.spacing3;
     final padding = EdgeInsets.fromLTRB(
       gap + pad.left,
@@ -3163,15 +3204,30 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     if (_vp != null &&
         size == _size &&
         padding == _padding &&
+        mode == _laidMode &&
         extra == _extra) {
       return;
     }
     final first = _vp == null;
+    // The page being looked at, found with the layout it was seen in.
+    final modeChanged = !first && mode != _laidMode;
+    final flipped =
+        !first && (size.width > size.height) != (_size.width > _size.height);
+    final anchor = modeChanged || flipped ? _activeIndex() : null;
+    _laidMode = mode;
     _size = size;
     _padding = padding;
     _extra = extra;
     _anim.stop();
-    _vp = first || _fit != _Fit.free ? _laidOut(_fit) : _clamp(_vp!);
+    if (modeChanged) _fit = _Fit.width;
+    if (anchor != null && _fit == _Fit.free) {
+      final r = _geometry().rects[anchor];
+      _vp = _clamp(
+        PageViewport(_vp!.scale, _padding.topLeft - r.topLeft * _vp!.scale),
+      );
+    } else {
+      _vp = first || _fit != _Fit.free ? _laidOut(_fit, anchor) : _clamp(_vp!);
+    }
   }
 
   @override
@@ -3295,6 +3351,11 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     );
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
     final tbPos = ref.watch(toolbarPosProvider);
+    final stored = ref.watch(pageViewModeProvider);
+    final phone = isPhone(MediaQuery.sizeOf(context));
+    final viewMode = stored == PageViewMode.twoPage && phone
+        ? PageViewMode.vertical
+        : stored;
     if (_te != null && keyboard > 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _revealCaret(keyboard);
@@ -3305,7 +3366,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
         final win = c.biggest;
         _safe = pad;
         final wrapped = tbPos.dock == ToolbarDock.top && !_topFits(win, pad);
-        if (page != null) _layout(win, pad, wrapped: wrapped);
+        if (page != null) _layout(win, pad, viewMode, wrapped: wrapped);
         final minTop = page != null
             ? _padding.top
             : pad.top + gap + _toolbarHeight + gap;
@@ -3529,8 +3590,13 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                     canZoomIn: (_vp?.scale ?? 1) < PageViewport.zoomMax,
                     onZoomOut: () => _zoomBy(1 / _zoomStep),
                     onZoomIn: () => _zoomBy(_zoomStep),
-                    onFitWidth: () => _goTo(_laidOut(_Fit.width), _Fit.width),
+                    onFitWidth: () =>
+                        _goTo(_laidOut(_Fit.width, _keepPage), _Fit.width),
                     onFitPage: () => _goTo(_laidOut(_Fit.page), _Fit.page),
+                    viewMode: viewMode,
+                    allowTwoPage: !phone,
+                    onViewMode: (m) =>
+                        ref.read(pageViewModeProvider.notifier).set(m),
                     onVersionHistory: readOnly || receiving
                         ? null
                         : _openHistory,
@@ -3672,8 +3738,15 @@ class _MoreMenu extends StatelessWidget {
     required this.onZoomIn,
     required this.onFitWidth,
     required this.onFitPage,
+    required this.viewMode,
+    required this.allowTwoPage,
+    required this.onViewMode,
     required this.onVersionHistory,
   });
+
+  final PageViewMode viewMode;
+  final bool allowTwoPage;
+  final ValueChanged<PageViewMode> onViewMode;
 
   final String noteId;
   final int percent;
@@ -3753,6 +3826,23 @@ class _MoreMenu extends StatelessWidget {
                 onPressed: onFitPage,
                 child: Text(l10n.fitPage),
               ),
+              const Divider(height: 1),
+              for (final m in PageViewMode.values)
+                if (m != PageViewMode.twoPage || allowTwoPage)
+                  RadioMenuButton<PageViewMode>(
+                    style: item,
+                    value: m,
+                    groupValue: viewMode,
+                    onChanged: (v) {
+                      if (v != null) onViewMode(v);
+                    },
+                    child: Text(switch (m) {
+                      PageViewMode.vertical => l10n.viewModeVertical,
+                      PageViewMode.horizontal => l10n.viewModeHorizontal,
+                      PageViewMode.twoPage => l10n.viewModeTwoPage,
+                    }),
+                  ),
+              const Divider(height: 1),
               MenuItemButton(
                 style: item,
                 onPressed: onVersionHistory,

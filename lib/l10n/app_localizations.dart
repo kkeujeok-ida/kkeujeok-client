@@ -1166,6 +1166,24 @@ abstract class AppLocalizations {
   /// **'Could not resolve. Try again.'**
   String get conflictResolveFailed;
 
+  /// No description provided for @viewModeVertical.
+  ///
+  /// In en, this message translates to:
+  /// **'Vertical scroll'**
+  String get viewModeVertical;
+
+  /// No description provided for @viewModeHorizontal.
+  ///
+  /// In en, this message translates to:
+  /// **'Horizontal scroll'**
+  String get viewModeHorizontal;
+
+  /// No description provided for @viewModeTwoPage.
+  ///
+  /// In en, this message translates to:
+  /// **'Two pages'**
+  String get viewModeTwoPage;
+
   /// No description provided for @versionHistory.
   ///
   /// In en, this message translates to:

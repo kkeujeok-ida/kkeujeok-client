@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/model/eraser.dart';
+import 'package:kkeujeok/model/page_view_mode.dart';
 import 'package:kkeujeok/model/pen.dart';
 import 'package:kkeujeok/model/pen_only.dart';
 import 'package:kkeujeok/model/toolbar_pos.dart';
@@ -165,6 +166,26 @@ void main() {
     test('broken values read as defaults', () async {
       final p = await _prefs({'eraserMode': 'x', 'eraserReturnToPen': 'yes'});
       expect(PenSlotsStore(p).readEraser(), const EraserSettings());
+    });
+  });
+
+  group('page view mode', () {
+    test('default, round trip, session survives log out', () async {
+      final p = await _prefs({});
+      final s = PenSlotsStore(p);
+      expect(s.readViewMode(), PageViewMode.vertical);
+      await s.writeViewMode(PageViewMode.twoPage);
+      await SessionHint(p).set(false);
+      expect(PenSlotsStore(p).readViewMode(), PageViewMode.twoPage);
+    });
+
+    test('broken values read as vertical; session wins', () async {
+      final p = await _prefs({'pageViewMode': 'x'});
+      expect(PenSlotsStore(p).readViewMode(), PageViewMode.vertical);
+      final s = PenSlotsStore(await _prefs({'pageViewMode': 'horizontal'}));
+      expect(s.readViewMode(), PageViewMode.horizontal);
+      s.writeViewMode(PageViewMode.twoPage);
+      expect(s.readViewMode(), PageViewMode.twoPage);
     });
   });
 
