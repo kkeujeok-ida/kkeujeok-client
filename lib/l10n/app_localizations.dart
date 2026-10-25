@@ -1382,6 +1382,54 @@ abstract class AppLocalizations {
   /// **'Text'**
   String get textTool;
 
+  /// No description provided for @eraserTool.
+  ///
+  /// In en, this message translates to:
+  /// **'Eraser'**
+  String get eraserTool;
+
+  /// No description provided for @eraserOptionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Eraser options'**
+  String get eraserOptionsTitle;
+
+  /// No description provided for @eraserModeStroke.
+  ///
+  /// In en, this message translates to:
+  /// **'Stroke'**
+  String get eraserModeStroke;
+
+  /// No description provided for @eraserModePartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Partial'**
+  String get eraserModePartial;
+
+  /// No description provided for @eraserReturnToPen.
+  ///
+  /// In en, this message translates to:
+  /// **'Return to pen when done erasing'**
+  String get eraserReturnToPen;
+
+  /// No description provided for @eraserAnnounceStroke.
+  ///
+  /// In en, this message translates to:
+  /// **'Erase whole strokes'**
+  String get eraserAnnounceStroke;
+
+  /// No description provided for @eraserAnnouncePartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Partial erase'**
+  String get eraserAnnouncePartial;
+
+  /// No description provided for @eraseNotApplied.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t erase.'**
+  String get eraseNotApplied;
+
   /// No description provided for @imageTool.
   ///
   /// In en, this message translates to:

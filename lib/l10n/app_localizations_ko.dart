@@ -709,6 +709,30 @@ class AppLocalizationsKo extends AppLocalizations {
   String get textTool => '텍스트';
 
   @override
+  String get eraserTool => '지우개';
+
+  @override
+  String get eraserOptionsTitle => '지우개 설정';
+
+  @override
+  String get eraserModeStroke => '획 단위';
+
+  @override
+  String get eraserModePartial => '부분';
+
+  @override
+  String get eraserReturnToPen => '다 지우면 펜으로 돌아가기';
+
+  @override
+  String get eraserAnnounceStroke => '획 단위 지우기';
+
+  @override
+  String get eraserAnnouncePartial => '부분 지우기';
+
+  @override
+  String get eraseNotApplied => '지우지 못했어요.';
+
+  @override
   String get imageTool => '이미지';
 
   @override

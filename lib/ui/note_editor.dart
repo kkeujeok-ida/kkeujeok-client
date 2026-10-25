@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
 import '../model/element_clipboard.dart';
+import '../model/eraser.dart';
 import '../model/ids.dart';
 import '../model/image_rules.dart';
 import '../model/note.dart';
@@ -27,6 +28,7 @@ import '../storage/image_intake.dart';
 import '../sync/merge_step.dart';
 import '../sync/version_history.dart' show RestoreFailure;
 import 'conflict_sheet.dart';
+import 'eraser_dialog.dart';
 import 'pen_toolbar.dart';
 import 'providers.dart';
 import 'selection_menu.dart';
@@ -71,7 +73,7 @@ bool _stylusSeen = false;
 @visibleForTesting
 void resetStylusSeen() => _stylusSeen = false;
 
-enum _Tool { pen, lasso, text }
+enum _Tool { pen, lasso, text, eraser }
 
 enum _XKind { move, scale, rotate, width }
 
@@ -200,6 +202,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   // The lasso in progress (document coordinates) and whether the pointer has
   // left the tap slop since it went down.
   bool _lassoing = false;
+  // The stroke in progress erases (eraser tool, stylus button, eraser end).
+  bool _erasing = false;
+  bool _erasedNote = false; // the last erase changed the note
   final _lassoPts = <Offset>[];
   Offset _lassoDown = Offset.zero;
   bool _lassoMoved = false;
@@ -1188,6 +1193,15 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _setTool(_Tool.pen);
   }
 
+  /// Eraser button: picks the tool; on the picked one, opens its options.
+  void _eraserTap() {
+    if (_pointer != null || _mode != _Mode.none || _leaving) return;
+    if (_tool != _Tool.eraser) return _setTool(_Tool.eraser);
+    unawaited(
+      showDialog<void>(context: context, builder: (_) => const EraserDialog()),
+    );
+  }
+
   /// [+]: a copy of the picked slot at the end, then its popover.
   Future<void> _addSlot() async {
     if (_leaving || _pointer != null || _mode != _Mode.none) return;
@@ -1869,8 +1883,20 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     'points': points,
   };
 
-  Map<String, dynamic>? _live() =>
-      _pointer == null ? null : _stroke(List.of(_points));
+  // While erasing, a gray trail shows the path; nothing goes away until up.
+  Map<String, dynamic>? _live() => _pointer == null
+      ? null
+      : _erasing
+      ? {
+          'id': newId(),
+          'type': 'stroke',
+          'tool': 'pen',
+          'color': '#9e9e9e',
+          'width': eraserDefaultWidth,
+          'usePressure': false,
+          'points': List.of(_points),
+        }
+      : _stroke(List.of(_points));
 
   double _pressure(PointerEvent e) {
     if (e.kind != PointerDeviceKind.stylus) return 0.5;
@@ -1979,8 +2005,11 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
         _touchDown(e);
       case PointerDeviceKind.stylus || PointerDeviceKind.mouse:
         _penDown(e);
+      case PointerDeviceKind.invertedStylus
+          when _tool == _Tool.pen || _tool == _Tool.eraser:
+        _penDown(e);
       default:
-        break; // eraser (Epic 4), trackpad, unknown: no input
+        break; // trackpad, unknown, eraser end with lasso or text: no input
     }
   }
 
@@ -2058,7 +2087,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   }
 
   void _penDown(PointerDownEvent e) {
-    if (e.kind == PointerDeviceKind.stylus) _stylusSeen = true;
+    if (e.kind == PointerDeviceKind.stylus ||
+        e.kind == PointerDeviceKind.invertedStylus) {
+      _stylusSeen = true;
+    }
     if (_mode == _Mode.pen) return;
     // A stylus or mouse takes over: touch stroke and gesture are dropped.
     // Fingers still down stay in [_touches], so they never turn into ink.
@@ -2109,6 +2141,15 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _pointer = e.pointer;
     _strokePageId = target['id'] as String;
     _origin = _geometry().rects[index].topLeft;
+    // The way is fixed at the press: a later button change does not switch it.
+    _erasing =
+        _tool == _Tool.eraser ||
+        (_tool == _Tool.pen &&
+            (e.kind == PointerDeviceKind.invertedStylus ||
+                (e.kind == PointerDeviceKind.stylus &&
+                    e.buttons &
+                            (kPrimaryStylusButton | kSecondaryStylusButton) !=
+                        0)));
     if (_tool == _Tool.lasso) {
       _lassoing = true;
       _lassoMoved = false;
@@ -2132,6 +2173,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     if (_pointer == null) return;
     _pointer = null;
     _points.clear();
+    _erasing = false;
     _lassoing = false;
     _lassoPts.clear();
     final dragged = _xf != null;
@@ -2363,7 +2405,16 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       final p = vp.toPage(e.localPosition) - _origin;
       final last = _points.last;
       if (last[0] != p.dx || last[1] != p.dy) _points.add(_point(e, p));
+      final back =
+          _erasing &&
+          _tool == _Tool.eraser &&
+          (e.kind == PointerDeviceKind.stylus ||
+              e.kind == PointerDeviceKind.invertedStylus) &&
+          ref.read(eraserSettingsProvider).returnToPen;
+      _erasedNote = false;
       _finish();
+      // Only a gesture that really erased something returns to the pen.
+      if (back && _erasedNote) _setTool(_Tool.pen);
     }
     _release(e.pointer);
   }
@@ -2394,7 +2445,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _tick.value++;
     }
     if (e.pointer == _pointer) {
-      _lassoing || _xf != null ? _discardStroke() : _finish();
+      _lassoing || _erasing || _xf != null ? _discardStroke() : _finish();
     }
     _release(e.pointer);
   }
@@ -2427,6 +2478,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _finishLasso(pageId);
       return;
     }
+    if (_erasing) {
+      _finishErase(pageId);
+      return;
+    }
     final stroke = _stroke(List.of(_points));
     _pointer = null;
     _points.clear();
@@ -2443,6 +2498,46 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _commit();
     } else {
       _snack(AppLocalizations.of(context).strokeNotAdded);
+    }
+  }
+
+  /// The eraser path ends: one op for the whole stroke, one undo step.
+  void _finishErase(String pageId) {
+    final path = [
+      for (final p in _points) [p[0], p[1]],
+    ];
+    _pointer = null;
+    _points.clear();
+    _erasing = false;
+    if (_mode == _Mode.pen || _mode == _Mode.touchStroke) _mode = _Mode.none;
+    final partial = ref.read(eraserSettingsProvider).mode == EraserMode.partial;
+    var ids = const <String>[];
+    if (partial) {
+      // Pieces have 2+ points, so a page of n points has at most n ~/ 2.
+      var n = 0;
+      for (final e
+          in _pages.firstWhere((p) => p['id'] == pageId)['elements'] as List) {
+        if ((e as Map)['type'] == 'stroke') {
+          n += (e['points'] as List?)?.length ?? 0;
+        }
+      }
+      ids = [for (var i = 0; i < n ~/ 2 + 1; i++) newId()];
+    }
+    final before = _history.note;
+    final err = _history.doOp({
+      'op': partial ? 'erasePartial' : 'eraseStrokes',
+      'pageId': pageId,
+      'path': path,
+      'width': eraserDefaultWidth,
+    }, _ctx(ids: ids));
+    setState(() {});
+    _tick.value++;
+    _strokeEnded(pageId);
+    if (err != null) {
+      _snack(AppLocalizations.of(context).eraseNotApplied);
+    } else if (!identical(_history.note, before)) {
+      _erasedNote = true;
+      _commit();
     }
   }
 
@@ -2950,6 +3045,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                           onSlotTap: _slotTap,
                           onAdd: _addSlot,
                           onMove: _slots.move,
+                          eraserSelected: _tool == _Tool.eraser,
+                          eraserMode: ref.watch(eraserSettingsProvider).mode,
+                          onEraser: _eraserTap,
                           lassoSelected: _tool == _Tool.lasso,
                           onLasso: () => _setTool(_Tool.lasso),
                           textSelected: _tool == _Tool.text,

@@ -12,6 +12,7 @@ import '../drive/drive_client.dart';
 import '../drive/google_auth_gateway.dart';
 import '../drive/http_drive_client.dart';
 import '../drive/root_folder.dart';
+import '../model/eraser.dart';
 import '../model/ids.dart';
 import '../model/note.dart';
 import '../model/pen.dart';
@@ -588,6 +589,26 @@ class RecentPenColorsNotifier extends Notifier<List<String>> {
 final recentPenColorsProvider =
     NotifierProvider<RecentPenColorsNotifier, List<String>>(
       RecentPenColorsNotifier.new,
+    );
+
+/// Eraser mode and auto-return: a device setting, stored at once.
+class EraserSettingsNotifier extends Notifier<EraserSettings> {
+  @override
+  EraserSettings build() => ref.read(penSlotsStoreProvider).readEraser();
+
+  void _put(EraserSettings s) {
+    state = s;
+    ref.read(penSlotsStoreProvider).writeEraser(s);
+  }
+
+  void setMode(EraserMode m) => _put(state.copyWith(mode: m));
+
+  void setReturnToPen(bool v) => _put(state.copyWith(returnToPen: v));
+}
+
+final eraserSettingsProvider =
+    NotifierProvider<EraserSettingsNotifier, EraserSettings>(
+      EraserSettingsNotifier.new,
     );
 
 /// One row of the library: a readable note, or one that cannot be opened

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
+import '../model/eraser.dart';
 import '../model/pen.dart';
 import '../model/pen_palette.dart';
 import '../render/page_painter.dart' show fillStroke, parseColor;
@@ -43,6 +44,9 @@ class PenToolbar extends StatefulWidget {
     this.onAdd,
     this.onMove,
     this.slotFocus,
+    this.eraserSelected = false,
+    this.eraserMode = EraserMode.stroke,
+    this.onEraser,
     this.lassoSelected = false,
     this.onLasso,
     this.textSelected = false,
@@ -51,8 +55,8 @@ class PenToolbar extends StatefulWidget {
   });
 
   /// Width of everything but the slot list: padding, grip, [+], the divider,
-  /// undo, redo, lasso, text and image. These never shrink or fold away.
-  static const fixedWidth = 277.0;
+  /// undo, redo, eraser, lasso, text and image. These never shrink or fold away.
+  static const fixedWidth = 311.0;
 
   final List<Pen> slots;
   final int selectedSlot;
@@ -71,6 +75,9 @@ class PenToolbar extends StatefulWidget {
   /// Slot `from` was dropped at `to` (the index it ends up at).
   final void Function(int from, int to)? onMove;
   final FocusNode? slotFocus;
+  final bool eraserSelected;
+  final EraserMode eraserMode;
+  final VoidCallback? onEraser;
   final bool lassoSelected;
   final VoidCallback? onLasso;
   final bool textSelected;
@@ -150,7 +157,8 @@ class _PenToolbarState extends State<PenToolbar> {
 
   Widget _slot(BuildContext context, int i, AppLocalizations l10n) {
     final pen = widget.slots[i];
-    final active = !widget.lassoSelected && !widget.textSelected;
+    final active =
+        !widget.eraserSelected && !widget.lassoSelected && !widget.textSelected;
     final selected = active && i == widget.selectedSlot;
     final color = _colorName(l10n, pen);
     final width = pen.width.toStringAsFixed(1);
@@ -314,6 +322,35 @@ class _PenToolbarState extends State<PenToolbar> {
               icon: Icons.redo,
               tooltip: l10n.redo,
               onPressed: widget.canRedo ? widget.onRedo : null,
+            ),
+            Builder(
+              builder: (_) {
+                final partial = widget.eraserMode == EraserMode.partial;
+                final mode = partial
+                    ? l10n.eraserModePartial
+                    : l10n.eraserModeStroke;
+                return Semantics(
+                  value: mode,
+                  child: IconButton(
+                    tooltip: '${l10n.eraserTool} ($mode)',
+                    isSelected: widget.eraserSelected,
+                    constraints: const BoxConstraints(
+                      minWidth: _hit,
+                      minHeight: _hit,
+                    ),
+                    style: _compact.copyWith(
+                      backgroundColor: WidgetStatePropertyAll(
+                        widget.eraserSelected ? KkjLight.colorAccentSoft : null,
+                      ),
+                    ),
+                    iconSize: _icon,
+                    icon: Icon(
+                      partial ? Icons.content_cut : Icons.auto_fix_normal,
+                    ),
+                    onPressed: widget.onEraser,
+                  ),
+                );
+              },
             ),
             IconButton(
               tooltip: l10n.lassoTool,

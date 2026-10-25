@@ -146,6 +146,8 @@ final runners = <String, void Function(Case)>{
   'ops.paste': _runOp,
   'ops.removeStroke': _runOp,
   'ops.createTextBox': _runOp,
+  'ops.eraseStrokes': _runOp,
+  'ops.erasePartial': _runOp,
   'ops.insertImage': _runOp,
   'ops.image': _runOp,
   'ops.editText': _runOp,
@@ -403,30 +405,33 @@ final runners = <String, void Function(Case)>{
   ),
   'ops.restoreNote': (c) => _same(_restore(c, restoreNote), c['expected']),
   'ops.restorePage': (c) => _same(_restore(c, restorePage), c['expected']),
-  'ops.undoRedo': (c) {
-    final i = c['input'] as Map<String, dynamic>;
-    final h = History(_note(i['note']));
-    final errors = <String?>[];
-    for (final s in (i['steps'] as List).cast<Map<String, dynamic>>()) {
-      final ctx = Ctx.fromJson(s['ctx'] as Map<String, dynamic>);
-      errors.add(switch (s['kind']) {
-        'do' => h.doOp(s['op'] as Map<String, dynamic>, ctx),
-        'undo' => h.undo(ctx),
-        'redo' => h.redo(ctx),
-        final k => throw FormatException('unknown step kind $k'),
-      });
-    }
-    _same({
-      'note': h.note.copyJson(),
-      'undoDepth': h.undoDepth,
-      'redoDepth': h.redoDepth,
-      'errors': errors,
-    }, c['expected']);
-  },
+  'ops.undoRedo': _runHistory,
+  'ops.eraseHistory': _runHistory,
   'select.lasso': _selectLasso,
   'select.tap': _selectTap,
   'select.rect': _selectRect,
 };
+
+void _runHistory(Case c) {
+  final i = c['input'] as Map<String, dynamic>;
+  final h = History(_note(i['note']));
+  final errors = <String?>[];
+  for (final s in (i['steps'] as List).cast<Map<String, dynamic>>()) {
+    final ctx = Ctx.fromJson(s['ctx'] as Map<String, dynamic>);
+    errors.add(switch (s['kind']) {
+      'do' => h.doOp(s['op'] as Map<String, dynamic>, ctx),
+      'undo' => h.undo(ctx),
+      'redo' => h.redo(ctx),
+      final k => throw FormatException('unknown step kind $k'),
+    });
+  }
+  _same({
+    'note': h.note.copyJson(),
+    'undoDepth': h.undoDepth,
+    'redoDepth': h.redoDepth,
+    'errors': errors,
+  }, c['expected']);
+}
 
 void _unknownFields(Case c) {
   final i = c['input'] as Map<String, dynamic>;
@@ -533,12 +538,8 @@ void _runOp(Case c) {
 // Rules whose fixture exists but whose client code is a later story's. Each
 // needs a valid fixture file and must not have a runner yet: when its story
 // adds the runner, the entry has to go (a stale entry fails the run).
-// The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6.
-const pendingRules = <String>{
-  'ops.eraseStrokes',
-  'ops.erasePartial',
-  'ops.eraseHistory',
-};
+// The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6. The erase rules have runners (Story 5.6): none pending.
+const pendingRules = <String>{};
 
 final _sep = Platform.pathSeparator;
 

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../model/eraser.dart';
 import '../model/image_rules.dart';
 import '../model/note.dart';
 import '../model/note_title.dart';
@@ -99,6 +100,8 @@ OpResult applyOp(Note note, Map<String, dynamic> op, Ctx ctx) =>
       'delete' => _delete(note, op, ctx),
       'insertElements' => insertElements(note, op, ctx),
       'paste' => _paste(note, op, ctx),
+      'eraseStrokes' => _erase(note, op, ctx, partial: false),
+      'erasePartial' => _erase(note, op, ctx, partial: true),
       'createTextBox' => _createTextBox(note, op, ctx),
       'insertImage' => _insertImage(note, op, ctx),
       'editText' => _editText(note, op, ctx),
@@ -424,12 +427,28 @@ OpResult _delete(Note note, Map<String, dynamic> op, Ctx ctx) {
 }
 
 /// Inverse-only: puts elements back at their indices, in the given order.
+/// With `removeIds` those elements are removed first (spec/ops.md).
 OpResult insertElements(Note note, Map<String, dynamic> op, Ctx ctx) {
   final json = note.copyJson();
   final page = _page(json, op['pageId']);
   if (page == null) return const OpResult.error('pageNotFound');
   final els = page['elements'] as List;
   final items = [for (final i in op['items'] as List) i as Map];
+  final removeIds = op['removeIds'] as List?;
+  final removed = <Map<String, dynamic>>[];
+  if (removeIds != null) {
+    final want = removeIds.toSet();
+    final have = {for (final e in els) (e as Map)['id']};
+    if (!want.every(have.contains)) {
+      return const OpResult.error('elementNotFound');
+    }
+    for (var i = 0; i < els.length; i++) {
+      if (want.contains((els[i] as Map)['id'])) {
+        removed.add({'index': i, 'element': els[i]});
+      }
+    }
+    els.removeWhere((e) => want.contains((e as Map)['id']));
+  }
   final ids = <Object?>{for (final e in els) (e as Map)['id']};
   for (final it in items) {
     if (!ids.add((it['element'] as Map)['id'])) {
@@ -446,11 +465,87 @@ OpResult insertElements(Note note, Map<String, dynamic> op, Ctx ctx) {
     n++;
   }
   _touch(page, ctx);
+  final inserted = [for (final it in items) (it['element'] as Map)['id']];
+  return OpResult.ok(
+    Note.trusted(json),
+    removeIds == null
+        ? {'op': 'delete', 'pageId': op['pageId'], 'ids': inserted}
+        : {
+            'op': 'insertElements',
+            'pageId': op['pageId'],
+            'removeIds': inserted,
+            'items': removed,
+          },
+  );
+}
+
+// ops.eraseStrokes / ops.erasePartial (spec/erase.md): strokes only.
+OpResult _erase(
+  Note note,
+  Map<String, dynamic> op,
+  Ctx ctx, {
+  required bool partial,
+}) {
+  final json = note.copyJson();
+  final page = _page(json, op['pageId']);
+  if (page == null) return const OpResult.error('pageNotFound');
+  final raw = op['path'];
+  if (raw is! List || raw.isEmpty) return const OpResult.error('emptyPath');
+  final width = roundEraserWidth(op['width']);
+  if (width == null) return const OpResult.error('invalidEraserWidth');
+  final path = [for (final p in raw) (_d((p as List)[0]), _d(p[1]))];
+  final r = width / 2;
+  final els = page['elements'] as List;
+  final items = <Map<String, dynamic>>[];
+  final newIds = <String>[];
+  final out = <Object?>[];
+  for (var i = 0; i < els.length; i++) {
+    final e = els[i] as Map<String, dynamic>;
+    final pts = _isStroke(e) ? _strokePoints(e) : null;
+    final tp = pts == null ? null : touchedPoints(pts, path, r);
+    final touched =
+        pts != null &&
+        (tp!.any((t) => t) || touchedSegments(pts, path, r).any((t) => t));
+    if (!touched) {
+      out.add(e);
+      continue;
+    }
+    items.add({'index': i, 'element': e});
+    if (!partial) continue;
+    final entries = e['points'] as List;
+    for (final piece in splitPieces(pts, path, r)) {
+      final id = ctx.ids[newIds.length];
+      newIds.add(id);
+      out.add(
+        (copyJsonValue(e) as Map<String, dynamic>)
+          ..['id'] = id
+          ..['points'] = [for (final k in piece) copyJsonValue(entries[k])],
+      );
+    }
+  }
+  if (items.isEmpty) return OpResult.ok(note, null);
+  els
+    ..clear()
+    ..addAll(out);
+  _touch(page, ctx);
   return OpResult.ok(Note.trusted(json), {
-    'op': 'delete',
+    'op': 'insertElements',
     'pageId': op['pageId'],
-    'ids': [for (final it in items) (it['element'] as Map)['id']],
+    if (partial) 'removeIds': newIds,
+    'items': items,
   });
+}
+
+// null when the stroke has no points or a malformed one: never touched.
+List<Pt>? _strokePoints(Map e) {
+  final pts = e['points'];
+  if (pts is! List || pts.isEmpty) return null;
+  final out = <Pt>[];
+  for (final p in pts) {
+    if (p is! List || p.length < 2 || p[0] is! num || p[1] is! num) return null;
+    out.add((_d(p[0]), _d(p[1])));
+  }
+  return out;
 }
 
 // ops.paste: copies with new ids, centered, nudged off equal boxes.

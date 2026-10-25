@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kkeujeok/model/eraser.dart';
 import 'package:kkeujeok/model/pen.dart';
 import 'package:kkeujeok/storage/pen_slots_store.dart';
 import 'package:kkeujeok/storage/session_hint.dart';
@@ -145,6 +146,23 @@ void main() {
         final p = await _prefs({'penRecentColors': bad});
         expect(PenSlotsStore(p).readRecent(), isEmpty, reason: bad);
       }
+    });
+  });
+
+  group('eraser settings', () {
+    test('defaults, round trip, session survives log out', () async {
+      final p = await _prefs({});
+      final s = PenSlotsStore(p);
+      expect(s.readEraser(), const EraserSettings());
+      const next = EraserSettings(mode: EraserMode.partial, returnToPen: true);
+      await s.writeEraser(next);
+      await SessionHint(p).set(false);
+      expect(PenSlotsStore(p).readEraser(), next);
+    });
+
+    test('broken values read as defaults', () async {
+      final p = await _prefs({'eraserMode': 'x', 'eraserReturnToPen': 'yes'});
+      expect(PenSlotsStore(p).readEraser(), const EraserSettings());
     });
   });
 }

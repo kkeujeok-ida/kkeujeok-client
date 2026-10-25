@@ -763,6 +763,30 @@ class AppLocalizationsEn extends AppLocalizations {
   String get textTool => 'Text';
 
   @override
+  String get eraserTool => 'Eraser';
+
+  @override
+  String get eraserOptionsTitle => 'Eraser options';
+
+  @override
+  String get eraserModeStroke => 'Stroke';
+
+  @override
+  String get eraserModePartial => 'Partial';
+
+  @override
+  String get eraserReturnToPen => 'Return to pen when done erasing';
+
+  @override
+  String get eraserAnnounceStroke => 'Erase whole strokes';
+
+  @override
+  String get eraserAnnouncePartial => 'Partial erase';
+
+  @override
+  String get eraseNotApplied => 'Couldn\'t erase.';
+
+  @override
   String get imageTool => 'Image';
 
   @override

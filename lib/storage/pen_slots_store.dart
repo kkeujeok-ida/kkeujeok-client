@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../model/eraser.dart';
 import '../model/pen.dart';
 
 final _hex = RegExp(r'^#[0-9a-fA-F]{6}$');
@@ -110,6 +111,39 @@ class PenSlotsStore {
         await _prefs?.setString(_recentKey, data);
       } catch (_) {
         // Save failed: the list still applies for this session.
+      }
+    });
+  }
+
+  static const _modeKey = 'eraserMode';
+  static const _returnKey = 'eraserReturnToPen';
+
+  EraserSettings? _eraserSession;
+
+  /// Defaults for a missing or invalid stored value.
+  EraserSettings readEraser() {
+    final session = _eraserSession;
+    if (session != null) return session;
+    try {
+      final mode = _prefs?.getString(_modeKey);
+      final back = _prefs?.get(_returnKey);
+      return EraserSettings(
+        mode: mode == 'partial' ? EraserMode.partial : EraserMode.stroke,
+        returnToPen: back == true,
+      );
+    } catch (_) {
+      return const EraserSettings();
+    }
+  }
+
+  Future<void> writeEraser(EraserSettings s) {
+    _eraserSession = s;
+    return _pending = _pending.then((_) async {
+      try {
+        await _prefs?.setString(_modeKey, s.mode.name);
+        await _prefs?.setBool(_returnKey, s.returnToPen);
+      } catch (_) {
+        // Save failed: the setting still applies for this session.
       }
     });
   }
