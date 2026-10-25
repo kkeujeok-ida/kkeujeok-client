@@ -403,5 +403,9 @@
   "strokeWidthValue": "Thickness {v}",
   "@strokeWidthValue": {"placeholders": {"v": {"type": "String"}}},
   "customColorSlotLabel": "Custom color {hex}",
-  "@customColorSlotLabel": {"placeholders": {"hex": {"type": "String"}}}
+  "@customColorSlotLabel": {"placeholders": {"hex": {"type": "String"}}},
+  "penOnlyTitle": "Write with pen only",
+  "penOnlyAuto": "Auto",
+  "penOnlyOn": "On",
+  "penOnlyOff": "Off"
 }

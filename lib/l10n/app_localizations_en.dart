@@ -943,4 +943,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String customColorSlotLabel(String hex) {
     return 'Custom color $hex';
   }
+
+  @override
+  String get penOnlyTitle => 'Write with pen only';
+
+  @override
+  String get penOnlyAuto => 'Auto';
+
+  @override
+  String get penOnlyOn => 'On';
+
+  @override
+  String get penOnlyOff => 'Off';
 }

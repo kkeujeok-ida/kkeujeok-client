@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
+import '../model/pen_only.dart';
 import '../storage/language_store.dart';
 import 'disconnect_dialog.dart';
 import 'log_export.dart';
@@ -258,6 +259,46 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       child: Text(e.value, style: theme.textTheme.bodyMedium),
                     ),
                     if (choice == e.key)
+                      Icon(Icons.check, color: theme.colorScheme.primary),
+                  ],
+                ),
+              ),
+            ),
+          Divider(color: theme.colorScheme.outlineVariant),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              KkjTokens.spacing4,
+              KkjTokens.spacing3,
+              KkjTokens.spacing4,
+              KkjTokens.spacing1,
+            ),
+            child: Semantics(
+              header: true,
+              child: Text(
+                l10n.penOnlyTitle,
+                style: theme.textTheme.labelMedium,
+              ),
+            ),
+          ),
+          for (final e in {
+            PenOnlyMode.auto: l10n.penOnlyAuto,
+            PenOnlyMode.on: l10n.penOnlyOn,
+            PenOnlyMode.off: l10n.penOnlyOff,
+          }.entries)
+            Semantics(
+              inMutuallyExclusiveGroup: true,
+              checked: ref.watch(penOnlyProvider) == e.key,
+              label: e.value,
+              excludeSemantics: true,
+              onTap: () => ref.read(penOnlyProvider.notifier).select(e.key),
+              child: _Row(
+                onTap: () => ref.read(penOnlyProvider.notifier).select(e.key),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(e.value, style: theme.textTheme.bodyMedium),
+                    ),
+                    if (ref.watch(penOnlyProvider) == e.key)
                       Icon(Icons.check, color: theme.colorScheme.primary),
                   ],
                 ),

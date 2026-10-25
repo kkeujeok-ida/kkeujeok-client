@@ -881,4 +881,16 @@ class AppLocalizationsKo extends AppLocalizations {
   String customColorSlotLabel(String hex) {
     return '사용자 지정 색 $hex';
   }
+
+  @override
+  String get penOnlyTitle => '펜으로만 필기';
+
+  @override
+  String get penOnlyAuto => '자동';
+
+  @override
+  String get penOnlyOn => '켜기';
+
+  @override
+  String get penOnlyOff => '끄기';
 }

@@ -5,6 +5,14 @@ import 'dart:ui' show lerpDouble;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart'
+    show
+        HardwareKeyboard,
+        KeyDownEvent,
+        KeyEvent,
+        KeyUpEvent,
+        LogicalKeyboardKey,
+        PhysicalKeyboardKey;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../design_tokens/build/tokens.dart';
@@ -15,8 +23,10 @@ import '../model/ids.dart';
 import '../model/image_rules.dart';
 import '../model/note.dart';
 import '../model/pen.dart';
+import '../model/pen_only.dart';
 import '../model/select.dart';
 import '../model/text_layout.dart';
+import '../platform/gesture_exclusion.dart';
 import '../ops/history.dart';
 import '../ops/ops.dart';
 import '../ops/resolve_conflict.dart';
@@ -1189,7 +1199,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _editPen(i);
       return;
     }
-    _slots.select(i);
+    _pickSlot(i);
     _setTool(_Tool.pen);
   }
 
@@ -1851,6 +1861,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     WidgetsBinding.instance.removeObserver(this);
     _latestTimer?.cancel();
     _lpTimer?.cancel();
+    _exTimer?.cancel();
+    unawaited(setGestureExclusion(const []));
     _emphasisTimer?.cancel();
     _zoomBadgeTimer?.cancel();
     _zoomBadge.dispose();
@@ -1998,6 +2010,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   void _down(PointerDownEvent e) {
     if (_leaving || _vp == null || _page == null) return;
+    if (e.kind == PointerDeviceKind.touch && _palmTouch(e)) return;
     _snap();
     if (_consumedByText(e)) return;
     switch (e.kind) {
@@ -2045,13 +2058,14 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
           setState(() {});
           return;
         }
-        // With a stylus around a finger only pans, except for a text-tool tap.
-        if ((!_stylusSeen || _tool == _Tool.text) && at >= 0) {
+        // Pen only: a finger just pans, except for a text-tool tap.
+        final penOnly = _penOnly;
+        if ((!penOnly || _tool == _Tool.text) && at >= 0) {
           _mode = _Mode.touchStroke;
           _begin(e, p, at);
         } else {
-          if (!_stylusSeen && _tool == _Tool.lasso) _clearSelection();
-          if (_stylusSeen && _tool == _Tool.lasso && at >= 0) {
+          if (!penOnly && _tool == _Tool.lasso) _clearSelection();
+          if (penOnly && _tool == _Tool.lasso && at >= 0) {
             _startLongPress(
               e.pointer,
               e.localPosition,
@@ -2082,18 +2096,220 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     }
   }
 
-  void _hover(PointerHoverEvent e) {
-    if (e.kind == PointerDeviceKind.stylus) _stylusSeen = true;
+  void _hover(PointerHoverEvent e) => _noteStylus(e);
+
+  // ---- pen only, palm, gesture exclusion (Story 5.8) ---------------------
+
+  // The latest stylus event (hover, press, move, lift) and where it was.
+  Duration? _penNow;
+  Offset? _penPos;
+  bool _penIsStylus = false;
+  static const _penNear = Duration(milliseconds: 500);
+
+  /// Pen only: on, or auto once a stylus was seen on this device.
+  bool get _penOnly => switch (ref.read(penOnlyProvider)) {
+    PenOnlyMode.on => true,
+    PenOnlyMode.off => false,
+    PenOnlyMode.auto => _stylusSeen || ref.read(stylusSeenProvider),
+  };
+
+  void _noteStylus(PointerEvent e) {
+    if (e.kind != PointerDeviceKind.stylus &&
+        e.kind != PointerDeviceKind.invertedStylus) {
+      return;
+    }
+    _penNow = e.timeStamp;
+    _stylusSeen = true;
+    ref.read(stylusSeenProvider.notifier).mark(); // device fact, once
+    _penPos = e.position;
+    _updateExclusion();
+  }
+
+  /// A touch that is not input: the pen is down or was just near, the contact
+  /// is wide, or the engine did not call it a finger.
+  bool _palmTouch(PointerDownEvent e) {
+    final pn = _penNow;
+    return (_mode == _Mode.pen && _penIsStylus) ||
+        (pn != null &&
+            e.timeStamp >= pn && // an older stamp is a different clock
+            e.timeStamp - pn <= _penNear) ||
+        e.radiusMajor > 40; // shortcut: dp threshold, tune on a device
+  }
+
+  // Where the strip around the pen was centered (null: no strip).
+  Offset? _exAt;
+  Timer? _exTimer;
+  final _toolbarKey = GlobalKey();
+
+  void _updateExclusion() {
+    final p = _penPos;
+    if (p == null || !mounted) return;
+    if (p.dx > 32) {
+      if (_exAt != null) {
+        _exAt = null;
+        _pushExclusion();
+      }
+      return;
+    }
+    _exTimer?.cancel();
+    _exTimer = Timer(_penNear, () {
+      _exAt = null;
+      _pushExclusion();
+    });
+    final at = _exAt;
+    if (at != null && (p - at).distance < 24) return;
+    _exAt = p;
+    _pushExclusion();
+  }
+
+  /// The left-edge strip around the pen plus the toolbar when it sits there.
+  List<Rect> _exclusionRects() {
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final h = MediaQuery.sizeOf(context).height * dpr;
+    final at = _exAt;
+    final tb = _toolbarKey.currentContext?.findRenderObject();
+    final bar = tb is RenderBox && tb.attached
+        ? tb.localToGlobal(Offset.zero) & tb.size
+        : null;
+    return [
+      if (at != null)
+        Rect.fromLTRB(
+          0,
+          math.max(0, (at.dy - 100) * dpr),
+          32 * dpr,
+          math.min(h, (at.dy + 100) * dpr),
+        ),
+      if (bar != null && bar.left <= 32)
+        Rect.fromLTRB(
+          bar.left * dpr,
+          bar.top * dpr,
+          bar.right * dpr,
+          bar.bottom * dpr,
+        ),
+    ];
+  }
+
+  void _pushExclusion() => unawaited(setGestureExclusion(_exclusionRects()));
+
+  // ---- keyboard (Story 5.8) ----------------------------------------------
+
+  final _lastSlot = <String, int>{};
+
+  void _pickSlot(int i) {
+    _slots.select(i);
+    _lastSlot[ref.read(penSlotsProvider)[i].tool] = i;
+  }
+
+  int? _lastOf(String tool) {
+    final slots = ref.read(penSlotsProvider);
+    final l = _lastSlot[tool];
+    if (l != null && l < slots.length && slots[l].tool == tool) return l;
+    final first = slots.indexWhere((p) => p.tool == tool);
+    return first < 0 ? null : first;
+  }
+
+  KeyEventResult _key(FocusNode node, KeyEvent e) {
+    const ignored = KeyEventResult.ignored;
+    if (e is KeyUpEvent || _te != null || _pointer != null || _leaving) {
+      return ignored;
+    }
+    final kb = HardwareKeyboard.instance;
+    if (kb.isAltPressed) return ignored;
+    final k = e.logicalKey;
+    final mod = kb.isControlPressed || kb.isMetaPressed;
+    const step = 40.0; // web ARROW_STEP
+    final arrow = {
+      LogicalKeyboardKey.arrowLeft: const Offset(step, 0),
+      LogicalKeyboardKey.arrowRight: const Offset(-step, 0),
+      LogicalKeyboardKey.arrowUp: const Offset(0, step),
+      LogicalKeyboardKey.arrowDown: const Offset(0, -step),
+    }[k];
+    if (arrow != null) {
+      // Toolbar buttons keep the arrows for focus traversal.
+      if (node != _canvasFocus) return ignored;
+      if (mod || kb.isShiftPressed) return ignored;
+      _snap();
+      _panBy(arrow);
+      return KeyEventResult.handled;
+    }
+    if (e is! KeyDownEvent) return ignored; // no auto-repeat
+    if (mod) {
+      if (k == LogicalKeyboardKey.keyZ) {
+        kb.isShiftPressed ? _redo() : _undo();
+        return KeyEventResult.handled;
+      }
+      if (k == LogicalKeyboardKey.keyY &&
+          kb.isControlPressed &&
+          !kb.isShiftPressed) {
+        _redo();
+        return KeyEventResult.handled;
+      }
+      return ignored;
+    }
+    if (kb.isShiftPressed) return ignored;
+    // By physical key, so other layouts (Hangul) work like the web's e.code.
+    final c =
+        {
+          PhysicalKeyboardKey.keyP: 'p',
+          PhysicalKeyboardKey.keyH: 'h',
+          PhysicalKeyboardKey.keyL: 'l',
+          PhysicalKeyboardKey.keyE: 'e',
+          PhysicalKeyboardKey.keyT: 't',
+          PhysicalKeyboardKey.digit1: '1',
+          PhysicalKeyboardKey.digit2: '2',
+          PhysicalKeyboardKey.digit3: '3',
+          PhysicalKeyboardKey.digit4: '4',
+          PhysicalKeyboardKey.digit5: '5',
+          PhysicalKeyboardKey.digit6: '6',
+          PhysicalKeyboardKey.digit7: '7',
+          PhysicalKeyboardKey.digit8: '8',
+          PhysicalKeyboardKey.digit9: '9',
+        }[e.physicalKey] ??
+        '';
+    final slots = ref.read(penSlotsProvider);
+    int? slot;
+    if (c.length == 1 && '123456789'.contains(c)) {
+      slot = int.parse(c) - 1;
+      if (slot >= slots.length) return ignored;
+    } else if (c == 'p' || c == 'h') {
+      slot = _lastOf(c == 'p' ? 'pen' : 'highlighter');
+      if (slot == null) return ignored;
+    }
+    if (slot != null) {
+      if (_readOnly) return ignored;
+      _pickSlot(slot);
+      _setTool(_Tool.pen);
+      return KeyEventResult.handled;
+    }
+    switch (c) {
+      case 'l':
+        _setTool(_Tool.lasso);
+      case 'e' when !_readOnly:
+        _setTool(_Tool.eraser);
+      case 't' when !_readOnly:
+        _setTool(_Tool.text);
+      default:
+        return ignored;
+    }
+    return KeyEventResult.handled;
   }
 
   void _penDown(PointerDownEvent e) {
-    if (e.kind == PointerDeviceKind.stylus ||
-        e.kind == PointerDeviceKind.invertedStylus) {
-      _stylusSeen = true;
-    }
+    _noteStylus(e);
+    _penIsStylus =
+        e.kind == PointerDeviceKind.stylus ||
+        e.kind == PointerDeviceKind.invertedStylus;
     if (_mode == _Mode.pen) return;
     // A stylus or mouse takes over: touch stroke and gesture are dropped.
     // Fingers still down stay in [_touches], so they never turn into ink.
+    _lpTimer?.cancel();
+    _lpTimer = null;
+    _lpPointer = -1;
+    if (_spA >= 0) {
+      _spA = -1; // the two-finger selection change is dropped unapplied
+      _spB = -1;
+      _tick.value++;
+    }
     _discardStroke();
     _mode = _Mode.none;
     if (_beginXform(e)) {
@@ -2318,6 +2534,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   void _move(PointerMoveEvent e) {
     if (_leaving || _vp == null) return;
+    _noteStylus(e);
     if (e.pointer == _lpPointer &&
         (e.localPosition - _lpScreen).distance > _tapSlop) {
       _lpTimer?.cancel();
@@ -2362,6 +2579,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   void _up(PointerUpEvent e) {
     final vp = _vp;
+    _noteStylus(e);
     if (e.pointer == _lpPointer) {
       _lpTimer?.cancel();
       _lpTimer = null;
@@ -2379,7 +2597,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     if (tapped &&
         _tool == _Tool.lasso &&
         e.kind == PointerDeviceKind.touch &&
-        _stylusSeen &&
+        _penOnly &&
         _xf == null) {
       _fingerTapSelect(e.localPosition);
     }
@@ -2445,7 +2663,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _tick.value++;
     }
     if (e.pointer == _pointer) {
-      _lassoing || _erasing || _xf != null ? _discardStroke() : _finish();
+      e.kind == PointerDeviceKind.touch || _lassoing || _erasing || _xf != null
+          ? _discardStroke() // a cancelled finger leaves no ink
+          : _finish();
     }
     _release(e.pointer);
   }
@@ -2818,6 +3038,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                     ? const SizedBox.expand()
                     : Focus(
                         focusNode: _canvasFocus,
+                        autofocus: true,
+                        onKeyEvent: _key,
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
@@ -3035,33 +3257,39 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                       ),
                       // Hidden while the keyboard is open.
                       if (keyboard <= 0)
-                        PenToolbar(
-                          slots: ref.watch(penSlotsProvider),
-                          selectedSlot: ref.watch(selectedPenSlotProvider),
-                          // Room left by the corner (48), the menu (96) and
-                          // the controls that never shrink.
-                          maxSlotsWidth:
-                              top.maxWidth - 144 - PenToolbar.fixedWidth,
-                          onSlotTap: _slotTap,
-                          onAdd: _addSlot,
-                          onMove: _slots.move,
-                          eraserSelected: _tool == _Tool.eraser,
-                          eraserMode: ref.watch(eraserSettingsProvider).mode,
-                          onEraser: _eraserTap,
-                          lassoSelected: _tool == _Tool.lasso,
-                          onLasso: () => _setTool(_Tool.lasso),
-                          textSelected: _tool == _Tool.text,
-                          onText: () => _setTool(_Tool.text),
-                          onImage: readOnly || receiving || locked
-                              ? null
-                              : _chooseImage,
-                          slotFocus: _slotFocus,
-                          canUndo:
-                              !readOnly && !locked && _history.undoDepth > 0,
-                          canRedo:
-                              !readOnly && !locked && _history.redoDepth > 0,
-                          onUndo: _undo,
-                          onRedo: _redo,
+                        Focus(
+                          canRequestFocus: false,
+                          skipTraversal: true,
+                          onKeyEvent: _key,
+                          child: PenToolbar(
+                            key: _toolbarKey,
+                            slots: ref.watch(penSlotsProvider),
+                            selectedSlot: ref.watch(selectedPenSlotProvider),
+                            // Room left by the corner (48), the menu (96) and
+                            // the controls that never shrink.
+                            maxSlotsWidth:
+                                top.maxWidth - 144 - PenToolbar.fixedWidth,
+                            onSlotTap: _slotTap,
+                            onAdd: _addSlot,
+                            onMove: _slots.move,
+                            eraserSelected: _tool == _Tool.eraser,
+                            eraserMode: ref.watch(eraserSettingsProvider).mode,
+                            onEraser: _eraserTap,
+                            lassoSelected: _tool == _Tool.lasso,
+                            onLasso: () => _setTool(_Tool.lasso),
+                            textSelected: _tool == _Tool.text,
+                            onText: () => _setTool(_Tool.text),
+                            onImage: readOnly || receiving || locked
+                                ? null
+                                : _chooseImage,
+                            slotFocus: _slotFocus,
+                            canUndo:
+                                !readOnly && !locked && _history.undoDepth > 0,
+                            canRedo:
+                                !readOnly && !locked && _history.redoDepth > 0,
+                            onUndo: _undo,
+                            onRedo: _redo,
+                          ),
                         ),
                       if (wide)
                         Expanded(

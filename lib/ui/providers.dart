@@ -16,6 +16,7 @@ import '../model/eraser.dart';
 import '../model/ids.dart';
 import '../model/note.dart';
 import '../model/pen.dart';
+import '../model/pen_only.dart';
 import '../ops/history.dart';
 import '../ops/ops.dart';
 import '../storage/asset_store.dart';
@@ -610,6 +611,37 @@ final eraserSettingsProvider =
     NotifierProvider<EraserSettingsNotifier, EraserSettings>(
       EraserSettingsNotifier.new,
     );
+
+/// "Write with pen only": a device setting, stored at once.
+class PenOnlyNotifier extends Notifier<PenOnlyMode> {
+  @override
+  PenOnlyMode build() => ref.read(penSlotsStoreProvider).readPenOnly();
+
+  void select(PenOnlyMode m) {
+    state = m;
+    ref.read(penSlotsStoreProvider).writePenOnly(m);
+  }
+}
+
+final penOnlyProvider = NotifierProvider<PenOnlyNotifier, PenOnlyMode>(
+  PenOnlyNotifier.new,
+);
+
+/// A stylus was seen on this device: kept whatever the setting says.
+class StylusSeenNotifier extends Notifier<bool> {
+  @override
+  bool build() => ref.read(penSlotsStoreProvider).readStylusSeen();
+
+  void mark() {
+    if (state) return;
+    state = true;
+    ref.read(penSlotsStoreProvider).writeStylusSeen(true);
+  }
+}
+
+final stylusSeenProvider = NotifierProvider<StylusSeenNotifier, bool>(
+  StylusSeenNotifier.new,
+);
 
 /// One row of the library: a readable note, or one that cannot be opened
 /// ([note] null).

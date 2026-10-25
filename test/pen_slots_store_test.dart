@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/model/eraser.dart';
 import 'package:kkeujeok/model/pen.dart';
+import 'package:kkeujeok/model/pen_only.dart';
 import 'package:kkeujeok/storage/pen_slots_store.dart';
 import 'package:kkeujeok/storage/session_hint.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -163,6 +164,27 @@ void main() {
     test('broken values read as defaults', () async {
       final p = await _prefs({'eraserMode': 'x', 'eraserReturnToPen': 'yes'});
       expect(PenSlotsStore(p).readEraser(), const EraserSettings());
+    });
+  });
+
+  group('pen only settings', () {
+    test('defaults, round trip, session survives log out', () async {
+      final p = await _prefs({});
+      final s = PenSlotsStore(p);
+      expect(s.readPenOnly(), PenOnlyMode.auto);
+      expect(s.readStylusSeen(), isFalse);
+      await s.writePenOnly(PenOnlyMode.off);
+      await s.writeStylusSeen(true);
+      await SessionHint(p).set(false);
+      final back = PenSlotsStore(p);
+      expect(back.readPenOnly(), PenOnlyMode.off);
+      expect(back.readStylusSeen(), isTrue);
+    });
+
+    test('broken values read as defaults', () async {
+      final p = await _prefs({'penOnlyMode': 'x', 'stylusSeen': 'yes'});
+      expect(PenSlotsStore(p).readPenOnly(), PenOnlyMode.auto);
+      expect(PenSlotsStore(p).readStylusSeen(), isFalse);
     });
   });
 }

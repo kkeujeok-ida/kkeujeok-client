@@ -289,7 +289,27 @@ void main() {
     final pen = TestPointer(3, PointerDeviceKind.stylus);
     await t.sendEventToBinding(pen.hover(const Offset(10, 10)));
     final before = painters()[1].viewport!.offset.dy;
-    await t.dragFrom(const Offset(450, 500), const Offset(0, -300));
+    // Later than the pen's palm window (500 ms).
+    const f = 5;
+    for (final (i, y) in [500.0, 400.0, 300.0, 200.0].indexed) {
+      t.binding.handlePointerEvent(
+        i == 0
+            ? PointerDownEvent(
+                pointer: f,
+                position: Offset(450, y),
+                timeStamp: const Duration(seconds: 2),
+              )
+            : PointerMoveEvent(
+                pointer: f,
+                position: Offset(450, y),
+                delta: const Offset(0, -100),
+                timeStamp: Duration(seconds: 2, milliseconds: 10 * i),
+              ),
+      );
+    }
+    t.binding.handlePointerEvent(
+      const PointerUpEvent(pointer: f, position: Offset(450, 200)),
+    );
     await t.pump();
     expect(painters()[1].viewport!.offset.dy, lessThan(before));
     expect(onDisk().pages[0]['elements'], isEmpty);

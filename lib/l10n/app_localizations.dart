@@ -1711,6 +1711,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Custom color {hex}'**
   String customColorSlotLabel(String hex);
+
+  /// No description provided for @penOnlyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Write with pen only'**
+  String get penOnlyTitle;
+
+  /// No description provided for @penOnlyAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto'**
+  String get penOnlyAuto;
+
+  /// No description provided for @penOnlyOn.
+  ///
+  /// In en, this message translates to:
+  /// **'On'**
+  String get penOnlyOn;
+
+  /// No description provided for @penOnlyOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get penOnlyOff;
 }
 
 class _AppLocalizationsDelegate

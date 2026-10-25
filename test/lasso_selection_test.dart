@@ -216,14 +216,18 @@ void main() {
     final a = ++id, b = ++id;
     final second = at(t, 400, 300);
     t.binding.handlePointerEvent(
-      PointerDownEvent(pointer: a, position: first, timeStamp: Duration.zero),
+      PointerDownEvent(
+        pointer: a,
+        position: first,
+        timeStamp: const Duration(milliseconds: 1000),
+      ),
     );
     await t.pump();
     t.binding.handlePointerEvent(
       PointerDownEvent(
         pointer: b,
         position: second,
-        timeStamp: const Duration(milliseconds: 500),
+        timeStamp: const Duration(milliseconds: 1500),
       ),
     );
     await t.pump();
@@ -231,7 +235,7 @@ void main() {
       PointerMoveEvent(
         pointer: b,
         position: second + const Offset(120, 120),
-        timeStamp: const Duration(milliseconds: 600),
+        timeStamp: const Duration(milliseconds: 1600),
       ),
     );
     await t.pump();
@@ -364,26 +368,27 @@ void main() {
     expect(box(t), isNull);
   });
 
-  testWidgets('a finger tap off the box clears the selection once a stylus was seen', (
-    t,
-  ) async {
-    await open(t);
-    await t.tap(find.byTooltip('Lasso'));
-    await t.pump();
-    await drag(t, around); // a stylus: a finger only moves the view now
-    expect(box(t), isNotNull);
-    final off = at(t, 400, 150);
-    const kind = PointerDeviceKind.touch;
-    t.binding.handlePointerEvent(
-      PointerDownEvent(pointer: ++id, kind: kind, position: off),
-    );
-    await t.pump();
-    t.binding.handlePointerEvent(
-      PointerUpEvent(pointer: id, kind: kind, position: off),
-    );
-    await t.pump();
-    expect(box(t), isNull);
-  });
+  testWidgets(
+    'a finger tap off the box clears the selection once a stylus was seen',
+    (t) async {
+      await open(t);
+      await t.tap(find.byTooltip('Lasso'));
+      await t.pump();
+      await drag(t, around); // a stylus: a finger only moves the view now
+      expect(box(t), isNotNull);
+      final off = at(t, 400, 150);
+      const kind = PointerDeviceKind.touch;
+      t.binding.handlePointerEvent(
+        PointerDownEvent(pointer: ++id, kind: kind, position: off),
+      );
+      await t.pump();
+      t.binding.handlePointerEvent(
+        PointerUpEvent(pointer: id, kind: kind, position: off),
+      );
+      await t.pump();
+      expect(box(t), isNull);
+    },
+  );
 
   test('selectionBounds: rotated box, empty stroke and invalid elements', () {
     final els = <Map<String, dynamic>>[

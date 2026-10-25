@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../model/eraser.dart';
 import '../model/pen.dart';
+import '../model/pen_only.dart';
 
 final _hex = RegExp(r'^#[0-9a-fA-F]{6}$');
 
@@ -144,6 +145,56 @@ class PenSlotsStore {
         await _prefs?.setBool(_returnKey, s.returnToPen);
       } catch (_) {
         // Save failed: the setting still applies for this session.
+      }
+    });
+  }
+
+  static const _penOnlyKey = 'penOnlyMode';
+  static const _seenKey = 'stylusSeen';
+
+  PenOnlyMode? _penOnlySession;
+  bool? _seenSession;
+
+  /// [PenOnlyMode.auto] for a missing or invalid stored value.
+  PenOnlyMode readPenOnly() {
+    final session = _penOnlySession;
+    if (session != null) return session;
+    try {
+      return PenOnlyMode.parse(_prefs?.getString(_penOnlyKey));
+    } catch (_) {
+      return PenOnlyMode.auto;
+    }
+  }
+
+  Future<void> writePenOnly(PenOnlyMode m) {
+    _penOnlySession = m;
+    return _pending = _pending.then((_) async {
+      try {
+        await _prefs?.setString(_penOnlyKey, m.name);
+      } catch (_) {
+        // Save failed: the setting still applies for this session.
+      }
+    });
+  }
+
+  /// Whether a stylus was ever seen on this device; false if unknown.
+  bool readStylusSeen() {
+    final session = _seenSession;
+    if (session != null) return session;
+    try {
+      return _prefs?.get(_seenKey) == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> writeStylusSeen(bool v) {
+    _seenSession = v;
+    return _pending = _pending.then((_) async {
+      try {
+        await _prefs?.setBool(_seenKey, v);
+      } catch (_) {
+        // Save failed: the record still applies for this session.
       }
     });
   }

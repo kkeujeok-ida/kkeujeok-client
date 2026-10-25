@@ -349,5 +349,9 @@
   "strokeWidthValue": "두께 {v}",
   "@strokeWidthValue": {"placeholders": {"v": {"type": "String"}}},
   "customColorSlotLabel": "사용자 지정 색 {hex}",
-  "@customColorSlotLabel": {"placeholders": {"hex": {"type": "String"}}}
+  "@customColorSlotLabel": {"placeholders": {"hex": {"type": "String"}}},
+  "penOnlyTitle": "펜으로만 필기",
+  "penOnlyAuto": "자동",
+  "penOnlyOn": "켜기",
+  "penOnlyOff": "끄기"
 }
