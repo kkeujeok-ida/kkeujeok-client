@@ -19,6 +19,7 @@ import 'library_fab.dart';
 import 'library_sort.dart';
 import 'new_note_sheet.dart';
 import 'note_editor.dart';
+import 'note_order.dart' show NoteArrival;
 import 'providers.dart';
 import 'sync_banner.dart';
 import 'sync_display.dart';
@@ -218,9 +219,39 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   Future<void> _push(Note note, {bool resolve = false}) =>
       Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => NoteEditor(note: note, openResolveSheet: resolve),
+          builder: (_) =>
+              NoteEditor(note: note, openResolveSheet: resolve, onHop: _hop),
         ),
       );
+
+  /// Story 5.13: the editor moves to another note by replacing its route, so
+  /// Back always lands on the library. The old route's `_afterEditor` runs
+  /// when it is replaced; the new one gets its own for the last close.
+  void _hop(Note to, bool resolve, int dir, NoteArrival? arrival) {
+    if (!mounted) return;
+    final route = PageRouteBuilder<void>(
+      opaque: true,
+      transitionDuration: const Duration(milliseconds: 220),
+      reverseTransitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (_, _, _) => NoteEditor(
+        note: to,
+        openResolveSheet: resolve,
+        arrival: arrival,
+        onHop: _hop,
+      ),
+      transitionsBuilder: (ctx, anim, _, child) =>
+          MediaQuery.disableAnimationsOf(ctx)
+          ? FadeTransition(opacity: anim, child: child)
+          : SlideTransition(
+              position: Tween(
+                begin: Offset(dir.toDouble(), 0),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOut)),
+              child: child,
+            ),
+    );
+    unawaited(_afterEditor(Navigator.of(context).pushReplacement(route), to));
+  }
 
   Future<void> _newNote() => _guarded(() async {
     // A created note is already in the list; no reload needed.

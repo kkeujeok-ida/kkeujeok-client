@@ -922,4 +922,28 @@ class AppLocalizationsKo extends AppLocalizations {
   String toolbarDocked(String place) {
     return '툴바를 $place에 붙였어요';
   }
+
+  @override
+  String get notePrev => '이전 노트';
+
+  @override
+  String get noteNext => '다음 노트';
+
+  @override
+  String noteChip(String title, int n, int total) {
+    return '$title · $n/$total';
+  }
+
+  @override
+  String noteBackTo(String title) {
+    return '‘$title’로 돌아가기';
+  }
+
+  @override
+  String noteOpened(String title) {
+    return '‘$title’ 열림';
+  }
+
+  @override
+  String get noteBackUndo => '되돌리기';
 }

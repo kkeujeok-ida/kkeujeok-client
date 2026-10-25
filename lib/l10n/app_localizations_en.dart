@@ -984,4 +984,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String toolbarDocked(String place) {
     return 'Toolbar docked: $place';
   }
+
+  @override
+  String get notePrev => 'Previous note';
+
+  @override
+  String get noteNext => 'Next note';
+
+  @override
+  String noteChip(String title, int n, int total) {
+    return '$title · $n/$total';
+  }
+
+  @override
+  String noteBackTo(String title) {
+    return 'Back to ‘$title’';
+  }
+
+  @override
+  String noteOpened(String title) {
+    return '‘$title’ opened';
+  }
+
+  @override
+  String get noteBackUndo => 'Undo';
 }

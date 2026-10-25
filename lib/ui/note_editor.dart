@@ -42,6 +42,7 @@ import '../sync/merge_step.dart';
 import '../sync/version_history.dart' show RestoreFailure;
 import 'conflict_sheet.dart';
 import 'eraser_dialog.dart';
+import 'note_order.dart';
 import 'page_layout.dart';
 import 'pen_toolbar.dart';
 import 'providers.dart';
@@ -62,9 +63,18 @@ class NoteEditor extends ConsumerStatefulWidget {
     super.key,
     required this.note,
     this.openResolveSheet = false,
+    this.onHop,
+    this.arrival,
   });
 
   final Note note;
+
+  /// Moves to another note (the library replaces this route); null when the
+  /// editor was not opened from the library.
+  final NoteHop? onHop;
+
+  /// Set when this editor was reached by a hop from another note.
+  final NoteArrival? arrival;
 
   /// The library card of a conflicted note opens the resolve sheet at once.
   final bool openResolveSheet;
@@ -166,6 +176,13 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   Note? _latest;
   Note? _failed;
   bool _leaving = false;
+  bool _hopping = false;
+  final _menu = MenuController();
+  final _three = _ThreeTouch();
+  // The content pushed aside when a swipe finds no neighbour (Story 5.13).
+  double _bx = 0;
+  String? _chip;
+  Timer? _chipTimer;
 
   int? _pointer; // the one pointer that is drawing
   // The page the stroke in progress belongs to and that page's top-left in
@@ -1469,6 +1486,134 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     if (widget.openResolveSheet) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _openSheet());
     }
+    final a = widget.arrival;
+    if (a != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _arrive(a));
+    }
+  }
+
+  /// Story 5.13: the chip, the way back and the announcement, once.
+  void _arrive(NoteArrival a) {
+    if (!mounted) return;
+    final l = AppLocalizations.of(context);
+    final title = _history.note.title;
+    setState(() => _chip = l.noteChip(title, a.n, a.total));
+    _chipTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _chip = null);
+    });
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(l.noteBackTo(a.backTitle)),
+          action: SnackBarAction(
+            label: l.noteBackUndo,
+            onPressed: () => unawaited(_hopTo(a.backNoteId, dir: -a.dir)),
+          ),
+        ),
+      );
+    _announce(l.noteOpened(title), polite: true);
+  }
+
+  /// Previous (-1) or next (+1) note in library order; at an end (or without
+  /// a library) the content just bounces.
+  Future<void> _hop(int dir) async {
+    if (_leaving || _hopping) return;
+    final ids = ref.read(openableNoteIdsProvider);
+    final id = widget.note.noteId;
+    final nb = neighbours(ids, id);
+    if (widget.onHop == null || (dir < 0 ? nb.prev : nb.next) == null) {
+      _bounce(-dir * 24.0);
+      return;
+    }
+    final at = ids.indexOf(id);
+    await _go(dir, ids.length, () async {
+      // Skips what cannot be read right now.
+      for (var j = at + dir; j >= 0 && j < ids.length; j += dir) {
+        final n = (await _store.read(ids[j]))?.note;
+        if (n != null) return (note: n, n: j + 1);
+      }
+      return null;
+    });
+  }
+
+  /// The snackbar's way back: straight to [id], no chip or snackbar there.
+  Future<void> _hopTo(String id, {required int dir}) => _go(dir, 0, () async {
+    final n = (await _store.read(id))?.note;
+    return n == null ? null : (note: n, n: 0);
+  });
+
+  Future<void> _go(
+    int dir,
+    int total,
+    Future<({Note note, int n})?> Function() find,
+  ) async {
+    if (_leaving || _hopping || !mounted || widget.onHop == null) return;
+    _hopping = true;
+    try {
+      // The target first: with none, nothing of the editing state is touched.
+      final to = await find();
+      if (!mounted || _leaving) return;
+      if (to == null) {
+        _bounce(-dir * 24.0);
+        return;
+      }
+      if (_menu.isOpen) _menu.close();
+      _discardStroke();
+      _commitText();
+      _clearSelection();
+      final resolve = ref.read(noteSyncProvider(to.note.noteId)).hasConflict;
+      final arrival = total > 0
+          ? NoteArrival(
+              backNoteId: widget.note.noteId,
+              backTitle: _history.note.title,
+              n: to.n,
+              total: total,
+              dir: dir,
+            )
+          : null;
+      await _leave(
+        then: () {
+          // Another route (resolve sheet, history) opened meanwhile: it
+          // would be replaced instead of this editor, so stay.
+          if (ModalRoute.of(context)?.isCurrent != true) {
+            _leaving = false;
+            return;
+          }
+          widget.onHop!(to.note, resolve, dir, arrival);
+        },
+      );
+    } finally {
+      _hopping = false;
+    }
+  }
+
+  void _bounce(double dx) {
+    if (!mounted || MediaQuery.disableAnimationsOf(context)) return;
+    setState(() => _bx = dx);
+  }
+
+  /// The third finger of a swipe landed in time: nothing else may keep the
+  /// touches (a pinch, a stroke, a long press, a tap).
+  void _threeArmed() {
+    _lpTimer?.cancel();
+    _lpTimer = null;
+    _tapPointer = -1;
+    _textTap = null;
+    if (_spA >= 0) {
+      _spA = -1;
+      _spB = -1;
+      _pointer = null;
+      _tick.value++;
+    }
+    _discardStroke();
+    _mode = _Mode.ignored;
+    _gA = _gB = -1;
+  }
+
+  void _swipe(int dir) {
+    if (ModalRoute.of(context)?.isCurrent != true) return;
+    unawaited(_hop(dir));
   }
 
   /// The note on disk differs from the one this editor opened with (a
@@ -1852,6 +1997,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     WidgetsBinding.instance.removeObserver(this);
     _latestTimer?.cancel();
     _lpTimer?.cancel();
+    _chipTimer?.cancel();
     _exTimer?.cancel();
     unawaited(setGestureExclusion(const []));
     _emphasisTimer?.cancel();
@@ -2078,6 +2224,15 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     if (_leaving || _vp == null || _page == null) return;
     _dragCancel();
     if (e.kind == PointerDeviceKind.touch && _palmTouch(e)) return;
+    if (kThreeFingerSwipe) {
+      if (e.kind == PointerDeviceKind.touch) {
+        if (_three.down(e.pointer, e.localPosition, e.timeStamp)) {
+          _threeArmed();
+        }
+      } else {
+        _three.kill(); // a stylus or mouse is not a three-finger swipe
+      }
+    }
     _snap();
     if (_consumedByText(e)) return;
     switch (e.kind) {
@@ -2842,6 +2997,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   void _move(PointerMoveEvent e) {
     if (_leaving || _vp == null) return;
     _noteStylus(e);
+    if (kThreeFingerSwipe && e.kind == PointerDeviceKind.touch) {
+      final dir = _three.move(e.pointer, e.localPosition);
+      if (dir != null) _swipe(dir);
+    }
     if (e.pointer == _lpPointer &&
         (e.localPosition - _lpScreen).distance > _tapSlop) {
       _lpTimer?.cancel();
@@ -2887,6 +3046,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   void _up(PointerUpEvent e) {
     final vp = _vp;
     _noteStylus(e);
+    _three.release(e.pointer);
     if (e.pointer == _lpPointer) {
       _lpTimer?.cancel();
       _lpTimer = null;
@@ -2956,6 +3116,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   }
 
   void _cancel(PointerCancelEvent e) {
+    _three.release(e.pointer); // a system gesture took the touches
     if (e.pointer == _lpPointer) {
       _lpTimer?.cancel();
       _lpTimer = null;
@@ -3173,7 +3334,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     }
   }
 
-  Future<void> _leave() async {
+  Future<void> _leave({VoidCallback? then}) async {
     if (_leaving) return;
     _commitText();
     _leaving = true;
@@ -3181,7 +3342,14 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     // Every queued save is on disk before the route is gone, so the upload
     // the library starts after the pop reads the last stroke.
     await _flush();
-    if (mounted) Navigator.of(context).pop();
+    if (!mounted) return;
+    // A snackbar of this editor must not call it once it is gone.
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    if (then != null) {
+      then();
+    } else {
+      Navigator.of(context).pop();
+    }
   }
 
   /// Places the view for this size (also on the first build); a free view
@@ -3350,6 +3518,11 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       ),
     );
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    final order = neighbours(
+      ref.watch(openableNoteIdsProvider),
+      widget.note.noteId,
+    );
+    final canHop = widget.onHop != null;
     final tbPos = ref.watch(toolbarPosProvider);
     final stored = ref.watch(pageViewModeProvider);
     final phone = isPhone(MediaQuery.sizeOf(context));
@@ -3380,312 +3553,372 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                 height: bar.height,
               )
             : bar;
-        return Stack(
-          children: [
-            Positioned.fill(
-              child: Listener(
-                behavior: HitTestBehavior.opaque,
-                onPointerDown: _down,
-                onPointerHover: _hover,
-                onPointerMove: _move,
-                onPointerUp: _up,
-                onPointerCancel: _cancel,
-                onPointerSignal: _signal,
-                child: page == null
-                    ? const SizedBox.expand()
-                    : Focus(
-                        focusNode: _canvasFocus,
-                        autofocus: true,
-                        onKeyEvent: _key,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            ..._pageViews(l10n),
-                            CustomPaint(
-                              size: Size.infinite,
-                              painter: SelectionPainter(
-                                viewport: _vp!,
-                                box: _selFrame()?.rect,
-                                angle: () => _selFrame()?.angle ?? 0,
-                                lasso: () => _lassoing ? _lassoPts : const [],
-                                preview: () {
-                                  final sp = _selPinchPreview();
-                                  if (sp != null) return sp;
-                                  final x = _xf;
-                                  if (x == null) return null;
-                                  final r = _xfResult(x, x.last);
-                                  return r == null ? null : (r.box, r.angle);
-                                },
-                                widthHandles: () {
-                                  final t = _textSel();
-                                  return t == null ? const [] : [t.l, t.r];
-                                },
-                                repaint: _tick,
+        return TweenAnimationBuilder<double>(
+          tween: Tween<double>(end: _bx),
+          duration: Duration(milliseconds: _bx == 0 ? 180 : 60),
+          curve: _bx == 0 ? Curves.easeOutBack : Curves.easeOut,
+          onEnd: () {
+            if (_bx != 0 && mounted) setState(() => _bx = 0);
+          },
+          builder: (context, v, child) =>
+              Transform.translate(offset: Offset(v, 0), child: child),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Listener(
+                  behavior: HitTestBehavior.opaque,
+                  onPointerDown: _down,
+                  onPointerHover: _hover,
+                  onPointerMove: _move,
+                  onPointerUp: _up,
+                  onPointerCancel: _cancel,
+                  onPointerSignal: _signal,
+                  child: page == null
+                      ? const SizedBox.expand()
+                      : Focus(
+                          focusNode: _canvasFocus,
+                          autofocus: true,
+                          onKeyEvent: _key,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              ..._pageViews(l10n),
+                              CustomPaint(
+                                size: Size.infinite,
+                                painter: SelectionPainter(
+                                  viewport: _vp!,
+                                  box: _selFrame()?.rect,
+                                  angle: () => _selFrame()?.angle ?? 0,
+                                  lasso: () => _lassoing ? _lassoPts : const [],
+                                  preview: () {
+                                    final sp = _selPinchPreview();
+                                    if (sp != null) return sp;
+                                    final x = _xf;
+                                    if (x == null) return null;
+                                    final r = _xfResult(x, x.last);
+                                    return r == null ? null : (r.box, r.angle);
+                                  },
+                                  widthHandles: () {
+                                    final t = _textSel();
+                                    return t == null ? const [] : [t.l, t.r];
+                                  },
+                                  repaint: _tick,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
+                ),
               ),
-            ),
-            if (page != null) ..._retryButtons(l10n),
-            if (_showLatest)
-              Positioned(
-                bottom: pad.bottom + gap,
-                left: pad.left + gap,
-                right: pad.right + gap,
-                child: Semantics(
-                  liveRegion: true,
-                  child: Center(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: KkjLight.componentsBadgeNeutralBackground,
-                        borderRadius: BorderRadius.circular(
-                          KkjLight.componentsBadgeRounded,
+              if (page != null) ..._retryButtons(l10n),
+              if (_showLatest)
+                Positioned(
+                  bottom: pad.bottom + gap,
+                  left: pad.left + gap,
+                  right: pad.right + gap,
+                  child: Semantics(
+                    liveRegion: true,
+                    child: Center(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: KkjLight.componentsBadgeNeutralBackground,
+                          borderRadius: BorderRadius.circular(
+                            KkjLight.componentsBadgeRounded,
+                          ),
                         ),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: KkjTokens.spacing3,
-                          vertical: KkjTokens.spacing1,
-                        ),
-                        child: Text(
-                          l10n.receivingLatest,
-                          style: Theme.of(context).textTheme.bodySmall,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: KkjTokens.spacing3,
+                            vertical: KkjTokens.spacing1,
+                          ),
+                          child: Text(
+                            l10n.receivingLatest,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            Positioned(
-              top: minTop,
-              right: pad.right + gap,
-              child: IgnorePointer(
-                child: ValueListenableBuilder<int?>(
-                  valueListenable: _zoomBadge,
-                  builder: (context, p, _) => p == null
-                      ? const SizedBox.shrink()
-                      : Semantics(
-                          liveRegion: true,
-                          container: true,
-                          label: '$p%',
-                          excludeSemantics: true,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: KkjLight.componentsBadgeNeutralBackground,
-                              borderRadius: BorderRadius.circular(
-                                KkjLight.componentsBadgeRounded,
+              Positioned(
+                top: minTop,
+                right: pad.right + gap,
+                child: IgnorePointer(
+                  child: ValueListenableBuilder<int?>(
+                    valueListenable: _zoomBadge,
+                    builder: (context, p, _) => p == null
+                        ? const SizedBox.shrink()
+                        : Semantics(
+                            liveRegion: true,
+                            container: true,
+                            label: '$p%',
+                            excludeSemantics: true,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color:
+                                    KkjLight.componentsBadgeNeutralBackground,
+                                borderRadius: BorderRadius.circular(
+                                  KkjLight.componentsBadgeRounded,
+                                ),
                               ),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: KkjTokens.spacing3,
-                                vertical: KkjTokens.spacing1,
-                              ),
-                              child: Text(
-                                '$p%',
-                                style: Theme.of(context).textTheme.bodySmall,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: KkjTokens.spacing3,
+                                  vertical: KkjTokens.spacing1,
+                                ),
+                                child: Text(
+                                  '$p%',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
                               ),
                             ),
                           ),
+                  ),
+                ),
+              ),
+              if (_chip != null)
+                Positioned(
+                  top: minTop,
+                  left: pad.left + gap,
+                  right: pad.right + gap,
+                  child: IgnorePointer(
+                    child: Center(
+                      child: Semantics(
+                        liveRegion: true,
+                        container: true,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: KkjLight.componentsBadgeNeutralBackground,
+                            borderRadius: BorderRadius.circular(
+                              KkjLight.componentsBadgeRounded,
+                            ),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: KkjTokens.spacing3,
+                              vertical: KkjTokens.spacing1,
+                            ),
+                            child: Text(
+                              _chip!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
                         ),
+                      ),
+                    ),
+                  ),
+                ),
+              // Over the page, under the toolbar: it stays put while the page
+              // scrolls and never pushes the toolbar or the menu down.
+              Positioned(
+                top: minTop,
+                left: 0,
+                right: 0,
+                child: MediaQuery.removePadding(
+                  context: context,
+                  removeTop: true,
+                  child: SyncBanner(
+                    noteId: widget.note.noteId,
+                    onCloseNote: () => Navigator.of(context).maybePop(),
+                    onResolve: _openSheet,
+                    emphasis: _emphasis,
+                  ),
                 ),
               ),
-            ),
-            // Over the page, under the toolbar: it stays put while the page
-            // scrolls and never pushes the toolbar or the menu down.
-            Positioned(
-              top: minTop,
-              left: 0,
-              right: 0,
-              child: MediaQuery.removePadding(
-                context: context,
-                removeTop: true,
-                child: SyncBanner(
-                  noteId: widget.note.noteId,
-                  onCloseNote: () => Navigator.of(context).maybePop(),
-                  onResolve: _openSheet,
-                  emphasis: _emphasis,
-                ),
-              ),
-            ),
-            if (page != null &&
-                _xf == null &&
-                _spA < 0 &&
-                !_lassoing &&
-                (_selected.isNotEmpty || _blank != null))
-              Builder(
-                builder: (context) {
-                  final box = _selectionBox();
-                  final blank = _liveBlank();
-                  final vp = _vp;
-                  if (box == null) {
-                    if (blank == null || vp == null || _tool != _Tool.lasso) {
-                      return const Positioned(child: SizedBox.shrink());
+              if (page != null &&
+                  _xf == null &&
+                  _spA < 0 &&
+                  !_lassoing &&
+                  (_selected.isNotEmpty || _blank != null))
+                Builder(
+                  builder: (context) {
+                    final box = _selectionBox();
+                    final blank = _liveBlank();
+                    final vp = _vp;
+                    if (box == null) {
+                      if (blank == null || vp == null || _tool != _Tool.lasso) {
+                        return const Positioned(child: SizedBox.shrink());
+                      }
+                      final p = vp.offset + (blank.$2 * vp.scale);
+                      return Positioned(
+                        left: (p.dx - 100).clamp(
+                          pad.left,
+                          math.max(pad.left, _size.width - pad.right - 200),
+                        ),
+                        top: (p.dy + 8).clamp(
+                          minTop,
+                          math.max(minTop, _size.height - pad.bottom - 64),
+                        ),
+                        child: BlankTapMenu(
+                          canPaste: _canPasteBlank,
+                          onPaste: _pasteBlank,
+                          onSelectAll: _selectAllBlank,
+                        ),
+                      );
                     }
-                    final p = vp.offset + (blank.$2 * vp.scale);
-                    return Positioned(
-                      left: (p.dx - 100).clamp(
-                        pad.left,
-                        math.max(pad.left, _size.width - pad.right - 200),
-                      ),
-                      top: (p.dy + 8).clamp(
-                        minTop,
-                        math.max(minTop, _size.height - pad.bottom - 64),
-                      ),
-                      child: BlankTapMenu(
-                        canPaste: _canPasteBlank,
-                        onPaste: _pasteBlank,
-                        onSelectAll: _selectAllBlank,
-                      ),
-                    );
-                  }
-                  final edit = _canEditSel;
-                  final strokes = _selEls().any((e) => e['type'] == 'stroke');
-                  final full = selectionMenuSize(edit: edit, strokes: strokes);
-                  // A narrow screen: the menu is as wide as the room and scrolls.
-                  final room = _size.width - pad.left - pad.right;
-                  final size = Size(math.min(full.width, room), full.height);
-                  final at = _menuAt(box, pad, size);
-                  return Positioned(
-                    left: at.dx,
-                    top: at.dy,
-                    width: size.width,
-                    child: SelectionMenu(
+                    final edit = _canEditSel;
+                    final strokes = _selEls().any((e) => e['type'] == 'stroke');
+                    final full = selectionMenuSize(
                       edit: edit,
                       strokes: strokes,
-                      ratioLock: _ratioLock,
-                      onRatioLock: () =>
-                          setState(() => _ratioLock = !_ratioLock),
-                      onScaleUp: () => _step(_XKind.scale, 1.25),
-                      onScaleDown: () => _step(_XKind.scale, 0.8),
-                      onRotate90: () => _step(_XKind.rotate),
-                      onCopy: _copy,
-                      onColor: _pickColor,
-                      onWidth: _pickWidth,
-                      onCut: _cut,
-                      onDelete: _delete,
+                    );
+                    // A narrow screen: the menu is as wide as the room and scrolls.
+                    final room = _size.width - pad.left - pad.right;
+                    final size = Size(math.min(full.width, room), full.height);
+                    final at = _menuAt(box, pad, size);
+                    return Positioned(
+                      left: at.dx,
+                      top: at.dy,
+                      width: size.width,
+                      child: SelectionMenu(
+                        edit: edit,
+                        strokes: strokes,
+                        ratioLock: _ratioLock,
+                        onRatioLock: () =>
+                            setState(() => _ratioLock = !_ratioLock),
+                        onScaleUp: () => _step(_XKind.scale, 1.25),
+                        onScaleDown: () => _step(_XKind.scale, 0.8),
+                        onRotate90: () => _step(_XKind.rotate),
+                        onCopy: _copy,
+                        onColor: _pickColor,
+                        onWidth: _pickWidth,
+                        onCut: _cut,
+                        onDelete: _delete,
+                      ),
+                    );
+                  },
+                ),
+              if (_te != null && page != null && _vp != null)
+                ..._editOverlay(pad, keyboard),
+              Positioned(
+                top: pad.top + gap,
+                left: pad.left + gap,
+                right: pad.right + gap,
+                child: Builder(
+                  builder: (context) {
+                    final left = _Corner(
+                      tooltip: l10n.backToLibrary,
+                      // Always through PopScope, so the queue drains.
+                      onBack: () => Navigator.of(context).maybePop(),
+                    );
+                    final right = _MoreMenu(
+                      noteId: widget.note.noteId,
+                      percent: ((_vp?.scale ?? 1) * 100).round(),
+                      canZoomOut: (_vp?.scale ?? 1) > PageViewport.zoomMin,
+                      canZoomIn: (_vp?.scale ?? 1) < PageViewport.zoomMax,
+                      onZoomOut: () => _zoomBy(1 / _zoomStep),
+                      onZoomIn: () => _zoomBy(_zoomStep),
+                      onFitWidth: () =>
+                          _goTo(_laidOut(_Fit.width, _keepPage), _Fit.width),
+                      onFitPage: () => _goTo(_laidOut(_Fit.page), _Fit.page),
+                      viewMode: viewMode,
+                      allowTwoPage: !phone,
+                      onViewMode: (m) =>
+                          ref.read(pageViewModeProvider.notifier).set(m),
+                      menu: _menu,
+                      onPrev: canHop && order.prev != null
+                          ? () => unawaited(_hop(-1))
+                          : null,
+                      onNext: canHop && order.next != null
+                          ? () => unawaited(_hop(1))
+                          : null,
+                      onVersionHistory: readOnly || receiving
+                          ? null
+                          : _openHistory,
+                    );
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [left, const Spacer(), right],
+                    );
+                  },
+                ),
+              ),
+              if (dragging)
+                for (final d in snapOrder)
+                  Positioned.fromRect(
+                    rect: dockRect(
+                      d,
+                      d == ToolbarDock.left || d == ToolbarDock.right
+                          ? _barSize(true, win, pad)
+                          : _barSize(
+                              false,
+                              win,
+                              pad,
+                              inRow: _topFits(win, pad),
+                            ),
+                      win,
+                      d == ToolbarDock.left || d == ToolbarDock.right
+                          ? _vIn(pad)
+                          : pad,
                     ),
-                  );
-                },
-              ),
-            if (_te != null && page != null && _vp != null)
-              ..._editOverlay(pad, keyboard),
-            Positioned(
-              top: pad.top + gap,
-              left: pad.left + gap,
-              right: pad.right + gap,
-              child: Builder(
-                builder: (context) {
-                  final left = _Corner(
-                    tooltip: l10n.backToLibrary,
-                    // Always through PopScope, so the queue drains.
-                    onBack: () => Navigator.of(context).maybePop(),
-                  );
-                  final right = _MoreMenu(
-                    noteId: widget.note.noteId,
-                    percent: ((_vp?.scale ?? 1) * 100).round(),
-                    canZoomOut: (_vp?.scale ?? 1) > PageViewport.zoomMin,
-                    canZoomIn: (_vp?.scale ?? 1) < PageViewport.zoomMax,
-                    onZoomOut: () => _zoomBy(1 / _zoomStep),
-                    onZoomIn: () => _zoomBy(_zoomStep),
-                    onFitWidth: () =>
-                        _goTo(_laidOut(_Fit.width, _keepPage), _Fit.width),
-                    onFitPage: () => _goTo(_laidOut(_Fit.page), _Fit.page),
-                    viewMode: viewMode,
-                    allowTwoPage: !phone,
-                    onViewMode: (m) =>
-                        ref.read(pageViewModeProvider.notifier).set(m),
-                    onVersionHistory: readOnly || receiving
-                        ? null
-                        : _openHistory,
-                  );
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [left, const Spacer(), right],
-                  );
-                },
-              ),
-            ),
-            if (dragging)
-              for (final d in snapOrder)
-                Positioned.fromRect(
-                  rect: dockRect(
-                    d,
-                    d == ToolbarDock.left || d == ToolbarDock.right
-                        ? _barSize(true, win, pad)
-                        : _barSize(false, win, pad, inRow: _topFits(win, pad)),
-                    win,
-                    d == ToolbarDock.left || d == ToolbarDock.right
-                        ? _vIn(pad)
-                        : pad,
+                    child: SnapOutline(
+                      key: ValueKey(d),
+                      highlighted: _dragNear == d,
+                    ),
                   ),
-                  child: SnapOutline(
-                    key: ValueKey(d),
-                    highlighted: _dragNear == d,
-                  ),
-                ),
-            // Hidden while the keyboard is open.
-            if (keyboard <= 0)
-              AnimatedPositioned(
-                duration: dragging || MediaQuery.disableAnimationsOf(context)
-                    ? Duration.zero
-                    : KkjLight.componentsPenSlotSelectedDuration,
-                curve: Curves.easeOut,
-                left: shown.left,
-                top: shown.top,
-                onEnd: _pushExclusion,
-                child: Focus(
-                  canRequestFocus: false,
-                  skipTraversal: true,
-                  onKeyEvent: _key,
-                  child: PenToolbar(
-                    key: _toolbarKey,
-                    slots: ref.watch(penSlotsProvider),
-                    selectedSlot: ref.watch(selectedPenSlotProvider),
-                    vertical: tbPos.vertical,
-                    // Room left by the corner (48), the menu (96) and the
-                    // controls that never shrink.
-                    maxSlotsWidth: tbPos.vertical
-                        ? double.infinity
-                        : _maxSlots(
-                            false,
-                            win,
-                            pad,
-                            tbPos.dock == ToolbarDock.top && !wrapped,
-                          ),
-                    maxSlotsExtent: tbPos.vertical
-                        ? _maxSlots(true, win, pad, false)
-                        : null,
-                    handleKey: _handleKey,
-                    onHandleTap: _positionMenu,
-                    onHandleLongPressStart: _dragStart,
-                    onHandleLongPressMoveUpdate: _dragMove,
-                    onHandleLongPressEnd: _dragEnd,
-                    onHandleLongPressCancel: _dragCancel,
-                    onSlotTap: _slotTap,
-                    onAdd: _addSlot,
-                    onMove: _slots.move,
-                    eraserSelected: _tool == _Tool.eraser,
-                    eraserMode: ref.watch(eraserSettingsProvider).mode,
-                    onEraser: _eraserTap,
-                    lassoSelected: _tool == _Tool.lasso,
-                    onLasso: () => _setTool(_Tool.lasso),
-                    textSelected: _tool == _Tool.text,
-                    onText: () => _setTool(_Tool.text),
-                    onImage: readOnly || receiving || locked
-                        ? null
-                        : _chooseImage,
-                    slotFocus: _slotFocus,
-                    canUndo: !readOnly && !locked && _history.undoDepth > 0,
-                    canRedo: !readOnly && !locked && _history.redoDepth > 0,
-                    onUndo: _undo,
-                    onRedo: _redo,
+              // Hidden while the keyboard is open.
+              if (keyboard <= 0)
+                AnimatedPositioned(
+                  duration: dragging || MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : KkjLight.componentsPenSlotSelectedDuration,
+                  curve: Curves.easeOut,
+                  left: shown.left,
+                  top: shown.top,
+                  onEnd: _pushExclusion,
+                  child: Focus(
+                    canRequestFocus: false,
+                    skipTraversal: true,
+                    onKeyEvent: _key,
+                    child: PenToolbar(
+                      key: _toolbarKey,
+                      slots: ref.watch(penSlotsProvider),
+                      selectedSlot: ref.watch(selectedPenSlotProvider),
+                      vertical: tbPos.vertical,
+                      // Room left by the corner (48), the menu (96) and the
+                      // controls that never shrink.
+                      maxSlotsWidth: tbPos.vertical
+                          ? double.infinity
+                          : _maxSlots(
+                              false,
+                              win,
+                              pad,
+                              tbPos.dock == ToolbarDock.top && !wrapped,
+                            ),
+                      maxSlotsExtent: tbPos.vertical
+                          ? _maxSlots(true, win, pad, false)
+                          : null,
+                      handleKey: _handleKey,
+                      onHandleTap: _positionMenu,
+                      onHandleLongPressStart: _dragStart,
+                      onHandleLongPressMoveUpdate: _dragMove,
+                      onHandleLongPressEnd: _dragEnd,
+                      onHandleLongPressCancel: _dragCancel,
+                      onSlotTap: _slotTap,
+                      onAdd: _addSlot,
+                      onMove: _slots.move,
+                      eraserSelected: _tool == _Tool.eraser,
+                      eraserMode: ref.watch(eraserSettingsProvider).mode,
+                      onEraser: _eraserTap,
+                      lassoSelected: _tool == _Tool.lasso,
+                      onLasso: () => _setTool(_Tool.lasso),
+                      textSelected: _tool == _Tool.text,
+                      onText: () => _setTool(_Tool.text),
+                      onImage: readOnly || receiving || locked
+                          ? null
+                          : _chooseImage,
+                      slotFocus: _slotFocus,
+                      canUndo: !readOnly && !locked && _history.undoDepth > 0,
+                      canRedo: !readOnly && !locked && _history.redoDepth > 0,
+                      onUndo: _undo,
+                      onRedo: _redo,
+                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         );
       },
     );
@@ -3741,8 +3974,14 @@ class _MoreMenu extends StatelessWidget {
     required this.viewMode,
     required this.allowTwoPage,
     required this.onViewMode,
+    required this.menu,
+    required this.onPrev,
+    required this.onNext,
     required this.onVersionHistory,
   });
+
+  final MenuController menu;
+  final VoidCallback? onPrev, onNext;
 
   final PageViewMode viewMode;
   final bool allowTwoPage;
@@ -3774,6 +4013,7 @@ class _MoreMenu extends StatelessWidget {
         children: [
           SyncIndicator(noteId: noteId),
           MenuAnchor(
+            controller: menu,
             style: MenuStyle(
               backgroundColor: const WidgetStatePropertyAll(
                 KkjLight.componentsPopoverBackground,
@@ -3842,6 +4082,16 @@ class _MoreMenu extends StatelessWidget {
                       PageViewMode.twoPage => l10n.viewModeTwoPage,
                     }),
                   ),
+              MenuItemButton(
+                style: item,
+                onPressed: onPrev,
+                child: Text(l10n.notePrev),
+              ),
+              MenuItemButton(
+                style: item,
+                onPressed: onNext,
+                child: Text(l10n.noteNext),
+              ),
               const Divider(height: 1),
               MenuItemButton(
                 style: item,
@@ -3860,5 +4110,59 @@ class _MoreMenu extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Story 5.13: three fingers that land within [_secondFinger] of the first
+/// and then travel mostly sideways. Touch only; a stylus, a fourth finger or
+/// a late third finger turns it off until every finger is up.
+class _ThreeTouch {
+  final _start = <int, Offset>{};
+  final _now = <int, Offset>{};
+  Duration _first = Duration.zero;
+  bool _armed = false, _dead = false, _fired = false;
+
+  /// True when this finger arms the swipe.
+  bool down(int id, Offset p, Duration t) {
+    if (_start.isEmpty) {
+      _first = t;
+      _armed = _dead = _fired = false;
+    }
+    _start[id] = _now[id] = p;
+    if (_start.length > 3) {
+      _dead = true;
+      _armed = false;
+    } else if (_start.length == 3 && !_dead) {
+      if (t - _first <= _secondFinger) return _armed = true;
+      _dead = true;
+    }
+    return false;
+  }
+
+  void kill() {
+    _dead = true;
+    _armed = false;
+  }
+
+  /// +1 next, -1 previous, once per touch; null otherwise.
+  int? move(int id, Offset p) {
+    if (!_start.containsKey(id)) return null;
+    _now[id] = p;
+    if (!_armed || _fired || _start.length != 3) return null;
+    var d = Offset.zero;
+    for (final k in _start.keys) {
+      d += _now[k]! - _start[k]!;
+    }
+    d /= 3;
+    if (d.dx.abs() < 64 || d.dx.abs() < 1.5 * d.dy.abs()) return null;
+    _fired = true;
+    return d.dx < 0 ? 1 : -1;
+  }
+
+  void release(int id) {
+    if (_start.remove(id) == null) return;
+    _now.remove(id);
+    _armed = false;
+    if (_start.isEmpty) _dead = _fired = false;
   }
 }

@@ -1789,6 +1789,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Toolbar docked: {place}'**
   String toolbarDocked(String place);
+
+  /// No description provided for @notePrev.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous note'**
+  String get notePrev;
+
+  /// No description provided for @noteNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Next note'**
+  String get noteNext;
+
+  /// No description provided for @noteChip.
+  ///
+  /// In en, this message translates to:
+  /// **'{title} · {n}/{total}'**
+  String noteChip(String title, int n, int total);
+
+  /// No description provided for @noteBackTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to ‘{title}’'**
+  String noteBackTo(String title);
+
+  /// No description provided for @noteOpened.
+  ///
+  /// In en, this message translates to:
+  /// **'‘{title}’ opened'**
+  String noteOpened(String title);
+
+  /// No description provided for @noteBackUndo.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get noteBackUndo;
 }
 
 class _AppLocalizationsDelegate
