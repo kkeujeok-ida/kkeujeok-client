@@ -199,7 +199,7 @@ void main() {
     await t.pump();
     await drag(t, [(150, 102)]);
     expect(box(t), isNotNull);
-    await t.tap(find.bySemanticsLabel(RegExp('^Pen')));
+    await t.tap(find.bySemanticsLabel('Pen, Black, width 2.0'));
     await t.pump();
     expect(box(t), isNull);
   });

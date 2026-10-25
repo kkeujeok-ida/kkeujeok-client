@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,8 +13,9 @@ import '../render/stroke_outline.dart';
 import 'library_fab.dart' show kkjShadow;
 import 'providers.dart';
 
-/// The floating rounded bar: grip (inert, not in the a11y tree) | one pen
-/// slot. Tapping the selected slot opens the pen edit popover.
+/// The floating rounded bar: grip (inert, not in the a11y tree) | pen slots
+/// (scroll, reorder) | [+] | undo/redo | tools. Tapping the selected slot
+/// opens the pen edit popover.
 /// Touch size of a toolbar button: tighter than the 48 dp default so the bar is short.
 const _hit = 34.0;
 const _icon = 20.0;
@@ -25,15 +27,19 @@ final _compact = IconButton.styleFrom(
   minimumSize: const Size(_hit, _hit),
 );
 
-class PenToolbar extends StatelessWidget {
+class PenToolbar extends StatefulWidget {
   const PenToolbar({
     super.key,
-    required this.pen,
+    required this.slots,
+    this.selectedSlot = 0,
+    this.maxSlotsWidth = double.infinity,
     this.canUndo = false,
     this.canRedo = false,
     this.onUndo,
     this.onRedo,
-    this.onPenTap,
+    this.onSlotTap,
+    this.onAdd,
+    this.onMove,
     this.slotFocus,
     this.lassoSelected = false,
     this.onLasso,
@@ -42,12 +48,26 @@ class PenToolbar extends StatelessWidget {
     this.onImage,
   });
 
-  final Pen pen;
+  /// Width of everything but the slot list: padding, grip, [+], the divider,
+  /// undo, redo, lasso, text and image. These never shrink or fold away.
+  static const fixedWidth = 277.0;
+
+  final List<Pen> slots;
+  final int selectedSlot;
+
+  /// Most width the slot list may take; wider lists scroll inside it.
+  final double maxSlotsWidth;
   final bool canUndo;
   final bool canRedo;
   final VoidCallback? onUndo;
   final VoidCallback? onRedo;
-  final VoidCallback? onPenTap;
+
+  /// A tap on slot `i`; the editor picks it, or opens its popover if picked.
+  final void Function(int i)? onSlotTap;
+  final VoidCallback? onAdd;
+
+  /// Slot `from` was dropped at `to` (the index it ends up at).
+  final void Function(int from, int to)? onMove;
   final FocusNode? slotFocus;
   final bool lassoSelected;
   final VoidCallback? onLasso;
@@ -58,13 +78,187 @@ class PenToolbar extends StatelessWidget {
   final VoidCallback? onImage;
 
   @override
+  State<PenToolbar> createState() => _PenToolbarState();
+}
+
+class _PenToolbarState extends State<PenToolbar> {
+  static const _slotW = KkjLight.componentsPenSlotHitSize;
+  static const _arrowW = 28.0;
+  static const _fade = 20.0;
+
+  final _scroll = ScrollController();
+  final _bar = GlobalKey();
+  Offset? _pointer; // last pointer position while a slot is dragged
+
+  double get _viewW => math.max(widget.maxSlotsWidth, _slotW);
+  double get _width => math.min(widget.slots.length * _slotW, _viewW);
+  double get _maxExtent => math.max(0, widget.slots.length * _slotW - _width);
+
+  @override
+  void didUpdateWidget(PenToolbar old) {
+    super.didUpdateWidget(old);
+    if (old.selectedSlot != widget.selectedSlot ||
+        old.slots.length != widget.slots.length) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _reveal());
+    }
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _goTo(double to) {
+    if (!_scroll.hasClients) return;
+    to = to.clamp(0.0, _maxExtent);
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _scroll.jumpTo(to);
+    } else {
+      _scroll.animateTo(
+        to,
+        duration: KkjLight.componentsPenSlotSelectedDuration,
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  /// Scrolls just far enough that the selected slot is fully in view.
+  void _reveal() {
+    if (!mounted || !_scroll.hasClients) return;
+    final left = widget.selectedSlot * _slotW, off = _scroll.offset;
+    if (left < off) {
+      _goTo(left);
+    } else if (left + _slotW > off + _width) {
+      _goTo(left + _slotW - _width);
+    }
+  }
+
+  bool _insideBar() {
+    final box = _bar.currentContext?.findRenderObject() as RenderBox?;
+    final at = _pointer;
+    if (box == null || !box.attached || at == null) return true;
+    return (box.localToGlobal(Offset.zero) & box.size).contains(at);
+  }
+
+  void _reorder(int from, int to) {
+    // Dropped outside the toolbar: the slot goes back where it was.
+    if (_insideBar()) widget.onMove?.call(from, to);
+  }
+
+  Widget _slot(BuildContext context, int i, AppLocalizations l10n) {
+    final pen = widget.slots[i];
+    final active = !widget.lassoSelected && !widget.textSelected;
+    final selected = active && i == widget.selectedSlot;
+    final color = _colorName(l10n, pen);
+    final width = pen.width.toStringAsFixed(1);
+    return ReorderableDelayedDragStartListener(
+      key: ObjectKey(pen), // each slot is its own Pen object
+      index: i,
+      child: Semantics(
+        label: pen.isHighlighter
+            ? l10n.highlighterSlotLabel(color, width)
+            : l10n.penSlotLabel(color, width),
+        button: true,
+        selected: selected,
+        onTap: () => widget.onSlotTap?.call(i),
+        customSemanticsActions: {
+          if (i > 0)
+            CustomSemanticsAction(label: l10n.moveSlotEarlier): () =>
+                widget.onMove?.call(i, i - 1),
+          if (i < widget.slots.length - 1)
+            CustomSemanticsAction(label: l10n.moveSlotLater): () =>
+                widget.onMove?.call(i, i + 1),
+        },
+        excludeSemantics: true,
+        child: InkResponse(
+          focusNode: i == widget.selectedSlot ? widget.slotFocus : null,
+          onTap: () => widget.onSlotTap?.call(i),
+          containedInkWell: true,
+          highlightShape: BoxShape.rectangle,
+          focusColor: Colors.transparent,
+          hoverColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+          borderRadius: BorderRadius.circular(
+            KkjLight.componentsToolbarRounded,
+          ),
+          child: _PenSlot(pen: pen, selected: selected),
+        ),
+      ),
+    );
+  }
+
+  Widget _slots(AppLocalizations l10n) {
+    return AnimatedBuilder(
+      animation: _scroll,
+      builder: (context, _) {
+        final off = _scroll.hasClients ? _scroll.offset : 0.0;
+        final more = _maxExtent > 0;
+        final back = more && off > 0.5;
+        final fwd = more && off < _maxExtent - 0.5;
+        return SizedBox(
+          width: _width,
+          height: _hit,
+          child: Stack(
+            children: [
+              // The edge that has more behind it fades out.
+              ShaderMask(
+                blendMode: BlendMode.dstIn,
+                shaderCallback: (r) => LinearGradient(
+                  colors: [
+                    back ? Colors.transparent : Colors.black,
+                    Colors.black,
+                    Colors.black,
+                    fwd ? Colors.transparent : Colors.black,
+                  ],
+                  stops: [0, _fade / r.width, 1 - _fade / r.width, 1],
+                ).createShader(r),
+                child: Listener(
+                  onPointerDown: (e) => _pointer = e.position,
+                  onPointerMove: (e) => _pointer = e.position,
+                  child: ReorderableListView.builder(
+                    scrollController: _scroll,
+                    scrollDirection: Axis.horizontal,
+                    buildDefaultDragHandles: false,
+                    padding: EdgeInsets.zero,
+                    itemExtent: _slotW,
+                    itemCount: widget.slots.length,
+                    onReorderItem: _reorder,
+                    itemBuilder: (c, i) => _slot(c, i, l10n),
+                  ),
+                ),
+              ),
+              if (back)
+                Positioned(
+                  left: 0,
+                  child: _ScrollArrow(
+                    icon: Icons.chevron_left,
+                    tooltip: l10n.scrollSlotsBack,
+                    onTap: () => _goTo(off - _slotW),
+                  ),
+                ),
+              if (fwd)
+                Positioned(
+                  right: 0,
+                  child: _ScrollArrow(
+                    icon: Icons.chevron_right,
+                    tooltip: l10n.scrollSlotsForward,
+                    onTap: () => _goTo(off + _slotW),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final color = switch (pen.colorNameKey) {
-      'black' => l10n.colorBlack,
-      final k => throw ArgumentError.value(k, 'colorNameKey'),
-    };
+    final full = widget.slots.length >= maxPenSlots;
     return DecoratedBox(
+      key: _bar,
       decoration: BoxDecoration(
         color: KkjLight.componentsToolbarBackground,
         borderRadius: BorderRadius.circular(KkjLight.componentsToolbarRounded),
@@ -79,25 +273,25 @@ class PenToolbar extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const ExcludeSemantics(child: _Grip()),
-            Semantics(
-              label: l10n.penSlotLabel(color, pen.width.toStringAsFixed(1)),
-              button: true,
-              selected: !lassoSelected && !textSelected,
-              onTap: onPenTap,
-              excludeSemantics: true,
-              child: InkResponse(
-                focusNode: slotFocus,
-                onTap: onPenTap,
-                containedInkWell: true,
-                highlightShape: BoxShape.rectangle,
-                focusColor: Colors.transparent,
-                hoverColor: Colors.transparent,
-                highlightColor: Colors.transparent,
-                borderRadius: BorderRadius.circular(
-                  KkjLight.componentsToolbarRounded,
-                ),
-                child: _PenSlot(pen: pen),
+            _slots(l10n),
+            // At the limit it looks off but still answers with the notice.
+            IconButton(
+              tooltip: l10n.addPenSlot,
+              constraints: const BoxConstraints(
+                minWidth: KkjLight.componentsPenSlotAddSize,
+                minHeight: _hit,
               ),
+              iconSize: _icon,
+              style: _compact.copyWith(
+                minimumSize: const WidgetStatePropertyAll(
+                  Size(KkjLight.componentsPenSlotAddSize, _hit),
+                ),
+              ),
+              color: full
+                  ? KkjLight.colorInkDisabled
+                  : KkjLight.componentsPenSlotAddIcon,
+              icon: const Icon(Icons.add),
+              onPressed: widget.onAdd,
             ),
             const Padding(
               padding: EdgeInsets.symmetric(
@@ -112,44 +306,44 @@ class PenToolbar extends StatelessWidget {
             _HistoryButton(
               icon: Icons.undo,
               tooltip: l10n.undo,
-              onPressed: canUndo ? onUndo : null,
+              onPressed: widget.canUndo ? widget.onUndo : null,
             ),
             _HistoryButton(
               icon: Icons.redo,
               tooltip: l10n.redo,
-              onPressed: canRedo ? onRedo : null,
+              onPressed: widget.canRedo ? widget.onRedo : null,
             ),
             IconButton(
               tooltip: l10n.lassoTool,
-              isSelected: lassoSelected,
+              isSelected: widget.lassoSelected,
               constraints: const BoxConstraints(
                 minWidth: _hit,
                 minHeight: _hit,
               ),
               style: _compact.copyWith(
                 backgroundColor: WidgetStatePropertyAll(
-                  lassoSelected ? KkjLight.colorAccentSoft : null,
+                  widget.lassoSelected ? KkjLight.colorAccentSoft : null,
                 ),
               ),
               iconSize: _icon,
               icon: const Icon(Icons.highlight_alt),
-              onPressed: onLasso,
+              onPressed: widget.onLasso,
             ),
             IconButton(
               tooltip: l10n.textTool,
-              isSelected: textSelected,
+              isSelected: widget.textSelected,
               constraints: const BoxConstraints(
                 minWidth: _hit,
                 minHeight: _hit,
               ),
               style: _compact.copyWith(
                 backgroundColor: WidgetStatePropertyAll(
-                  textSelected ? KkjLight.colorAccentSoft : null,
+                  widget.textSelected ? KkjLight.colorAccentSoft : null,
                 ),
               ),
               iconSize: _icon,
               icon: const Icon(Icons.text_fields),
-              onPressed: onText,
+              onPressed: widget.onText,
             ),
             IconButton(
               tooltip: l10n.imageTool,
@@ -161,13 +355,52 @@ class PenToolbar extends StatelessWidget {
               iconSize: _icon,
               style: _compact,
               icon: const Icon(Icons.image_outlined),
-              onPressed: onImage,
+              onPressed: widget.onImage,
             ),
           ],
         ),
       ),
     );
   }
+}
+
+String _colorName(AppLocalizations l10n, Pen pen) => switch (pen.colorNameKey) {
+  'black' => l10n.colorBlack,
+  'blue' => l10n.colorBlue,
+  'yellow' => l10n.colorYellow,
+  _ => l10n.colorCustom,
+};
+
+class _ScrollArrow extends StatelessWidget {
+  const _ScrollArrow({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: tooltip,
+    button: true,
+    onTap: onTap,
+    excludeSemantics: true,
+    child: Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: SizedBox(
+          width: _PenToolbarState._arrowW,
+          height: _hit,
+          child: Icon(icon, size: 18, color: KkjLight.componentsPenSlotAddIcon),
+        ),
+      ),
+    ),
+  );
 }
 
 class _HistoryButton extends StatelessWidget {
@@ -184,10 +417,7 @@ class _HistoryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => IconButton(
     tooltip: tooltip,
-    constraints: const BoxConstraints(
-      minWidth: _hit,
-      minHeight: _hit,
-    ),
+    constraints: const BoxConstraints(minWidth: _hit, minHeight: _hit),
     iconSize: _icon,
     style: _compact,
     icon: Icon(icon),
@@ -207,18 +437,24 @@ class _Grip extends StatelessWidget {
 }
 
 class _PenSlot extends StatelessWidget {
-  const _PenSlot({required this.pen});
+  const _PenSlot({required this.pen, required this.selected});
 
   final Pen pen;
+  final bool selected;
 
-  // A little wider than a button: the caret sits right of the nib.
-  static const _w = _hit + 6;
+  static const _w = KkjLight.componentsPenSlotHitSize;
   static const _nibW = 12.0;
   static const _nibH = 24.0;
 
+  /// 4..10 dp across the tool's own width range.
+  double get _dot {
+    final (lo, hi) = penWidthRange(pen.tool);
+    return 4 + 6 * ((pen.width - lo) / (hi - lo)).clamp(0.0, 1.0);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final center = (_hit - _nibW) / 2;
+    final dot = _dot;
     return SizedBox(
       width: _w,
       height: _hit,
@@ -228,15 +464,17 @@ class _PenSlot extends StatelessWidget {
             // The nib hangs from the toolbar's top edge: its top is cut off,
             // and the selected pen sits `selected-offset` lower.
             Positioned(
-              left: center,
-              top: -8 + KkjLight.componentsPenSlotSelectedOffset,
+              left: (_w - _nibW) / 2,
+              top:
+                  -8 +
+                  (selected ? KkjLight.componentsPenSlotSelectedOffset : 0),
               child: CustomPaint(
                 size: const Size(_nibW, _nibH),
                 painter: _NibPainter(parseColor(pen.color)),
               ),
             ),
             Positioned(
-              left: (_hit - 6) / 2,
+              left: (_w - dot) / 2,
               top: 22,
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -246,34 +484,36 @@ class _PenSlot extends StatelessWidget {
                     color: KkjLight.componentsPenSlotThicknessDotOutline,
                   ),
                 ),
-                child: const SizedBox.square(dimension: 6),
+                child: SizedBox.square(dimension: dot),
               ),
             ),
-            const Positioned(
-              right: 0,
-              top: 10,
-              child: Icon(
-                Icons.arrow_drop_down,
-                size: 14,
-                color: KkjLight.componentsPenSlotCaret,
+            if (selected) ...[
+              const Positioned(
+                right: 4,
+                top: 10,
+                child: Icon(
+                  Icons.arrow_drop_down,
+                  size: 14,
+                  color: KkjLight.componentsPenSlotCaret,
+                ),
               ),
-            ),
-            Positioned(
-              left: (_hit - KkjLight.componentsPenSlotSelectedWidth) / 2,
-              bottom: 0,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: KkjLight.componentsPenSlotSelectedIndicator,
-                  borderRadius: BorderRadius.circular(
-                    KkjLight.componentsPenSlotSelectedRounded,
+              Positioned(
+                left: (_w - KkjLight.componentsPenSlotSelectedWidth) / 2,
+                bottom: 0,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: KkjLight.componentsPenSlotSelectedIndicator,
+                    borderRadius: BorderRadius.circular(
+                      KkjLight.componentsPenSlotSelectedRounded,
+                    ),
+                  ),
+                  child: const SizedBox(
+                    width: KkjLight.componentsPenSlotSelectedWidth,
+                    height: KkjLight.componentsPenSlotSelectedHeight,
                   ),
                 ),
-                child: const SizedBox(
-                  width: KkjLight.componentsPenSlotSelectedWidth,
-                  height: KkjLight.componentsPenSlotSelectedHeight,
-                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -323,7 +563,9 @@ class PenEditDialog extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final pen = ref.watch(penSlotsProvider)[index];
+    final slots = ref.watch(penSlotsProvider);
+    final pen = slots[index.clamp(0, slots.length - 1)]; // closing: may be gone
+    final canDelete = slots.length > 1;
     final on = pen.usePressure;
     void toggle(bool v) =>
         ref.read(penSlotsProvider.notifier).setUsePressure(index, v);
@@ -364,9 +606,7 @@ class PenEditDialog extends ConsumerWidget {
                   child: InkWell(
                     onTap: () => toggle(!on),
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        minHeight: _hit,
-                      ),
+                      constraints: const BoxConstraints(minHeight: _hit),
                       child: Row(
                         children: [
                           Expanded(child: Text(l10n.usePressure)),
@@ -383,6 +623,37 @@ class PenEditDialog extends ConsumerWidget {
                   child: SizedBox(
                     height: 64,
                     child: CustomPaint(painter: PenPreviewPainter(pen)),
+                  ),
+                ),
+                const SizedBox(height: KkjTokens.spacing3),
+                // Closes the popover; the editor removes the slot and offers
+                // to undo. The last slot cannot go.
+                Semantics(
+                  button: true,
+                  enabled: canDelete,
+                  onTap: canDelete
+                      ? () => Navigator.of(context).pop(true)
+                      : null,
+                  excludeSemantics: true,
+                  label: l10n.deletePenSlot,
+                  child: InkWell(
+                    onTap: canDelete
+                        ? () => Navigator.of(context).pop(true)
+                        : null,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 48),
+                      child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Text(
+                          l10n.deletePenSlot,
+                          style: TextStyle(
+                            color: canDelete
+                                ? Theme.of(context).colorScheme.error
+                                : KkjLight.colorInkDisabled,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],

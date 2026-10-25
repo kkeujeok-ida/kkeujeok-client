@@ -410,6 +410,78 @@ abstract class AppLocalizations {
   /// **'Black'**
   String get colorBlack;
 
+  /// No description provided for @colorBlue.
+  ///
+  /// In en, this message translates to:
+  /// **'Blue'**
+  String get colorBlue;
+
+  /// No description provided for @colorYellow.
+  ///
+  /// In en, this message translates to:
+  /// **'Yellow'**
+  String get colorYellow;
+
+  /// No description provided for @colorCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get colorCustom;
+
+  /// No description provided for @highlighterSlotLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Highlighter, {color}, width {width}'**
+  String highlighterSlotLabel(String color, String width);
+
+  /// No description provided for @addPenSlot.
+  ///
+  /// In en, this message translates to:
+  /// **'Add pen slot'**
+  String get addPenSlot;
+
+  /// No description provided for @penSlotLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Up to 12 pen slots'**
+  String get penSlotLimit;
+
+  /// No description provided for @deletePenSlot.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete slot'**
+  String get deletePenSlot;
+
+  /// No description provided for @penSlotDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Slot deleted'**
+  String get penSlotDeleted;
+
+  /// No description provided for @moveSlotEarlier.
+  ///
+  /// In en, this message translates to:
+  /// **'Move earlier'**
+  String get moveSlotEarlier;
+
+  /// No description provided for @moveSlotLater.
+  ///
+  /// In en, this message translates to:
+  /// **'Move later'**
+  String get moveSlotLater;
+
+  /// No description provided for @scrollSlotsBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Show earlier slots'**
+  String get scrollSlotsBack;
+
+  /// No description provided for @scrollSlotsForward.
+  ///
+  /// In en, this message translates to:
+  /// **'Show later slots'**
+  String get scrollSlotsForward;
+
   /// No description provided for @pageSemantics.
   ///
   /// In en, this message translates to:

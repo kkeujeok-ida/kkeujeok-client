@@ -21,7 +21,7 @@ Size selectionMenuSize({required bool edit, required bool strokes}) {
 }
 
 /// Colors the menu offers: the pen palette the client has (spec default pen).
-final selectionPalette = {for (final p in defaultPenSlots) p.color}.toList();
+final selectionPalette = [defaultPen.color];
 
 /// Side of the selection box the menu prefers; one value so the left-handed
 /// setting (Epic 10) can flip it.

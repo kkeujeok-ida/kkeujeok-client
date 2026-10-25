@@ -28,7 +28,7 @@ class PenSlotsStore {
       final raw = _prefs?.getString(_key);
       if (raw != null) {
         final list = jsonDecode(raw);
-        if (list is List && list.isNotEmpty) {
+        if (list is List && list.isNotEmpty && list.length <= maxPenSlots) {
           return [for (final e in list) _pen(e)];
         }
       }
@@ -56,19 +56,24 @@ class PenSlotsStore {
   // Throws on any invalid field; read() turns that into the default.
   static Pen _pen(Object? e) {
     final m = e as Map;
+    final tool = m['tool'] ?? 'pen'; // saved before highlighters: a pen
     final color = m['color'], width = m['width'], up = m['usePressure'];
+    if (tool != 'pen' && tool != 'highlighter') {
+      throw const FormatException();
+    }
+    final (lo, hi) = penWidthRange(tool as String);
     if (color is! String || !_hex.hasMatch(color)) {
       throw const FormatException();
     }
-    if (width is! num || !(width >= 0.5 && width <= 10)) {
+    if (width is! num || !(width >= lo && width <= hi)) {
       throw const FormatException();
     }
     if (up is! bool) throw const FormatException();
     return Pen(
+      tool: tool,
       color: color,
       width: width.toDouble(),
       usePressure: up,
-      colorNameKey: 'black',
     );
   }
 }

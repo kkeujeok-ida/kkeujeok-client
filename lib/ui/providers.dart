@@ -464,18 +464,91 @@ final penSlotsStoreProvider = Provider<PenSlotsStore>(
   (ref) => PenSlotsStore(null),
 );
 
-/// The pen slots the toolbar and the editor share.
+/// Index of the selected pen slot: session state, never stored.
+class SelectedPenSlotNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void set(int i) => state = i;
+}
+
+final selectedPenSlotProvider = NotifierProvider<SelectedPenSlotNotifier, int>(
+  SelectedPenSlotNotifier.new,
+);
+
+/// The pen slots the toolbar and the editor share. Every change is stored at
+/// once; a failed save keeps the list for this session.
 class PenSlotsNotifier extends Notifier<List<Pen>> {
   @override
   List<Pen> build() => ref.read(penSlotsStoreProvider).read();
 
-  /// Applies at once; the next stroke uses it. A failed save keeps the value
-  /// for this session.
+  int get _sel => ref.read(selectedPenSlotProvider);
+
+  void _select(int i) => ref.read(selectedPenSlotProvider.notifier).set(i);
+
+  Future<void> _put(List<Pen> next) {
+    state = next;
+    return ref.read(penSlotsStoreProvider).write(next);
+  }
+
+  /// Applies at once; the next stroke uses it.
   Future<void> setUsePressure(int index, bool value) async {
     if (index < 0 || index >= state.length) return;
-    final next = [...state]..[index] = state[index].withUsePressure(value);
-    state = next;
-    await ref.read(penSlotsStoreProvider).write(next);
+    await _put([...state]..[index] = state[index].withUsePressure(value));
+  }
+
+  void select(int i) {
+    if (i >= 0 && i < state.length) _select(i);
+  }
+
+  /// Appends a copy of the selected slot and selects it. Returns its index,
+  /// or null when [maxPenSlots] is reached.
+  int? add() {
+    if (state.length >= maxPenSlots) return null;
+    final i = state.length;
+    // A fresh object: the toolbar keys slots by identity.
+    final src = state[_sel.clamp(0, i - 1)];
+    _put([...state, src.withUsePressure(src.usePressure)]);
+    _select(i);
+    return i;
+  }
+
+  /// [to] is the index the slot ends up at. The same slot stays selected.
+  void move(int from, int to) {
+    if (from == to || from < 0 || to < 0) return;
+    if (from >= state.length || to >= state.length) return;
+    final sel = _sel;
+    final next = [...state];
+    next.insert(to, next.removeAt(from));
+    _select(
+      sel == from
+          ? to
+          : (from < sel && to >= sel)
+          ? sel - 1
+          : (from > sel && to <= sel)
+          ? sel + 1
+          : sel,
+    );
+    _put(next);
+  }
+
+  /// Removes slot [i] and returns it with the selection it had; null when it
+  /// is the last slot. A removed selected slot hands the selection to the next.
+  ({Pen pen, int selected})? remove(int i) {
+    if (state.length <= 1 || i < 0 || i >= state.length) return null;
+    final sel = _sel, pen = state[i];
+    final next = [...state]..removeAt(i);
+    _select(sel > i ? sel - 1 : sel.clamp(0, next.length - 1));
+    _put(next);
+    return (pen: pen, selected: sel);
+  }
+
+  /// Puts a removed slot back at [i] and restores the selection.
+  void restore(int i, Pen pen, int selected) {
+    if (state.length >= maxPenSlots) return;
+    final at = i.clamp(0, state.length);
+    _put([...state]..insert(at, pen));
+    _select(selected.clamp(0, state.length - 1));
   }
 }
 

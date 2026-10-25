@@ -170,6 +170,44 @@ class AppLocalizationsKo extends AppLocalizations {
   String get colorBlack => '검정';
 
   @override
+  String get colorBlue => '파랑';
+
+  @override
+  String get colorYellow => '노랑';
+
+  @override
+  String get colorCustom => '사용자 지정';
+
+  @override
+  String highlighterSlotLabel(String color, String width) {
+    return '형광펜, $color, 두께 $width';
+  }
+
+  @override
+  String get addPenSlot => '펜 슬롯 추가';
+
+  @override
+  String get penSlotLimit => '펜 슬롯은 12개까지예요';
+
+  @override
+  String get deletePenSlot => '슬롯 삭제';
+
+  @override
+  String get penSlotDeleted => '슬롯을 지웠어요';
+
+  @override
+  String get moveSlotEarlier => '앞으로 이동';
+
+  @override
+  String get moveSlotLater => '뒤로 이동';
+
+  @override
+  String get scrollSlotsBack => '앞쪽 슬롯 보기';
+
+  @override
+  String get scrollSlotsForward => '뒤쪽 슬롯 보기';
+
+  @override
   String pageSemantics(int n, int total, String orientation) {
     return '$n페이지 / $total, $orientation';
   }

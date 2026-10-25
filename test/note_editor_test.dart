@@ -255,7 +255,7 @@ void main() {
   ];
 
   group('writing screen', () {
-    testWidgets('corner, one pen slot, page; grip is not in the tree', (
+    testWidgets('corner, three pen slots, page; grip is not in the tree', (
       t,
     ) async {
       final h = t.ensureSemantics();
@@ -1707,11 +1707,61 @@ void main() {
     });
   });
 
+  group('pen slots', () {
+    testWidgets('a slot tap picks the pen; the next stroke uses it', (t) async {
+      seed(_note());
+      await open(t);
+      await t.tap(find.bySemanticsLabel('Highlighter, Yellow, width 14.0'));
+      await t.pump();
+      await draw(t, line);
+      await settle(t);
+      final s = elements().single as Map;
+      expect(s['tool'], 'highlighter');
+      expect(s['color'], '#ffe066');
+      expect(s['width'], 14);
+      expect(s['usePressure'], isFalse);
+    });
+
+    testWidgets('a slot tap leaves the lasso for the pen', (t) async {
+      seed(_note());
+      await open(t);
+      await t.tap(find.byTooltip('Lasso'));
+      await t.pump();
+      await t.tap(find.bySemanticsLabel('Pen, Blue, width 2.0'));
+      await t.pump();
+      await draw(t, line);
+      await settle(t);
+      expect((elements().single as Map)['color'], '#1971c2');
+    });
+
+    testWidgets('[+] opens the popover; delete asks to undo', (t) async {
+      seed(_note());
+      await open(t);
+      await t.tap(find.byTooltip('Add pen slot'));
+      await settle(t);
+      expect(find.byType(PenEditDialog), findsOneWidget);
+      await t.tap(find.text('Delete slot'));
+      await settle(t);
+      expect(find.byType(PenEditDialog), findsNothing);
+      expect(find.text('Slot deleted'), findsOneWidget);
+      expect(find.bySemanticsLabel('Pen, Black, width 2.0'), findsOneWidget);
+      await t.tap(find.text('Undo').last);
+      await settle(t);
+      final slots = ProviderScope.containerOf(
+        t.element(find.byType(NoteEditor)),
+      ).read(penSlotsProvider);
+      expect(slots, hasLength(4));
+    });
+  });
+
   group('pen pressure toggle', () {
-    final slot = find.descendant(
-      of: find.byType(PenToolbar),
-      matching: find.byType(InkResponse),
-    );
+    // The first slot: the selected black pen.
+    final slot = find
+        .descendant(
+          of: find.byType(PenToolbar),
+          matching: find.byType(InkResponse),
+        )
+        .first;
     final off = jsonEncode([
       {'color': '#000000', 'width': 2.0, 'usePressure': false},
     ]);
@@ -1829,10 +1879,12 @@ void main() {
       expect(find.byType(PenEditDialog), findsNothing);
       expect(jsonDecode((await stored())!)[0]['usePressure'], isFalse);
       final ink = t.widget<InkResponse>(
-        find.descendant(
-          of: find.byType(PenToolbar),
-          matching: find.byType(InkResponse),
-        ),
+        find
+            .descendant(
+              of: find.byType(PenToolbar),
+              matching: find.byType(InkResponse),
+            )
+            .first,
       );
       expect(ink.focusNode!.hasPrimaryFocus, isTrue);
     });
@@ -2033,20 +2085,23 @@ void main() {
       return gate;
     }
 
-    String? historyTitle(WidgetTester t) => ProviderScope.containerOf(
-      t.element(find.byType(NoteEditor)),
-    ).read(noteHistoriesProvider)[_id(1)]?.note.title;
+    String? historyTitle(WidgetTester t) =>
+        ProviderScope.containerOf(t.element(find.byType(NoteEditor)))
+            .read(noteHistoriesProvider)[_id(1)]
+            ?.note
+            .title;
 
-    testWidgets('the disk note replaces a stale one the editor was opened with', (
-      t,
-    ) async {
-      seed(_note());
-      final store = _GateStore(data);
-      final gate = await pushStale(t, store);
-      gate.complete();
-      await settle(t);
-      expect(historyTitle(t), 'Lecture');
-    });
+    testWidgets(
+      'the disk note replaces a stale one the editor was opened with',
+      (t) async {
+        seed(_note());
+        final store = _GateStore(data);
+        final gate = await pushStale(t, store);
+        gate.complete();
+        await settle(t);
+        expect(historyTitle(t), 'Lecture');
+      },
+    );
 
     testWidgets('a stroke in progress keeps the editor as it is', (t) async {
       seed(_note());

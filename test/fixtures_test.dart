@@ -11,6 +11,7 @@ import 'package:kkeujeok/model/kkj_codec.dart';
 import 'package:kkeujeok/model/note.dart';
 import 'package:kkeujeok/model/note_title.dart';
 import 'package:kkeujeok/model/number.dart';
+import 'package:kkeujeok/model/pen.dart';
 import 'package:kkeujeok/model/select.dart';
 import 'package:kkeujeok/model/text_layout.dart';
 import 'package:kkeujeok/model/text_metrics.dart';
@@ -237,6 +238,9 @@ final runners = <String, void Function(Case)>{
       }
     }
   },
+  'pen.defaultSlots': (c) => _same({
+    'slots': [for (final p in defaultPenSlots) p.toJson()],
+  }, c['expected']),
   'page.background': (c) {
     final i = c['input'] as Map<String, dynamic>;
     _same(
@@ -483,7 +487,6 @@ void _runOp(Case c) {
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6.
 const pendingRules = <String>{
   'pen.palette',
-  'pen.defaultSlots',
   'stroke.outline.highlighter',
   'ops.eraseStrokes',
   'ops.erasePartial',

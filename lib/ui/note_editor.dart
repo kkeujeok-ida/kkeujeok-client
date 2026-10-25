@@ -1169,16 +1169,60 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     return Offset(left, top.clamp(min, max).toDouble());
   }
 
-  Pen get _pen => ref.read(penSlotsProvider).first;
+  Pen get _pen {
+    final slots = ref.read(penSlotsProvider);
+    return slots[ref.read(selectedPenSlotProvider).clamp(0, slots.length - 1)];
+  }
+
+  PenSlotsNotifier get _slots => ref.read(penSlotsProvider.notifier);
+
+  /// A tap on slot [i]: pick it (and the pen tool); on the picked one, open
+  /// its popover. Not while a stroke is going on.
+  void _slotTap(int i) {
+    if (_pointer != null) return;
+    if (_tool == _Tool.pen && i == ref.read(selectedPenSlotProvider)) {
+      _editPen(i);
+      return;
+    }
+    _slots.select(i);
+    _setTool(_Tool.pen);
+  }
+
+  /// [+]: a copy of the picked slot at the end, then its popover.
+  Future<void> _addSlot() async {
+    if (_leaving || _pointer != null || _mode != _Mode.none) return;
+    final i = _slots.add();
+    if (i == null) return _snack(AppLocalizations.of(context).penSlotLimit);
+    _setTool(_Tool.pen);
+    await _editPen(i);
+  }
 
   /// Opens the pen popover; not while a stroke or a gesture is going on.
-  Future<void> _editPen() async {
+  Future<void> _editPen(int index) async {
     if (_leaving || _pointer != null || _mode != _Mode.none) return;
-    await showDialog<void>(
+    final delete = await showDialog<bool>(
       context: context,
-      builder: (_) => const PenEditDialog(),
+      builder: (_) => PenEditDialog(index: index),
     );
-    if (mounted) _slotFocus.requestFocus();
+    if (!mounted) return;
+    _slotFocus.requestFocus();
+    if (delete != true) return;
+    final removed = _slots.remove(index);
+    if (removed == null) return;
+    final l10n = AppLocalizations.of(context);
+    final slots = _slots; // the snackbar may outlive this editor
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(l10n.penSlotDeleted),
+          action: SnackBarAction(
+            label: l10n.undo,
+            onPressed: () =>
+                slots.restore(index, removed.pen, removed.selected),
+          ),
+        ),
+      );
   }
 
   /// The session's history for this note, unless the saved note differs
@@ -1818,7 +1862,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   Map<String, dynamic> _stroke(List<List<num>> points) => {
     'id': newId(),
     'type': 'stroke',
-    'tool': 'pen',
+    'tool': _pen.tool,
     'color': _pen.color,
     'width': _pen.width,
     'usePressure': _pen.usePressure,
@@ -1979,7 +2023,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
         } else {
           if (!_stylusSeen && _tool == _Tool.lasso) _clearSelection();
           if (_stylusSeen && _tool == _Tool.lasso && at >= 0) {
-            _startLongPress(e.pointer, e.localPosition, _pages[at]['id'] as String, p);
+            _startLongPress(
+              e.pointer,
+              e.localPosition,
+              _pages[at]['id'] as String,
+              p,
+            );
           }
           _mode = _Mode
               .touchIdle; // pen mode or off page: a finger only moves the view
@@ -2892,10 +2941,15 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                       // Hidden while the keyboard is open.
                       if (keyboard <= 0)
                         PenToolbar(
-                          pen: ref.watch(penSlotsProvider).first,
-                          onPenTap: _tool != _Tool.pen
-                              ? () => _setTool(_Tool.pen)
-                              : _editPen,
+                          slots: ref.watch(penSlotsProvider),
+                          selectedSlot: ref.watch(selectedPenSlotProvider),
+                          // Room left by the corner (48), the menu (96) and
+                          // the controls that never shrink.
+                          maxSlotsWidth:
+                              top.maxWidth - 144 - PenToolbar.fixedWidth,
+                          onSlotTap: _slotTap,
+                          onAdd: _addSlot,
+                          onMove: _slots.move,
                           lassoSelected: _tool == _Tool.lasso,
                           onLasso: () => _setTool(_Tool.lasso),
                           textSelected: _tool == _Tool.text,

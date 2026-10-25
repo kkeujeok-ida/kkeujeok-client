@@ -173,6 +173,44 @@ class AppLocalizationsEn extends AppLocalizations {
   String get colorBlack => 'Black';
 
   @override
+  String get colorBlue => 'Blue';
+
+  @override
+  String get colorYellow => 'Yellow';
+
+  @override
+  String get colorCustom => 'Custom';
+
+  @override
+  String highlighterSlotLabel(String color, String width) {
+    return 'Highlighter, $color, width $width';
+  }
+
+  @override
+  String get addPenSlot => 'Add pen slot';
+
+  @override
+  String get penSlotLimit => 'Up to 12 pen slots';
+
+  @override
+  String get deletePenSlot => 'Delete slot';
+
+  @override
+  String get penSlotDeleted => 'Slot deleted';
+
+  @override
+  String get moveSlotEarlier => 'Move earlier';
+
+  @override
+  String get moveSlotLater => 'Move later';
+
+  @override
+  String get scrollSlotsBack => 'Show earlier slots';
+
+  @override
+  String get scrollSlotsForward => 'Show later slots';
+
+  @override
   String pageSemantics(int n, int total, String orientation) {
     return 'Page $n of $total, $orientation';
   }
