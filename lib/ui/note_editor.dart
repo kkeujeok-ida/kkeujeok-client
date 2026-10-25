@@ -11,6 +11,7 @@ import 'package:flutter/services.dart'
         KeyDownEvent,
         KeyEvent,
         KeyUpEvent,
+        HapticFeedback,
         LogicalKeyboardKey,
         PhysicalKeyboardKey;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,6 +27,7 @@ import '../model/pen.dart';
 import '../model/pen_only.dart';
 import '../model/select.dart';
 import '../model/text_layout.dart';
+import '../model/toolbar_pos.dart';
 import '../platform/gesture_exclusion.dart';
 import '../ops/history.dart';
 import '../ops/ops.dart';
@@ -47,6 +49,7 @@ import 'sync_display.dart';
 import 'sync_indicator.dart';
 import 'text_edit.dart';
 import 'text_format_bar.dart';
+import 'toolbar_dock.dart';
 import 'version_history.dart';
 
 /// The writing screen: page, toolbar and the top-left `editor-corner`.
@@ -640,9 +643,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     final tl =
         vp.offset + (_geometry().rects[i].topLeft + Offset(te.x, te.y)) * s;
     final h = layoutText(_teElement(te)).height * s;
-    const gap = KkjTokens.spacing3;
     final bar = textFormatBarSize;
-    final minTop = pad.top + gap + _toolbarHeight + gap;
+    final minTop = _padding.top;
     final maxBottom = _size.height - math.max(keyboard, pad.bottom);
     final aboveRoom = tl.dy - 8 - bar.height >= minTop;
     final left = tl.dx
@@ -1169,8 +1171,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       vp.offset + box.topLeft * vp.scale,
       vp.offset + box.bottomRight * vp.scale,
     );
-    const gap = KkjTokens.spacing3, m = selectionHandleRadius + 8;
-    final min = pad.top + gap + _toolbarHeight + gap;
+    const m = selectionHandleRadius + 8;
+    final min = _padding.top;
     final max = math.max(min, _size.height - pad.bottom - size.height);
     final above = r.top - selectionRotateGap - m - size.height;
     final below = r.bottom + m;
@@ -1224,9 +1226,25 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   /// Opens the pen popover; not while a stroke or a gesture is going on.
   Future<void> _editPen(int index) async {
     if (_leaving || _pointer != null || _mode != _Mode.none) return;
+    // A vertical bar leaves its side to the bar; a low one moves the dialog up.
+    final pos = ref.read(toolbarPosProvider);
+    final r = _barRect(pos, _size, _safe);
+    const gap = KkjTokens.spacing3;
+    final onLeft = r.center.dx < _size.width / 2;
+    var aL = pos.vertical && onLeft ? math.max(0.0, r.right + gap - 16) : 0.0;
+    var aR = pos.vertical && !onLeft
+        ? math.max(0.0, _size.width - r.left + gap - 16)
+        : 0.0;
+    // Too narrow beside the bar for the dialog's 280 dp: centered instead.
+    if (_size.width - 32 - aL - aR < 280) aL = aR = 0;
     final delete = await showDialog<bool>(
       context: context,
-      builder: (_) => PenEditDialog(index: index),
+      builder: (_) => PenEditDialog(
+        index: index,
+        avoidLeft: aL,
+        avoidRight: aR,
+        alignTop: !pos.vertical && r.center.dy > _size.height / 2,
+      ),
     );
     if (!mounted) return;
     _slotFocus.requestFocus();
@@ -1926,7 +1944,19 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   double get _pageW => _geometry().w;
   double get _pageH => _geometry().h;
-  double get _extraBottom => _toolbarHeight + KkjTokens.spacing3;
+  // Room under the page for the toolbar: only when the bar can sit over the
+  // bottom (docked top, in the flow, or low on the screen).
+  double _extra = _toolbarHeight + KkjTokens.spacing3;
+  double get _extraBottom => _extra;
+
+  double _extraFor(ToolbarPos pos, Size win, EdgeInsets pad) {
+    final low = switch (pos.dock) {
+      ToolbarDock.top || ToolbarDock.bottom => true,
+      ToolbarDock.left || ToolbarDock.right => false,
+      ToolbarDock.float => _barRect(pos, win, pad).center.dy > win.height / 2,
+    };
+    return low ? _toolbarHeight + KkjTokens.spacing3 : KkjTokens.spacing3;
+  }
 
   PageViewport _clamp(PageViewport v) =>
       v.clamped(_size, _pageW, _pageH, _padding, extraBottom: _extraBottom);
@@ -2010,6 +2040,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   void _down(PointerDownEvent e) {
     if (_leaving || _vp == null || _page == null) return;
+    _dragCancel();
     if (e.kind == PointerDeviceKind.touch && _palmTouch(e)) return;
     _snap();
     if (_consumedByText(e)) return;
@@ -2179,17 +2210,253 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
           32 * dpr,
           math.min(h, (at.dy + 100) * dpr),
         ),
+      // Android honors at most 200 dp of exclusion per edge: a tall bar is
+      // clipped to 200 dp around its middle.
       if (bar != null && bar.left <= 32)
         Rect.fromLTRB(
           bar.left * dpr,
-          bar.top * dpr,
+          math.max(bar.top, bar.center.dy - 100) * dpr,
           bar.right * dpr,
-          bar.bottom * dpr,
+          math.min(bar.bottom, bar.center.dy + 100) * dpr,
         ),
     ];
   }
 
   void _pushExclusion() => unawaited(setGestureExclusion(_exclusionRects()));
+
+  // ---- toolbar position (Story 5.9) --------------------------------------
+
+  static const _rowH = KkjTokens.spacingHitMinAndroid;
+  static const _slotCell = KkjLight.componentsPenSlotHitSize;
+  final _handleKey = GlobalKey();
+  EdgeInsets _safe = EdgeInsets.zero;
+  Size? _lastWin;
+  Rect? _exBar;
+  bool _exShown = true;
+
+  // While the handle is dragged: the bar center, the grab offset and the
+  // outline it would dock at.
+  Offset? _dragCenter;
+  Offset _dragGrab = Offset.zero;
+  ToolbarDock? _dragNear;
+
+  bool _topFits(Size win, EdgeInsets pad) => topFits(
+    win.width - pad.horizontal - 2 * KkjTokens.spacing3,
+    PenToolbar.fixedWidth + _slotCell,
+  );
+
+  /// A vertical bar stays under the back button and the more menu.
+  EdgeInsets _vIn(EdgeInsets pad) =>
+      pad.copyWith(top: pad.top + _rowH + KkjTokens.spacing3);
+
+  /// Most the slot list may take along the bar.
+  double _maxSlots(bool vertical, Size win, EdgeInsets pad, bool inRow) {
+    const gap = KkjTokens.spacing3;
+    return vertical
+        ? win.height - _vIn(pad).vertical - 2 * gap - PenToolbar.fixedHeight
+        : win.width -
+              pad.horizontal -
+              2 * gap -
+              PenToolbar.fixedWidth -
+              (inRow ? 144 : 0);
+  }
+
+  Size _barSize(bool vertical, Size win, EdgeInsets pad, {bool inRow = false}) {
+    final n = ref.read(penSlotsProvider).length;
+    final item = vertical ? _toolbarHeight : _slotCell;
+    final len = math.min(
+      n * item,
+      math.max(_maxSlots(vertical, win, pad, inRow), item),
+    );
+    return vertical
+        ? Size(PenToolbar.verticalWidth, PenToolbar.fixedHeight + len)
+        : Size(PenToolbar.fixedWidth + len, _toolbarHeight);
+  }
+
+  /// Where the bar sits: docked at an edge, or floating (kept on screen).
+  Rect _barRect(ToolbarPos pos, Size win, EdgeInsets pad) {
+    const gap = KkjTokens.spacing3;
+    final top = pos.dock == ToolbarDock.top;
+    final inRow = top && _topFits(win, pad);
+    final size = _barSize(pos.vertical, win, pad, inRow: inRow);
+    if (!top) {
+      return Rect.fromCenter(
+        center: centerOf(pos, size, win, pos.vertical ? _vIn(pad) : pad),
+        width: size.width,
+        height: size.height,
+      );
+    }
+    // Centered; in the top row between the back button and the menu.
+    final minL = pad.left + gap + (inRow ? 48 : 0);
+    final maxL = math.max(
+      minL,
+      win.width - pad.right - gap - (inRow ? 96 : 0) - size.width,
+    );
+    final left = ((pad.left + win.width - pad.right - size.width) / 2).clamp(
+      minL,
+      maxL,
+    );
+    return Rect.fromLTWH(
+      left.toDouble(),
+      pad.top + gap + (inRow ? 0 : _rowH),
+      size.width,
+      size.height,
+    );
+  }
+
+  /// After a layout: a floating bar the screen change pushed back re-docks
+  /// when it is near an outline; the back-gesture strip follows the bar.
+  void _afterBarChange(
+    ToolbarPos pos,
+    Size win,
+    EdgeInsets pad,
+    Rect bar,
+    bool visible,
+  ) {
+    // The toolbar subtree is gone (keyboard) or input started: no end event
+    // will come, so the drag is dropped here.
+    if (_dragCenter != null &&
+        (!visible || _te != null || _pointer != null || _mode != _Mode.none)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _dragCancel();
+      });
+    }
+    // Only a real turn (portrait <-> landscape) may re-dock and save; other
+    // size changes (keyboard, split screen) just clamp for display.
+    final last = _lastWin;
+    final turned =
+        last != null && (last.width > last.height) != (win.width > win.height);
+    _lastWin = win;
+    if (turned && pos.dock == ToolbarDock.float && _dragCenter == null) {
+      final raw = Offset(pos.x * win.width, pos.y * win.height);
+      if (bar.center != raw) {
+        final near = _nearest(bar.center);
+        if (near != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _dock(near);
+          });
+        }
+      }
+    }
+    if (bar != _exBar || visible != _exShown) {
+      _exBar = bar;
+      _exShown = visible;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _pushExclusion();
+      });
+    }
+  }
+
+  ToolbarDock? _nearest(Offset c) {
+    final inRow = _topFits(_size, _safe);
+    return nearestDock(
+      c,
+      _barSize(false, _size, _safe, inRow: inRow),
+      _size,
+      _safe,
+      vertical: _barSize(true, _size, _safe),
+      verticalInset: _vIn(_safe),
+    );
+  }
+
+  void _dragStart(Offset g) {
+    if (_leaving || _pointer != null || _mode != _Mode.none || _te != null) {
+      return;
+    }
+    final r = _barRect(ref.read(toolbarPosProvider), _size, _safe);
+    unawaited(HapticFeedback.selectionClick());
+    setState(() {
+      _dragCenter = r.center;
+      _dragGrab = g - r.center;
+      _dragNear = _nearest(r.center);
+    });
+  }
+
+  void _dragMove(Offset g) {
+    if (_dragCenter == null) return;
+    final c = g - _dragGrab;
+    setState(() {
+      _dragCenter = c;
+      _dragNear = _nearest(c);
+    });
+  }
+
+  void _dragEnd(Offset g) {
+    if (_dragCenter == null) return;
+    final c = g - _dragGrab;
+    final pos = ref.read(toolbarPosProvider);
+    final near = _nearest(c);
+    ToolbarPos next;
+    if (near != null) {
+      next = pos.applyDock(near);
+    } else {
+      final size = _barSize(pos.vertical, _size, _safe);
+      final r = ratioOf(
+        clampCenter(c, size, _size, pos.vertical ? _vIn(_safe) : _safe),
+        _size,
+      );
+      next = ToolbarPos.floating(r.dx, r.dy, vertical: pos.vertical);
+    }
+    setState(() {
+      _dragCenter = null;
+      _dragNear = null;
+    });
+    ref.read(toolbarPosProvider.notifier).set(next);
+  }
+
+  /// Back to where it was; nothing is stored.
+  void _dragCancel() {
+    if (_dragCenter == null) return;
+    setState(() {
+      _dragCenter = null;
+      _dragNear = null;
+    });
+  }
+
+  String _dockName(AppLocalizations l, ToolbarDock d) => switch (d) {
+    ToolbarDock.top || ToolbarDock.float => l.dockTop,
+    ToolbarDock.left => l.dockLeft,
+    ToolbarDock.right => l.dockRight,
+    ToolbarDock.bottom => l.dockBottom,
+  };
+
+  void _dock(ToolbarDock d) {
+    ref
+        .read(toolbarPosProvider.notifier)
+        .set(ref.read(toolbarPosProvider).applyDock(d));
+  }
+
+  /// The position menu next to the handle: [상단][왼쪽][오른쪽][하단].
+  Future<void> _positionMenu() async {
+    final box = _handleKey.currentContext?.findRenderObject();
+    final overlay = Overlay.of(context).context.findRenderObject();
+    if (_dragCenter != null ||
+        box is! RenderBox ||
+        overlay is! RenderBox ||
+        !box.attached) {
+      return;
+    }
+    final l10n = AppLocalizations.of(context);
+    final at = ref.read(toolbarPosProvider).dock;
+    final dock = await showMenu<ToolbarDock>(
+      context: context,
+      position: RelativeRect.fromRect(
+        box.localToGlobal(Offset.zero, ancestor: overlay) & box.size,
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        for (final d in snapOrder)
+          CheckedPopupMenuItem(
+            value: d,
+            checked: at == d,
+            child: Text(_dockName(l10n, d)),
+          ),
+      ],
+    );
+    if (dock == null || !mounted) return;
+    _dock(dock);
+    _announce(l10n.toolbarDocked(_dockName(l10n, dock)), polite: true);
+  }
 
   // ---- keyboard (Story 5.8) ----------------------------------------------
 
@@ -2210,6 +2477,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   KeyEventResult _key(FocusNode node, KeyEvent e) {
     const ignored = KeyEventResult.ignored;
+    if (_dragCenter != null && e.logicalKey == LogicalKeyboardKey.escape) {
+      if (e is KeyDownEvent) _dragCancel();
+      return KeyEventResult.handled;
+    }
     if (e is KeyUpEvent || _te != null || _pointer != null || _leaving) {
       return ignored;
     }
@@ -2879,18 +3150,26 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   /// Places the view for this size (also on the first build); a free view
   /// is only brought back into range.
-  void _layout(Size size, EdgeInsets pad) {
+  void _layout(Size size, EdgeInsets pad, {bool wrapped = false}) {
     const gap = KkjTokens.spacing3;
     final padding = EdgeInsets.fromLTRB(
       gap + pad.left,
-      pad.top + gap + _toolbarHeight + gap,
+      // A toolbar wrapped below the corners adds its own row.
+      pad.top + gap + (wrapped ? _rowH : 0) + _toolbarHeight + gap,
       gap + pad.right,
       gap + pad.bottom,
     );
-    if (_vp != null && size == _size && padding == _padding) return;
+    final extra = _extraFor(ref.read(toolbarPosProvider), size, pad);
+    if (_vp != null &&
+        size == _size &&
+        padding == _padding &&
+        extra == _extra) {
+      return;
+    }
     final first = _vp == null;
     _size = size;
     _padding = padding;
+    _extra = extra;
     _anim.stop();
     _vp = first || _fit != _Fit.free ? _laidOut(_fit) : _clamp(_vp!);
   }
@@ -3015,6 +3294,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       ),
     );
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    final tbPos = ref.watch(toolbarPosProvider);
     if (_te != null && keyboard > 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _revealCaret(keyboard);
@@ -3022,7 +3302,23 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     }
     return LayoutBuilder(
       builder: (context, c) {
-        if (page != null) _layout(c.biggest, pad);
+        final win = c.biggest;
+        _safe = pad;
+        final wrapped = tbPos.dock == ToolbarDock.top && !_topFits(win, pad);
+        if (page != null) _layout(win, pad, wrapped: wrapped);
+        final minTop = page != null
+            ? _padding.top
+            : pad.top + gap + _toolbarHeight + gap;
+        final bar = _barRect(tbPos, win, pad);
+        _afterBarChange(tbPos, win, pad, bar, keyboard <= 0);
+        final dragging = _dragCenter != null;
+        final shown = dragging
+            ? Rect.fromCenter(
+                center: _dragCenter!,
+                width: bar.width,
+                height: bar.height,
+              )
+            : bar;
         return Stack(
           children: [
             Positioned.fill(
@@ -3102,7 +3398,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                 ),
               ),
             Positioned(
-              top: pad.top + gap + _toolbarHeight + gap,
+              top: minTop,
               right: pad.right + gap,
               child: IgnorePointer(
                 child: ValueListenableBuilder<int?>(
@@ -3139,7 +3435,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
             // Over the page, under the toolbar: it stays put while the page
             // scrolls and never pushes the toolbar or the menu down.
             Positioned(
-              top: pad.top + gap + _toolbarHeight + gap,
+              top: minTop,
               left: 0,
               right: 0,
               child: MediaQuery.removePadding(
@@ -3174,11 +3470,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                         math.max(pad.left, _size.width - pad.right - 200),
                       ),
                       top: (p.dy + 8).clamp(
-                        pad.top + gap + _toolbarHeight + gap,
-                        math.max(
-                          pad.top + gap + _toolbarHeight + gap,
-                          _size.height - pad.bottom - 64,
-                        ),
+                        minTop,
+                        math.max(minTop, _size.height - pad.bottom - 64),
                       ),
                       child: BlankTapMenu(
                         canPaste: _canPasteBlank,
@@ -3222,12 +3515,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
               top: pad.top + gap,
               left: pad.left + gap,
               right: pad.right + gap,
-              child: LayoutBuilder(
-                builder: (context, top) {
-                  // ponytail: with room the toolbar stays centered; on a
-                  // phone the indicator and the menu (2 x 48 dp) leave the
-                  // toolbar less room, so the right side takes only its width.
-                  final wide = top.maxWidth >= 480;
+              child: Builder(
+                builder: (context) {
                   final left = _Corner(
                     tooltip: l10n.backToLibrary,
                     // Always through PopScope, so the queue drains.
@@ -3248,63 +3537,88 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                   );
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Align(
-                          alignment: AlignmentDirectional.topStart,
-                          child: left,
-                        ),
-                      ),
-                      // Hidden while the keyboard is open.
-                      if (keyboard <= 0)
-                        Focus(
-                          canRequestFocus: false,
-                          skipTraversal: true,
-                          onKeyEvent: _key,
-                          child: PenToolbar(
-                            key: _toolbarKey,
-                            slots: ref.watch(penSlotsProvider),
-                            selectedSlot: ref.watch(selectedPenSlotProvider),
-                            // Room left by the corner (48), the menu (96) and
-                            // the controls that never shrink.
-                            maxSlotsWidth:
-                                top.maxWidth - 144 - PenToolbar.fixedWidth,
-                            onSlotTap: _slotTap,
-                            onAdd: _addSlot,
-                            onMove: _slots.move,
-                            eraserSelected: _tool == _Tool.eraser,
-                            eraserMode: ref.watch(eraserSettingsProvider).mode,
-                            onEraser: _eraserTap,
-                            lassoSelected: _tool == _Tool.lasso,
-                            onLasso: () => _setTool(_Tool.lasso),
-                            textSelected: _tool == _Tool.text,
-                            onText: () => _setTool(_Tool.text),
-                            onImage: readOnly || receiving || locked
-                                ? null
-                                : _chooseImage,
-                            slotFocus: _slotFocus,
-                            canUndo:
-                                !readOnly && !locked && _history.undoDepth > 0,
-                            canRedo:
-                                !readOnly && !locked && _history.redoDepth > 0,
-                            onUndo: _undo,
-                            onRedo: _redo,
-                          ),
-                        ),
-                      if (wide)
-                        Expanded(
-                          child: Align(
-                            alignment: AlignmentDirectional.topEnd,
-                            child: right,
-                          ),
-                        )
-                      else
-                        right,
-                    ],
+                    children: [left, const Spacer(), right],
                   );
                 },
               ),
             ),
+            if (dragging)
+              for (final d in snapOrder)
+                Positioned.fromRect(
+                  rect: dockRect(
+                    d,
+                    d == ToolbarDock.left || d == ToolbarDock.right
+                        ? _barSize(true, win, pad)
+                        : _barSize(false, win, pad, inRow: _topFits(win, pad)),
+                    win,
+                    d == ToolbarDock.left || d == ToolbarDock.right
+                        ? _vIn(pad)
+                        : pad,
+                  ),
+                  child: SnapOutline(
+                    key: ValueKey(d),
+                    highlighted: _dragNear == d,
+                  ),
+                ),
+            // Hidden while the keyboard is open.
+            if (keyboard <= 0)
+              AnimatedPositioned(
+                duration: dragging || MediaQuery.disableAnimationsOf(context)
+                    ? Duration.zero
+                    : KkjLight.componentsPenSlotSelectedDuration,
+                curve: Curves.easeOut,
+                left: shown.left,
+                top: shown.top,
+                onEnd: _pushExclusion,
+                child: Focus(
+                  canRequestFocus: false,
+                  skipTraversal: true,
+                  onKeyEvent: _key,
+                  child: PenToolbar(
+                    key: _toolbarKey,
+                    slots: ref.watch(penSlotsProvider),
+                    selectedSlot: ref.watch(selectedPenSlotProvider),
+                    vertical: tbPos.vertical,
+                    // Room left by the corner (48), the menu (96) and the
+                    // controls that never shrink.
+                    maxSlotsWidth: tbPos.vertical
+                        ? double.infinity
+                        : _maxSlots(
+                            false,
+                            win,
+                            pad,
+                            tbPos.dock == ToolbarDock.top && !wrapped,
+                          ),
+                    maxSlotsExtent: tbPos.vertical
+                        ? _maxSlots(true, win, pad, false)
+                        : null,
+                    handleKey: _handleKey,
+                    onHandleTap: _positionMenu,
+                    onHandleLongPressStart: _dragStart,
+                    onHandleLongPressMoveUpdate: _dragMove,
+                    onHandleLongPressEnd: _dragEnd,
+                    onHandleLongPressCancel: _dragCancel,
+                    onSlotTap: _slotTap,
+                    onAdd: _addSlot,
+                    onMove: _slots.move,
+                    eraserSelected: _tool == _Tool.eraser,
+                    eraserMode: ref.watch(eraserSettingsProvider).mode,
+                    onEraser: _eraserTap,
+                    lassoSelected: _tool == _Tool.lasso,
+                    onLasso: () => _setTool(_Tool.lasso),
+                    textSelected: _tool == _Tool.text,
+                    onText: () => _setTool(_Tool.text),
+                    onImage: readOnly || receiving || locked
+                        ? null
+                        : _chooseImage,
+                    slotFocus: _slotFocus,
+                    canUndo: !readOnly && !locked && _history.undoDepth > 0,
+                    canRedo: !readOnly && !locked && _history.redoDepth > 0,
+                    onUndo: _undo,
+                    onRedo: _redo,
+                  ),
+                ),
+              ),
           ],
         );
       },

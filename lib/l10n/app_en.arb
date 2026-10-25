@@ -407,5 +407,12 @@
   "penOnlyTitle": "Write with pen only",
   "penOnlyAuto": "Auto",
   "penOnlyOn": "On",
-  "penOnlyOff": "Off"
+  "penOnlyOff": "Off",
+  "toolbarMove": "Move toolbar",
+  "dockTop": "Top",
+  "dockLeft": "Left",
+  "dockRight": "Right",
+  "dockBottom": "Bottom",
+  "toolbarDocked": "Toolbar docked: {place}",
+  "@toolbarDocked": {"placeholders": {"place": {"type": "String"}}}
 }

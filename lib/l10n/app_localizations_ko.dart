@@ -893,4 +893,24 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get penOnlyOff => '끄기';
+
+  @override
+  String get toolbarMove => '툴바 위치 바꾸기';
+
+  @override
+  String get dockTop => '상단';
+
+  @override
+  String get dockLeft => '왼쪽';
+
+  @override
+  String get dockRight => '오른쪽';
+
+  @override
+  String get dockBottom => '하단';
+
+  @override
+  String toolbarDocked(String place) {
+    return '툴바를 $place에 붙였어요';
+  }
 }

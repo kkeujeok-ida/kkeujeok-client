@@ -17,6 +17,7 @@ import '../model/ids.dart';
 import '../model/note.dart';
 import '../model/pen.dart';
 import '../model/pen_only.dart';
+import '../model/toolbar_pos.dart';
 import '../ops/history.dart';
 import '../ops/ops.dart';
 import '../storage/asset_store.dart';
@@ -611,6 +612,21 @@ final eraserSettingsProvider =
     NotifierProvider<EraserSettingsNotifier, EraserSettings>(
       EraserSettingsNotifier.new,
     );
+
+/// Where the pen toolbar sits: a device setting, stored at once.
+class ToolbarPosNotifier extends Notifier<ToolbarPos> {
+  @override
+  ToolbarPos build() => ref.read(penSlotsStoreProvider).readToolbar();
+
+  void set(ToolbarPos pos) {
+    state = pos;
+    ref.read(penSlotsStoreProvider).writeToolbar(pos);
+  }
+}
+
+final toolbarPosProvider = NotifierProvider<ToolbarPosNotifier, ToolbarPos>(
+  ToolbarPosNotifier.new,
+);
 
 /// "Write with pen only": a device setting, stored at once.
 class PenOnlyNotifier extends Notifier<PenOnlyMode> {

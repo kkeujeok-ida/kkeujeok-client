@@ -1735,6 +1735,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Off'**
   String get penOnlyOff;
+
+  /// No description provided for @toolbarMove.
+  ///
+  /// In en, this message translates to:
+  /// **'Move toolbar'**
+  String get toolbarMove;
+
+  /// No description provided for @dockTop.
+  ///
+  /// In en, this message translates to:
+  /// **'Top'**
+  String get dockTop;
+
+  /// No description provided for @dockLeft.
+  ///
+  /// In en, this message translates to:
+  /// **'Left'**
+  String get dockLeft;
+
+  /// No description provided for @dockRight.
+  ///
+  /// In en, this message translates to:
+  /// **'Right'**
+  String get dockRight;
+
+  /// No description provided for @dockBottom.
+  ///
+  /// In en, this message translates to:
+  /// **'Bottom'**
+  String get dockBottom;
+
+  /// No description provided for @toolbarDocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Toolbar docked: {place}'**
+  String toolbarDocked(String place);
 }
 
 class _AppLocalizationsDelegate

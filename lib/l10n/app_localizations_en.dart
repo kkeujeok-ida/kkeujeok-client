@@ -955,4 +955,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get penOnlyOff => 'Off';
+
+  @override
+  String get toolbarMove => 'Move toolbar';
+
+  @override
+  String get dockTop => 'Top';
+
+  @override
+  String get dockLeft => 'Left';
+
+  @override
+  String get dockRight => 'Right';
+
+  @override
+  String get dockBottom => 'Bottom';
+
+  @override
+  String toolbarDocked(String place) {
+    return 'Toolbar docked: $place';
+  }
 }

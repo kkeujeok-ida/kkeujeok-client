@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/model/eraser.dart';
 import 'package:kkeujeok/model/pen.dart';
 import 'package:kkeujeok/model/pen_only.dart';
+import 'package:kkeujeok/model/toolbar_pos.dart';
 import 'package:kkeujeok/storage/pen_slots_store.dart';
 import 'package:kkeujeok/storage/session_hint.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -185,6 +186,43 @@ void main() {
       final p = await _prefs({'penOnlyMode': 'x', 'stylusSeen': 'yes'});
       expect(PenSlotsStore(p).readPenOnly(), PenOnlyMode.auto);
       expect(PenSlotsStore(p).readStylusSeen(), isFalse);
+    });
+  });
+  group('toolbar position', () {
+    test('default, round trip (restart), session value wins', () async {
+      final p = await _prefs({});
+      final s = PenSlotsStore(p);
+      expect(s.readToolbar(), ToolbarPos.defaults);
+      final pos = ToolbarPos.floating(0.25, 0.75, vertical: true);
+      await s.writeToolbar(pos);
+      expect(PenSlotsStore(p).readToolbar(), pos);
+      final left = const ToolbarPos().applyDock(ToolbarDock.left);
+      await s.writeToolbar(left);
+      await s.writeToolbar(pos);
+      expect(PenSlotsStore(p).readToolbar(), pos); // writes keep their order
+      expect(PenSlotsStore(null).readToolbar(), ToolbarPos.defaults);
+      final noDisk = PenSlotsStore(null);
+      await noDisk.writeToolbar(left);
+      expect(noDisk.readToolbar(), left);
+    });
+
+    test('broken values read as the default', () async {
+      for (final raw in [
+        'not json',
+        '[]',
+        '{"dock":"middle","x":0.5,"y":0,"vertical":false}',
+        '{"dock":"float","x":2,"y":0,"vertical":false}',
+        '{"dock":"float","x":0.5,"y":0,"vertical":"no"}',
+      ]) {
+        final p = await _prefs({'toolbarPos': raw});
+        expect(
+          PenSlotsStore(p).readToolbar(),
+          ToolbarPos.defaults,
+          reason: raw,
+        );
+      }
+      final p = await _prefs({'toolbarPos': 5});
+      expect(PenSlotsStore(p).readToolbar(), ToolbarPos.defaults);
     });
   });
 }

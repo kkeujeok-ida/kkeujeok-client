@@ -353,5 +353,12 @@
   "penOnlyTitle": "펜으로만 필기",
   "penOnlyAuto": "자동",
   "penOnlyOn": "켜기",
-  "penOnlyOff": "끄기"
+  "penOnlyOff": "끄기",
+  "toolbarMove": "툴바 위치 바꾸기",
+  "dockTop": "상단",
+  "dockLeft": "왼쪽",
+  "dockRight": "오른쪽",
+  "dockBottom": "하단",
+  "toolbarDocked": "툴바를 {place}에 붙였어요",
+  "@toolbarDocked": {"placeholders": {"place": {"type": "String"}}}
 }

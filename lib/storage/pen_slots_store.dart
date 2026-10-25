@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../model/eraser.dart';
 import '../model/pen.dart';
 import '../model/pen_only.dart';
+import '../model/toolbar_pos.dart';
 
 final _hex = RegExp(r'^#[0-9a-fA-F]{6}$');
 
@@ -195,6 +196,36 @@ class PenSlotsStore {
         await _prefs?.setBool(_seenKey, v);
       } catch (_) {
         // Save failed: the record still applies for this session.
+      }
+    });
+  }
+
+  static const _toolbarKey = 'toolbarPos';
+
+  ToolbarPos? _toolbarSession;
+
+  /// [ToolbarPos.defaults] for a missing or invalid stored value.
+  ToolbarPos readToolbar() {
+    final session = _toolbarSession;
+    if (session != null) return session;
+    try {
+      final raw = _prefs?.getString(_toolbarKey);
+      return raw == null
+          ? ToolbarPos.defaults
+          : ToolbarPos.parse(jsonDecode(raw));
+    } catch (_) {
+      return ToolbarPos.defaults;
+    }
+  }
+
+  Future<void> writeToolbar(ToolbarPos pos) {
+    _toolbarSession = pos;
+    final data = jsonEncode(pos.toJson());
+    return _pending = _pending.then((_) async {
+      try {
+        await _prefs?.setString(_toolbarKey, data);
+      } catch (_) {
+        // Save failed: the position still applies for this session.
       }
     });
   }
