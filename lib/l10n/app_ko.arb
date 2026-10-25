@@ -316,5 +316,30 @@
         "type": "int"
       }
     }
-  }
+  },
+  "colorDarkGray": "진회색",
+  "colorRed": "빨강",
+  "colorOrange": "주황",
+  "colorGreen": "초록",
+  "colorTeal": "청록",
+  "colorIndigo": "남색",
+  "colorPurple": "보라",
+  "colorPink": "분홍",
+  "colorBrown": "갈색",
+  "colorSky": "하늘",
+  "colorLavender": "연보라",
+  "toolPen": "펜",
+  "toolHighlighter": "형광펜",
+  "recentColors": "최근",
+  "widthDecrease": "두께 줄이기",
+  "widthIncrease": "두께 늘리기",
+  "colorPickerApply": "적용",
+  "colorPickerCancel": "취소",
+  "colorHue": "색조",
+  "colorSaturation": "채도",
+  "colorBrightness": "밝기",
+  "strokeWidthValue": "두께 {v}",
+  "@strokeWidthValue": {"placeholders": {"v": {"type": "String"}}},
+  "customColorSlotLabel": "사용자 지정 색 {hex}",
+  "@customColorSlotLabel": {"placeholders": {"hex": {"type": "String"}}}
 }

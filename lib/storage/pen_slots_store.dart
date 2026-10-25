@@ -76,4 +76,41 @@ class PenSlotsStore {
       usePressure: up,
     );
   }
+
+  static const _recentKey = 'penRecentColors';
+  static const maxRecent = 6;
+
+  List<String>? _recentSession;
+
+  /// Recent colors, newest first; empty when nothing valid is stored.
+  List<String> readRecent() {
+    final session = _recentSession;
+    if (session != null) return session;
+    try {
+      final raw = _prefs?.getString(_recentKey);
+      if (raw != null) {
+        final list = jsonDecode(raw);
+        if (list is List &&
+            list.length <= maxRecent &&
+            list.every((e) => e is String && _hex.hasMatch(e))) {
+          return [for (final e in list) (e as String).toLowerCase()];
+        }
+      }
+    } catch (_) {
+      // Wrong type or shape: treated as nothing stored.
+    }
+    return const [];
+  }
+
+  Future<void> writeRecent(List<String> colors) {
+    _recentSession = List.unmodifiable(colors);
+    final data = jsonEncode(colors);
+    return _pending = _pending.then((_) async {
+      try {
+        await _prefs?.setString(_recentKey, data);
+      } catch (_) {
+        // Save failed: the list still applies for this session.
+      }
+    });
+  }
 }

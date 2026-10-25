@@ -497,6 +497,20 @@ class PenSlotsNotifier extends Notifier<List<Pen>> {
     await _put([...state]..[index] = state[index].withUsePressure(value));
   }
 
+  Future<void> _edit(int index, Pen Function(Pen) f) async {
+    if (index < 0 || index >= state.length) return;
+    await _put([...state]..[index] = f(state[index]));
+  }
+
+  Future<void> setColor(int index, String hex) =>
+      _edit(index, (p) => p.withColor(hex.toLowerCase()));
+
+  Future<void> setWidth(int index, double v) =>
+      _edit(index, (p) => p.withWidth(v));
+
+  Future<void> setTool(int index, String tool) =>
+      _edit(index, (p) => p.withTool(tool));
+
   void select(int i) {
     if (i >= 0 && i < state.length) _select(i);
   }
@@ -555,6 +569,26 @@ class PenSlotsNotifier extends Notifier<List<Pen>> {
 final penSlotsProvider = NotifierProvider<PenSlotsNotifier, List<Pen>>(
   PenSlotsNotifier.new,
 );
+
+/// Recent pen colors, newest first, at most 6, shared by both tools.
+class RecentPenColorsNotifier extends Notifier<List<String>> {
+  @override
+  List<String> build() => ref.read(penSlotsStoreProvider).readRecent();
+
+  void useColor(String hex) {
+    final h = hex.toLowerCase();
+    state = [
+      h,
+      ...state.where((c) => c != h),
+    ].take(PenSlotsStore.maxRecent).toList();
+    ref.read(penSlotsStoreProvider).writeRecent(state);
+  }
+}
+
+final recentPenColorsProvider =
+    NotifierProvider<RecentPenColorsNotifier, List<String>>(
+      RecentPenColorsNotifier.new,
+    );
 
 /// One row of the library: a readable note, or one that cannot be opened
 /// ([note] null).

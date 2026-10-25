@@ -370,5 +370,30 @@
         "type": "int"
       }
     }
-  }
+  },
+  "colorDarkGray": "Dark gray",
+  "colorRed": "Red",
+  "colorOrange": "Orange",
+  "colorGreen": "Green",
+  "colorTeal": "Teal",
+  "colorIndigo": "Indigo",
+  "colorPurple": "Purple",
+  "colorPink": "Pink",
+  "colorBrown": "Brown",
+  "colorSky": "Sky",
+  "colorLavender": "Lavender",
+  "toolPen": "Pen",
+  "toolHighlighter": "Highlighter",
+  "recentColors": "Recent",
+  "widthDecrease": "Decrease thickness",
+  "widthIncrease": "Increase thickness",
+  "colorPickerApply": "Apply",
+  "colorPickerCancel": "Cancel",
+  "colorHue": "Hue",
+  "colorSaturation": "Saturation",
+  "colorBrightness": "Brightness",
+  "strokeWidthValue": "Thickness {v}",
+  "@strokeWidthValue": {"placeholders": {"v": {"type": "String"}}},
+  "customColorSlotLabel": "Custom color {hex}",
+  "@customColorSlotLabel": {"placeholders": {"hex": {"type": "String"}}}
 }

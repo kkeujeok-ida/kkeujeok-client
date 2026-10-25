@@ -8,9 +8,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
 import '../model/pen.dart';
-import '../render/page_painter.dart' show parseColor;
+import '../model/pen_palette.dart';
+import '../render/page_painter.dart' show fillStroke, parseColor;
 import '../render/stroke_outline.dart';
 import 'library_fab.dart' show kkjShadow;
+import 'pen_color_picker.dart';
 import 'providers.dart';
 
 /// The floating rounded bar: grip (inert, not in the a11y tree) | pen slots
@@ -364,12 +366,27 @@ class _PenToolbarState extends State<PenToolbar> {
   }
 }
 
-String _colorName(AppLocalizations l10n, Pen pen) => switch (pen.colorNameKey) {
+/// The ko/en name of a palette color key (`custom` for any other color).
+String penColorName(AppLocalizations l10n, String key) => switch (key) {
   'black' => l10n.colorBlack,
-  'blue' => l10n.colorBlue,
+  'darkGray' => l10n.colorDarkGray,
+  'red' => l10n.colorRed,
+  'orange' => l10n.colorOrange,
   'yellow' => l10n.colorYellow,
+  'green' => l10n.colorGreen,
+  'teal' => l10n.colorTeal,
+  'blue' => l10n.colorBlue,
+  'indigo' => l10n.colorIndigo,
+  'purple' => l10n.colorPurple,
+  'pink' => l10n.colorPink,
+  'brown' => l10n.colorBrown,
+  'sky' => l10n.colorSky,
+  'lavender' => l10n.colorLavender,
   _ => l10n.colorCustom,
 };
+
+String _colorName(AppLocalizations l10n, Pen pen) =>
+    penColorName(l10n, pen.colorNameKey);
 
 class _ScrollArrow extends StatelessWidget {
   const _ScrollArrow({
@@ -470,7 +487,7 @@ class _PenSlot extends StatelessWidget {
                   (selected ? KkjLight.componentsPenSlotSelectedOffset : 0),
               child: CustomPaint(
                 size: const Size(_nibW, _nibH),
-                painter: _NibPainter(parseColor(pen.color)),
+                painter: _NibPainter(parseColor(pen.color), pen.isHighlighter),
               ),
             ),
             Positioned(
@@ -523,9 +540,10 @@ class _PenSlot extends StatelessWidget {
 
 /// A vertical pen in line art, nib down, in the pen's own color.
 class _NibPainter extends CustomPainter {
-  _NibPainter(this.color);
+  _NibPainter(this.color, [this.chisel = false]);
 
   final Color color;
+  final bool chisel; // highlighter: a flat, slanted tip
 
   @override
   void paint(Canvas canvas, Size s) {
@@ -533,7 +551,8 @@ class _NibPainter extends CustomPainter {
     final p = Path()
       ..moveTo(w * 0.15, 0)
       ..lineTo(w * 0.15, h * 0.62)
-      ..lineTo(w * 0.5, h)
+      ..lineTo(chisel ? w * 0.3 : w * 0.5, h)
+      ..lineTo(chisel ? w * 0.7 : w * 0.5, h)
       ..lineTo(w * 0.85, h * 0.62)
       ..lineTo(w * 0.85, 0)
       ..moveTo(w * 0.15, h * 0.62)
@@ -549,12 +568,17 @@ class _NibPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_NibPainter old) => old.color != color;
+  bool shouldRepaint(_NibPainter old) =>
+      old.color != color || old.chisel != chisel;
 }
 
-/// The pen edit popover: tool name, "use pressure" switch, preview stroke.
-/// Reads and writes slot [index] through [penSlotsProvider]; the canvas below
-/// gets no input while it is open.
+const _cell = 48.0;
+const _cols = 6;
+
+/// The pen edit popover (UX-DR18): tool switch, name, palette, recent colors,
+/// thickness, pressure, preview, delete. Reads and writes slot [index]
+/// through [penSlotsProvider], so every change is stored at once; the canvas
+/// below gets no input while it is open.
 class PenEditDialog extends ConsumerWidget {
   const PenEditDialog({super.key, this.index = 0});
 
@@ -564,17 +588,101 @@ class PenEditDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final slots = ref.watch(penSlotsProvider);
-    final pen = slots[index.clamp(0, slots.length - 1)]; // closing: may be gone
+    final i = index.clamp(0, slots.length - 1); // closing: may be gone
+    final pen = slots[i];
+    final recent = ref.watch(recentPenColorsProvider);
     final canDelete = slots.length > 1;
     final on = pen.usePressure;
-    void toggle(bool v) =>
-        ref.read(penSlotsProvider.notifier).setUsePressure(index, v);
+    final notifier = ref.read(penSlotsProvider.notifier);
+    final theme = Theme.of(context);
+    void toggle(bool v) => notifier.setUsePressure(i, v);
+    void pick(String hex) {
+      notifier.setColor(i, hex);
+      ref.read(recentPenColorsProvider.notifier).useColor(hex);
+    }
+
+    Future<void> custom() async {
+      final hex = await showPenColorPicker(context, pen.color);
+      if (!context.mounted) return;
+      if (hex != null) pick(hex);
+    }
+
+    final (lo, hi) = penWidthRange(pen.tool);
+    final width = pen.width.clamp(lo, hi);
+    final widthText = width.toStringAsFixed(1);
+    void step(int d) => notifier.setWidth(i, width + d / 10);
+    final palette = paletteFor(pen.tool);
+
+    String label(String hex) {
+      final key = colorNameKeyFor(hex);
+      return key == 'custom'
+          ? l10n.customColorSlotLabel(hex.toUpperCase())
+          : penColorName(l10n, key);
+    }
+
+    final cells = <Widget>[
+      for (var k = 0; k < palette.length; k++)
+        _ColorCell(
+          hex: palette[k].hex,
+          label: label(palette[k].hex),
+          selected: pen.color.toLowerCase() == palette[k].hex,
+          onTap: () => pick(palette[k].hex),
+          corners: _corners(palette.length + 1, k),
+        ),
+      _ColorCell(
+        label: l10n.colorCustom,
+        selected: false,
+        onTap: custom,
+        corners: _corners(palette.length + 1, palette.length),
+      ),
+    ];
+
+    Widget switchButton(String tool, String text) {
+      final active = pen.tool == tool;
+      return Expanded(
+        child: Semantics(
+          button: true,
+          inMutuallyExclusiveGroup: true,
+          checked: active,
+          label: text,
+          onTap: () => notifier.setTool(i, tool),
+          excludeSemantics: true,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(KkjTokens.roundedSm),
+            onTap: () => notifier.setTool(i, tool),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: _cell),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: active ? KkjLight.colorAccentSoft : null,
+                  borderRadius: BorderRadius.circular(KkjTokens.roundedSm),
+                  border: Border.all(color: KkjLight.colorBorderControl),
+                ),
+                child: Center(child: Text(text)),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    Widget stepper(IconData icon, String tip, bool enabled, int d) =>
+        IconButton(
+          tooltip: tip,
+          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+          icon: Icon(icon),
+          disabledColor: KkjLight.colorInkDisabled,
+          onPressed: enabled ? () => step(d) : null,
+        );
+
+    void del() => Navigator.of(context).pop(true);
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () =>
             Navigator.of(context).maybePop(),
       },
       child: Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
         backgroundColor: KkjLight.componentsPopoverBackground,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(
@@ -583,20 +691,80 @@ class PenEditDialog extends ConsumerWidget {
         ),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 320),
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(KkjLight.componentsPopoverPadding),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Semantics(
-                  header: true,
-                  child: Text(
-                    l10n.penEditTitle,
-                    style: Theme.of(context).textTheme.titleMedium,
+                  container: true,
+                  role: SemanticsRole.radioGroup,
+                  child: Row(
+                    children: [
+                      switchButton('pen', l10n.toolPen),
+                      const SizedBox(width: KkjTokens.spacing2),
+                      switchButton('highlighter', l10n.toolHighlighter),
+                    ],
                   ),
                 ),
                 const SizedBox(height: KkjTokens.spacing3),
+                Semantics(
+                  header: true,
+                  child: Text(
+                    pen.isHighlighter ? l10n.toolHighlighter : l10n.toolPen,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                ),
+                const SizedBox(height: KkjTokens.spacing2),
+                Center(child: Wrap(children: cells)),
+                if (recent.isNotEmpty) ...[
+                  const SizedBox(height: KkjTokens.spacing3),
+                  Text(l10n.recentColors, style: theme.textTheme.labelMedium),
+                  const SizedBox(height: KkjTokens.spacing1),
+                  Center(
+                    child: Wrap(
+                      children: [
+                        for (var k = 0; k < recent.length; k++)
+                          _ColorCell(
+                            hex: recent[k],
+                            label: label(recent[k]),
+                            selected: pen.color.toLowerCase() == recent[k],
+                            onTap: () => pick(recent[k]),
+                            corners: _corners(recent.length, k),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: KkjTokens.spacing3),
+                Text(l10n.strokeWidthValue(widthText)),
+                Row(
+                  children: [
+                    stepper(
+                      Icons.chevron_left,
+                      l10n.widthDecrease,
+                      width > lo + 1e-9,
+                      -1,
+                    ),
+                    Expanded(
+                      child: Slider(
+                        value: width,
+                        min: lo,
+                        max: hi,
+                        divisions: ((hi - lo) * 10).round(),
+                        semanticFormatterCallback: (v) => v.toStringAsFixed(1),
+                        onChanged: (v) => notifier.setWidth(i, v),
+                      ),
+                    ),
+                    stepper(
+                      Icons.chevron_right,
+                      l10n.widthIncrease,
+                      width < hi - 1e-9,
+                      1,
+                    ),
+                  ],
+                ),
                 Semantics(
                   container: true,
                   label: l10n.usePressure,
@@ -625,32 +793,40 @@ class PenEditDialog extends ConsumerWidget {
                     child: CustomPaint(painter: PenPreviewPainter(pen)),
                   ),
                 ),
-                const SizedBox(height: KkjTokens.spacing3),
+                const Divider(color: KkjLight.colorBorderHairline),
                 // Closes the popover; the editor removes the slot and offers
                 // to undo. The last slot cannot go.
-                Semantics(
-                  button: true,
-                  enabled: canDelete,
-                  onTap: canDelete
-                      ? () => Navigator.of(context).pop(true)
-                      : null,
-                  excludeSemantics: true,
-                  label: l10n.deletePenSlot,
-                  child: InkWell(
-                    onTap: canDelete
-                        ? () => Navigator.of(context).pop(true)
-                        : null,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(minHeight: 48),
-                      child: Align(
-                        alignment: AlignmentDirectional.centerStart,
-                        child: Text(
-                          l10n.deletePenSlot,
-                          style: TextStyle(
-                            color: canDelete
-                                ? Theme.of(context).colorScheme.error
-                                : KkjLight.colorInkDisabled,
-                          ),
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: Semantics(
+                    button: true,
+                    enabled: canDelete,
+                    onTap: canDelete ? del : null,
+                    excludeSemantics: true,
+                    label: l10n.deletePenSlot,
+                    child: InkWell(
+                      onTap: canDelete ? del : null,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: _cell),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.delete_outline,
+                              color: canDelete
+                                  ? theme.colorScheme.error
+                                  : KkjLight.colorInkDisabled,
+                            ),
+                            const SizedBox(width: KkjTokens.spacing1),
+                            Text(
+                              l10n.deletePenSlot,
+                              style: TextStyle(
+                                color: canDelete
+                                    ? theme.colorScheme.error
+                                    : KkjLight.colorInkDisabled,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -665,6 +841,93 @@ class PenEditDialog extends ConsumerWidget {
   }
 }
 
+/// Rounds only the grid's outer corners: cell [at] of [n] in [_cols] columns.
+BorderRadius _corners(int n, int at) {
+  const r = Radius.circular(KkjTokens.roundedSm);
+  final row = at ~/ _cols, col = at % _cols, rows = (n - 1) ~/ _cols + 1;
+  final last = at == n - 1;
+  return BorderRadius.only(
+    topLeft: row == 0 && col == 0 ? r : Radius.zero,
+    topRight: row == 0 && (col == _cols - 1 || last) ? r : Radius.zero,
+    bottomLeft: row == rows - 1 && col == 0 ? r : Radius.zero,
+    bottomRight: last ? r : Radius.zero,
+  );
+}
+
+/// One 48dp palette, recent or custom-color cell. [hex] null is the rainbow
+/// custom-color chip.
+class _ColorCell extends StatelessWidget {
+  const _ColorCell({
+    this.hex,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    required this.corners,
+  });
+
+  final String? hex;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final BorderRadius corners;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    selected: selected,
+    label: label,
+    onTap: onTap,
+    excludeSemantics: true,
+    child: InkWell(
+      borderRadius: corners,
+      onTap: onTap,
+      child: SizedBox.square(
+        dimension: _cell,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: corners,
+            color: hex == null ? null : parseColor(hex),
+            gradient: hex == null
+                ? const SweepGradient(
+                    colors: [
+                      Color(0xFFFF0000),
+                      Color(0xFFFFFF00),
+                      Color(0xFF00FF00),
+                      Color(0xFF00FFFF),
+                      Color(0xFF0000FF),
+                      Color(0xFFFF00FF),
+                      Color(0xFFFF0000),
+                    ],
+                  )
+                : null,
+          ),
+          child: selected
+              ? Padding(
+                  padding: const EdgeInsets.all(3),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: KkjLight.componentsPopoverBackground,
+                        width: 2,
+                      ),
+                    ),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: KkjLight.colorAccent,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              : null,
+        ),
+      ),
+    ),
+  );
+}
+
 const _previewW = 280.0, _previewH = 64.0, _previewScale = 3.0;
 const _previewAmp = 12.0, _previewMargin = 24.0; // margin: room for the caps
 
@@ -672,10 +935,13 @@ const _previewAmp = 12.0, _previewMargin = 24.0; // margin: room for the caps
 /// [strokeOutline] with the pen's `usePressure`; flat when it is off. Built in
 /// a fixed box and scaled to the paint size, clipped to it.
 class PenPreviewPainter extends CustomPainter {
-  PenPreviewPainter(this.pen) : polygon = _polygon(pen);
+  PenPreviewPainter(this.pen)
+    : polygon = pen.isHighlighter ? const [] : _polygon(pen),
+      rects = pen.isHighlighter ? _rects(pen) : const [];
 
   final Pen pen;
   final List<List<double>> polygon;
+  final List<List<List<double>>> rects;
 
   static List<List<double>> _polygon(Pen pen) {
     const n = 40;
@@ -699,6 +965,19 @@ class PenPreviewPainter extends CustomPainter {
     return strokeOutline(w, pen.usePressure, pts);
   }
 
+  static List<List<List<double>>> _rects(Pen pen) {
+    const n = 40;
+    return highlighterPolygons(math.min(pen.width, 28), [
+      for (var i = 0; i <= n; i++)
+        [
+          _previewMargin + (_previewW - 2 * _previewMargin) * i / n,
+          _previewH / 2 + _previewAmp * math.sin(2 * math.pi * i / n),
+          0.5,
+          i * 10,
+        ],
+    ]);
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     final s = math.min(size.width / _previewW, size.height / _previewH);
@@ -709,14 +988,22 @@ class PenPreviewPainter extends CustomPainter {
         (size.height - _previewH * s) / 2,
       )
       ..scale(s);
-    canvas.drawPath(
-      outlinePath(polygon),
-      Paint()..color = parseColor(pen.color),
+    // On paper, as it will look on a page (a highlighter multiplies).
+    canvas.drawRect(
+      const Rect.fromLTWH(0, 0, _previewW, _previewH),
+      Paint()..color = const Color(0xFFFFFFFF),
+    );
+    fillStroke(
+      canvas,
+      pen.isHighlighter ? highlighterPath(rects) : outlinePath(polygon),
+      pen.color,
+      highlighter: pen.isHighlighter,
     );
   }
 
   @override
   bool shouldRepaint(PenPreviewPainter old) =>
+      old.pen.tool != pen.tool ||
       old.pen.usePressure != pen.usePressure ||
       old.pen.color != pen.color ||
       old.pen.width != pen.width;

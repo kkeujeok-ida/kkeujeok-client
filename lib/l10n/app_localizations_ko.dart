@@ -784,4 +784,77 @@ class AppLocalizationsKo extends AppLocalizations {
   String selectedCount(int count) {
     return '요소 $count개 선택됨';
   }
+
+  @override
+  String get colorDarkGray => '진회색';
+
+  @override
+  String get colorRed => '빨강';
+
+  @override
+  String get colorOrange => '주황';
+
+  @override
+  String get colorGreen => '초록';
+
+  @override
+  String get colorTeal => '청록';
+
+  @override
+  String get colorIndigo => '남색';
+
+  @override
+  String get colorPurple => '보라';
+
+  @override
+  String get colorPink => '분홍';
+
+  @override
+  String get colorBrown => '갈색';
+
+  @override
+  String get colorSky => '하늘';
+
+  @override
+  String get colorLavender => '연보라';
+
+  @override
+  String get toolPen => '펜';
+
+  @override
+  String get toolHighlighter => '형광펜';
+
+  @override
+  String get recentColors => '최근';
+
+  @override
+  String get widthDecrease => '두께 줄이기';
+
+  @override
+  String get widthIncrease => '두께 늘리기';
+
+  @override
+  String get colorPickerApply => '적용';
+
+  @override
+  String get colorPickerCancel => '취소';
+
+  @override
+  String get colorHue => '색조';
+
+  @override
+  String get colorSaturation => '채도';
+
+  @override
+  String get colorBrightness => '밝기';
+
+  @override
+  String strokeWidthValue(String v) {
+    return '두께 $v';
+  }
+
+  @override
+  String customColorSlotLabel(String hex) {
+    return '사용자 지정 색 $hex';
+  }
 }

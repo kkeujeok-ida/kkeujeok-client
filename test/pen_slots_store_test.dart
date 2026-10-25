@@ -124,4 +124,27 @@ void main() {
     await SessionHint(p).set(false);
     expect(PenSlotsStore(p).read(), hasLength(2));
   });
+
+  group('recent colors', () {
+    test('round-trips and survives log out', () async {
+      final p = await _prefs({});
+      await PenSlotsStore(p).writeRecent(['#e03131', '#000000']);
+      await SessionHint(p).set(false);
+      expect(PenSlotsStore(p).readRecent(), ['#e03131', '#000000']);
+    });
+
+    test('nothing, broken or more than 6 reads as empty', () async {
+      expect(PenSlotsStore(await _prefs({})).readRecent(), isEmpty);
+      for (final bad in [
+        'nope',
+        '{"a":1}',
+        '["red"]',
+        '[1]',
+        jsonEncode(List.filled(7, '#000000')),
+      ]) {
+        final p = await _prefs({'penRecentColors': bad});
+        expect(PenSlotsStore(p).readRecent(), isEmpty, reason: bad);
+      }
+    });
+  });
 }

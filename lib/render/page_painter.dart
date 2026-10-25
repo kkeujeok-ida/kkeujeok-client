@@ -108,6 +108,41 @@ bool drawableStroke(Object? e) =>
     e['width'] is num &&
     e['usePressure'] is bool;
 
+/// The fill path of a stroke: pen outline, or the highlighter's rectangles.
+Path strokePath(Map<String, dynamic> s) => s['tool'] == 'highlighter'
+    ? highlighterPath(
+        highlighterPolygons(
+          (s['width'] as num).toDouble(),
+          s['points'] as List,
+        ),
+      )
+    : outlinePath(
+        strokeOutline(
+          (s['width'] as num).toDouble(),
+          s['usePressure'] as bool,
+          s['points'] as List,
+        ),
+      );
+
+/// Fills [p] with [color]. A highlighter is one layer in the opaque color,
+/// composited once at 0.4 with multiply, so it never darkens on itself.
+void fillStroke(Canvas c, Path p, Object? color, {bool highlighter = false}) {
+  p.fillType = PathFillType.nonZero;
+  final fill = Paint()
+    ..color = parseColor(color)
+    ..style = PaintingStyle.fill
+    ..isAntiAlias = true;
+  if (!highlighter) return c.drawPath(p, fill);
+  c.saveLayer(
+    p.getBounds().inflate(1),
+    Paint()
+      ..blendMode = BlendMode.multiply
+      ..color = const Color(0x66FFFFFF), // 0.4 alpha
+  );
+  c.drawPath(p, fill);
+  c.restore();
+}
+
 /// Finished-stroke outlines by stroke id, so a repaint does not rebuild them.
 /// The key holds what an edit could change: count, ends, width, pressure.
 class StrokePathCache {
@@ -118,6 +153,7 @@ class StrokePathCache {
     List<num> xy(int i) =>
         i < 0 || i >= pts.length ? const [0, 0] : [pts[i][0], pts[i][1]];
     return [
+      s['tool'] == 'highlighter' ? 1 : 0,
       pts.length,
       (s['width'] as num),
       (s['usePressure'] as bool) ? 1 : 0,
@@ -131,13 +167,7 @@ class StrokePathCache {
     final key = _key(s);
     final hit = _byId[id];
     if (hit != null && _same(hit.$1, key)) return hit.$2;
-    final path = outlinePath(
-      strokeOutline(
-        (s['width'] as num).toDouble(),
-        s['usePressure'] as bool,
-        s['points'] as List,
-      ),
-    );
+    final path = strokePath(s);
     _byId[id] = (key, path);
     return path;
   }
@@ -255,35 +285,27 @@ class PagePainter extends CustomPainter {
       if (!drawableStroke(e)) continue;
       final s = e as Map<String, dynamic>;
       ids.add(s['id'] as String);
-      _fill(canvas, cache.pathOf(s), s['color']);
+      fillStroke(
+        canvas,
+        cache.pathOf(s),
+        s['color'],
+        highlighter: s['tool'] == 'highlighter',
+      );
     }
     final d = draft?.call();
     if (d != null && drawableText(d)) paintTextBox(canvas, d);
     cache.keepOnly(ids);
     final s = live?.call();
     if (s != null && drawableStroke(s)) {
-      _fill(
+      fillStroke(
         canvas,
-        outlinePath(
-          strokeOutline(
-            (s['width'] as num).toDouble(),
-            s['usePressure'] as bool,
-            s['points'] as List,
-          ),
-        ),
+        strokePath(s),
         s['color'],
+        highlighter: s['tool'] == 'highlighter',
       );
     }
     canvas.restore();
   }
-
-  void _fill(Canvas c, Path p, Object? color) => c.drawPath(
-    p..fillType = PathFillType.nonZero,
-    Paint()
-      ..color = parseColor(color)
-      ..style = PaintingStyle.fill
-      ..isAntiAlias = true,
-  );
 
   // Text boxes are readable: each is a node with its text as label.
   @override

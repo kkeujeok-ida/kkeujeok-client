@@ -1,3 +1,5 @@
+import 'pen_palette.dart';
+
 /// Most slots a device can hold; at least one always remains.
 const maxPenSlots = 12;
 
@@ -27,6 +29,27 @@ class Pen {
   Pen withUsePressure(bool v) =>
       Pen(tool: tool, color: color, width: width, usePressure: v);
 
+  Pen withColor(String hex) =>
+      Pen(tool: tool, color: hex, width: width, usePressure: usePressure);
+
+  /// Kept in the tool's range, in steps of 0.1.
+  Pen withWidth(double v) {
+    final (lo, hi) = penWidthRange(tool);
+    return Pen(
+      tool: tool,
+      color: color,
+      width: ((v.clamp(lo, hi) * 10).round() / 10).clamp(lo, hi),
+      usePressure: usePressure,
+    );
+  }
+
+  /// The other tool starts from its own defaults (ranges and palettes differ).
+  Pen withTool(String t) => t == tool
+      ? this
+      : t == 'highlighter'
+      ? defaultPenSlots[2]
+      : defaultPen;
+
   Map<String, Object> toJson() => {
     'tool': tool,
     'color': color,
@@ -35,13 +58,14 @@ class Pen {
   };
 }
 
-/// `black`, `blue` or `yellow` for the default slot colors, else `custom`.
-String colorNameKeyFor(String hex) => switch (hex.toLowerCase()) {
-  '#000000' => 'black',
-  '#1971c2' => 'blue',
-  '#ffe066' => 'yellow',
-  _ => 'custom',
-};
+/// Name key of a palette color (`black`, `darkGray`, ...), else `custom`.
+String colorNameKeyFor(String hex) {
+  final h = hex.toLowerCase();
+  for (final c in [...penPalette, ...highlighterPalette]) {
+    if (c.hex == h) return c.nameKey;
+  }
+  return 'custom';
+}
 
 const defaultPen = Pen(color: '#000000', width: 2.0, usePressure: true);
 

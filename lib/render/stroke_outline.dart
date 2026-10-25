@@ -141,6 +141,61 @@ List<List<double>> strokeOutline(double width, bool usePressure, List points) {
   ];
 }
 
+/// spec rule `stroke.outline.highlighter`: the chisel-nib rectangles of a
+/// highlighter stroke, in point order; their union is the stroke.
+List<List<List<double>>> highlighterPolygons(double width, List points) {
+  final xs = <double>[], ys = <double>[];
+  for (final p in points) {
+    final x = (p[0] as num).toDouble(), y = (p[1] as num).toDouble();
+    if (xs.isNotEmpty) {
+      final dx = x - xs.last, dy = y - ys.last;
+      if (math.sqrt(dx * dx + dy * dy) < _dedupeDistance) continue;
+    }
+    xs.add(x);
+    ys.add(y);
+  }
+  if (xs.isEmpty) return [];
+  final h = width / 2 * math.sqrt(0.5);
+  final ax = h, ay = -h;
+  List<double> pt(double x, double y) => [round2(x), round2(y)];
+  if (xs.length == 1) {
+    final nx = -ay * 0.25, ny = ax * 0.25;
+    return [
+      [
+        pt(xs[0] + ax, ys[0] + ay),
+        pt(xs[0] + nx, ys[0] + ny),
+        pt(xs[0] - ax, ys[0] - ay),
+        pt(xs[0] - nx, ys[0] - ny),
+      ],
+    ];
+  }
+  return [
+    for (var i = 0; i + 1 < xs.length; i++)
+      [
+        pt(xs[i] + ax, ys[i] + ay),
+        pt(xs[i + 1] + ax, ys[i + 1] + ay),
+        pt(xs[i + 1] - ax, ys[i + 1] - ay),
+        pt(xs[i] - ax, ys[i] - ay),
+      ],
+  ];
+}
+
+/// All [highlighterPolygons] as one non-zero path. Each rectangle is turned
+/// to the same direction, or opposite ones would cancel where they overlap.
+Path highlighterPath(List<List<List<double>>> polygons) {
+  final path = Path();
+  for (final poly in polygons) {
+    var area = 0.0;
+    for (var i = 0; i < poly.length; i++) {
+      final a = poly[i], b = poly[(i + 1) % poly.length];
+      area += a[0] * b[1] - b[0] * a[1];
+    }
+    final pts = [for (final p in poly) Offset(p[0], p[1])];
+    path.addPolygon(area < 0 ? pts.reversed.toList() : pts, true);
+  }
+  return path;
+}
+
 double _pressure(bool usePressure, List p) {
   if (!usePressure || p.length < 3) return 0.5;
   final v = p[2];

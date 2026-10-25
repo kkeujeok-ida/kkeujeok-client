@@ -11,7 +11,11 @@ import 'package:kkeujeok/model/kkj_codec.dart';
 import 'package:kkeujeok/model/note.dart';
 import 'package:kkeujeok/model/note_title.dart';
 import 'package:kkeujeok/model/number.dart';
+import 'package:kkeujeok/l10n/app_localizations_en.dart';
+import 'package:kkeujeok/l10n/app_localizations_ko.dart';
 import 'package:kkeujeok/model/pen.dart';
+import 'package:kkeujeok/model/pen_palette.dart';
+import 'package:kkeujeok/ui/pen_toolbar.dart' show penColorName;
 import 'package:kkeujeok/model/select.dart';
 import 'package:kkeujeok/model/text_layout.dart';
 import 'package:kkeujeok/model/text_metrics.dart';
@@ -237,6 +241,51 @@ final runners = <String, void Function(Case)>{
         );
       }
     }
+  },
+  'stroke.outline.highlighter': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final tol = (c['tolerance'] as num).toDouble();
+    final got = highlighterPolygons(
+      (i['width'] as num).toDouble(),
+      i['points'] as List,
+    );
+    final want = (c['expected'] as Map)['polygons'] as List;
+    expect(got.length, want.length, reason: 'polygon count');
+    for (var k = 0; k < got.length; k++) {
+      final w = want[k] as List;
+      expect(got[k].length, w.length, reason: 'polygon $k point count');
+      for (var j = 0; j < w.length; j++) {
+        for (var d = 0; d < 2; d++) {
+          final e = ((w[j] as List)[d] as num).toDouble();
+          expect(
+            (got[k][j][d] - e).abs() <= tol + 1e-9,
+            isTrue,
+            reason: 'polygon $k point $j[$d]: got ${got[k][j][d]}, want $e',
+          );
+        }
+      }
+    }
+  },
+  'pen.palette': (c) {
+    final tool = (c['input'] as Map)['tool'] as String;
+    final colors = paletteFor(tool);
+    final ko = AppLocalizationsKo(), en = AppLocalizationsEn();
+    final (lo, hi) = penWidthRange(tool);
+    final d = tool == 'highlighter' ? defaultPenSlots[2] : defaultPen;
+    _same({
+      'columns': 6,
+      'rows': colors.length ~/ 6,
+      'colors': [
+        for (final p in colors)
+          {
+            'color': p.hex,
+            'ko': penColorName(ko, p.nameKey),
+            'en': penColorName(en, p.nameKey),
+          },
+      ],
+      'width': {'min': lo, 'max': hi, 'default': d.width, 'step': 0.1},
+      'usePressureDefault': d.usePressure,
+    }, c['expected']);
   },
   'pen.defaultSlots': (c) => _same({
     'slots': [for (final p in defaultPenSlots) p.toJson()],
@@ -486,8 +535,6 @@ void _runOp(Case c) {
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6.
 const pendingRules = <String>{
-  'pen.palette',
-  'stroke.outline.highlighter',
   'ops.eraseStrokes',
   'ops.erasePartial',
   'ops.eraseHistory',

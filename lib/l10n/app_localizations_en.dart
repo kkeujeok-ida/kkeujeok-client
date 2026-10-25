@@ -846,4 +846,77 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get colorDarkGray => 'Dark gray';
+
+  @override
+  String get colorRed => 'Red';
+
+  @override
+  String get colorOrange => 'Orange';
+
+  @override
+  String get colorGreen => 'Green';
+
+  @override
+  String get colorTeal => 'Teal';
+
+  @override
+  String get colorIndigo => 'Indigo';
+
+  @override
+  String get colorPurple => 'Purple';
+
+  @override
+  String get colorPink => 'Pink';
+
+  @override
+  String get colorBrown => 'Brown';
+
+  @override
+  String get colorSky => 'Sky';
+
+  @override
+  String get colorLavender => 'Lavender';
+
+  @override
+  String get toolPen => 'Pen';
+
+  @override
+  String get toolHighlighter => 'Highlighter';
+
+  @override
+  String get recentColors => 'Recent';
+
+  @override
+  String get widthDecrease => 'Decrease thickness';
+
+  @override
+  String get widthIncrease => 'Increase thickness';
+
+  @override
+  String get colorPickerApply => 'Apply';
+
+  @override
+  String get colorPickerCancel => 'Cancel';
+
+  @override
+  String get colorHue => 'Hue';
+
+  @override
+  String get colorSaturation => 'Saturation';
+
+  @override
+  String get colorBrightness => 'Brightness';
+
+  @override
+  String strokeWidthValue(String v) {
+    return 'Thickness $v';
+  }
+
+  @override
+  String customColorSlotLabel(String hex) {
+    return 'Custom color $hex';
+  }
 }
