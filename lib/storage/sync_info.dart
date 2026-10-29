@@ -1,3 +1,5 @@
+import '../sync/sync_rules.dart';
+
 enum SyncState { synced, pending, syncing, conflict, error }
 
 /// A Drive revision id doubles as part of a file name, so its form is fixed.
@@ -41,6 +43,37 @@ class SyncInfo {
   int get lastSeenRemoteSeq {
     final v = extra['lastSeenRemoteSeq'];
     return v is int && v > 0 ? v : 0;
+  }
+
+  /// Revisions this device already knows (uploaded, received, merged from);
+  /// see `sync.staleHead`. An unknown key of `sync.json`, so older readers keep it.
+  List<String> get knownRevisionIds {
+    final v = extra['knownRevisionIds'];
+    return v is List
+        ? [
+            for (final x in v)
+              if (x is String) x,
+          ]
+        : const [];
+  }
+
+  /// True when [head] is a known revision and not the base: a late listing,
+  /// not a remote change.
+  bool isStaleHead(String head) =>
+      staleHeadRule({
+        'known': knownRevisionIds,
+        'base': baseHeadRevisionId,
+        'head': head,
+      })['result'] ==
+      'skip';
+
+  /// A copy that remembers the current base and [ids] (oldest dropped past the cap).
+  SyncInfo withKnown(List<String> ids) {
+    final known = staleHeadRule({
+      'known': knownRevisionIds,
+      'add': [?baseHeadRevisionId, ...ids],
+    })['known'];
+    return copyWith(extra: {...extra, 'knownRevisionIds': known});
   }
 
   /// Story 7.7: the person deleted the note; it waits to be uploaded and

@@ -64,7 +64,8 @@ void main() {
   void foreignEdit(int rev) =>
       env.drive.foreignRevision(env.note, encodeKkj(makeNote(rev: rev)));
 
-  int mediaCalls() => env.drive.calls.where((c) => c.startsWith('media')).length;
+  int mediaCalls() =>
+      env.drive.calls.where((c) => c.startsWith('media')).length;
 
   setUp(setUpEnv);
 
@@ -90,8 +91,11 @@ void main() {
       expect(env.info.baseHeadRevisionId, env.note.headRevisionId);
       expect(env.info.fileId, env.note.id);
       expect(env.syncFile.existsSync(), isTrue);
-      expect(File('${env.noteDir.path}/base.${env.note.headRevisionId}.kkj')
-          .existsSync(), isTrue);
+      expect(
+        File('${env.noteDir.path}/base.${env.note.headRevisionId}.kkj')
+            .existsSync(),
+        isTrue,
+      );
       expect(await token(), await env.drive.getStartPageToken());
       expect(r.state.value.version, greaterThan(0));
       // The start token was taken before the listing.
@@ -100,11 +104,7 @@ void main() {
     });
 
     test('no summary: no card until the note is downloaded', () async {
-      env.drive.foreignNote(
-        makeNote(),
-        parent: env.root.id,
-        summary: false,
-      );
+      env.drive.foreignNote(makeNote(), parent: env.root.id, summary: false);
       final r = receiver();
       ReceiveState? during;
       env.drive.before = (c) {
@@ -116,18 +116,20 @@ void main() {
       expect(await env.store.read(noteId), isNotNull);
     });
 
-    test('an unreadable download is kept byte for byte and never uploaded',
-        () async {
-      final junk = utf8.encode('junk');
-      env.drive.foreignNote(makeNote(), parent: env.root.id, bytes: junk);
-      await receiver().check();
-      expect(env.working.readAsBytesSync(), junk);
-      expect((await env.store.read(noteId))!.status, ReadStatus.unreadable);
-      expect(env.info.state, SyncState.error);
-      await receiver().check();
-      expect(env.working.readAsBytesSync(), junk);
-      expect(mediaCalls(), 1);
-    });
+    test(
+      'an unreadable download is kept byte for byte and never uploaded',
+      () async {
+        final junk = utf8.encode('junk');
+        env.drive.foreignNote(makeNote(), parent: env.root.id, bytes: junk);
+        await receiver().check();
+        expect(env.working.readAsBytesSync(), junk);
+        expect((await env.store.read(noteId))!.status, ReadStatus.unreadable);
+        expect(env.info.state, SyncState.error);
+        await receiver().check();
+        expect(env.working.readAsBytesSync(), junk);
+        expect(mediaCalls(), 1);
+      },
+    );
 
     test('a newer-format file is kept and reported', () async {
       final json = makeNote().copyJson()..['formatVersion'] = 99;
@@ -156,31 +158,33 @@ void main() {
   });
 
   group('changes', () {
-    test('a changed synced note is replaced; badge shows before the download',
-        () async {
-      await localSynced();
-      final r = receiver();
-      await r.check(); // token
-      foreignEdit(2);
-      ReceiveState? during;
-      env.drive.before = (c) {
-        if (c.startsWith('media')) during = r.state.value;
-      };
-      await r.check();
-      expect(during!.receiving, {noteId});
-      expect(r.state.value.receiving, isEmpty);
-      final head = env.note.headRevisionId;
-      expect(env.info.baseHeadRevisionId, head);
-      expect(env.info.state, SyncState.synced);
-      expect(
-        (await env.store.read(noteId))!.note!.pages.first['rev'],
-        makeNote(rev: 2).pages.first['rev'],
-      );
-      final names = await env.eventNames();
-      expect(names, contains('baseAdvanced'));
-      expect(await env.stateChanges(), contains('syncing>synced'));
-      expect(await token(), await env.drive.getStartPageToken());
-    });
+    test(
+      'a changed synced note is replaced; badge shows before the download',
+      () async {
+        await localSynced();
+        final r = receiver();
+        await r.check(); // token
+        foreignEdit(2);
+        ReceiveState? during;
+        env.drive.before = (c) {
+          if (c.startsWith('media')) during = r.state.value;
+        };
+        await r.check();
+        expect(during!.receiving, {noteId});
+        expect(r.state.value.receiving, isEmpty);
+        final head = env.note.headRevisionId;
+        expect(env.info.baseHeadRevisionId, head);
+        expect(env.info.state, SyncState.synced);
+        expect(
+          (await env.store.read(noteId))!.note!.pages.first['rev'],
+          makeNote(rev: 2).pages.first['rev'],
+        );
+        final names = await env.eventNames();
+        expect(names, contains('baseAdvanced'));
+        expect(await env.stateChanges(), contains('syncing>synced'));
+        expect(await token(), await env.drive.getStartPageToken());
+      },
+    );
 
     test('a change whose head is our base downloads nothing', () async {
       await localSynced();
@@ -210,24 +214,60 @@ void main() {
       expect(await env.eventNames(), containsAll(['merged', 'conflictFound']));
     });
 
-    test('an edit that lands during the download is never overwritten',
-        () async {
+    test('a stale head after the resolving upload is skipped: synced, base '
+        'kept, the resolution is the final revision', () async {
       await localSynced();
       final r = receiver();
       await r.check();
+      await env.save(makeNote(rev: 5));
       foreignEdit(2);
-      var done = false;
-      env.drive.before = (c) {
-        if (c.startsWith('media') && !done) {
-          done = true;
-          unawaited(env.store.write(makeNote(rev: 7)));
-        }
-      };
       await r.check();
-      expect(env.info.state, isNot(SyncState.synced));
-      final s = await env.store.readSync(noteId);
-      expect(s.hasUnsent, isTrue);
+      expect(env.info.state, SyncState.conflict);
+      final theirs = env.info.baseHeadRevisionId!;
+      final entry = {
+        ...env.info.conflicts.single,
+        'resolvedAt': '2026-10-17T01:00:00.000Z',
+      };
+      await env.save(makeNote(rev: 6)); // the resolution
+      await env.uploader().resolved(noteId, entry);
+      await env.uploader().upload(noteId);
+      final ours = env.info.baseHeadRevisionId!;
+      expect(ours, isNot(theirs));
+      env.note
+        ..staleHead = theirs
+        ..staleTimes = 3;
+      final changes = (await env.stateChanges()).length;
+      await r.check();
+      expect(env.info.state, SyncState.synced);
+      expect(env.info.baseHeadRevisionId, ours);
+      expect((await env.stateChanges()).length, changes);
+      expect(env.note.headRevisionId, ours);
+      expect(
+        decodeKkj(env.note.bytes).note!.pages.first['rev'],
+        makeNote(rev: 6).pages.first['rev'],
+      );
     });
+
+    test(
+      'an edit that lands during the download is never overwritten',
+      () async {
+        await localSynced();
+        final r = receiver();
+        await r.check();
+        foreignEdit(2);
+        var done = false;
+        env.drive.before = (c) {
+          if (c.startsWith('media') && !done) {
+            done = true;
+            unawaited(env.store.write(makeNote(rev: 7)));
+          }
+        };
+        await r.check();
+        expect(env.info.state, isNot(SyncState.synced));
+        final s = await env.store.readSync(noteId);
+        expect(s.hasUnsent, isTrue);
+      },
+    );
 
     test('an open note is merged through its editor host', () async {
       await localSynced();
@@ -260,43 +300,44 @@ void main() {
       expect(env.info.lastError?['reason'], 'unsupportedVersion');
     });
 
-    test('three rejected commits end the check: no token, a log, retried',
-        () async {
-      await localSynced();
-      final r0 = receiver();
-      await r0.check();
-      final tokenBefore = await token();
-      foreignEdit(2);
-      var rejects = 3;
-      final store = _RejectingStore(env.data, () => rejects-- > 0);
-      final r = NoteReceiver(
-        store: store,
-        drive: env.drive,
-        device: env.device,
-        log: env.log,
-        merge: env.merge,
-        hosts: env.hosts,
-        allowed: () async => env.allowed,
-        online: () async => online,
-        account: () => acct,
-        sleep: (d) async => env.sleeps.add(d),
-        jitter: () => 0.5,
-        chain: chain,
-      );
-      addTearDown(r.dispose);
-      await r.check();
-      expect(await token(), tokenBefore);
-      expect(env.info.baseHeadRevisionId, isNot(env.note.headRevisionId));
-      expect(
-        (await env.log.entries()).any(
-          (e) => e['event'] == 'error' && e['reason'] == 'receiveRejected',
-        ),
-        isTrue,
-      );
-    });
+    test(
+      'three rejected commits end the check: no token, a log, retried',
+      () async {
+        await localSynced();
+        final r0 = receiver();
+        await r0.check();
+        final tokenBefore = await token();
+        foreignEdit(2);
+        var rejects = 3;
+        final store = _RejectingStore(env.data, () => rejects-- > 0);
+        final r = NoteReceiver(
+          store: store,
+          drive: env.drive,
+          device: env.device,
+          log: env.log,
+          merge: env.merge,
+          hosts: env.hosts,
+          allowed: () async => env.allowed,
+          online: () async => online,
+          account: () => acct,
+          sleep: (d) async => env.sleeps.add(d),
+          jitter: () => 0.5,
+          chain: chain,
+        );
+        addTearDown(r.dispose);
+        await r.check();
+        expect(await token(), tokenBefore);
+        expect(env.info.baseHeadRevisionId, isNot(env.note.headRevisionId));
+        expect(
+          (await env.log.entries()).any(
+            (e) => e['event'] == 'error' && e['reason'] == 'receiveRejected',
+          ),
+          isTrue,
+        );
+      },
+    );
 
-    test('a skipped error note is received again once it left error',
-        () async {
+    test('a skipped error note is received again once it left error', () async {
       await localSynced();
       final r = receiver();
       await r.check();
@@ -314,6 +355,30 @@ void main() {
       await r.check();
       expect(env.info.baseHeadRevisionId, env.note.headRevisionId);
     });
+
+    test(
+      'base file gone and Drive head is a known id: received, not skipped',
+      () async {
+        await localSynced();
+        final r = receiver();
+        await r.check();
+        final head = env.note.headRevisionId!;
+        env.drive.calls.clear();
+        await env.store.updateSync(
+          noteId,
+          (c) => c.copyWith(
+            baseHeadRevisionId: null,
+            extra: {
+              ...c.extra,
+              'knownRevisionIds': [head],
+            },
+          ),
+        );
+        await r.noteOpened(noteId);
+        expect(mediaCalls(), 1);
+        expect(env.info.baseHeadRevisionId, head);
+      },
+    );
 
     test('a note in error or with pendingVerify is skipped', () async {
       await localSynced();
@@ -369,27 +434,29 @@ void main() {
       });
     }
 
-    test('5xx backs off, the 7th failure ends the check without the token',
-        () async {
-      await localSynced();
-      final r = receiver();
-      await r.check();
-      final saved = await token();
-      foreignEdit(2);
-      env.drive.failures['media'] = [
-        for (var i = 0; i < 7; i++) const DriveError('http', status: 503),
-      ];
-      await r.check();
-      expect(env.sleeps, hasLength(6));
-      expect(await token(), saved);
-      expect(env.info.state, SyncState.error);
-      expect(env.info.lastError?['class'], 'backoff');
-      expect(
-        (await env.store.read(noteId))!.note!.pages.first['rev'],
-        makeNote().pages.first['rev'],
-      ); // device copy untouched
-      expect(r.state.value.receiving, isEmpty);
-    });
+    test(
+      '5xx backs off, the 7th failure ends the check without the token',
+      () async {
+        await localSynced();
+        final r = receiver();
+        await r.check();
+        final saved = await token();
+        foreignEdit(2);
+        env.drive.failures['media'] = [
+          for (var i = 0; i < 7; i++) const DriveError('http', status: 503),
+        ];
+        await r.check();
+        expect(env.sleeps, hasLength(6));
+        expect(await token(), saved);
+        expect(env.info.state, SyncState.error);
+        expect(env.info.lastError?['class'], 'backoff');
+        expect(
+          (await env.store.read(noteId))!.note!.pages.first['rev'],
+          makeNote().pages.first['rev'],
+        ); // device copy untouched
+        expect(r.state.value.receiving, isEmpty);
+      },
+    );
 
     test('an account change during the download writes nothing', () async {
       await localSynced();
@@ -409,15 +476,17 @@ void main() {
       expect(r.state.value.receiving, isEmpty);
     });
 
-    test('an unreadable device record: no Drive call, an error entry',
-        () async {
-      File('${env.docs.path}/$syncDeviceFileName').writeAsStringSync('{bad');
-      await receiver().check();
-      expect(env.drive.calls, isEmpty);
-      final e = (await env.events()).last;
-      expect(e['event'], 'error');
-      expect(e['reason'], 'deviceUnreadable');
-    });
+    test(
+      'an unreadable device record: no Drive call, an error entry',
+      () async {
+        File('${env.docs.path}/$syncDeviceFileName').writeAsStringSync('{bad');
+        await receiver().check();
+        expect(env.drive.calls, isEmpty);
+        final e = (await env.events()).last;
+        expect(e['event'], 'error');
+        expect(e['reason'], 'deviceUnreadable');
+      },
+    );
 
     test('another account on the device makes no request', () async {
       acct = const AuthAccount(sub: 'x', email: 'x');
@@ -483,17 +552,19 @@ void main() {
     });
   });
 
-  test('after dispose a running check ends without touching the state',
-      () async {
-    await localSynced();
-    final r = receiver();
-    foreignEdit(2);
-    env.drive.before = (c) {
-      if (c.startsWith('media')) r.dispose();
-    };
-    await r.check(); // must not throw
-    r.dispose(); // idempotent
-  });
+  test(
+    'after dispose a running check ends without touching the state',
+    () async {
+      await localSynced();
+      final r = receiver();
+      foreignEdit(2);
+      env.drive.before = (c) {
+        if (c.startsWith('media')) r.dispose();
+      };
+      await r.check(); // must not throw
+      r.dispose(); // idempotent
+    },
+  );
 }
 
 /// Rejects the commit of a receive while [reject] says so, as if an edit had
@@ -511,8 +582,7 @@ class _RejectingStore extends NoteStore {
     required Note working,
     required Note base,
     required SyncInfo Function(SyncInfo current) change,
-  }) async =>
-      reject()
+  }) async => reject()
       ? false
       : super.commitReceive(
           noteId,

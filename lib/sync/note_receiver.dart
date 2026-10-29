@@ -354,7 +354,9 @@ class NoteReceiver {
   final _rejected = <String>{};
 
   bool _skip(SyncInfo i, DriveFile f) {
-    final same = i.baseHeadRevisionId == f.headRevisionId;
+    final same =
+        i.baseHeadRevisionId == f.headRevisionId ||
+        (f.headRevisionId != null && i.isStaleHead(f.headRevisionId!));
     final byError = i.state == SyncState.error;
     final byFile = i.fileId != null && i.fileId != f.id;
     final skip =
@@ -581,7 +583,8 @@ class NoteReceiver {
           relinked = true;
         }
         if (_skip(info, f)) {
-          if (relinked && info.baseHeadRevisionId == head) {
+          if (relinked &&
+              (info.baseHeadRevisionId == head || info.isStaleHead(head))) {
             await _settleWhole(id); // the same file is back: nothing to receive
           }
           return;
@@ -684,12 +687,14 @@ class NoteReceiver {
         guard: guard,
         working: n,
         base: n,
-        change: (c) => c.copyWith(
-          fileId: fileId,
-          baseHeadRevisionId: head,
-          state: SyncState.synced,
-          lastError: null,
-        ),
+        change: (c) => c
+            .withKnown([head])
+            .copyWith(
+              fileId: fileId,
+              baseHeadRevisionId: head,
+              state: SyncState.synced,
+              lastError: null,
+            ),
       ),
     );
     if (ok) await _advanced(id, head, null, null);
@@ -771,12 +776,14 @@ class NoteReceiver {
     }
     return (
       from: c.state.name,
-      next: c.copyWith(
-        fileId: fileId,
-        baseHeadRevisionId: head,
-        state: SyncState.values.firstWhere((s) => s.name == st),
-        lastError: null,
-      ),
+      next: c
+          .withKnown([head])
+          .copyWith(
+            fileId: fileId,
+            baseHeadRevisionId: head,
+            state: SyncState.values.firstWhere((s) => s.name == st),
+            lastError: null,
+          ),
     );
   }
 
@@ -1199,7 +1206,8 @@ class NoteReceiver {
       mimeType: noteMimeType,
     );
     if (head == null ||
-        (head == s.info.baseHeadRevisionId && !_relinkable(s.info, probe))) {
+        ((head == s.info.baseHeadRevisionId || s.info.isStaleHead(head)) &&
+            !_relinkable(s.info, probe))) {
       return;
     }
     await _handle(sub, (await device.read()).rootFolderId, [

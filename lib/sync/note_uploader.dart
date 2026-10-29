@@ -1590,14 +1590,16 @@ class NoteUploader {
       noteId,
       (c) {
         unsidecars = c.unsentSidecars.isNotEmpty;
-        return c.copyWith(
-          fileId: fileId,
-          baseHeadRevisionId: ours,
-          pendingVerify: null,
-          resumableSession: null,
-          createIntent: null,
-          lastError: null,
-        );
+        return c
+            .withKnown([ours])
+            .copyWith(
+              fileId: fileId,
+              baseHeadRevisionId: ours,
+              pendingVerify: null,
+              resumableSession: null,
+              createIntent: null,
+              lastError: null,
+            );
       },
       event: 'verified',
       base: uploaded,

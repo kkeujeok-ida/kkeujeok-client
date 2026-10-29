@@ -321,6 +321,10 @@ final runners = <String, void Function(Case)>{
     uploadKindRule((c['input'] as Map).cast<String, Object?>()),
     c['expected'],
   ),
+  'sync.staleHead': (c) => _same(
+    staleHeadRule((c['input'] as Map).cast<String, Object?>()),
+    c['expected'],
+  ),
   'sync.verifyPlan': (c) => _same(
     verifyPlanRule((c['input'] as Map).cast<String, Object?>()),
     c['expected'],

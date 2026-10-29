@@ -42,6 +42,11 @@ class FakeItem {
   /// behind a create).
   bool lagging = false;
 
+  /// The next [staleTimes] listings (get/list/changes) answer [staleHead] as
+  /// the head: a late listing that still shows an older revision.
+  String? staleHead;
+  int staleTimes = 0;
+
   /// Content revisions, oldest first; the last one is the head.
   final revisions = <FakeRevision>[];
 
@@ -211,8 +216,13 @@ class FakeDrive implements DriveClient {
     }
   }
 
-  DriveFile _file(FakeItem i, [String? fields]) {
+  DriveFile _file(FakeItem i, [String? fields, bool listing = false]) {
     bool asked(String f) => fields == null || fields.contains(f);
+    String? head = i.headRevisionId;
+    if (listing && i.staleTimes > 0) {
+      i.staleTimes--;
+      head = i.staleHead;
+    }
     return DriveFile(
       id: i.id,
       name: i.name,
@@ -220,7 +230,7 @@ class FakeDrive implements DriveClient {
       appProperties: {...i.appProperties},
       createdTime: i.createdTime,
       trashed: i.trashed,
-      headRevisionId: asked('headRevisionId') ? i.headRevisionId : null,
+      headRevisionId: asked('headRevisionId') ? head : null,
       md5Checksum: asked('md5Checksum') ? i.md5Checksum : null,
       modifiedTime: i.modifiedTime,
       mimeType: i.mimeType,
@@ -368,7 +378,7 @@ class FakeDrive implements DriveClient {
     final from = pageToken == null ? 0 : int.parse(pageToken);
     final to = from + pageSize;
     return DrivePage(
-      all.skip(from).take(pageSize).map((i) => _file(i, fields)).toList(),
+      all.skip(from).take(pageSize).map((i) => _file(i, fields, true)).toList(),
       to < all.length ? '$to' : null,
     );
   }
@@ -405,7 +415,7 @@ class FakeDrive implements DriveClient {
     _enter('get:$id');
     final i = _find(id);
     if (i == null) throw const DriveError('http', status: 404);
-    return _file(i, fields);
+    return _file(i, fields, true);
   }
 
   @override
@@ -569,7 +579,7 @@ class FakeDrive implements DriveClient {
       out.add(
         removed || i.deleted
             ? DriveChange(id, removed: true)
-            : DriveChange(id, file: _file(i, noteFileFields)),
+            : DriveChange(id, file: _file(i, noteFileFields, true)),
       );
     }
     return to < changeLog.length

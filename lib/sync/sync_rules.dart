@@ -177,3 +177,29 @@ String? transition(
   });
   return r['state'] as String?;
 }
+
+/// Known revision ids kept per note (`sync.staleHead`).
+const knownRevisionsMax = 20;
+
+/// `sync.staleHead`: `{known, base, head}` decides; `{known, add}` remembers.
+Map<String, Object?> staleHeadRule(Map<String, Object?> input) {
+  final known = input['known'], base = input['base'], head = input['head'];
+  final add = input['add'];
+  if (known is! List || known.any((k) => k is! String)) return _bad;
+  if (input.containsKey('add')) {
+    if (add is! List || add.any((k) => k is! String)) return _bad;
+    final out = [...known.cast<String>()];
+    for (final id in add) {
+      if (!out.contains(id)) out.add(id as String);
+    }
+    return {
+      'known': out.length > knownRevisionsMax
+          ? out.sublist(out.length - knownRevisionsMax)
+          : out,
+    };
+  }
+  if (head is! String || (base != null && base is! String)) return _bad;
+  // No base (file gone): the note must re-receive, whatever it knows.
+  if (base == null) return {'result': 'receive'};
+  return {'result': head == base || known.contains(head) ? 'skip' : 'receive'};
+}
