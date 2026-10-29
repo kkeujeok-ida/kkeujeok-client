@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../storage/session_hint.dart';
@@ -62,8 +63,10 @@ class GoogleAuthGateway implements AuthGateway {
       _client = account.authorizationClient;
       _account = AuthAccount(sub: account.id, email: account.email);
     } on GoogleSignInException catch (e) {
+      if (kDebugMode) debugPrint('signIn failed: ${e.code} ${e.description} ${e.details}');
       return signInFailure(e.code);
-    } catch (_) {
+    } catch (e) {
+      if (kDebugMode) debugPrint('signIn failed: $e');
       return AuthOutcome.networkError;
     }
     final r = await requestAccess();
@@ -86,8 +89,10 @@ class GoogleAuthGateway implements AuthGateway {
       if (a != null) await _hint.setAccount(a.sub, a.email);
       return AuthOutcome.granted;
     } on GoogleSignInException catch (e) {
+      if (kDebugMode) debugPrint('access failed: ${e.code} ${e.description} ${e.details}');
       return accessFailure(e.code, '${e.description} ${e.details}');
-    } catch (_) {
+    } catch (e) {
+      if (kDebugMode) debugPrint('access failed: $e');
       return AuthOutcome.networkError;
     }
   }
