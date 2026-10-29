@@ -359,10 +359,20 @@ class UploadCoordinator {
   /// entry and the state follow. False when that could not be written.
   Future<bool> conflictResolved(
     String noteId,
-    Map<String, Object?> conflict,
-  ) async {
+    Map<String, Object?> conflict, [
+    String? choice,
+  ]) async {
     try {
       await uploader.resolved(noteId, conflict);
+      final c = switch (choice) {
+        'mine' => 'local',
+        'theirs' => 'remote',
+        'both' => 'both',
+        _ => null,
+      };
+      if (c != null) {
+        await log.append('conflictResolved', {'noteId': noteId, 'choice': c});
+      }
       return true;
     } catch (_) {
       return false;
@@ -489,6 +499,7 @@ class UploadCoordinator {
           'noteId': noteId,
           'from': 'error',
           'to': 'pending',
+          'reason': manual ? 'userRetry' : 'automatic',
         });
       }
     } catch (_) {}

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import '../model/ids.dart';
 import '../model/note.dart';
@@ -75,6 +76,25 @@ class SyncLog {
           if (entry.containsKey('reason') && !validLogReason(entry['reason'])) {
             entry['reason'] = 'other';
           }
+          if (entry.containsKey('cause') &&
+              !logCauses.contains(entry['cause'])) {
+            entry['cause'] = 'unknown';
+          }
+          if (entry['exception'] is String) {
+            // A type name only: other characters become `_`, 64 at most.
+            var t = (entry['exception'] as String).replaceAll(
+              RegExp(r'[^A-Za-z0-9_.$:]'),
+              '_',
+            );
+            if (t.length > 64) t = t.substring(0, 64);
+            if (t.isEmpty) {
+              entry.remove('exception');
+            } else {
+              entry['exception'] = t;
+            }
+          } else {
+            entry.remove('exception');
+          }
           if (checkLogEntry(entry)['ok'] != true) return false;
 
           final file = await _file();
@@ -119,10 +139,31 @@ class SyncLog {
     ];
   });
 
+  /// A random label for this install, kept beside the log: tells two devices
+  /// apart in bug reports and is not tied to the account.
+  Future<String> _deviceLabel() async {
+    try {
+      final f = File(
+        '${(await _file()).parent.path}${Platform.pathSeparator}sync-log-device.txt',
+      );
+      if (await f.exists()) {
+        final t = (await f.readAsString()).trim();
+        if (RegExp(r'^[0-9a-f]{8}$').hasMatch(t)) return t;
+      }
+      final r = Random.secure();
+      final t = List.generate(8, (_) => r.nextInt(16).toRadixString(16)).join();
+      await f.writeAsString(t);
+      return t;
+    } catch (_) {
+      return 'unknown';
+    }
+  }
+
   /// Writes `kkeujeok-sync-log-YYYY-MM-DD.jsonl` (UTC date of [now]) into
   /// [into]: the header line, then the entries. Throws on a write failure.
   Future<File> exportJsonl({
     required String appVersion,
+    String buildId = 'unknown',
     required DateTime now,
     required Directory into,
   }) async {
@@ -132,6 +173,8 @@ class SyncLog {
       'type': 'header',
       'app': 'kkeujeok',
       'appVersion': appVersion,
+      'buildId': buildId,
+      'deviceLabel': await _deviceLabel(),
       'platform': 'android',
       'supportedFormatVersion': supportedFormatVersion,
       'exportedAt': at,

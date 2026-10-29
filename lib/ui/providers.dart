@@ -407,6 +407,12 @@ final appVersionProvider = Provider<Future<String> Function()>(
       () async => (await PackageInfo.fromPlatform()).version,
 );
 
+/// The build number, for the sync log header.
+final buildIdProvider = Provider<Future<String> Function()>(
+  (ref) =>
+      () async => (await PackageInfo.fromPlatform()).buildNumber,
+);
+
 /// Hands exported note files to the system share sheet (its targets include
 /// saving to a chosen place).
 final noteFilesSharerProvider = Provider<Future<void> Function(List<File>)>(

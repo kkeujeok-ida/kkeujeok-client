@@ -18,6 +18,7 @@ import 'merge_step.dart';
 import 'note_uploader.dart';
 import 'open_note.dart';
 import 'sync_log.dart';
+import 'sync_log_entry.dart' show logWhy;
 import 'thumbnail.dart';
 import 'upload_coordinator.dart';
 
@@ -111,6 +112,7 @@ Future<void> runBackgroundUpload({
           'class': 'deleted',
           'status': 404,
           'reason': 'rootGone',
+          ...logWhy('deleted', status: 404, error: e),
         });
       }
     } catch (_) {

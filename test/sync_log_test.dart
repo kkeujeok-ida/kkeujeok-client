@@ -1,9 +1,12 @@
+import 'dart:async' show TimeoutException;
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/storage/note_data.dart';
+import 'package:kkeujeok/drive/drive_client.dart';
 import 'package:kkeujeok/sync/sync_log.dart';
+import 'package:kkeujeok/sync/sync_log_entry.dart';
 
 const noteId = '01926f3a-0000-7000-8000-000000000900';
 
@@ -31,6 +34,129 @@ void main() {
     now: DateTime.utc(2026, 10, 10, 23, 59),
     into: out,
   );
+
+  test('error cause and exception round-trip and are coerced', () async {
+    expect(
+      await log.append('error', {
+        'class': 'backoff',
+        'cause': 'network',
+        'exception': 'DriveError.network',
+        'scope': 'note',
+        'noteId': noteId,
+      }),
+      isTrue,
+    );
+    // Out-of-domain cause becomes unknown; the exception is cut to a 64-char name.
+    expect(
+      await log.append('error', {
+        'class': 'fatal',
+        'cause': 'weird',
+        'exception': 'Bad Name<T>${'x' * 80}',
+      }),
+      isTrue,
+    );
+    final rows = (await lines(file)).map(jsonDecode).toList();
+    expect(rows[0]['cause'], 'network');
+    expect(rows[0]['exception'], 'DriveError.network');
+    expect(rows[1]['cause'], 'unknown');
+    expect(rows[1]['exception'], hasLength(64));
+    expect(rows[1]['exception'], startsWith('Bad_Name_T_'));
+    expect(
+      checkLogEntry({
+        'at': '2026-10-10T04:20:00.000Z',
+        'event': 'error',
+        'class': 'fatal',
+        'cause': 'x',
+      })['field'],
+      'cause',
+    );
+    final why = logWhy('backoff', status: 503, error: const DriveError('http'));
+    expect(why, {
+      'cause': 'server',
+      'exception': 'DriveError.http',
+      'scope': 'global',
+    });
+    expect(logWhy('x', error: const DriveError('network'))['cause'], 'network');
+    expect(logWhy('quota', status: 403, noteId: noteId)['cause'], 'quota');
+    expect(logWhy('reauth', status: 401)['cause'], 'auth');
+    expect(logWhy('fatal', reason: 'x')['cause'], 'unknown');
+  });
+
+  test('new diagnostic fields round-trip; old entries still read', () async {
+    expect(
+      await log.append('stateChange', {
+        'noteId': noteId,
+        'from': 'error',
+        'to': 'pending',
+        'reason': 'userRetry',
+      }),
+      isTrue,
+    );
+    expect(
+      await log.append('stateChange', {
+        'noteId': noteId,
+        'from': 'error',
+        'to': 'pending',
+        'reason': 'a b',
+      }),
+      isTrue,
+    );
+    expect(
+      await log.append('backoff', {
+        'class': 'backoff',
+        'attempt': 1,
+        'delayMs': 0,
+        'scope': 'global',
+      }),
+      isTrue,
+    );
+    expect(
+      await log.append('conflictResolved', {
+        'noteId': noteId,
+        'choice': 'both',
+      }),
+      isTrue,
+    );
+    expect(
+      await log.append('conflictResolved', {'noteId': noteId, 'choice': 'x'}),
+      isFalse,
+    );
+    expect(
+      await log.append('backoff', {
+        'class': 'backoff',
+        'attempt': 1,
+        'delayMs': 0,
+        'scope': 'x',
+      }),
+      isFalse,
+    );
+    expect(
+      await log.append('backoff', {
+        'class': 'backoff',
+        'attempt': 1,
+        'delayMs': 0,
+      }),
+      isTrue,
+    );
+    final e = await log.entries();
+    expect(e.length, 5);
+    expect(e[1]['reason'], 'other');
+  });
+
+  test('logWhy maps socket and timeout errors to network', () {
+    expect(logWhy('backoff', error: const SocketException('x'))['cause'], 'network');
+    expect(logWhy('backoff', error: TimeoutException('x'))['cause'], 'network');
+    expect(logWhy('fatal', error: StateError('x'))['cause'], 'unknown');
+  });
+
+  test('an old-shape stored entry and export read without error', () async {
+    await file.writeAsString(
+      '{"at":"2026-10-10T04:00:00.000Z","event":"error","class":"quota"}\n'
+      '{"at":"2026-10-10T04:01:00.000Z","event":"stateChange","noteId":"$noteId","from":"error","to":"pending"}\n',
+    );
+    expect((await log.entries()).length, 2);
+    expect((await lines(await export())).length, 3); // header + 2
+  });
 
   test('append stamps at, keeps the order, one line each', () async {
     expect(await log.append('pageTokenRejected'), isTrue);
@@ -162,6 +288,7 @@ void main() {
       // 23:30 at -05:00 on the 10th is already the 11th in UTC
       final f = await log.exportJsonl(
         appVersion: '1.2.3',
+        buildId: '42',
         now: DateTime.parse('2026-10-10T23:30:00-05:00'),
         into: out,
       );
@@ -171,10 +298,15 @@ void main() {
       expect(raw.codeUnitAt(0), isNot(0xFEFF));
       final l = const LineSplitter().convert(raw);
       expect(l.length, 2);
-      expect(jsonDecode(l[0]), {
+      final h = jsonDecode(l[0]) as Map;
+      expect(h['buildId'], '42');
+      expect(h['deviceLabel'], matches(RegExp(r'^[0-9a-f]{8}$')));
+      expect(h.remove('deviceLabel'), isNotNull);
+      expect(h, {
         'type': 'header',
         'app': 'kkeujeok',
         'appVersion': '1.2.3',
+        'buildId': '42',
         'platform': 'android',
         'supportedFormatVersion': 1,
         'exportedAt': '2026-10-11T04:30:00.000Z',

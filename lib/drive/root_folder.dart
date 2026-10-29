@@ -2,6 +2,7 @@ import '../storage/note_store.dart';
 import '../storage/sync_device_store.dart';
 import '../sync/error_class.dart';
 import '../sync/sync_log.dart';
+import '../sync/sync_log_entry.dart' show logWhy;
 import 'auth_gateway.dart';
 import 'drive_client.dart';
 import 'duplicates.dart';
@@ -155,7 +156,7 @@ class RootFolderService {
       );
       return RootResult(RootStatus.ready, folderId: id);
     } on DriveError catch (e) {
-      return _fail(classifyDriveError(e), e.status, e.reason);
+      return _fail(classifyDriveError(e), e.status, e.reason, e);
     } catch (_) {
       return _fail('fatal', null, 'localWrite');
     }
@@ -219,7 +220,7 @@ class RootFolderService {
         await client.update(dup, trashed: true); // last
         cleaned++;
       } on DriveError catch (e) {
-        await _fail(classifyDriveError(e), e.status, e.reason);
+        await _fail(classifyDriveError(e), e.status, e.reason, e);
         break;
       }
     }
@@ -236,11 +237,17 @@ class RootFolderService {
     }
   }
 
-  Future<RootResult> _fail(String cls, int? status, String? reason) async {
+  Future<RootResult> _fail(
+    String cls,
+    int? status,
+    String? reason, [
+    Object? error,
+  ]) async {
     await log.append('error', {
       'class': cls,
       if (status != null && status >= 100 && status <= 599) 'status': status,
       'reason': ?reason,
+      ...logWhy(cls, status: status, reason: reason, error: error),
     });
     return RootResult(RootStatus.failed, errorClass: cls);
   }

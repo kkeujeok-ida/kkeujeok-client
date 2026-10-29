@@ -259,6 +259,35 @@ void main() {
       );
     });
 
+    test('conflictResolved logs the mapped choice; conflict>pending has no '
+        'reason', () async {
+      for (final (mine, logged) in [
+        ('mine', 'local'),
+        ('theirs', 'remote'),
+        ('both', 'both'),
+      ]) {
+        await env.save(makeNote(rev: 2));
+        await setConflicts([_entry()], state: SyncState.conflict);
+        expect(
+          await coordinator.conflictResolved(
+            noteId,
+            _entry(resolvedAt: '2026-10-17T01:00:00.000Z'),
+            mine,
+          ),
+          isTrue,
+        );
+        final e = await env.events();
+        expect(
+          e.lastWhere((x) => x['event'] == 'conflictResolved')['choice'],
+          logged,
+        );
+        expect(
+          e.lastWhere((x) => x['event'] == 'stateChange').containsKey('reason'),
+          isFalse,
+        );
+      }
+    });
+
     test('sidecars resolved more than 30 days ago go to the trash; younger '
         'ones stay', () async {
       final old = DateTime.now().subtract(const Duration(days: 31));

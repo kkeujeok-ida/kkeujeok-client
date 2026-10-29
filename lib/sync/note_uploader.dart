@@ -21,6 +21,7 @@ import 'merge.dart';
 import 'merge_step.dart';
 import 'note_chain.dart';
 import 'sync_log.dart';
+import 'sync_log_entry.dart' show logWhy;
 import 'sync_rules.dart';
 
 /// What one [NoteUploader.upload] ended in.
@@ -46,7 +47,16 @@ const _kkjMime = 'application/vnd.kkeujeok.kkj';
 const _folderMime = 'application/vnd.google-apps.folder';
 
 class _Failure implements Exception {
-  _Failure(this.cls, {this.status, this.reason, this.clearVerify = false});
+  _Failure(
+    this.cls, {
+    this.status,
+    this.reason,
+    this.clearVerify = false,
+    this.source,
+  });
+
+  /// The exception behind the failure, for the log's `exception` type name.
+  final Object? source;
 
   final String cls;
   final int? status;
@@ -197,6 +207,7 @@ class NoteUploader {
               classifyDriveError(e),
               status: e.status,
               reason: e.kind == 'parse' ? 'parse' : e.reason,
+              source: e,
             ),
           );
         } catch (_) {
@@ -305,6 +316,13 @@ class NoteUploader {
     'noteId': noteId,
     'status': ?f.status,
     'reason': ?f.reason,
+    ...logWhy(
+      f.cls,
+      status: f.status,
+      reason: f.reason,
+      error: f.source,
+      noteId: noteId,
+    ),
   });
 
   /// A failure of the best-effort sidecar work: logged, never thrown; the
@@ -472,6 +490,10 @@ class NoteUploader {
         'noteId': noteId,
         'from': from,
         'to': to,
+        if (to == 'pending' && (from == 'syncing' || from == 'error'))
+          'reason': from == 'syncing' && event == 'edit'
+              ? 'editDuringSync'
+              : event,
       });
     }
     return done;
@@ -524,6 +546,13 @@ class NoteUploader {
       'noteId': noteId,
       'status': ?f.status,
       'reason': ?f.reason,
+      ...logWhy(
+        f.cls,
+        status: f.status,
+        reason: f.reason,
+        error: f.source,
+        noteId: noteId,
+      ),
     });
     try {
       await _commit(
@@ -566,12 +595,12 @@ class NoteUploader {
         final cls = classifyDriveError(e);
         final reason = e.kind == 'parse' ? 'parse' : e.reason;
         if (cls != 'backoff') {
-          throw _Failure(cls, status: e.status, reason: reason);
+          throw _Failure(cls, status: e.status, reason: reason, source: e);
         }
         attempt++;
         final plan = backoffRule({'attempt': attempt, 'jitter': jitter()});
         if (plan['retry'] != true) {
-          throw _Failure(cls, status: e.status, reason: reason);
+          throw _Failure(cls, status: e.status, reason: reason, source: e);
         }
         final delay = plan['delayMs'] as int;
         await log.append('backoff', {
@@ -579,6 +608,7 @@ class NoteUploader {
           'attempt': attempt,
           'delayMs': delay,
           'noteId': noteId,
+          'scope': 'note',
         });
         await sleep(Duration(milliseconds: delay));
       }
@@ -788,6 +818,7 @@ class NoteUploader {
               'class': 'backoff',
               'noteId': noteId,
               'reason': 'headMoved',
+              ...logWhy('backoff', noteId: noteId),
             });
             skipPre = false;
             continue;
@@ -1063,6 +1094,7 @@ class NoteUploader {
         'class': 'fatal',
         'noteId': noteId,
         'reason': 'parse',
+        ...logWhy('fatal', noteId: noteId),
       });
       return keep;
     }
@@ -1272,6 +1304,7 @@ class NoteUploader {
           'class': 'fatal',
           'noteId': noteId,
           'reason': 'sidecarMissing',
+          ...logWhy('fatal', noteId: noteId),
         });
       } else {
         final conflict = (await store.readSync(noteId)).info.conflicts

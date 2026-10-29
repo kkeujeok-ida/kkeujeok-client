@@ -1808,7 +1808,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     final key = '${item.pageId}:${item.entry['rev']}';
     final saved = _unrecorded[key];
     if (saved != null) {
-      if (!await _coordinator.conflictResolved(id, saved.$1)) return null;
+      if (!await _coordinator.conflictResolved(id, saved.$1, saved.$2)) return null;
       _unrecorded.remove(key);
       _held = null;
       await _loadLastSeen();
@@ -1841,8 +1841,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     }, () async {});
     if (!applied || out['result'] != 'resolved') return null;
     final conflict = out['conflict'] as Map<String, Object?>;
-    var ok = await _coordinator.conflictResolved(id, conflict);
-    if (!ok) ok = await _coordinator.conflictResolved(id, conflict);
+    var ok = await _coordinator.conflictResolved(id, conflict, used);
+    if (!ok) ok = await _coordinator.conflictResolved(id, conflict, used);
     if (!ok) {
       _unrecorded[key] = (conflict, used);
       return null;

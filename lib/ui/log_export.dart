@@ -13,6 +13,7 @@ import 'providers.dart';
 Future<void> exportSyncLog(WidgetRef ref, BuildContext context) async {
   final log = ref.read(syncLogProvider);
   final version = ref.read(appVersionProvider);
+  final buildId = ref.read(buildIdProvider);
   final exportDir = ref.read(exportDirProvider);
   final share = ref.read(logSharerProvider);
   final messenger = ScaffoldMessenger.of(context);
@@ -21,6 +22,7 @@ Future<void> exportSyncLog(WidgetRef ref, BuildContext context) async {
   try {
     file = await log.exportJsonl(
       appVersion: await version(),
+      buildId: await buildId().catchError((_) => 'unknown'),
       now: DateTime.now(),
       into: await exportDir(),
     );

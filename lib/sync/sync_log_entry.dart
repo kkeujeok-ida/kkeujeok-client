@@ -1,3 +1,7 @@
+import 'dart:async' show TimeoutException;
+import 'dart:io' show SocketException;
+
+import '../drive/drive_client.dart' show DriveError;
 import '../storage/sync_info.dart' show revisionIdPattern;
 
 /// Spec `synclog.entry`: checks one log entry before it is stored or
@@ -38,7 +42,12 @@ Map<String, Object?> checkLogEntry(Object? entry) {
 
 // (field, required) in check order.
 const _events = <String, List<(String, bool)>>{
-  'stateChange': [('noteId', true), ('from', true), ('to', true)],
+  'stateChange': [
+    ('noteId', true),
+    ('from', true),
+    ('to', true),
+    ('reason', false),
+  ],
   'uploadStarted': [('noteId', true), ('kind', true)],
   'uploadFinished': [('noteId', true), ('revisionId', true)],
   'verifyRound': [('noteId', true), ('round', true), ('count', true)],
@@ -51,13 +60,18 @@ const _events = <String, List<(String, bool)>>{
     ('attempt', true),
     ('delayMs', true),
     ('noteId', false),
+    ('scope', false),
   ],
   'error': [
     ('class', true),
     ('noteId', false),
     ('status', false),
     ('reason', false),
+    ('scope', false),
+    ('cause', false),
+    ('exception', false),
   ],
+  'conflictResolved': [('noteId', true), ('choice', true)],
   'pageTokenRejected': [],
   'duplicatesCleaned': [('count', true)],
 };
@@ -73,6 +87,9 @@ final _reason = RegExp(r'^[A-Za-z0-9_]{1,64}$');
 /// True when [reason] is in the `reason` domain.
 bool validLogReason(Object? reason) =>
     reason is String && _reason.hasMatch(reason);
+
+final _exception = RegExp(r'^[A-Za-z0-9_.$:]{1,64}$');
+const logCauses = {'network', 'auth', 'quota', 'server', 'unknown'};
 
 const _states = {'synced', 'pending', 'syncing', 'conflict', 'error'};
 const _classes = {
@@ -96,6 +113,10 @@ bool _valid(String field, Object? v, Object? event) => switch (field) {
   'kind' => v == 'simple' || v == 'resumable',
   'class' => v is String && _classes.contains(v),
   'status' => _int(v, 100, 599),
+  'cause' => v is String && logCauses.contains(v),
+  'exception' => v is String && _exception.hasMatch(v),
+  'scope' => v == 'global' || v == 'note',
+  'choice' => v == 'local' || v == 'remote' || v == 'both',
   'reason' => validLogReason(v),
   'attempt' => _int(v, 1, 7),
   'delayMs' => _int(v, 0, 32000),
@@ -103,3 +124,46 @@ bool _valid(String field, Object? v, Object? event) => switch (field) {
   'count' => _int(v, event == 'duplicatesCleaned' ? 1 : 0, 1 << 53),
   _ => false,
 };
+
+final _quotaReason = RegExp(
+  r'quota|ratelimit|limitexceeded',
+  caseSensitive: false,
+);
+
+/// The `cause`, `exception` and `scope` of an `error` entry, from what the
+/// caller has in hand: the error class, HTTP status, reason and the thrown
+/// [error]. Only a type name goes to the log, never a message.
+Map<String, Object?> logWhy(
+  String cls, {
+  int? status,
+  String? reason,
+  Object? error,
+  String? noteId,
+}) {
+  final kind = error is DriveError ? error.kind : null;
+  // package:http's ClientException is matched by name (not a direct dependency).
+  final network =
+      kind == 'network' ||
+      error is SocketException ||
+      error is TimeoutException ||
+      '${error.runtimeType}' == 'ClientException';
+  final cause = network
+      ? 'network'
+      : cls == 'quota' ||
+            status == 429 ||
+            (reason != null && _quotaReason.hasMatch(reason))
+      ? 'quota'
+      : cls == 'reauth' || status == 401 || status == 403
+      ? 'auth'
+      : status != null && status >= 500
+      ? 'server'
+      : 'unknown';
+  return {
+    'cause': cause,
+    if (error != null)
+      'exception': error is DriveError
+          ? 'DriveError.$kind'
+          : '${error.runtimeType}',
+    'scope': noteId == null ? 'global' : 'note',
+  };
+}

@@ -15,6 +15,7 @@ import 'has_unsent.dart';
 import 'merge_step.dart';
 import 'note_chain.dart';
 import 'sync_log.dart';
+import 'sync_log_entry.dart' show logWhy;
 import 'sync_rules.dart';
 
 /// A note another device made that is not on this device yet, drawn from
@@ -80,7 +81,10 @@ class ReceiveState {
 class _Stop implements Exception {}
 
 class _Failure implements Exception {
-  _Failure(this.cls, {this.status, this.reason, this.head});
+  _Failure(this.cls, {this.status, this.reason, this.head, this.source});
+
+  /// The exception behind the failure, for the log's `exception` type name.
+  final Object? source;
 
   final String cls;
   final int? status;
@@ -246,6 +250,7 @@ class NoteReceiver {
           await log.append('error', {
             'class': 'fatal',
             'reason': 'deviceUnreadable',
+            ...logWhy('fatal'),
           });
         }
         return;
@@ -264,8 +269,12 @@ class NoteReceiver {
       // Signed out or another account: nothing more is done.
     } on _Failure catch (f) {
       await _logFailure(null, f);
-    } catch (_) {
-      await log.append('error', {'class': 'fatal', 'reason': 'other'});
+    } catch (e) {
+      await log.append('error', {
+        'class': 'fatal',
+        'reason': 'other',
+        ...logWhy('fatal', error: e),
+      });
     }
   }
 
@@ -337,8 +346,12 @@ class NoteReceiver {
       await device.update(
         (cur) => cur.sub == sub ? cur.withPageToken(token) : cur,
       );
-    } catch (_) {
-      await log.append('error', {'class': 'fatal', 'reason': 'localWrite'});
+    } catch (e) {
+      await log.append('error', {
+        'class': 'fatal',
+        'reason': 'localWrite',
+        ...logWhy('fatal', error: e),
+      });
     }
   }
 
@@ -375,6 +388,7 @@ class NoteReceiver {
             'class': 'fatal',
             'noteId': id,
             'reason': byError ? 'receiveSkippedError' : 'fileIdMismatch',
+            ...logWhy('fatal', noteId: id),
           }),
         );
       }
@@ -675,6 +689,7 @@ class NoteReceiver {
       'class': 'backoff',
       'noteId': id,
       'reason': 'receiveRejected',
+      ...logWhy('backoff', noteId: id),
     });
   }
 
@@ -843,6 +858,13 @@ class NoteReceiver {
     'noteId': ?id,
     'status': ?f.status,
     'reason': ?f.reason,
+    ...logWhy(
+      f.cls,
+      status: f.status,
+      reason: f.reason,
+      error: f.source,
+      noteId: id,
+    ),
   });
 
   /// The note takes `failed`; its device copy is not touched.
@@ -1012,6 +1034,7 @@ class NoteReceiver {
           'class': 'deleted',
           'noteId': id,
           'reason': kind,
+          ...logWhy('deleted', noteId: id),
         });
         await _reviveIn(sub, id, kind, fileId, announce: true);
         return !open;
@@ -1022,6 +1045,7 @@ class NoteReceiver {
             'class': 'deleted',
             'noteId': id,
             'reason': kind,
+            ...logWhy('deleted', noteId: id),
           });
           await _markGone(id, kind);
         }
@@ -1031,6 +1055,7 @@ class NoteReceiver {
         'class': 'deleted',
         'noteId': id,
         'reason': kind,
+        ...logWhy('deleted', noteId: id),
       });
       if (await _wrapWrite(() => store.removeNote(id, expected: note))) {
         _bump();
@@ -1135,8 +1160,12 @@ class NoteReceiver {
       // Account changed.
     } on _Failure catch (f) {
       await _logFailure(noteId, f);
-    } catch (_) {
-      await log.append('error', {'class': 'fatal', 'reason': 'other'});
+    } catch (e) {
+      await log.append('error', {
+        'class': 'fatal',
+        'reason': 'other',
+        ...logWhy('fatal', error: e, noteId: noteId),
+      });
     }
   }
 
@@ -1233,12 +1262,12 @@ class NoteReceiver {
         final cls = classifyDriveError(e);
         final reason = e.kind == 'parse' ? 'parse' : e.reason;
         if (cls != 'backoff') {
-          throw _Failure(cls, status: e.status, reason: reason);
+          throw _Failure(cls, status: e.status, reason: reason, source: e);
         }
         attempt++;
         final plan = backoffRule({'attempt': attempt, 'jitter': jitter()});
         if (plan['retry'] != true) {
-          throw _Failure(cls, status: e.status, reason: reason);
+          throw _Failure(cls, status: e.status, reason: reason, source: e);
         }
         final delay = plan['delayMs'] as int;
         await log.append('backoff', {
@@ -1246,6 +1275,7 @@ class NoteReceiver {
           'attempt': attempt,
           'delayMs': delay,
           'noteId': ?noteId,
+          'scope': noteId == null ? 'global' : 'note',
         });
         await sleep(Duration(milliseconds: delay));
         if (_disposed) throw _Stop();
