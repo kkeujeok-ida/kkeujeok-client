@@ -77,9 +77,8 @@
     }
   },
   "addPenSlot": "Add pen slot",
-  "penSlotLimit": "Up to 12 pen slots",
-  "deletePenSlot": "Delete slot",
-  "penSlotDeleted": "Slot deleted",
+  "deletePenSlot": "Delete tool",
+  "penSlotDeleted": "Tool deleted",
   "moveSlotEarlier": "Move earlier",
   "moveSlotLater": "Move later",
   "scrollSlotsBack": "Show earlier slots",

@@ -187,13 +187,10 @@ class AppLocalizationsKo extends AppLocalizations {
   String get addPenSlot => '펜 슬롯 추가';
 
   @override
-  String get penSlotLimit => '펜 슬롯은 12개까지예요';
+  String get deletePenSlot => '도구 삭제';
 
   @override
-  String get deletePenSlot => '슬롯 삭제';
-
-  @override
-  String get penSlotDeleted => '슬롯을 지웠어요';
+  String get penSlotDeleted => '도구를 지웠어요';
 
   @override
   String get moveSlotEarlier => '앞으로 이동';

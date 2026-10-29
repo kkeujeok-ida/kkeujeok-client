@@ -519,10 +519,8 @@ class PenSlotsNotifier extends Notifier<List<Pen>> {
     if (i >= 0 && i < state.length) _select(i);
   }
 
-  /// Appends a copy of the selected slot and selects it. Returns its index,
-  /// or null when [maxPenSlots] is reached.
-  int? add() {
-    if (state.length >= maxPenSlots) return null;
+  /// Appends a copy of the selected slot and selects it. Returns its index.
+  int add() {
     final i = state.length;
     // A fresh object: the toolbar keys slots by identity.
     final src = state[_sel.clamp(0, i - 1)];
@@ -563,7 +561,6 @@ class PenSlotsNotifier extends Notifier<List<Pen>> {
 
   /// Puts a removed slot back at [i] and restores the selection.
   void restore(int i, Pen pen, int selected) {
-    if (state.length >= maxPenSlots) return;
     final at = i.clamp(0, state.length);
     _put([...state]..insert(at, pen));
     _select(selected.clamp(0, state.length - 1));

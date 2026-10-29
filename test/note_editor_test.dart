@@ -1740,10 +1740,10 @@ void main() {
       await t.tap(find.byTooltip('Add pen slot'));
       await settle(t);
       expect(find.byType(PenEditDialog), findsOneWidget);
-      await t.tap(find.text('Delete slot'));
+      await t.tap(find.text('Delete tool'));
       await settle(t);
       expect(find.byType(PenEditDialog), findsNothing);
-      expect(find.text('Slot deleted'), findsOneWidget);
+      expect(find.text('Tool deleted'), findsOneWidget);
       expect(find.bySemanticsLabel('Pen, Black, width 2.0'), findsOneWidget);
       await t.tap(find.text('Undo').last);
       await settle(t);

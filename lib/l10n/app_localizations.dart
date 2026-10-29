@@ -440,22 +440,16 @@ abstract class AppLocalizations {
   /// **'Add pen slot'**
   String get addPenSlot;
 
-  /// No description provided for @penSlotLimit.
-  ///
-  /// In en, this message translates to:
-  /// **'Up to 12 pen slots'**
-  String get penSlotLimit;
-
   /// No description provided for @deletePenSlot.
   ///
   /// In en, this message translates to:
-  /// **'Delete slot'**
+  /// **'Delete tool'**
   String get deletePenSlot;
 
   /// No description provided for @penSlotDeleted.
   ///
   /// In en, this message translates to:
-  /// **'Slot deleted'**
+  /// **'Tool deleted'**
   String get penSlotDeleted;
 
   /// No description provided for @moveSlotEarlier.

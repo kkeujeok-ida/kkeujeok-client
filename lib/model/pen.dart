@@ -1,8 +1,5 @@
 import 'pen_palette.dart';
 
-/// Most slots a device can hold; at least one always remains.
-const maxPenSlots = 12;
-
 /// Width range (pt) per tool, spec `pen.palette`.
 (double, double) penWidthRange(String tool) =>
     tool == 'highlighter' ? (4, 30) : (0.5, 10);

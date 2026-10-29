@@ -71,7 +71,6 @@ void main() {
     '[${_slot('eraser', '#000000', 2, true)}]',
     '[${_slot('pen', '#000000', 14, true)}]', // too wide for a pen
     '[${_slot('highlighter', '#ffe066', 2, false)}]', // too thin
-    '[${List.filled(13, _slot('pen', '#000000', 2, true)).join(',')}]',
   ]) {
     test('corrupt value $bad falls back to the default', () async {
       final s = PenSlotsStore(await _prefs({'penSlots': bad}));
@@ -80,14 +79,14 @@ void main() {
     });
   }
 
-  test('12 slots are valid', () async {
+  test('13 slots are valid (no cap)', () async {
     final s = PenSlotsStore(
       await _prefs({
         'penSlots':
-            '[${List.filled(12, _slot('pen', '#000000', 2, true)).join(',')}]',
+            '[${List.filled(13, _slot('pen', '#000000', 2, true)).join(',')}]',
       }),
     );
-    expect(s.read(), hasLength(12));
+    expect(s.read(), hasLength(13));
   });
 
   test('a wrong-typed value does not throw', () async {

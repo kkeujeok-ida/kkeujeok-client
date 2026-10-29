@@ -32,7 +32,7 @@ class PenSlotsStore {
       final raw = _prefs?.getString(_key);
       if (raw != null) {
         final list = jsonDecode(raw);
-        if (list is List && list.isNotEmpty && list.length <= maxPenSlots) {
+        if (list is List && list.isNotEmpty) {
           return [for (final e in list) _pen(e)];
         }
       }

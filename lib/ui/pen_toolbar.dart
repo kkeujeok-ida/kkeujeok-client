@@ -311,7 +311,6 @@ class _PenToolbarState extends State<PenToolbar> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final full = widget.slots.length >= maxPenSlots;
     final v = _v;
     return DecoratedBox(
       key: _bar,
@@ -331,7 +330,6 @@ class _PenToolbarState extends State<PenToolbar> {
           children: [
             _Handle(widget: widget, vertical: v),
             _slots(l10n),
-            // At the limit it looks off but still answers with the notice.
             IconButton(
               tooltip: l10n.addPenSlot,
               constraints: BoxConstraints(
@@ -344,9 +342,7 @@ class _PenToolbarState extends State<PenToolbar> {
                   Size(v ? _hit : KkjLight.componentsPenSlotAddSize, _hit),
                 ),
               ),
-              color: full
-                  ? KkjLight.colorInkDisabled
-                  : KkjLight.componentsPenSlotAddIcon,
+              color: KkjLight.componentsPenSlotAddIcon,
               icon: const Icon(Icons.add),
               onPressed: widget.onAdd,
             ),

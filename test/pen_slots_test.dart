@@ -12,10 +12,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// The toolbar wired to the providers the way the editor does it.
 class _Harness extends ConsumerWidget {
-  const _Harness({this.maxSlotsWidth = double.infinity, this.onLimit});
+  const _Harness({this.maxSlotsWidth = double.infinity});
 
   final double maxSlotsWidth;
-  final VoidCallback? onLimit;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -27,9 +26,7 @@ class _Harness extends ConsumerWidget {
         selectedSlot: ref.watch(selectedPenSlotProvider),
         maxSlotsWidth: maxSlotsWidth,
         onSlotTap: n.select,
-        onAdd: () {
-          if (n.add() == null) onLimit?.call();
-        },
+        onAdd: n.add,
         onMove: n.move,
       ),
     );
@@ -41,7 +38,6 @@ Future<ProviderContainer> _pump(
   double width = 1000,
   double maxSlotsWidth = double.infinity,
   Map<String, Object> prefs = const {},
-  VoidCallback? onLimit,
 }) async {
   t.view.physicalSize = Size(width, 700);
   t.view.devicePixelRatio = 1;
@@ -64,7 +60,7 @@ Future<ProviderContainer> _pump(
         supportedLocales: AppLocalizations.supportedLocales,
         locale: const Locale('en'),
         home: Scaffold(
-          body: _Harness(maxSlotsWidth: maxSlotsWidth, onLimit: onLimit),
+          body: _Harness(maxSlotsWidth: maxSlotsWidth),
         ),
       ),
     ),
@@ -115,9 +111,8 @@ void main() {
     expect(sp.getString('penSlots'), contains('#1971c2'));
   });
 
-  testWidgets('[+] at 12 slots adds nothing and reports the limit', (t) async {
-    var limit = 0;
-    final c = await _pump(t, width: 1500, onLimit: () => limit++);
+  testWidgets('[+] at 12 slots still adds; no limit', (t) async {
+    final c = await _pump(t, width: 1500);
     for (var i = 0; i < 9; i++) {
       c.read(penSlotsProvider.notifier).add();
     }
@@ -125,8 +120,7 @@ void main() {
     expect(c.read(penSlotsProvider), hasLength(12));
     await t.tap(find.byTooltip('Add pen slot'));
     await t.pump();
-    expect(c.read(penSlotsProvider), hasLength(12));
-    expect(limit, 1);
+    expect(c.read(penSlotsProvider), hasLength(13));
   });
 
   testWidgets('long press then drag reorders; the same slot stays picked', (

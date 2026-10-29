@@ -190,13 +190,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addPenSlot => 'Add pen slot';
 
   @override
-  String get penSlotLimit => 'Up to 12 pen slots';
+  String get deletePenSlot => 'Delete tool';
 
   @override
-  String get deletePenSlot => 'Delete slot';
-
-  @override
-  String get penSlotDeleted => 'Slot deleted';
+  String get penSlotDeleted => 'Tool deleted';
 
   @override
   String get moveSlotEarlier => 'Move earlier';

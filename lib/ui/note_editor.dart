@@ -1237,7 +1237,6 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   Future<void> _addSlot() async {
     if (_leaving || _pointer != null || _mode != _Mode.none) return;
     final i = _slots.add();
-    if (i == null) return _snack(AppLocalizations.of(context).penSlotLimit);
     _setTool(_Tool.pen);
     await _editPen(i);
   }
