@@ -443,18 +443,24 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 ),
                 child: Row(
                   children: [
-                    Semantics(
-                      header: true,
-                      child: Text(
-                        l10n.library,
-                        style: Theme.of(context).textTheme.titleLarge,
+                    Flexible(
+                      child: Semantics(
+                        header: true,
+                        child: Text(
+                          l10n.library,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
                       ),
                     ),
                     const SizedBox(width: KkjTokens.spacing3),
-                    Flexible(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 240),
-                        child: const LibrarySortMenu(),
+                    // Sort sits at the right edge; the title shrinks first.
+                    Expanded(
+                      child: Align(
+                        alignment: AlignmentDirectional.centerEnd,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 240),
+                          child: const LibrarySortMenu(),
+                        ),
                       ),
                     ),
                   ],
@@ -827,27 +833,44 @@ class _NoteCard extends ConsumerWidget {
               label: label,
             ),
             const SizedBox(height: KkjTokens.spacing2),
-            Row(
+            // The 48dp ⋯ button floats at the top end instead of sizing the
+            // title row, so the title and date stay close; minHeight keeps
+            // the whole button inside the card's hit-test bounds.
+            Stack(
               children: [
-                Expanded(
-                  child: Text(
-                    note.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelMedium,
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 48),
+                  child: Padding(
+                    padding: const EdgeInsetsDirectional.only(end: 48),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          note.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelMedium,
+                        ),
+                        if (date != null)
+                          Text(date, style: theme.textTheme.bodySmall),
+                      ],
+                    ),
                   ),
                 ),
-                PopupMenuButton<void>(
-                  tooltip: l.moreMenu,
-                  icon: const Icon(Icons.more_horiz),
-                  onSelected: (_) => onDelete(),
-                  itemBuilder: (_) => [
-                    PopupMenuItem<void>(child: Text(l.noteDelete)),
-                  ],
+                PositionedDirectional(
+                  top: 0,
+                  end: 0,
+                  child: PopupMenuButton<void>(
+                    tooltip: l.moreMenu,
+                    icon: const Icon(Icons.more_horiz),
+                    onSelected: (_) => onDelete(),
+                    itemBuilder: (_) => [
+                      PopupMenuItem<void>(child: Text(l.noteDelete)),
+                    ],
+                  ),
                 ),
               ],
             ),
-            if (date != null) Text(date, style: theme.textTheme.bodySmall),
           ],
         ),
       ),

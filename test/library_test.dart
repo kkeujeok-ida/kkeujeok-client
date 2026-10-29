@@ -607,6 +607,21 @@ void main() {
       expect(t.takeException(), isNull);
       expect(find.byType(TextField), findsOneWidget);
     });
+
+    testWidgets('sort sits at the top right, clear of the title', (t) async {
+      seed(_note(1, 'Lecture', at: '2026-10-10T12:00:00.000Z'));
+      await pumpApp(t, noteData: data, width: 320, textScale: 1.5);
+      await settle(t);
+      expect(t.takeException(), isNull);
+      final title = t.getRect(find.text('Notes'));
+      final sort = t.getRect(find.byKey(const Key('sortMenu')));
+      expect(sort.left, greaterThanOrEqualTo(title.right));
+      expect(320 - sort.right, lessThanOrEqualTo(24));
+      // the date sits right under the title, not below a 48dp row
+      final cardTitle = t.getRect(find.text('Lecture'));
+      final cardDate = t.getRect(find.textContaining('2026').first);
+      expect(cardDate.top - cardTitle.bottom, lessThan(8));
+    });
   });
 
   group('shadow token', () {
