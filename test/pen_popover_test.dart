@@ -90,14 +90,23 @@ void main() {
     expect(find.text('Recent'), findsNothing);
   });
 
-  testWidgets('recent colors are left-aligned; pen palette starts black, green, blue, red, yellow', (t) async {
-    await _open(t, prefs: {'penRecentColors': '["#e03131"]'});
-    expect(_cell('Red').evaluate().length, 2);
-    final black = t.getTopLeft(_cell('Black').first).dx;
-    expect(t.getTopLeft(_cell('Red').last).dx, black);
-    expect(t.getTopLeft(find.bySemanticsLabel('Black').first).dx, lessThan(t.getTopLeft(_cell('Green').first).dx));
-    expect(t.getTopLeft(_cell('Blue').first).dx, lessThan(t.getTopLeft(_cell('Red').first).dx));
-  });
+  testWidgets(
+    'recent colors are left-aligned; pen palette starts black, green, blue, red, yellow',
+    (t) async {
+      await _open(t, prefs: {'penRecentColors': '["#e03131"]'});
+      expect(_cell('Red').evaluate().length, 2);
+      final black = t.getTopLeft(_cell('Black').first).dx;
+      expect(t.getTopLeft(_cell('Red').last).dx, black);
+      expect(
+        t.getTopLeft(find.bySemanticsLabel('Black').first).dx,
+        lessThan(t.getTopLeft(_cell('Green').first).dx),
+      );
+      expect(
+        t.getTopLeft(_cell('Blue').first).dx,
+        lessThan(t.getTopLeft(_cell('Red').first).dx),
+      );
+    },
+  );
 
   testWidgets('recent: max 6, no duplicates, oldest drops', (t) async {
     final c = await _open(t);
@@ -136,12 +145,31 @@ void main() {
 
     await t.tap(_cell('Custom'));
     await t.pumpAndSettle();
-    await t.drag(find.byType(Slider).at(2), const Offset(200, 0));
+    await t.tapAt(
+      t.getCenter(
+            find.byWidgetPredicate(
+              (w) =>
+                  w is CustomPaint &&
+                  '${w.painter.runtimeType}' == '_WheelPainter',
+            ),
+          ) +
+          const Offset(30, 20),
+    );
+    await t.pump();
     await t.tap(find.text('Apply'));
     await t.pumpAndSettle();
     final color = c.read(penSlotsProvider).first.color;
     expect(color, matches(RegExp(r'^#[0-9a-f]{6}$')));
+    expect(color, isNot('#000000'));
     expect(c.read(recentPenColorsProvider), [color]);
+
+    await t.tap(_cell('Custom'));
+    await t.pumpAndSettle();
+    await t.enterText(find.byType(TextField), '#1971C2');
+    await t.enterText(find.byType(TextField), '#1971c'); // rejected
+    await t.tap(find.text('Apply'));
+    await t.pumpAndSettle();
+    expect(c.read(penSlotsProvider).first.color, '#1971c2');
   });
 
   testWidgets('a color outside the palette: named by hex, no cell picked', (
