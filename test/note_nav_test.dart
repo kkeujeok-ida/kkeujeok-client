@@ -1,4 +1,4 @@
-// Story 5.13: previous / next note from the menu and by three fingers.
+// Story 5.13 / 15.12: previous / next note by three fingers.
 import 'dart:io';
 
 import 'package:flutter/gestures.dart';
@@ -8,11 +8,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/model/element_clipboard.dart';
 import 'package:kkeujeok/model/kkj_codec.dart';
 import 'package:kkeujeok/model/note.dart';
+import 'package:kkeujeok/model/toolbar_pos.dart';
 import 'package:kkeujeok/model/text_metrics.dart';
 import 'package:kkeujeok/ops/ops.dart';
 import 'package:kkeujeok/storage/note_data.dart';
 import 'package:kkeujeok/storage/note_store.dart';
 import 'package:kkeujeok/ui/note_editor.dart';
+import 'package:kkeujeok/ui/pen_toolbar.dart';
+import 'package:kkeujeok/ui/providers.dart';
 
 import 'shell_test.dart' show pumpApp;
 
@@ -97,19 +100,6 @@ void main() {
   String shown(WidgetTester t) =>
       t.widget<NoteEditor>(find.byType(NoteEditor)).note.title;
 
-  Future<void> menuHop(WidgetTester t, String label) async {
-    await t.tap(find.byTooltip('More'));
-    await t.pumpAndSettle();
-    await t.tap(find.text(label));
-    await settle(t);
-  }
-
-  bool enabled(WidgetTester t, String label) =>
-      t
-          .widget<MenuItemButton>(find.widgetWithText(MenuItemButton, label))
-          .onPressed !=
-      null;
-
   var ptr = 100;
   var clock = 10000; // ms; the test gestures all stamp zero, so stamp here
 
@@ -117,6 +107,7 @@ void main() {
     WidgetTester t,
     Offset delta, {
     int gapMs = 0, // the third finger lands this late
+    bool wait = true,
   }) async {
     final ids = [for (var i = 0; i < 3; i++) ++ptr];
     clock += 1000;
@@ -152,32 +143,72 @@ void main() {
         ),
       );
     }
-    await settle(t);
+    if (wait) await settle(t);
   }
 
-  testWidgets('menu: next opens Beta with chip, snackbar and ends disabled', (
-    t,
-  ) async {
+  testWidgets('menu has no previous / next note', (t) async {
     seedAll();
     await open(t, 'Alpha');
     await t.tap(find.byTooltip('More'));
     await t.pumpAndSettle();
-    expect(enabled(t, 'Previous note'), isFalse);
-    expect(enabled(t, 'Next note'), isTrue);
-    await t.tap(find.text('Next note'));
-    await settle(t);
+    expect(find.text('Previous note'), findsNothing);
+    expect(find.text('Next note'), findsNothing);
+  });
+
+  testWidgets('three fingers: chip, small back button bottom left, expiry', (
+    t,
+  ) async {
+    seedAll();
+    await open(t, 'Alpha');
+    await three(t, const Offset(-80, 0));
     expect(shown(t), 'Beta');
     expect(find.text('Beta · 2/3'), findsOneWidget);
-    expect(find.text('Back to ‘Alpha’'), findsOneWidget);
-    expect(find.widgetWithText(SnackBarAction, 'Undo'), findsOneWidget);
-    // The chip goes after three seconds.
-    await t.pump(const Duration(seconds: 4));
+    expect(find.byType(SnackBar), findsNothing);
+    final btn = find.widgetWithText(FilledButton, 'Back');
+    expect(btn, findsOneWidget);
+    final r = t.getRect(btn);
+    expect(r.height, greaterThanOrEqualTo(48));
+    expect(r.left, lessThan(200));
+    expect(
+      r.center.dy,
+      greaterThan(t.view.physicalSize.height / t.view.devicePixelRatio / 2),
+    );
+    await t.pump(const Duration(seconds: 5));
     expect(find.text('Beta · 2/3'), findsNothing);
-    await menuHop(t, 'Next note');
-    expect(shown(t), 'Gamma');
-    await t.tap(find.byTooltip('More'));
-    await t.pumpAndSettle();
-    expect(enabled(t, 'Next note'), isFalse);
+    expect(btn, findsNothing);
+  });
+
+  testWidgets('left-docked toolbar: back button does not overlap it', (
+    t,
+  ) async {
+    seedAll();
+    await open(t, 'Alpha');
+    final c = ProviderScope.containerOf(t.element(find.byType(NoteEditor)));
+    c
+        .read(toolbarPosProvider.notifier)
+        .set(const ToolbarPos().applyDock(ToolbarDock.left));
+    await settle(t);
+    await three(t, const Offset(-80, 0));
+    final r = t.getRect(find.widgetWithText(FilledButton, 'Back'));
+    final bar = t.getRect(find.byType(PenToolbar));
+    expect(r.overlaps(bar), isFalse);
+    expect(r.left, greaterThanOrEqualTo(bar.right));
+  });
+
+  testWidgets('bottom-docked toolbar: back button does not overlap it', (
+    t,
+  ) async {
+    seedAll();
+    await open(t, 'Alpha');
+    final c = ProviderScope.containerOf(t.element(find.byType(NoteEditor)));
+    c
+        .read(toolbarPosProvider.notifier)
+        .set(const ToolbarPos().applyDock(ToolbarDock.bottom));
+    await settle(t);
+    await three(t, const Offset(-80, 0));
+    final r = t.getRect(find.widgetWithText(FilledButton, 'Back'));
+    final bar = t.getRect(find.byType(PenToolbar));
+    expect(r.overlaps(bar), isFalse);
   });
 
   testWidgets('three fingers: left is next, right is previous', (t) async {
@@ -227,23 +258,23 @@ void main() {
     expect(board.read(elementClipboardProvider), hasLength(1));
   });
 
-  testWidgets('undo goes back to Alpha with no chip or snackbar', (t) async {
+  testWidgets('back button returns to Alpha with no chip or button', (t) async {
     seedAll();
     await open(t, 'Alpha');
-    await menuHop(t, 'Next note');
+    await three(t, const Offset(-80, 0));
     expect(shown(t), 'Beta');
-    await t.tap(find.widgetWithText(SnackBarAction, 'Undo'));
+    await t.tap(find.widgetWithText(FilledButton, 'Back'));
     await settle(t);
     expect(shown(t), 'Alpha');
     expect(find.textContaining(' · '), findsNothing);
-    expect(find.byType(SnackBarAction), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Back'), findsNothing);
   });
 
   testWidgets('a note that cannot be read is skipped', (t) async {
     seedAll();
     fileOf(2).writeAsBytesSync([1, 2, 3]);
     await open(t, 'Alpha');
-    await menuHop(t, 'Next note');
+    await three(t, const Offset(-80, 0));
     expect(shown(t), 'Gamma');
     expect(find.text('Gamma · 2/2'), findsOneWidget);
   });
@@ -258,9 +289,7 @@ void main() {
     t.platformDispatcher.accessibilityFeaturesTestValue =
         const FakeAccessibilityFeatures(disableAnimations: true);
     addTearDown(t.platformDispatcher.clearAccessibilityFeaturesTestValue);
-    await t.tap(find.byTooltip('More'));
-    await t.pumpAndSettle();
-    await t.tap(find.text('Next note'));
+    await three(t, const Offset(-80, 0), wait: false);
     for (
       var i = 0;
       i < 200 && find.byType(NoteEditor).evaluate().length < 2;
@@ -280,26 +309,23 @@ void main() {
   testWidgets('back from a hopped note lands on the library', (t) async {
     seedAll();
     await open(t, 'Alpha');
-    await menuHop(t, 'Next note');
+    await three(t, const Offset(-80, 0));
     await t.tap(find.byTooltip('Back to library'));
     await settle(t);
     expect(find.byType(NoteEditor), findsNothing);
     expect(find.text('Gamma'), findsOneWidget);
   });
 
-  testWidgets('no readable target: nothing is touched, menu stays', (t) async {
+  testWidgets('no readable target: nothing is touched', (t) async {
     seedAll();
     await open(t, 'Alpha');
-    await t.tap(find.byTooltip('More'));
-    await t.pumpAndSettle();
     fileOf(2).writeAsBytesSync([1, 2, 3]);
     fileOf(3).writeAsBytesSync([1, 2, 3]);
-    await t.tap(find.text('Next note'));
-    await settle(t);
+    await three(t, const Offset(-80, 0));
     expect(shown(t), 'Alpha');
     expect(find.byType(NoteEditor), findsOneWidget);
     // Still usable: a second try does not hang on a stuck flag.
-    await menuHop(t, 'Next note');
+    await three(t, const Offset(-80, 0));
     expect(shown(t), 'Alpha');
   });
 }

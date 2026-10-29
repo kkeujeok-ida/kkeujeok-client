@@ -363,13 +363,11 @@
   "dockBottom": "하단",
   "toolbarDocked": "툴바를 {place}에 붙였어요",
   "@toolbarDocked": {"placeholders": {"place": {"type": "String"}}},
-  "notePrev": "이전 노트",
-  "noteNext": "다음 노트",
   "noteChip": "{title} · {n}/{total}",
   "@noteChip": {"placeholders": {"title": {"type": "String"}, "n": {"type": "int"}, "total": {"type": "int"}}},
   "noteBackTo": "‘{title}’로 돌아가기",
   "@noteBackTo": {"placeholders": {"title": {"type": "String"}}},
   "noteOpened": "‘{title}’ 열림",
   "@noteOpened": {"placeholders": {"title": {"type": "String"}}},
-  "noteBackUndo": "되돌리기"
+  "noteBackUndo": "돌아가기"
 }

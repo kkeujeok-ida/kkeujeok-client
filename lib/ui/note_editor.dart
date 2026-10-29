@@ -183,6 +183,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   double _bx = 0;
   String? _chip;
   Timer? _chipTimer;
+  Timer? _backTimer;
+  NoteArrival? _back;
 
   int? _pointer; // the one pointer that is drawing
   // The page the stroke in progress belongs to and that page's top-left in
@@ -1495,18 +1497,18 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _chipTimer = Timer(const Duration(seconds: 3), () {
       if (mounted) setState(() => _chip = null);
     });
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(l.noteBackTo(a.backTitle)),
-          action: SnackBarAction(
-            label: l.noteBackUndo,
-            onPressed: () => unawaited(_hopTo(a.backNoteId, dir: -a.dir)),
-          ),
-        ),
-      );
+    // The small way back, bottom left, for the time a snackbar stayed.
+    setState(() => _back = a);
+    _backTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _back = null);
+    });
     _announce(l.noteOpened(title), polite: true);
+  }
+
+  void _goBack(NoteArrival a) {
+    _backTimer?.cancel();
+    setState(() => _back = null);
+    unawaited(_hopTo(a.backNoteId, dir: -a.dir));
   }
 
   /// Previous (-1) or next (+1) note in library order; at an end (or without
@@ -1992,6 +1994,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _latestTimer?.cancel();
     _lpTimer?.cancel();
     _chipTimer?.cancel();
+    _backTimer?.cancel();
     _exTimer?.cancel();
     unawaited(setGestureExclusion(const []));
     _emphasisTimer?.cancel();
@@ -3540,11 +3543,6 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       ),
     );
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
-    final order = neighbours(
-      ref.watch(openableNoteIdsProvider),
-      widget.note.noteId,
-    );
-    final canHop = widget.onHop != null;
     final tbPos = ref.watch(toolbarPosProvider);
     final stored = ref.watch(pageViewModeProvider);
     final phone = isPhone(MediaQuery.sizeOf(context));
@@ -3732,6 +3730,42 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                     ),
                   ),
                 ),
+              if (_back != null)
+                Positioned(
+                  // Lifted above a bottom / floating bar that would cover it.
+                  // shortcut: button rect is a rough 120x48 guess.
+                  bottom: () {
+                    final b = pad.bottom + gap;
+                    final l =
+                        pad.left +
+                        gap +
+                        (tbPos.dock == ToolbarDock.left ? bar.width + gap : 0);
+                    final rough = Rect.fromLTWH(l, win.height - b - 48, 120, 48);
+                    return rough.overlaps(bar) ? win.height - bar.top + gap : b;
+                  }(),
+                  // A left-docked vertical toolbar is not covered.
+                  left:
+                      pad.left +
+                      gap +
+                      (tbPos.dock == ToolbarDock.left ? bar.width + gap : 0),
+                  child: Semantics(
+                    container: true,
+                    label: l10n.noteBackTo(_back!.backTitle),
+                    excludeSemantics: true,
+                    button: true,
+                    onTap: () => _goBack(_back!),
+                    child: FilledButton.tonal(
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(
+                          KkjTokens.spacingHitMinAndroid,
+                          KkjTokens.spacingHitMinAndroid,
+                        ),
+                      ),
+                      onPressed: () => _goBack(_back!),
+                      child: Text(l10n.noteBackUndo),
+                    ),
+                  ),
+                ),
               // Over the page, under the toolbar: it stays put while the page
               // scrolls and never pushes the toolbar or the menu down.
               Positioned(
@@ -3840,12 +3874,6 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                       onViewMode: (m) =>
                           ref.read(pageViewModeProvider.notifier).set(m),
                       menu: _menu,
-                      onPrev: canHop && order.prev != null
-                          ? () => unawaited(_hop(-1))
-                          : null,
-                      onNext: canHop && order.next != null
-                          ? () => unawaited(_hop(1))
-                          : null,
                       onVersionHistory: readOnly || receiving
                           ? null
                           : _openHistory,
@@ -3997,13 +4025,10 @@ class _MoreMenu extends StatelessWidget {
     required this.allowTwoPage,
     required this.onViewMode,
     required this.menu,
-    required this.onPrev,
-    required this.onNext,
     required this.onVersionHistory,
   });
 
   final MenuController menu;
-  final VoidCallback? onPrev, onNext;
 
   final PageViewMode viewMode;
   final bool allowTwoPage;
@@ -4104,16 +4129,6 @@ class _MoreMenu extends StatelessWidget {
                       PageViewMode.twoPage => l10n.viewModeTwoPage,
                     }),
                   ),
-              MenuItemButton(
-                style: item,
-                onPressed: onPrev,
-                child: Text(l10n.notePrev),
-              ),
-              MenuItemButton(
-                style: item,
-                onPressed: onNext,
-                child: Text(l10n.noteNext),
-              ),
               const Divider(height: 1),
               MenuItemButton(
                 style: item,

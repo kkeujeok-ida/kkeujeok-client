@@ -280,30 +280,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ),
           ),
-          for (final e in {
-            PenOnlyMode.auto: l10n.penOnlyAuto,
-            PenOnlyMode.on: l10n.penOnlyOn,
-            PenOnlyMode.off: l10n.penOnlyOff,
-          }.entries)
-            Semantics(
-              inMutuallyExclusiveGroup: true,
-              checked: ref.watch(penOnlyProvider) == e.key,
-              label: e.value,
-              excludeSemantics: true,
-              onTap: () => ref.read(penOnlyProvider.notifier).select(e.key),
-              child: _Row(
-                onTap: () => ref.read(penOnlyProvider.notifier).select(e.key),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(e.value, style: theme.textTheme.bodyMedium),
-                    ),
-                    if (ref.watch(penOnlyProvider) == e.key)
-                      Icon(Icons.check, color: theme.colorScheme.primary),
-                  ],
-                ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: KkjTokens.spacing4),
+            child: SegmentedButton<PenOnlyMode>(
+              showSelectedIcon: false,
+              segments: [
+                for (final e in {
+                  PenOnlyMode.auto: l10n.penOnlyAuto,
+                  PenOnlyMode.on: l10n.penOnlyOn,
+                  PenOnlyMode.off: l10n.penOnlyOff,
+                }.entries)
+                  ButtonSegment(value: e.key, label: Text(e.value)),
+              ],
+              selected: {ref.watch(penOnlyProvider)},
+              onSelectionChanged: (s) =>
+                  ref.read(penOnlyProvider.notifier).select(s.first),
+              style: ButtonStyle(
+                minimumSize: const WidgetStatePropertyAll(Size(48, 48)),
+                // Reduce-motion: no slide animation on the selection change.
+                animationDuration: MediaQuery.disableAnimationsOf(context)
+                    ? Duration.zero
+                    : kThemeChangeDuration,
               ),
             ),
+          ),
           Divider(color: theme.colorScheme.outlineVariant),
           Semantics(
             button: true,

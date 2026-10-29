@@ -983,12 +983,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get notePrev => 'Previous note';
-
-  @override
-  String get noteNext => 'Next note';
-
-  @override
   String noteChip(String title, int n, int total) {
     return '$title · $n/$total';
   }
@@ -1004,5 +998,5 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get noteBackUndo => 'Undo';
+  String get noteBackUndo => 'Back';
 }

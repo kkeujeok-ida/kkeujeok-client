@@ -1784,18 +1784,6 @@ abstract class AppLocalizations {
   /// **'Toolbar docked: {place}'**
   String toolbarDocked(String place);
 
-  /// No description provided for @notePrev.
-  ///
-  /// In en, this message translates to:
-  /// **'Previous note'**
-  String get notePrev;
-
-  /// No description provided for @noteNext.
-  ///
-  /// In en, this message translates to:
-  /// **'Next note'**
-  String get noteNext;
-
   /// No description provided for @noteChip.
   ///
   /// In en, this message translates to:
@@ -1817,7 +1805,7 @@ abstract class AppLocalizations {
   /// No description provided for @noteBackUndo.
   ///
   /// In en, this message translates to:
-  /// **'Undo'**
+  /// **'Back'**
   String get noteBackUndo;
 }
 

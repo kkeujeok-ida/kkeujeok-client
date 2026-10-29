@@ -2,9 +2,11 @@ import 'dart:io';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/model/kkj_codec.dart';
 import 'package:kkeujeok/model/note.dart';
+import 'package:kkeujeok/model/pen_only.dart';
 import 'package:kkeujeok/ops/ops.dart';
 import 'package:kkeujeok/render/page_painter.dart';
 import 'package:kkeujeok/storage/note_data.dart';
@@ -396,9 +398,10 @@ void main() {
     expect(strokes(t).length, 2);
   });
 
-  testWidgets('settings: three radio rows, stored, none on the editor', (
+  testWidgets('settings: segmented button, stored, none on the editor', (
     t,
   ) async {
+    final sh = t.ensureSemantics();
     await pumpApp(t, noteData: data);
     await settle(t);
     await t.tap(find.text('Settings'));
@@ -406,6 +409,22 @@ void main() {
     await t.scrollUntilVisible(find.text('Write with pen only'), 100);
     expect(find.text('On'), findsOneWidget);
     expect(find.text('Off'), findsOneWidget);
+    expect(find.byType(SegmentedButton<PenOnlyMode>), findsOneWidget);
+    expect(
+      t.getSize(find.widgetWithText(TextButton, 'On')).height,
+      greaterThanOrEqualTo(48),
+    );
+    final sem = t.getSemantics(find.text('Auto'));
+    expect(find.bySemanticsLabel('Auto'), findsOneWidget);
+    expect(sem.hasFlag(SemanticsFlag.isSelected), isTrue);
+    SegmentedButton<PenOnlyMode> seg() =>
+        t.widget(find.byType(SegmentedButton<PenOnlyMode>));
+    expect(seg().style!.animationDuration, isNot(Duration.zero));
+    t.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(t.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await t.pump();
+    expect(seg().style!.animationDuration, Duration.zero);
     await t.tap(find.text('Off'));
     await t.pump();
     final p = await SharedPreferences.getInstance();
@@ -418,5 +437,6 @@ void main() {
     await t.tap(find.text('Lecture'));
     await settle(t);
     expect(find.text('Write with pen only'), findsNothing);
+    sh.dispose();
   });
 }

@@ -417,13 +417,11 @@
   "dockBottom": "Bottom",
   "toolbarDocked": "Toolbar docked: {place}",
   "@toolbarDocked": {"placeholders": {"place": {"type": "String"}}},
-  "notePrev": "Previous note",
-  "noteNext": "Next note",
   "noteChip": "{title} · {n}/{total}",
   "@noteChip": {"placeholders": {"title": {"type": "String"}, "n": {"type": "int"}, "total": {"type": "int"}}},
   "noteBackTo": "Back to ‘{title}’",
   "@noteBackTo": {"placeholders": {"title": {"type": "String"}}},
   "noteOpened": "‘{title}’ opened",
   "@noteOpened": {"placeholders": {"title": {"type": "String"}}},
-  "noteBackUndo": "Undo"
+  "noteBackUndo": "Back"
 }
