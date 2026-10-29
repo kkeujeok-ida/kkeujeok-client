@@ -392,9 +392,7 @@ class _PenToolbarState extends State<PenToolbar> {
                       ),
                     ),
                     iconSize: _icon,
-                    icon: Icon(
-                      partial ? Icons.content_cut : Icons.auto_fix_normal,
-                    ),
+                    icon: _EraserIcon(partial: partial),
                     onPressed: widget.onEraser,
                   ),
                 );
@@ -626,18 +624,11 @@ class _PenSlot extends StatelessWidget {
   final bool selected;
 
   static const _w = KkjLight.componentsPenSlotHitSize;
-  static const _nibW = 12.0;
-  static const _nibH = 24.0;
-
-  /// 4..10 dp across the tool's own width range.
-  double get _dot {
-    final (lo, hi) = penWidthRange(pen.tool);
-    return 4 + 6 * ((pen.width - lo) / (hi - lo)).clamp(0.0, 1.0);
-  }
+  static const _nibW = 16.0;
+  static const _nibH = 28.8;
 
   @override
   Widget build(BuildContext context) {
-    final dot = _dot;
     return SizedBox(
       width: _w,
       height: _hit,
@@ -653,21 +644,27 @@ class _PenSlot extends StatelessWidget {
                   (selected ? KkjLight.componentsPenSlotSelectedOffset : 0),
               child: CustomPaint(
                 size: const Size(_nibW, _nibH),
-                painter: _NibPainter(parseColor(pen.color), pen.isHighlighter),
+                painter: _ToolGlyphPainter(
+                  parseColor(pen.color),
+                  [pen.isHighlighter ? _highlighterD : _penD],
+                  20,
+                  36,
+                ),
               ),
             ),
+            // Width number at the nib's lower right (spec/tool-icons.md).
             Positioned(
-              left: (_w - dot) / 2,
-              top: 22,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: parseColor(pen.color),
-                  border: Border.all(
-                    color: KkjLight.componentsPenSlotThicknessDotOutline,
-                  ),
+              right: 2,
+              bottom: 3,
+              child: Text(
+                pen.width.toStringAsFixed(1),
+                textScaler: TextScaler.noScaling,
+                style: TextStyle(
+                  fontSize: 10,
+                  height: 1,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
-                child: SizedBox.square(dimension: dot),
               ),
             ),
             if (selected) ...[
@@ -704,38 +701,82 @@ class _PenSlot extends StatelessWidget {
   }
 }
 
-/// A vertical pen in line art, nib down, in the pen's own color.
-class _NibPainter extends CustomPainter {
-  _NibPainter(this.color, [this.chisel = false]);
+// Shapes from spec/tool-icons.md: absolute M L H V Z only.
+const _penD = 'M3 0V22.3L10 36L17 22.3V0M3 22.3H17';
+const _highlighterD = 'M3 0V22.3L6 36H14L17 22.3V0M3 22.3H17';
+const _eraserD = 'M15 3.5L20.5 9L10 19.5L4.5 14ZM8.7 9.8L14.2 15.3';
+const _eraserPartialD = 'M3 22H7M10 22H14M17 22H21';
+
+Path _svgPath(String d, double scale) {
+  final path = Path();
+  var x = 0.0, y = 0.0;
+  for (final m in RegExp(r'([MLHVZ])([^MLHVZ]*)').allMatches(d)) {
+    final n = RegExp(r'-?[\d.]+')
+        .allMatches(m[2]!)
+        .map((e) => double.parse(e[0]!) * scale)
+        .toList();
+    switch (m[1]) {
+      case 'M':
+        path.moveTo(x = n[0], y = n[1]);
+      case 'L':
+        path.lineTo(x = n[0], y = n[1]);
+      case 'H':
+        path.lineTo(x = n[0], y);
+      case 'V':
+        path.lineTo(x, y = n[0]);
+      default:
+        path.close();
+    }
+  }
+  return path;
+}
+
+/// Draws spec/tool-icons.md shapes scaled to fit [size] from a [vw] x [vh] box.
+class _ToolGlyphPainter extends CustomPainter {
+  _ToolGlyphPainter(this.color, this.ds, this.vw, this.vh);
 
   final Color color;
-  final bool chisel; // highlighter: a flat, slanted tip
+  final List<String> ds;
+  final double vw, vh;
 
   @override
   void paint(Canvas canvas, Size s) {
-    final w = s.width, h = s.height;
-    final p = Path()
-      ..moveTo(w * 0.15, 0)
-      ..lineTo(w * 0.15, h * 0.62)
-      ..lineTo(chisel ? w * 0.3 : w * 0.5, h)
-      ..lineTo(chisel ? w * 0.7 : w * 0.5, h)
-      ..lineTo(w * 0.85, h * 0.62)
-      ..lineTo(w * 0.85, 0)
-      ..moveTo(w * 0.15, h * 0.62)
-      ..lineTo(w * 0.85, h * 0.62);
-    canvas.drawPath(
-      p,
-      Paint()
-        ..color = color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = KkjLight.componentsPenSlotGlyphStroke
-        ..strokeJoin = StrokeJoin.round,
-    );
+    final k = s.width / vw;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.75 * k
+      ..strokeJoin = StrokeJoin.round
+      ..strokeCap = StrokeCap.round;
+    for (final d in ds) {
+      canvas.drawPath(_svgPath(d, k), paint);
+    }
   }
 
   @override
-  bool shouldRepaint(_NibPainter old) =>
-      old.color != color || old.chisel != chisel;
+  bool shouldRepaint(_ToolGlyphPainter old) =>
+      old.color != color || old.ds.join() != ds.join();
+}
+
+/// The eraser icon of spec/tool-icons.md, in the surrounding icon color.
+class _EraserIcon extends StatelessWidget {
+  const _EraserIcon({required this.partial});
+
+  final bool partial;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = IconTheme.of(context).color ?? Colors.black;
+    return CustomPaint(
+      size: const Size.square(_icon),
+      painter: _ToolGlyphPainter(
+        color,
+        [_eraserD, if (partial) _eraserPartialD],
+        24,
+        24,
+      ),
+    );
+  }
 }
 
 const _cell = 48.0;

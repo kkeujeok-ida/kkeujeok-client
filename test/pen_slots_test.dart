@@ -88,6 +88,8 @@ void main() {
         .getSemanticsData();
     expect(sel.flagsCollection.isSelected.name, 'isTrue');
     expect(t.getSize(_slot('Pen, Blue, width 2.0')).width, 48);
+    expect(find.text('2.0'), findsNWidgets(2));
+    expect(find.text('14.0'), findsOneWidget);
     h.dispose();
   });
 
