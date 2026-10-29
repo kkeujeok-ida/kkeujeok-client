@@ -865,7 +865,17 @@ class PenEditDialog extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(KkjTokens.roundedSm),
                   border: Border.all(color: KkjLight.colorBorderControl),
                 ),
-                child: Center(child: Text(text)),
+                child: Center(
+                  child: CustomPaint(
+                    size: const Size(12, 21.6),
+                    painter: _ToolGlyphPainter(
+                      theme.colorScheme.onSurface,
+                      [tool == 'highlighter' ? _highlighterD : _penD],
+                      20,
+                      36,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -918,12 +928,16 @@ class PenEditDialog extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: KkjTokens.spacing2),
-                Center(child: Wrap(children: cells)),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Wrap(children: cells),
+                ),
                 if (recent.isNotEmpty) ...[
                   const SizedBox(height: KkjTokens.spacing3),
                   Text(l10n.recentColors, style: theme.textTheme.labelMedium),
                   const SizedBox(height: KkjTokens.spacing1),
-                  Center(
+                  Align(
+                    alignment: Alignment.centerLeft,
                     child: Wrap(
                       children: [
                         for (var k = 0; k < recent.length; k++)

@@ -9,13 +9,13 @@ class PaletteColor {
 /// Spec `pen.palette`, grid order: 6 columns by 2 rows.
 const penPalette = <PaletteColor>[
   PaletteColor('#000000', 'black'),
-  PaletteColor('#495057', 'darkGray'),
-  PaletteColor('#e03131', 'red'),
-  PaletteColor('#f76707', 'orange'),
-  PaletteColor('#f59f00', 'yellow'),
   PaletteColor('#2f9e44', 'green'),
-  PaletteColor('#0c8599', 'teal'),
   PaletteColor('#1971c2', 'blue'),
+  PaletteColor('#e03131', 'red'),
+  PaletteColor('#f59f00', 'yellow'),
+  PaletteColor('#495057', 'darkGray'),
+  PaletteColor('#f76707', 'orange'),
+  PaletteColor('#0c8599', 'teal'),
   PaletteColor('#3b5bdb', 'indigo'),
   PaletteColor('#9c36b5', 'purple'),
   PaletteColor('#d6336c', 'pink'),

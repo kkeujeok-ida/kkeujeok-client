@@ -90,6 +90,15 @@ void main() {
     expect(find.text('Recent'), findsNothing);
   });
 
+  testWidgets('recent colors are left-aligned; pen palette starts black, green, blue, red, yellow', (t) async {
+    await _open(t, prefs: {'penRecentColors': '["#e03131"]'});
+    expect(_cell('Red').evaluate().length, 2);
+    final black = t.getTopLeft(_cell('Black').first).dx;
+    expect(t.getTopLeft(_cell('Red').last).dx, black);
+    expect(t.getTopLeft(find.bySemanticsLabel('Black').first).dx, lessThan(t.getTopLeft(_cell('Green').first).dx));
+    expect(t.getTopLeft(_cell('Blue').first).dx, lessThan(t.getTopLeft(_cell('Red').first).dx));
+  });
+
   testWidgets('recent: max 6, no duplicates, oldest drops', (t) async {
     final c = await _open(t);
     for (final n in [
@@ -181,7 +190,7 @@ void main() {
     t,
   ) async {
     final c = await _open(t);
-    await t.tap(find.text('Highlighter'));
+    await t.tap(find.bySemanticsLabel('Highlighter'));
     await t.pumpAndSettle();
     var p = c.read(penSlotsProvider).first;
     expect(
@@ -194,10 +203,10 @@ void main() {
     expect((sl.min, sl.max), (4.0, 30.0));
     // Same tool again: nothing changes.
     c.read(penSlotsProvider.notifier).setWidth(0, 20);
-    await t.tap(find.text('Highlighter').first);
+    await t.tap(find.bySemanticsLabel('Highlighter').first);
     await t.pumpAndSettle();
     expect(c.read(penSlotsProvider).first.width, 20);
-    await t.tap(find.text('Pen').first);
+    await t.tap(find.bySemanticsLabel('Pen').first);
     await t.pumpAndSettle();
     p = c.read(penSlotsProvider).first;
     expect(
