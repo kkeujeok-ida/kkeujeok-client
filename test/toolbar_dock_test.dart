@@ -9,15 +9,21 @@ const _vbar = Size(48, 400);
 const _none = EdgeInsets.zero;
 
 void main() {
-  group('nearestDock', () {
+  group('dockAtPointer', () {
     // Top outline: x 222.5..677.5, y 12..46.
     test('48 is in, 47.9 in, 48.1 out (distance to the rectangle)', () {
       expect(
-        nearestDock(const Offset(450, 94), _bar, _win, _none, vertical: _vbar),
+        dockAtPointer(
+          const Offset(450, 94),
+          _bar,
+          _win,
+          _none,
+          vertical: _vbar,
+        ),
         ToolbarDock.top,
       );
       expect(
-        nearestDock(
+        dockAtPointer(
           const Offset(450, 93.9),
           _bar,
           _win,
@@ -27,7 +33,7 @@ void main() {
         ToolbarDock.top,
       );
       expect(
-        nearestDock(
+        dockAtPointer(
           const Offset(450, 94.1),
           _bar,
           _win,
@@ -41,7 +47,13 @@ void main() {
     test('a bar wider than the radius still docks by its rectangle edge', () {
       // Far from the top outline center, but on the outline itself.
       expect(
-        nearestDock(const Offset(300, 30), _bar, _win, _none, vertical: _vbar),
+        dockAtPointer(
+          const Offset(300, 30),
+          _bar,
+          _win,
+          _none,
+          vertical: _vbar,
+        ),
         ToolbarDock.top,
       );
     });
@@ -49,42 +61,70 @@ void main() {
     test('left and right use the vertical size', () {
       // Left outline: x 12..60, y 150..550.
       expect(
-        nearestDock(const Offset(100, 300), _bar, _win, _none, vertical: _vbar),
+        dockAtPointer(
+          const Offset(100, 300),
+          _bar,
+          _win,
+          _none,
+          vertical: _vbar,
+        ),
         ToolbarDock.left,
       );
       expect(
-        nearestDock(const Offset(100, 150), _bar, _win, _none, vertical: _vbar),
+        dockAtPointer(
+          const Offset(100, 150),
+          _bar,
+          _win,
+          _none,
+          vertical: _vbar,
+        ),
         ToolbarDock.left,
       );
       expect(
-        nearestDock(const Offset(808, 560), _bar, _win, _none, vertical: _vbar),
+        dockAtPointer(
+          const Offset(808, 560),
+          _bar,
+          _win,
+          _none,
+          vertical: _vbar,
+        ),
         ToolbarDock.right,
       );
       expect(
-        nearestDock(const Offset(100, 603), _bar, _win, _none, vertical: _vbar),
+        dockAtPointer(
+          const Offset(100, 603),
+          _bar,
+          _win,
+          _none,
+          vertical: _vbar,
+        ),
         isNull,
       );
     });
 
-    test('equal distance: top, left, right, bottom order', () {
+    test('pointer at the left edge docks left even for a wide bar', () {
+      expect(
+        dockAtPointer(const Offset(2, 300), _bar, _win, _none, vertical: _vbar),
+        ToolbarDock.left,
+      );
+      expect(
+        dockAtPointer(
+          const Offset(450, 350),
+          _bar,
+          _win,
+          _none,
+          vertical: _vbar,
+        ),
+        isNull,
+      );
+    });
+
+    test('overlap: snapOrder first wins', () {
       // A tiny screen where every outline touches the center.
       const win = Size(100, 100);
       const bar = Size(200, 200);
       expect(
-        nearestDock(const Offset(50, 50), bar, win, _none),
-        ToolbarDock.top,
-      );
-    });
-
-    test('the nearer of two wins', () {
-      const win = Size(300, 300);
-      const bar = Size(120, 34), v = Size(48, 100);
-      expect(
-        nearestDock(const Offset(62, 75), bar, win, _none, vertical: v),
-        ToolbarDock.left,
-      );
-      expect(
-        nearestDock(const Offset(80, 50), bar, win, _none, vertical: v),
+        dockAtPointer(const Offset(50, 50), bar, win, _none),
         ToolbarDock.top,
       );
     });

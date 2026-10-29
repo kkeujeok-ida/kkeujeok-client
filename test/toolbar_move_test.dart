@@ -140,7 +140,7 @@ void main() {
       expect(pos(t), ToolbarPos.defaults);
       final (g, off) = await grab(t);
       expect(find.byType(SnapOutline), findsNWidgets(4));
-      await g.moveTo(const Offset(40, 350) + off);
+      await g.moveTo(const Offset(40, 350));
       await t.pump();
       final lit = t
           .widgetList<SnapOutline>(find.byType(SnapOutline))

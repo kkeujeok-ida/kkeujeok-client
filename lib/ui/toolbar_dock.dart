@@ -58,10 +58,11 @@ double _distance(Offset p, Rect r) => math.sqrt(
       math.pow(math.max(0, math.max(r.top - p.dy, p.dy - r.bottom)), 2),
 );
 
-/// The outline nearest [center] within [snapRadius], or null. [bar] is the
-/// horizontal size; left and right use [vertical] (default: [bar] turned).
-ToolbarDock? nearestDock(
-  Offset center,
+/// The first outline (in [snapOrder]) whose area, grown by [snapRadius],
+/// holds the [pointer], or null. [bar] is the horizontal size; left and right
+/// use [vertical] (default: [bar] turned).
+ToolbarDock? dockAtPointer(
+  Offset pointer,
   Size bar,
   Size win,
   EdgeInsets inset, {
@@ -69,20 +70,17 @@ ToolbarDock? nearestDock(
   EdgeInsets? verticalInset,
 }) {
   final v = vertical ?? bar.flipped;
-  ToolbarDock? best;
-  var bestD = double.infinity;
   for (final d in snapOrder) {
     final side = d == ToolbarDock.left || d == ToolbarDock.right;
-    final dist = _distance(
-      center,
-      dockRect(d, side ? v : bar, win, side ? verticalInset ?? inset : inset),
+    final r = dockRect(
+      d,
+      side ? v : bar,
+      win,
+      side ? verticalInset ?? inset : inset,
     );
-    if (dist <= snapRadius && dist < bestD) {
-      best = d;
-      bestD = dist;
-    }
+    if (_distance(pointer, r) <= snapRadius) return d;
   }
-  return best;
+  return null;
 }
 
 /// [center] moved so the bar of [size] lies inside the safe area (display

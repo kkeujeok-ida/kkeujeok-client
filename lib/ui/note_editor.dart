@@ -2539,7 +2539,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   ToolbarDock? _nearest(Offset c) {
     final inRow = _topFits(_size, _safe);
-    return nearestDock(
+    return dockAtPointer(
       c,
       _barSize(false, _size, _safe, inRow: inRow),
       _size,
@@ -2558,7 +2558,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     setState(() {
       _dragCenter = r.center;
       _dragGrab = g - r.center;
-      _dragNear = _nearest(r.center);
+      _dragNear = _nearest(g);
     });
   }
 
@@ -2567,7 +2567,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     final c = g - _dragGrab;
     setState(() {
       _dragCenter = c;
-      _dragNear = _nearest(c);
+      _dragNear = _nearest(g);
     });
   }
 
@@ -2575,7 +2575,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     if (_dragCenter == null) return;
     final c = g - _dragGrab;
     final pos = ref.read(toolbarPosProvider);
-    final near = _nearest(c);
+    final near = _nearest(g);
     ToolbarPos next;
     if (near != null) {
       next = pos.applyDock(near);
