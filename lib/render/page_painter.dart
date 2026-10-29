@@ -126,10 +126,19 @@ Path strokePath(Map<String, dynamic> s) => s['tool'] == 'highlighter'
 
 /// Fills [p] with [color]. A highlighter is one layer in the opaque color,
 /// composited once at 0.4 with multiply, so it never darkens on itself.
-void fillStroke(Canvas c, Path p, Object? color, {bool highlighter = false}) {
+void fillStroke(
+  Canvas c,
+  Path p,
+  Object? color, {
+  bool highlighter = false,
+  double alpha = 1,
+}) {
   p.fillType = PathFillType.nonZero;
+  final base = parseColor(color);
   final fill = Paint()
-    ..color = parseColor(color)
+    ..color = alpha == 1 || highlighter
+        ? base
+        : base.withValues(alpha: base.a * alpha)
     ..style = PaintingStyle.fill
     ..isAntiAlias = true;
   if (!highlighter) return c.drawPath(p, fill);
@@ -137,7 +146,7 @@ void fillStroke(Canvas c, Path p, Object? color, {bool highlighter = false}) {
     p.getBounds().inflate(1),
     Paint()
       ..blendMode = BlendMode.multiply
-      ..color = const Color(0x66FFFFFF), // 0.4 alpha
+      ..color = Color.fromRGBO(255, 255, 255, 0.4 * alpha),
   );
   c.drawPath(p, fill);
   c.restore();
@@ -203,6 +212,7 @@ class PagePainter extends CustomPainter {
     this.hidden,
     this.draft,
     this.images,
+    this.erasePreview,
     super.repaint,
   });
 
@@ -221,6 +231,11 @@ class PagePainter extends CustomPainter {
 
   /// Decoded assets for image elements; null draws grey placeholders.
   final PageImages? images;
+
+  /// While the eraser is down: the elements to draw instead of the page's, and
+  /// the stroke ids drawn at [alpha] (the ones the erase would remove).
+  final ({List<Object?> elements, Set<String> fade, double alpha})? Function()?
+  erasePreview;
 
   Map<String, dynamic>? _bg; // page is fixed for this painter
 
@@ -272,7 +287,23 @@ class PagePainter extends CustomPainter {
 
     final ids = <String>{};
     final skip = hidden?.call();
-    for (final e in page['elements'] as List) {
+    final ep = erasePreview?.call();
+    final els = ep?.elements ?? page['elements'] as List;
+    // Partial erase: the pieces of a faded stroke, so its faded copy skips them.
+    final pieces = <String, List<Map<String, dynamic>>>{};
+    if (ep != null) {
+      for (final e in els) {
+        if (!drawableStroke(e)) continue;
+        final id = (e as Map)['id'] as String;
+        final i = id.lastIndexOf('~');
+        if (i > 0 && ep.fade.contains(id.substring(0, i))) {
+          pieces.putIfAbsent(id.substring(0, i), () => []).add(
+            e as Map<String, dynamic>,
+          );
+        }
+      }
+    }
+    for (final e in els) {
       if (drawableImage(e)) {
         paintImageElement(canvas, e as Map<String, dynamic>, images, vp.scale);
         continue;
@@ -285,12 +316,26 @@ class PagePainter extends CustomPainter {
       if (!drawableStroke(e)) continue;
       final s = e as Map<String, dynamic>;
       ids.add(s['id'] as String);
+      final pcs = pieces[s['id']];
+      if (pcs != null) {
+        // shortcut: even-odd clip, so a self-overlapping piece leaks a sliver of the faded copy.
+        final hole = Path()
+          ..fillType = PathFillType.evenOdd
+          ..addRect(const Rect.fromLTWH(-1e5, -1e5, 2e5, 2e5));
+        for (final p in pcs) {
+          hole.addPath(cache.pathOf(p), Offset.zero);
+        }
+        canvas.save();
+        canvas.clipPath(hole);
+      }
       fillStroke(
         canvas,
         cache.pathOf(s),
         s['color'],
         highlighter: s['tool'] == 'highlighter',
+        alpha: ep != null && ep.fade.contains(s['id']) ? ep.alpha : 1,
       );
+      if (pcs != null) canvas.restore();
     }
     final d = draft?.call();
     if (d != null && drawableText(d)) paintTextBox(canvas, d);

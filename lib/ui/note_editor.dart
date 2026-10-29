@@ -2026,20 +2026,46 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     'points': points,
   };
 
-  // While erasing, a gray trail shows the path; nothing goes away until up.
-  Map<String, dynamic>? _live() => _pointer == null
-      ? null
-      : _erasing
-      ? {
-          'id': newId(),
-          'type': 'stroke',
-          'tool': 'pen',
-          'color': '#9e9e9e',
-          'width': eraserDefaultWidth,
-          'usePressure': false,
-          'points': List.of(_points),
-        }
-      : _stroke(List.of(_points));
+  // While erasing nothing is drawn live: the struck strokes show translucent
+  // (see [_erasePreview]) and go away on up.
+  Map<String, dynamic>? _live() =>
+      _pointer == null || _erasing ? null : _stroke(List.of(_points));
+
+  // Memo of the last preview, keyed on (point count, first point, page, mode):
+  // a repaint without a new pointer point reuses it.
+  Object? _epFirst, _epPage;
+  int _epLen = -1;
+  bool? _epPartial;
+  ({List<Object?> elements, Set<String> fade, double alpha})? _epMemo;
+
+  ({List<Object?> elements, Set<String> fade, double alpha})? _erasePreview(
+    Map<String, dynamic> page,
+  ) {
+    if (_pointer == null || !_erasing || _points.isEmpty) return null;
+    final partial = ref.read(eraserSettingsProvider).mode == EraserMode.partial;
+    if (_epMemo != null &&
+        _epLen == _points.length &&
+        identical(_epFirst, _points.first) &&
+        identical(_epPage, page) &&
+        _epPartial == partial) {
+      return _epMemo;
+    }
+    final t = eraseTargets(
+      page['elements'] as List,
+      [for (final p in _points) (p[0].toDouble(), p[1].toDouble())],
+      eraserDefaultWidth / 2,
+      partial,
+    );
+    _epLen = _points.length;
+    _epFirst = _points.first;
+    _epPage = page;
+    _epPartial = partial;
+    return _epMemo = (
+      elements: t.elements,
+      fade: t.fade,
+      alpha: KkjLight.componentsEraserPreviewOpacity,
+    );
+  }
 
   double _pressure(PointerEvent e) {
     if (e.kind != PointerDeviceKind.stylus) return 0.5;
@@ -3475,6 +3501,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                   // Read at paint time: the first stroke of a session starts after this
                   // build, when `_strokePageId` was still null.
                   live: () => id == _strokePageId ? _live() : null,
+                  erasePreview: () =>
+                      id == _strokePageId ? _erasePreview(shown) : null,
                   hidden: () => _te?.element?['id'] as String?,
                   draft: () {
                     final te = _te;

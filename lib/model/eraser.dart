@@ -124,3 +124,85 @@ List<List<int>> splitPieces(List<Pt> pts, List<Pt> path, double r) {
   flush();
   return out;
 }
+
+/// The live eraser preview of a page's [elements]: each struck stroke stays in
+/// place (its id in `fade`, drawn translucent) and, in partial mode, its
+/// surviving pieces follow it (opaque, ids `<id>~<j>`). Same touch/split rules
+/// as the `eraseStrokes`/`erasePartial` ops. Story 15.8 may make it incremental.
+({List<Object?> elements, Set<String> fade}) eraseTargets(
+  List elements,
+  List<Pt> path,
+  double r,
+  bool partial,
+) {
+  final out = <Object?>[];
+  final fade = <String>{};
+  if (path.isEmpty) return (elements: List.of(elements), fade: fade);
+  var x0 = double.infinity, x1 = -double.infinity;
+  var y0 = double.infinity, y1 = -double.infinity;
+  for (final p in path) {
+    if (p.$1 < x0) x0 = p.$1;
+    if (p.$1 > x1) x1 = p.$1;
+    if (p.$2 < y0) y0 = p.$2;
+    if (p.$2 > y1) y1 = p.$2;
+  }
+  x0 -= r;
+  x1 += r;
+  y0 -= r;
+  y1 += r;
+  for (final e in elements) {
+    // A stroke whose box is farther than r from the path's box cannot be touched.
+    final pts = e is Map && e['type'] == 'stroke' && _boxNear(e, x0, x1, y0, y1)
+        ? _strokePts(e)
+        : null;
+    if (pts == null ||
+        !(touchedPoints(pts, path, r).any((t) => t) ||
+            touchedSegments(pts, path, r).any((t) => t))) {
+      out.add(e);
+      continue;
+    }
+    final m = e as Map;
+    fade.add(m['id'] as String);
+    out.add(e);
+    if (!partial) continue;
+    final entries = m['points'] as List;
+    var j = 0;
+    for (final piece in splitPieces(pts, path, r)) {
+      out.add({
+        ...m,
+        'id': '${m['id']}~${j++}',
+        'points': [for (final k in piece) entries[k]],
+      });
+    }
+  }
+  return (elements: out, fade: fade);
+}
+
+bool _boxNear(Map e, double x0, double x1, double y0, double y1) {
+  final pts = e['points'];
+  if (pts is! List || pts.isEmpty || e['id'] is! String) return false;
+  var a = double.infinity, b = -double.infinity;
+  var c = double.infinity, d = -double.infinity;
+  for (final p in pts) {
+    if (p is! List || p.length < 2 || p[0] is! num || p[1] is! num) {
+      return false;
+    }
+    final x = (p[0] as num).toDouble(), y = (p[1] as num).toDouble();
+    if (x < a) a = x;
+    if (x > b) b = x;
+    if (y < c) c = y;
+    if (y > d) d = y;
+  }
+  return a <= x1 && b >= x0 && c <= y1 && d >= y0;
+}
+
+List<Pt>? _strokePts(Map e) {
+  final pts = e['points'];
+  if (pts is! List || pts.isEmpty || e['id'] is! String) return null;
+  final out = <Pt>[];
+  for (final p in pts) {
+    if (p is! List || p.length < 2 || p[0] is! num || p[1] is! num) return null;
+    out.add(((p[0] as num).toDouble(), (p[1] as num).toDouble()));
+  }
+  return out;
+}

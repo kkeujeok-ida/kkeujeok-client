@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kkeujeok/model/eraser.dart';
 import 'package:kkeujeok/model/kkj_codec.dart';
 import 'package:kkeujeok/model/note.dart';
 import 'package:kkeujeok/ops/ops.dart';
@@ -313,5 +314,39 @@ void main() {
     await settle(t);
     expect(find.text('Eraser options'), findsNothing);
     expect(find.byTooltip('Eraser (Partial)'), findsOneWidget);
+  });
+
+  group('eraseTargets (15.7 translucent preview)', () {
+    Map<String, dynamic> stroke(String id, double y) => {
+      'id': id,
+      'type': 'stroke',
+      'points': [
+        for (var i = 0; i <= 10; i++) [i * 10.0, y, 0.5, i * 10],
+      ],
+    };
+    final text = {'id': 'tx', 'type': 'text', 'x': 20, 'y': 40};
+    final els = [stroke('a', 40), text, stroke('b', 150)];
+    final path = <Pt>[(50, 30), (50, 50)];
+
+    test('stroke mode: touched stroke kept and faded; text/far stroke not', () {
+      final t = eraseTargets(els, path, 6, false);
+      expect(t.fade, {'a'});
+      expect(t.elements, els);
+    });
+    test('partial mode: original faded, opaque pieces follow it', () {
+      final t = eraseTargets(els, path, 6, true);
+      expect(t.fade, {'a'});
+      expect([for (final e in t.elements) (e as Map)['id']], [
+        'a',
+        'a~0',
+        'a~1',
+        'tx',
+        'b',
+      ]);
+    });
+    test('path that touches nothing fades nothing (cancel restores)', () {
+      expect(eraseTargets(els, [(150, 100)], 6, true).fade, isEmpty);
+      expect(eraseTargets(els, const [], 6, true).fade, isEmpty);
+    });
   });
 }
