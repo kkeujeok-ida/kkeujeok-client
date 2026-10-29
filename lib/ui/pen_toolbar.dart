@@ -783,20 +783,13 @@ const _cols = 6;
 /// through [penSlotsProvider], so every change is stored at once; the canvas
 /// below gets no input while it is open.
 class PenEditDialog extends ConsumerWidget {
-  const PenEditDialog({
-    super.key,
-    this.index = 0,
-    this.avoidLeft = 0,
-    this.avoidRight = 0,
-    this.alignTop = false,
-  });
+  const PenEditDialog({super.key, this.index = 0, this.anchor});
 
   final int index;
 
-  /// Room to leave beside a vertical toolbar, and whether a toolbar in the
-  /// lower half means the dialog sits at the top instead of the middle.
-  final double avoidLeft, avoidRight;
-  final bool alignTop;
+  /// Where the tool button and its toolbar are, read at every layout so a
+  /// rotation re-places the bubble. Null: centered, no tail.
+  final PenBubbleAnchor Function()? anchor;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -895,20 +888,8 @@ class PenEditDialog extends ConsumerWidget {
         const SingleActivator(LogicalKeyboardKey.escape): () =>
             Navigator.of(context).maybePop(),
       },
-      child: Dialog(
-        alignment: alignTop ? Alignment.topCenter : Alignment.center,
-        insetPadding: EdgeInsets.fromLTRB(
-          16 + avoidLeft,
-          24,
-          16 + avoidRight,
-          24,
-        ),
-        backgroundColor: KkjLight.componentsPopoverBackground,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(
-            KkjLight.componentsPopoverRounded,
-          ),
-        ),
+      child: _PenBubble(
+        anchor: anchor,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 320),
           child: SingleChildScrollView(
@@ -1059,6 +1040,261 @@ class PenEditDialog extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Where the pen bubble points: the tool button [tool], on the toolbar [bar].
+class PenBubbleAnchor {
+  const PenBubbleAnchor(this.tool, this.bar, {required this.vertical});
+  final Rect tool, bar;
+  final bool vertical;
+}
+
+/// Which side of the toolbar the bubble opens on, the bubble's top-left, and
+/// where the tail sits along that edge.
+class PenBubblePlacement {
+  const PenBubblePlacement(this.side, this.topLeft, this.tail);
+  final AxisDirection side; // the side of the bar: down = below it
+  final Offset topLeft;
+  final double?
+  tail; // tail centre along the bubble's edge, from its start; null: no tail
+}
+
+const penBubbleGap = 12.0; // bar to bubble; the tail takes 8 of it
+const penBubbleMargin = 8.0; // bubble to window edge
+const _tailLen = 8.0, _tailBase = 16.0;
+
+/// The rules of spec/toolbar-orientation.md: horizontal bar: below it, above
+/// when the bar is in the lower half; vertical bar: beside it, on the side
+/// away from the window's nearer edge. The bubble is pulled inside the window,
+/// the tail keeps pointing at the tool.
+AxisDirection penBubbleSide(PenBubbleAnchor a, Size win) => a.vertical
+    ? (a.bar.center.dx < win.width / 2
+          ? AxisDirection.right
+          : AxisDirection.left)
+    : (a.bar.center.dy <= win.height / 2
+          ? AxisDirection.down
+          : AxisDirection.up);
+
+PenBubblePlacement placePenBubble(PenBubbleAnchor a, Size bubble, Size win) {
+  final side = penBubbleSide(a, win);
+  const m = penBubbleMargin, edge = _tailBase / 2 + 8;
+  double fit(double v, double size, double max) =>
+      v.clamp(m, math.max(m, max - m - size)).toDouble();
+  final double left, top, c, start, len;
+  if (a.vertical) {
+    top = fit(a.tool.center.dy - bubble.height / 2, bubble.height, win.height);
+    left = fit(
+      side == AxisDirection.right
+          ? a.bar.right + penBubbleGap
+          : a.bar.left - penBubbleGap - bubble.width,
+      bubble.width,
+      win.width,
+    );
+    (c, start, len) = (a.tool.center.dy, top, bubble.height);
+  } else {
+    left = fit(a.tool.center.dx - bubble.width / 2, bubble.width, win.width);
+    top = fit(
+      side == AxisDirection.down
+          ? a.bar.bottom + penBubbleGap
+          : a.bar.top - penBubbleGap - bubble.height,
+      bubble.height,
+      win.height,
+    );
+    (c, start, len) = (a.tool.center.dx, left, bubble.width);
+  }
+  final rect = Offset(left, top) & bubble;
+  final tip = switch (side) {
+    AxisDirection.down => rect.top - _tailLen,
+    AxisDirection.up => rect.bottom + _tailLen,
+    AxisDirection.right => rect.left - _tailLen,
+    AxisDirection.left => rect.right + _tailLen,
+  };
+  // The pulled bubble covers the bar, or the tail would leave the window: no
+  // tail rather than a wrong one.
+  final hide =
+      rect.overlaps(a.bar) ||
+      tip < 0 ||
+      tip > (a.vertical ? win.width : win.height);
+  return PenBubblePlacement(
+    side,
+    Offset(left, top),
+    hide
+        ? null
+        : (c - start).clamp(edge, math.max(edge, len - edge)).toDouble(),
+  );
+}
+
+/// The pen popover as a speech bubble with a tail toward the tool button.
+/// The anchor is read after a frame (the toolbar is laid out by then), again
+/// whenever the window size changes; until then nothing shows.
+class _PenBubble extends StatefulWidget {
+  const _PenBubble({required this.anchor, required this.child});
+  final PenBubbleAnchor Function()? anchor;
+  final Widget child;
+
+  @override
+  State<_PenBubble> createState() => _PenBubbleState();
+}
+
+class _PenBubbleState extends State<_PenBubble> {
+  PenBubbleAnchor? _a;
+  Size? _size;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final size = MediaQuery.sizeOf(
+      context,
+    ); // a new window size places it again
+    if (size != _size) _a = null; // no jump to a stale spot meanwhile
+    _size = size;
+    if (widget.anchor == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _a = widget.anchor!());
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.anchor != null && _a == null) return const SizedBox.shrink();
+    final layout = _BubbleLayout(_a);
+    return CustomMultiChildLayout(
+      delegate: layout,
+      children: [
+        LayoutId(
+          id: #bubble,
+          child: Material(
+            color: KkjLight.componentsPopoverBackground,
+            elevation: 6,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(
+                KkjLight.componentsPopoverRounded,
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: widget.child,
+          ),
+        ),
+        if (_a != null)
+          LayoutId(
+            id: #tail,
+            child: ExcludeSemantics(
+              child: CustomPaint(painter: _TailPainter(layout)),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _BubbleLayout extends MultiChildLayoutDelegate {
+  _BubbleLayout(this.anchor);
+  final PenBubbleAnchor? anchor;
+  AxisDirection side =
+      AxisDirection.down; // set by performLayout, read by the tail painter
+
+  @override
+  void performLayout(Size size) {
+    final box = layoutChild(
+      #bubble,
+      BoxConstraints(
+        maxWidth: math.max(0, size.width - penBubbleMargin * 2),
+        maxHeight: math.max(0, size.height - penBubbleMargin * 2),
+      ),
+    );
+    final a = anchor;
+    if (a == null) {
+      positionChild(
+        #bubble,
+        Offset((size.width - box.width) / 2, (size.height - box.height) / 2),
+      );
+      return;
+    }
+    final p = placePenBubble(a, box, size);
+    side = p.side;
+    positionChild(#bubble, p.topLeft);
+    if (!hasChild(#tail)) return;
+    final tail = p.tail;
+    if (tail == null) {
+      layoutChild(#tail, BoxConstraints.tight(Size.zero)); // nothing to paint
+      return;
+    }
+    final horiz = p.side == AxisDirection.down || p.side == AxisDirection.up;
+    final t = layoutChild(
+      #tail,
+      BoxConstraints.tight(
+        horiz
+            ? const Size(_tailBase, _tailLen)
+            : const Size(_tailLen, _tailBase),
+      ),
+    );
+    positionChild(#tail, switch (p.side) {
+      AxisDirection.down => Offset(
+        p.topLeft.dx + tail - t.width / 2,
+        p.topLeft.dy - t.height,
+      ),
+      AxisDirection.up => Offset(
+        p.topLeft.dx + tail - t.width / 2,
+        p.topLeft.dy + box.height,
+      ),
+      AxisDirection.right => Offset(
+        p.topLeft.dx - t.width,
+        p.topLeft.dy + tail - t.height / 2,
+      ),
+      AxisDirection.left => Offset(
+        p.topLeft.dx + box.width,
+        p.topLeft.dy + tail - t.height / 2,
+      ),
+    });
+  }
+
+  @override
+  bool shouldRelayout(_BubbleLayout old) => true;
+}
+
+/// A triangle on the bubble's edge facing the bar, pointing at it. The side is
+/// the one the layout placed with, read at paint time.
+class _TailPainter extends CustomPainter {
+  _TailPainter(this.layout);
+  final _BubbleLayout layout;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path();
+    switch (layout.side) {
+      case AxisDirection.down: // bubble below the bar: tip points up
+        path.addPolygon([
+          Offset(0, size.height),
+          Offset(size.width / 2, 0),
+          Offset(size.width, size.height),
+        ], true);
+      case AxisDirection.up:
+        path.addPolygon([
+          Offset.zero,
+          Offset(size.width / 2, size.height),
+          Offset(size.width, 0),
+        ], true);
+      case AxisDirection.right:
+        path.addPolygon([
+          Offset(size.width, 0),
+          Offset(0, size.height / 2),
+          Offset(size.width, size.height),
+        ], true);
+      case AxisDirection.left:
+        path.addPolygon([
+          Offset.zero,
+          Offset(size.width, size.height / 2),
+          Offset(0, size.height),
+        ], true);
+    }
+    canvas.drawPath(
+      path,
+      Paint()..color = KkjLight.componentsPopoverBackground,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_TailPainter old) => true;
 }
 
 /// Rounds only the grid's outer corners: cell [at] of [n] in [_cols] columns.

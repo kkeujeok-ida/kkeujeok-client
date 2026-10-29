@@ -1244,25 +1244,20 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   /// Opens the pen popover; not while a stroke or a gesture is going on.
   Future<void> _editPen(int index) async {
     if (_leaving || _pointer != null || _mode != _Mode.none) return;
-    // A vertical bar leaves its side to the bar; a low one moves the dialog up.
-    final pos = ref.read(toolbarPosProvider);
-    final r = _barRect(pos, _size, _safe);
-    const gap = KkjTokens.spacing3;
-    final onLeft = r.center.dx < _size.width / 2;
-    var aL = pos.vertical && onLeft ? math.max(0.0, r.right + gap - 16) : 0.0;
-    var aR = pos.vertical && !onLeft
-        ? math.max(0.0, _size.width - r.left + gap - 16)
-        : 0.0;
-    // Too narrow beside the bar for the dialog's 280 dp: centered instead.
-    if (_size.width - 32 - aL - aR < 280) aL = aR = 0;
+    // A speech bubble on the tool button; re-read at every layout (rotation).
+    PenBubbleAnchor anchor() {
+      final pos = ref.read(toolbarPosProvider);
+      final bar = _barRect(pos, _size, _safe);
+      final tool = _slotFocus.context?.findRenderObject() != null
+          ? _slotFocus.rect
+          : bar;
+      return PenBubbleAnchor(tool, bar, vertical: pos.vertical);
+    }
+
     final delete = await showDialog<bool>(
       context: context,
-      builder: (_) => PenEditDialog(
-        index: index,
-        avoidLeft: aL,
-        avoidRight: aR,
-        alignTop: !pos.vertical && r.center.dy > _size.height / 2,
-      ),
+      useSafeArea: false, // the bubble is placed in window coordinates
+      builder: (_) => PenEditDialog(index: index, anchor: anchor),
     );
     if (!mounted) return;
     _slotFocus.requestFocus();

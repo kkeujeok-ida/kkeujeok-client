@@ -69,6 +69,7 @@ bool _selected(WidgetTester t, String label) =>
     'isTrue';
 
 void main() {
+  bubbleTests();
   testWidgets('palette tap sets the slot color, stored, recent first', (
     t,
   ) async {
@@ -223,5 +224,104 @@ void main() {
     final s = PenSlotsStore(sp);
     expect(s.read().single.color, '#9c36b5');
     expect(s.readRecent(), ['#1971c2']);
+  });
+}
+
+PenBubbleAnchor _a(Rect tool, Rect bar, {bool vertical = false}) =>
+    PenBubbleAnchor(tool, bar, vertical: vertical);
+
+void bubbleTests() {
+  const win = Size(400, 800);
+  const bub = Size(320, 400);
+  group('placePenBubble', () {
+    test('top bar: below it, tail under the tool', () {
+      final p = placePenBubble(
+        _a(
+          const Rect.fromLTWH(100, 12, 48, 48),
+          const Rect.fromLTWH(20, 12, 360, 48),
+        ),
+        bub,
+        win,
+      );
+      expect(p.side, AxisDirection.down);
+      expect(p.topLeft.dy, 60 + penBubbleGap);
+      expect(p.topLeft.dx + p.tail!, 124); // the tool's centre
+    });
+    test('bottom bar: above it', () {
+      final p = placePenBubble(
+        _a(
+          const Rect.fromLTWH(180, 740, 48, 48),
+          const Rect.fromLTWH(20, 740, 360, 48),
+        ),
+        bub,
+        win,
+      );
+      expect(p.side, AxisDirection.up);
+      expect(p.topLeft.dy + bub.height + penBubbleGap, 740);
+    });
+    test('vertical: left bar opens right, right bar opens left', () {
+      final l = placePenBubble(
+        _a(
+          const Rect.fromLTWH(12, 300, 48, 48),
+          const Rect.fromLTWH(12, 100, 48, 500),
+          vertical: true,
+        ),
+        bub,
+        win,
+      );
+      expect(l.side, AxisDirection.right);
+      expect(l.topLeft.dx, 60 + penBubbleGap);
+      final r = placePenBubble(
+        _a(
+          const Rect.fromLTWH(340, 300, 48, 48),
+          const Rect.fromLTWH(340, 100, 48, 500),
+          vertical: true,
+        ),
+        bub,
+        win,
+      );
+      expect(r.side, AxisDirection.left);
+      expect(r.topLeft.dx + bub.width + penBubbleGap, 340);
+    });
+    test('edge tool: bubble stays on screen, tail still at the tool', () {
+      final p = placePenBubble(
+        _a(
+          const Rect.fromLTWH(352, 12, 48, 48),
+          const Rect.fromLTWH(20, 12, 380, 48),
+        ),
+        bub,
+        win,
+      );
+      expect(
+        p.topLeft.dx + bub.width,
+        lessThanOrEqualTo(win.width - penBubbleMargin),
+      );
+      expect(p.topLeft.dx + p.tail!, 376);
+      final v = placePenBubble(
+        _a(
+          const Rect.fromLTWH(12, 760, 48, 48),
+          const Rect.fromLTWH(12, 300, 48, 500),
+          vertical: true,
+        ),
+        bub,
+        win,
+      );
+      expect(
+        v.topLeft.dy + bub.height,
+        lessThanOrEqualTo(win.height - penBubbleMargin),
+      );
+      expect(v.topLeft.dy + v.tail!, 776); // clamped 16 off the bubble corner
+    });
+    test('tall bubble pulled over the bar: no tail', () {
+      final p = placePenBubble(
+        _a(
+          const Rect.fromLTWH(100, 12, 48, 48),
+          const Rect.fromLTWH(20, 12, 360, 48),
+        ),
+        const Size(320, 760),
+        win,
+      );
+      expect(p.tail, isNull);
+    });
   });
 }
