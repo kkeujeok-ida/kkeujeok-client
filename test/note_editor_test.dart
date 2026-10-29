@@ -1793,7 +1793,7 @@ void main() {
       seed(_note());
       await open(t);
       await openPopover(t);
-      expect(find.text('Pen'), findsNWidgets(2));
+      expect(find.text('Pen'), findsOneWidget);
       expect(find.text('Use pressure'), findsOneWidget);
       expect(t.widget<Switch>(find.byType(Switch)).value, isTrue);
       expect(preview(t).pen.usePressure, isTrue);
@@ -1915,7 +1915,7 @@ void main() {
       await open(t, device: const [Locale('ko', 'KR')]);
       await t.tap(slot);
       await settle(t);
-      expect(find.text('펜'), findsNWidgets(2));
+      expect(find.text('펜'), findsOneWidget);
       expect(find.bySemanticsLabel('필압 반영'), findsOneWidget);
       h.dispose();
     });
