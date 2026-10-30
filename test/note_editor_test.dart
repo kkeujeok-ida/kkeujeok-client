@@ -1752,6 +1752,21 @@ void main() {
       ).read(penSlotsProvider);
       expect(slots, hasLength(4));
     });
+
+    testWidgets('the delete snackbar closes itself after 5 seconds', (t) async {
+      seed(_note());
+      await open(t);
+      await t.tap(find.byTooltip('Add pen slot'));
+      await settle(t);
+      await t.tap(find.text('Delete tool'));
+      await settle(t);
+      expect(find.text('Tool deleted'), findsOneWidget);
+      await t.pump(const Duration(seconds: 4));
+      expect(find.text('Tool deleted'), findsOneWidget);
+      await t.pump(const Duration(seconds: 2));
+      await t.pump(const Duration(seconds: 1));
+      expect(find.text('Tool deleted'), findsNothing);
+    });
   });
 
   group('pen pressure toggle', () {

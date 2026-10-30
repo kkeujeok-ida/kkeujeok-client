@@ -1273,6 +1273,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       ..showSnackBar(
         SnackBar(
           content: Text(l10n.penSlotDeleted),
+          // A SnackBar with an action persists by default; close it on a timer,
+          // longer for screen-reader users.
+          persist: false,
+          duration: Duration(
+            seconds: MediaQuery.accessibleNavigationOf(context) ? 15 : 5,
+          ),
           action: SnackBarAction(
             label: l10n.undo,
             onPressed: () =>
