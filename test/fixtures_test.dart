@@ -3,7 +3,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/widgets.dart' show EdgeInsets, Offset, Size;
+import 'package:flutter/widgets.dart'
+    show AxisDirection, EdgeInsets, Offset, Rect, Size;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/drive/duplicates.dart';
 import 'package:kkeujeok/drive/note_summary.dart';
@@ -16,7 +17,8 @@ import 'package:kkeujeok/l10n/app_localizations_en.dart';
 import 'package:kkeujeok/l10n/app_localizations_ko.dart';
 import 'package:kkeujeok/model/pen.dart';
 import 'package:kkeujeok/model/pen_palette.dart';
-import 'package:kkeujeok/ui/pen_toolbar.dart' show penColorName;
+import 'package:kkeujeok/ui/pen_toolbar.dart'
+    show PenBubbleAnchor, penColorName, placePenBubble;
 import 'package:kkeujeok/model/select.dart';
 import 'package:kkeujeok/model/text_layout.dart';
 import 'package:kkeujeok/model/text_metrics.dart';
@@ -362,6 +364,41 @@ final runners = <String, void Function(Case)>{
       EdgeInsets.zero,
     );
     expect(d?.name, c['expected']);
+  },
+  'bubble.tail': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    Rect r(Map m) => Rect.fromLTWH(
+      (m['left'] as num).toDouble(),
+      (m['top'] as num).toDouble(),
+      (m['w'] as num).toDouble(),
+      (m['h'] as num).toDouble(),
+    );
+    Size sz(Map m) =>
+        Size((m['w'] as num).toDouble(), (m['h'] as num).toDouble());
+    final p = placePenBubble(
+      PenBubbleAnchor(
+        r(i['tool'] as Map),
+        r(i['bar'] as Map),
+        vertical: i['vertical'] as bool,
+      ),
+      sz(i['bubble'] as Map),
+      sz(i['win'] as Map),
+    );
+    final got = {
+      'side': switch (p.side) {
+        AxisDirection.down => 'down',
+        AxisDirection.up => 'up',
+        AxisDirection.right => 'right',
+        AxisDirection.left => 'left',
+      },
+      'left': p.topLeft.dx,
+      'top': p.topLeft.dy,
+      'tail': p.tail,
+    };
+    // `left`/`top` are only in cases where the 8 dp and web 12 px margins agree.
+    (c['expected'] as Map).forEach(
+      (k, v) => expect(got[k], v is num ? closeTo(v, 1e-9) : v, reason: '$k'),
+    );
   },
   'zoom.snap': (c) {
     final i = c['input'] as Map<String, dynamic>;
