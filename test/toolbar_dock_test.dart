@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/model/toolbar_pos.dart';
@@ -127,6 +130,25 @@ void main() {
         dockAtPointer(const Offset(50, 50), bar, win, _none),
         ToolbarDock.top,
       );
+    });
+
+    test('shared cases test/toolbar.snap.json', () {
+      final f = File('../test/toolbar.snap.json');
+      for (final c in (jsonDecode(f.readAsStringSync())['cases'] as List)) {
+        final i = c['input'] as Map;
+        Size sz(String k) => Size(
+          (i[k]['w'] as num).toDouble(),
+          (i[k]['h'] as num).toDouble(),
+        );
+        final p = i['pointer'] as Map;
+        final d = dockAtPointer(
+          Offset((p['x'] as num).toDouble(), (p['y'] as num).toDouble()),
+          sz('bar'),
+          sz('win'),
+          _none,
+        );
+        expect(d?.name, c['expected'], reason: c['name'] as String);
+      }
     });
 
     test('safe area moves the outlines', () {

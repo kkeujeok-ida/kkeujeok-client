@@ -3,6 +3,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/widgets.dart' show EdgeInsets, Offset, Size;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/drive/duplicates.dart';
 import 'package:kkeujeok/drive/note_summary.dart';
@@ -30,6 +31,8 @@ import 'package:kkeujeok/sync/error_class.dart';
 import 'package:kkeujeok/sync/has_unsent.dart';
 import 'package:kkeujeok/sync/merge.dart';
 import 'package:kkeujeok/sync/sync_log_entry.dart';
+import 'package:kkeujeok/ui/toolbar_dock.dart';
+import 'package:kkeujeok/model/toolbar_pos.dart';
 import 'package:kkeujeok/sync/sync_rules.dart';
 import 'package:kkeujeok/sync/version_list.dart';
 
@@ -345,6 +348,21 @@ final runners = <String, void Function(Case)>{
     driveFileNameRule((c['input'] as Map).cast<String, Object?>()),
     c['expected'],
   ),
+  'toolbar.snap': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    Size sz(String k) => Size(
+      ((i[k] as Map)['w'] as num).toDouble(),
+      ((i[k] as Map)['h'] as num).toDouble(),
+    );
+    final p = i['pointer'] as Map;
+    final d = dockAtPointer(
+      Offset((p['x'] as num).toDouble(), (p['y'] as num).toDouble()),
+      sz('bar'),
+      sz('win'),
+      EdgeInsets.zero,
+    );
+    expect(d?.name, c['expected']);
+  },
   'zoom.snap': (c) {
     final i = c['input'] as Map<String, dynamic>;
     final out = zoomSnap(
