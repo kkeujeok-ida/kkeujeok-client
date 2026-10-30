@@ -819,7 +819,10 @@ class PenEditDialog extends ConsumerWidget {
     final width = pen.width.clamp(lo, hi);
     final widthText = width.toStringAsFixed(1);
     void step(int d) => notifier.setWidth(i, width + d / 10);
-    final palette = paletteFor(pen.tool);
+    final palette = [
+      for (final hex in ref.watch(penPaletteProvider)[pen.tool]!)
+        PaletteColor(hex, colorNameKeyFor(hex)),
+    ];
 
     String label(String hex) {
       final key = colorNameKeyFor(hex);

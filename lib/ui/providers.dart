@@ -678,6 +678,35 @@ final visibleToolsProvider = NotifierProvider<VisibleToolsNotifier, int>(
   VisibleToolsNotifier.new,
 );
 
+/// The palettes of the pen and the highlighter ([tool] -> `#rrggbb` list): a
+/// device setting, stored at once.
+class PenPaletteNotifier extends Notifier<Map<String, List<String>>> {
+  @override
+  Map<String, List<String>> build() {
+    final store = ref.read(penSlotsStoreProvider);
+    return {
+      for (final t in const ['pen', 'highlighter']) t: store.readPalette(t),
+    };
+  }
+
+  /// An invalid list (empty, over 18, duplicates) is ignored.
+  void set(String tool, List<String> colors) {
+    if (PenSlotsStore.validPalette(colors) == null) return;
+    state = {...state, tool: colors};
+    ref.read(penSlotsStoreProvider).writePalette(tool, colors);
+  }
+
+  void reset(String tool) {
+    state = {...state, tool: PenSlotsStore.defaultPalette(tool)};
+    ref.read(penSlotsStoreProvider).writePalette(tool, null);
+  }
+}
+
+final penPaletteProvider =
+    NotifierProvider<PenPaletteNotifier, Map<String, List<String>>>(
+      PenPaletteNotifier.new,
+    );
+
 /// A stylus was seen on this device: kept whatever the setting says.
 class StylusSeenNotifier extends Notifier<bool> {
   @override

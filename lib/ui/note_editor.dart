@@ -1816,7 +1816,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     final key = '${item.pageId}:${item.entry['rev']}';
     final saved = _unrecorded[key];
     if (saved != null) {
-      if (!await _coordinator.conflictResolved(id, saved.$1, saved.$2)) return null;
+      if (!await _coordinator.conflictResolved(id, saved.$1, saved.$2))
+        return null;
       _unrecorded.remove(key);
       _held = null;
       await _loadLastSeen();
@@ -3753,7 +3754,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                         pad.left +
                         gap +
                         (tbPos.dock == ToolbarDock.left ? bar.width + gap : 0);
-                    final rough = Rect.fromLTWH(l, win.height - b - 48, 120, 48);
+                    final rough = Rect.fromLTWH(
+                      l,
+                      win.height - b - 48,
+                      120,
+                      48,
+                    );
                     return rough.overlaps(bar) ? win.height - bar.top + gap : b;
                   }(),
                   // A left-docked vertical toolbar is not covered.

@@ -960,6 +960,33 @@ class AppLocalizationsEn extends AppLocalizations {
   String get visibleToolsMore => 'Show more tools';
 
   @override
+  String get palettePenTitle => 'Pen and highlighter palette';
+
+  @override
+  String get paletteAdd => 'Add color';
+
+  @override
+  String get paletteReset => 'Reset to default';
+
+  @override
+  String get paletteFull => 'A palette holds at most 18 colors.';
+
+  @override
+  String paletteEarlier(String color) {
+    return 'Move $color earlier';
+  }
+
+  @override
+  String paletteLater(String color) {
+    return 'Move $color later';
+  }
+
+  @override
+  String paletteRemove(String color) {
+    return 'Remove $color';
+  }
+
+  @override
   String get penOnlyTitle => 'Write with pen only';
 
   @override

@@ -77,9 +77,7 @@ class _DisconnectDialogState extends ConsumerState<DisconnectDialog> {
 
     final Widget content = switch (_step) {
       _Step.confirm => Text(
-        _warn
-            ? '$unsentLine ${l10n.disconnectBody}'
-            : l10n.disconnectBody,
+        _warn ? '$unsentLine ${l10n.disconnectBody}' : l10n.disconnectBody,
       ),
       _Step.busy => Center(
         heightFactor: 2,

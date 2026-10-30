@@ -6,6 +6,7 @@ import '../model/eraser.dart';
 import '../model/page_view_mode.dart';
 import '../model/pen.dart';
 import '../model/pen_only.dart';
+import '../model/pen_palette.dart';
 import '../model/toolbar_pos.dart';
 
 final _hex = RegExp(r'^#[0-9a-fA-F]{6}$');
@@ -227,7 +228,9 @@ class PenSlotsStore {
     });
   }
 
-  static const visibleToolsDefault = 7, visibleToolsMin = 3, visibleToolsMax = 12;
+  static const visibleToolsDefault = 7,
+      visibleToolsMin = 3,
+      visibleToolsMax = 12;
   static const _visibleKey = 'toolbarVisibleTools';
 
   int? _visibleSession;
@@ -256,6 +259,64 @@ class PenSlotsStore {
         await _prefs?.setInt(_visibleKey, n);
       } catch (_) {
         // Save failed: the setting still applies for this session.
+      }
+    });
+  }
+
+  static const paletteMax = 18; // 3 rows of 6
+  static const _paletteKey = 'penPalette';
+
+  // Lists written by this run, per tool; they win even if persisting failed.
+  final Map<String, List<String>> _paletteSession = {};
+
+  static List<String> defaultPalette(String tool) => [
+    for (final c in paletteFor(tool)) c.hex,
+  ];
+
+  /// 1..18 distinct `#rrggbb` (lowercased), else null.
+  static List<String>? validPalette(Object? v) {
+    if (v is! List || v.isEmpty || v.length > paletteMax) return null;
+    if (!v.every((e) => e is String && _hex.hasMatch(e))) return null;
+    final list = [for (final e in v) (e as String).toLowerCase()];
+    return list.toSet().length == list.length ? list : null;
+  }
+
+  Map<String, Object?> _storedPalettes() {
+    try {
+      final raw = _prefs?.getString(_paletteKey);
+      if (raw != null) {
+        final m = jsonDecode(raw);
+        if (m is Map) return m.cast<String, Object?>();
+      }
+    } catch (_) {
+      // Wrong type or shape: treated as nothing stored.
+    }
+    return {};
+  }
+
+  /// The tool's palette; the default when nothing valid is stored.
+  List<String> readPalette(String tool) =>
+      _paletteSession[tool] ??
+      validPalette(_storedPalettes()[tool]) ??
+      defaultPalette(tool);
+
+  /// An invalid list is ignored. Null [colors] resets to the default.
+  Future<void> writePalette(String tool, List<String>? colors) {
+    final list = colors == null ? defaultPalette(tool) : validPalette(colors);
+    if (list == null) return _pending;
+    _paletteSession[tool] = list;
+    final all = _storedPalettes();
+    if (colors == null) {
+      all.remove(tool);
+    } else {
+      all[tool] = list;
+    }
+    final data = jsonEncode(all);
+    return _pending = _pending.then((_) async {
+      try {
+        await _prefs?.setString(_paletteKey, data);
+      } catch (_) {
+        // Save failed: the palette still applies for this session.
       }
     });
   }

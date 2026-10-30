@@ -898,6 +898,33 @@ class AppLocalizationsKo extends AppLocalizations {
   String get visibleToolsMore => '도구 수 늘리기';
 
   @override
+  String get palettePenTitle => '펜·형광펜 팔레트';
+
+  @override
+  String get paletteAdd => '색 추가';
+
+  @override
+  String get paletteReset => '기본값으로';
+
+  @override
+  String get paletteFull => '팔레트는 최대 18색이에요.';
+
+  @override
+  String paletteEarlier(String color) {
+    return '$color 앞으로 이동';
+  }
+
+  @override
+  String paletteLater(String color) {
+    return '$color 뒤로 이동';
+  }
+
+  @override
+  String paletteRemove(String color) {
+    return '$color 삭제';
+  }
+
+  @override
   String get penOnlyTitle => '펜으로만 필기';
 
   @override

@@ -262,4 +262,48 @@ void main() {
       expect(PenSlotsStore(p).readVisibleTools(), 7);
     });
   });
+
+  group('palette', () {
+    test('default; write persists per tool; reset restores', () async {
+      final p = await _prefs({});
+      final s = PenSlotsStore(p);
+      expect(s.readPalette('pen'), PenSlotsStore.defaultPalette('pen'));
+      await s.writePalette('pen', ['#112233', '#000000']);
+      expect(PenSlotsStore(p).readPalette('pen'), ['#112233', '#000000']);
+      expect(
+        PenSlotsStore(p).readPalette('highlighter'),
+        PenSlotsStore.defaultPalette('highlighter'),
+      );
+      await s.writePalette('pen', null);
+      expect(
+        PenSlotsStore(p).readPalette('pen'),
+        PenSlotsStore.defaultPalette('pen'),
+      );
+    });
+
+    test(
+      'max 18, min 1, no duplicates; broken stored value is default',
+      () async {
+        final p = await _prefs({});
+        final s = PenSlotsStore(p);
+        final n = [
+          for (var i = 0; i < 18; i++) '#0000${(i + 16).toRadixString(16)}',
+        ];
+        await s.writePalette('pen', n);
+        expect(s.readPalette('pen'), n);
+        await s.writePalette('pen', [...n, '#ffffff']);
+        await s.writePalette('pen', []);
+        await s.writePalette('pen', ['#000000', '#000000']);
+        expect(s.readPalette('pen'), n);
+        for (final raw in ['x', '{"pen":5}', '{"pen":["red"]}', '{"pen":[]}']) {
+          final q = await _prefs({'penPalette': raw});
+          expect(
+            PenSlotsStore(q).readPalette('pen'),
+            PenSlotsStore.defaultPalette('pen'),
+            reason: raw,
+          );
+        }
+      },
+    );
+  });
 }

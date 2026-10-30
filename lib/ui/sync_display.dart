@@ -82,8 +82,14 @@ class NoteSyncView {
       other.loaded == loaded;
 
   @override
-  int get hashCode =>
-      Object.hash(label, state, errorClass, errorReason, loaded, conflicts.length);
+  int get hashCode => Object.hash(
+    label,
+    state,
+    errorClass,
+    errorReason,
+    loaded,
+    conflicts.length,
+  );
 }
 
 /// One unresolved entry of `sync.json.conflicts`.

@@ -8,6 +8,7 @@ import '../storage/pen_slots_store.dart';
 import '../storage/language_store.dart';
 import 'disconnect_dialog.dart';
 import 'log_export.dart';
+import 'pen_palette_editor.dart';
 import 'providers.dart';
 import 'unsent_widgets.dart';
 
@@ -308,6 +309,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               );
             },
           ),
+          Divider(color: theme.colorScheme.outlineVariant),
+          const PenPaletteEditor(),
           Divider(color: theme.colorScheme.outlineVariant),
           Padding(
             padding: const EdgeInsets.fromLTRB(

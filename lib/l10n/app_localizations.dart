@@ -1742,6 +1742,48 @@ abstract class AppLocalizations {
   /// **'Show more tools'**
   String get visibleToolsMore;
 
+  /// No description provided for @palettePenTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pen and highlighter palette'**
+  String get palettePenTitle;
+
+  /// No description provided for @paletteAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add color'**
+  String get paletteAdd;
+
+  /// No description provided for @paletteReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset to default'**
+  String get paletteReset;
+
+  /// No description provided for @paletteFull.
+  ///
+  /// In en, this message translates to:
+  /// **'A palette holds at most 18 colors.'**
+  String get paletteFull;
+
+  /// No description provided for @paletteEarlier.
+  ///
+  /// In en, this message translates to:
+  /// **'Move {color} earlier'**
+  String paletteEarlier(String color);
+
+  /// No description provided for @paletteLater.
+  ///
+  /// In en, this message translates to:
+  /// **'Move {color} later'**
+  String paletteLater(String color);
+
+  /// No description provided for @paletteRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove {color}'**
+  String paletteRemove(String color);
+
   /// No description provided for @penOnlyTitle.
   ///
   /// In en, this message translates to:
