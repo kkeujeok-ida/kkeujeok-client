@@ -22,21 +22,25 @@ HSVColor? hexToHsv(String hex) {
   return _hex6.hasMatch(x) ? HSVColor.fromColor(parseColor(x)) : null;
 }
 
-const _ring = 200.0;
-const _ringWidth = 28.0;
-const _side = 100.0;
+// Wheel ratios, same as the web (spec/pen.md "Color wheel"): ring 224, band 24,
+// square 122; the ring's touch band reaches 48 inward (the square wins inside).
+const _ring = 224.0;
+const _ringWidth = 24.0;
+const _side = 122.0;
+const _ringHit = 48.0;
 
 enum WheelZone { ring, square, none }
 
-/// Where a press at [p] (in the wheel's box) lands: the ring band, the square
-/// (inside the hole), or nowhere (the hole outside the square, beyond the ring).
+/// Where a press at [p] (in the wheel's box) lands: the square, the ring's
+/// touch band (drawn band plus the hole's rim), or nowhere.
 WheelZone wheelZone(Offset p) {
   const mid = Offset(_ring / 2, _ring / 2);
   final d = (p - mid).distance;
   if (d > _ring / 2) return WheelZone.none;
-  if (d >= _ring / 2 - _ringWidth) return WheelZone.ring;
-  final q = (p - mid).dx.abs() <= _side / 2 && (p - mid).dy.abs() <= _side / 2;
-  return q ? WheelZone.square : WheelZone.none;
+  if ((p - mid).dx.abs() <= _side / 2 && (p - mid).dy.abs() <= _side / 2) {
+    return WheelZone.square;
+  }
+  return d >= _ring / 2 - _ringHit ? WheelZone.ring : WheelZone.none;
 }
 
 /// `#` is optional when typing six hex digits.

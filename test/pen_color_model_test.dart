@@ -32,12 +32,14 @@ void main() {
   test('withHash and wheelZone', () {
     expect(withHash('ff0000'), '#ff0000');
     expect(withHash('#ff0000'), '#ff0000');
-    expect(wheelZone(const Offset(100, 100)), WheelZone.square);
+    expect(wheelZone(const Offset(112, 112)), WheelZone.square);
+    expect(wheelZone(const Offset(112, 52)), WheelZone.square); // square edge
+    expect(wheelZone(const Offset(112, 40)), WheelZone.ring); // hit band
+    expect(wheelZone(const Offset(112, 10)), WheelZone.ring);
     expect(
-      wheelZone(const Offset(100, 30)),
+      wheelZone(const Offset(174, 112)),
       WheelZone.none,
-    ); // hole, off the square
-    expect(wheelZone(const Offset(100, 10)), WheelZone.ring);
+    ); // off square, inside the band
     expect(wheelZone(const Offset(0, 0)), WheelZone.none);
   });
 }
