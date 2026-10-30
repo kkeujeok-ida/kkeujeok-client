@@ -330,25 +330,41 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: KkjTokens.spacing4),
-            child: SegmentedButton<PenOnlyMode>(
-              showSelectedIcon: false,
-              segments: [
-                for (final e in {
-                  PenOnlyMode.auto: l10n.penOnlyAuto,
-                  PenOnlyMode.on: l10n.penOnlyOn,
-                  PenOnlyMode.off: l10n.penOnlyOff,
-                }.entries)
-                  ButtonSegment(value: e.key, label: Text(e.value)),
-              ],
-              selected: {ref.watch(penOnlyProvider)},
-              onSelectionChanged: (s) =>
-                  ref.read(penOnlyProvider.notifier).select(s.first),
-              style: ButtonStyle(
-                minimumSize: const WidgetStatePropertyAll(Size(48, 48)),
-                // Reduce-motion: no slide animation on the selection change.
-                animationDuration: MediaQuery.disableAnimationsOf(context)
-                    ? Duration.zero
-                    : kThemeChangeDuration,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: SegmentedButton<PenOnlyMode>(
+                showSelectedIcon: false,
+                segments: [
+                  for (final e in {
+                    PenOnlyMode.auto: l10n.penOnlyAuto,
+                    PenOnlyMode.on: l10n.penOnlyOn,
+                    PenOnlyMode.off: l10n.penOnlyOff,
+                  }.entries)
+                    ButtonSegment(value: e.key, label: Text(e.value)),
+                ],
+                selected: {ref.watch(penOnlyProvider)},
+                onSelectionChanged: (s) =>
+                    ref.read(penOnlyProvider.notifier).select(s.first),
+                style: ButtonStyle(
+                  minimumSize: const WidgetStatePropertyAll(Size(48, 48)),
+                  // Reduce-motion: no slide animation on the selection change.
+                  animationDuration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : kThemeChangeDuration,
+                  backgroundColor: WidgetStateProperty.resolveWith(
+                    (st) => st.contains(WidgetState.selected)
+                        ? KkjLight.colorAccentSoft
+                        : KkjLight.colorSurfaceRaised,
+                  ),
+                  foregroundColor: WidgetStateProperty.resolveWith(
+                    (st) => st.contains(WidgetState.selected)
+                        ? KkjLight.colorAccentText
+                        : KkjLight.colorInkPrimary,
+                  ),
+                  side: const WidgetStatePropertyAll(
+                    BorderSide(color: KkjLight.colorBorderControl),
+                  ),
+                ),
               ),
             ),
           ),

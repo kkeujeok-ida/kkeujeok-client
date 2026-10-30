@@ -3775,6 +3775,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                     onTap: () => _goBack(_back!),
                     child: FilledButton.tonal(
                       style: FilledButton.styleFrom(
+                        backgroundColor: KkjLight.colorSurfaceSunken,
+                        foregroundColor: KkjLight.colorInkPrimary,
                         minimumSize: const Size(
                           KkjTokens.spacingHitMinAndroid,
                           KkjTokens.spacingHitMinAndroid,

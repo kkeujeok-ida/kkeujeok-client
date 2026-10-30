@@ -407,6 +407,7 @@ void main() {
     await t.tap(find.text('Settings'));
     await settle(t);
     await t.scrollUntilVisible(find.text('Write with pen only'), 100);
+    await t.scrollUntilVisible(find.text('On'), 100);
     expect(find.text('On'), findsOneWidget);
     expect(find.text('Off'), findsOneWidget);
     expect(find.byType(SegmentedButton<PenOnlyMode>), findsOneWidget);
