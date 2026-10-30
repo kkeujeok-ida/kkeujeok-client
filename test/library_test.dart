@@ -624,6 +624,51 @@ void main() {
     });
   });
 
+  group('view modes', () {
+    testWidgets(
+      'default is a large list; picking small grid packs 3+ columns',
+      (t) async {
+        seed(_note(1, 'Aaa'));
+        seed(_note(2, 'Bbb'));
+        seed(_note(3, 'Ccc'));
+        await pumpApp(t, noteData: data, width: 400);
+        await settle(t);
+        // large list: 2 columns on a phone
+        expect(
+          t.getTopLeft(find.text('Ccc')).dx,
+          t.getTopLeft(find.text('Aaa')).dx,
+        );
+        await t.tap(find.byKey(const Key('viewMenu')));
+        await t.pumpAndSettle();
+        await t.tap(find.text('Small grid'));
+        await t.pumpAndSettle();
+        expect(t.takeException(), isNull);
+        final y = t.getTopLeft(find.text('Aaa')).dy;
+        expect(t.getTopLeft(find.text('Bbb')).dy, y);
+        expect(t.getTopLeft(find.text('Ccc')).dy, y);
+      },
+    );
+
+    testWidgets('standard list is one row per note with a menu each', (
+      t,
+    ) async {
+      seed(_note(1, 'Aaa'));
+      seed(_note(2, 'Bbb'));
+      await pumpApp(t, noteData: data, width: 320, textScale: 2);
+      await settle(t);
+      await t.tap(find.byKey(const Key('viewMenu')));
+      await t.pumpAndSettle();
+      await t.tap(find.text('Standard list'));
+      await t.pumpAndSettle();
+      expect(t.takeException(), isNull);
+      expect(
+        t.getTopLeft(find.text('Bbb')).dy,
+        greaterThan(t.getTopLeft(find.text('Aaa')).dy),
+      );
+      expect(find.byTooltip('More'), findsNWidgets(2));
+    });
+  });
+
   group('shadow token', () {
     test('parses one 8-digit-hex shadow, else no shadow', () {
       final s = kkjShadow('0 2px 12px #22242A29').single;

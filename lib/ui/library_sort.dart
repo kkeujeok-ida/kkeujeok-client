@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
+import '../model/library_view.dart';
 import 'providers.dart';
 
 enum LibrarySort {
@@ -105,6 +106,51 @@ class LibrarySortMenu extends ConsumerWidget {
               value: s,
               child: Text(_label(l, s), overflow: TextOverflow.ellipsis),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+String _sizeLabel(AppLocalizations l, LibrarySize s) => switch (s) {
+  LibrarySize.small => l.viewSmall,
+  LibrarySize.standard => l.viewStandard,
+  LibrarySize.large => l.viewLarge,
+};
+
+/// "큰 리스트", "작은 그리드", ...
+String libraryViewLabel(AppLocalizations l, LibraryView v) =>
+    '${_sizeLabel(l, v.size)} ${v.layout == LibraryLayout.grid ? l.viewGrid : l.viewList}';
+
+/// The view picker beside the sort drop-down: layout x size.
+class LibraryViewMenu extends ConsumerWidget {
+  const LibraryViewMenu({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final view = ref.watch(libraryViewProvider);
+    final current = libraryViewLabel(l, view);
+    return Semantics(
+      label: l.viewLabel,
+      value: current,
+      container: true,
+      excludeSemantics: true,
+      child: PopupMenuButton<LibraryView>(
+        key: const Key('viewMenu'),
+        tooltip: '${l.viewLabel}: $current',
+        icon: Icon(
+          view.layout == LibraryLayout.grid ? Icons.grid_view : Icons.view_list,
+        ),
+        initialValue: view,
+        onSelected: ref.read(libraryViewProvider.notifier).set,
+        itemBuilder: (_) => [
+          for (final lay in LibraryLayout.values)
+            for (final size in LibrarySize.values)
+              PopupMenuItem(
+                value: LibraryView(lay, size),
+                child: Text(libraryViewLabel(l, LibraryView(lay, size))),
+              ),
         ],
       ),
     );

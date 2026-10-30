@@ -110,6 +110,42 @@ abstract class AppLocalizations {
   /// **'Notes'**
   String get library;
 
+  /// No description provided for @viewLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'View'**
+  String get viewLabel;
+
+  /// No description provided for @viewList.
+  ///
+  /// In en, this message translates to:
+  /// **'list'**
+  String get viewList;
+
+  /// No description provided for @viewGrid.
+  ///
+  /// In en, this message translates to:
+  /// **'grid'**
+  String get viewGrid;
+
+  /// No description provided for @viewSmall.
+  ///
+  /// In en, this message translates to:
+  /// **'Small'**
+  String get viewSmall;
+
+  /// No description provided for @viewStandard.
+  ///
+  /// In en, this message translates to:
+  /// **'Standard'**
+  String get viewStandard;
+
+  /// No description provided for @viewLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'Large'**
+  String get viewLarge;
+
   /// No description provided for @sortNameAsc.
   ///
   /// In en, this message translates to:

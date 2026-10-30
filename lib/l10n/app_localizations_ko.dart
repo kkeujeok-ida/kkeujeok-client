@@ -16,6 +16,24 @@ class AppLocalizationsKo extends AppLocalizations {
   String get library => 'Notes';
 
   @override
+  String get viewLabel => '보기 방식';
+
+  @override
+  String get viewList => '리스트';
+
+  @override
+  String get viewGrid => '그리드';
+
+  @override
+  String get viewSmall => '작은';
+
+  @override
+  String get viewStandard => '표준';
+
+  @override
+  String get viewLarge => '큰';
+
+  @override
   String get sortNameAsc => '이름순 (ㄱ-ㅎ)';
 
   @override

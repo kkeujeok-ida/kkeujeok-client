@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../model/eraser.dart';
+import '../model/library_view.dart';
 import '../model/page_view_mode.dart';
 import '../model/pen.dart';
 import '../model/pen_only.dart';
@@ -259,6 +260,31 @@ class PenSlotsStore {
         await _prefs?.setInt(_visibleKey, n);
       } catch (_) {
         // Save failed: the setting still applies for this session.
+      }
+    });
+  }
+
+  static const _viewKey = 'libraryView';
+  LibraryView? _viewSession;
+
+  /// How the note list is shown; [LibraryView.defaults] when nothing valid is stored.
+  LibraryView readLibraryView() {
+    final session = _viewSession;
+    if (session != null) return session;
+    try {
+      return LibraryView.parse(_prefs?.get(_viewKey));
+    } catch (_) {
+      return LibraryView.defaults;
+    }
+  }
+
+  Future<void> writeLibraryView(LibraryView v) {
+    _viewSession = v;
+    return _pending = _pending.then((_) async {
+      try {
+        await _prefs?.setString(_viewKey, v.encode());
+      } catch (_) {
+        // Save failed: the choice still applies for this session.
       }
     });
   }

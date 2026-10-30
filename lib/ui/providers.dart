@@ -13,6 +13,7 @@ import '../drive/google_auth_gateway.dart';
 import '../drive/http_drive_client.dart';
 import '../drive/root_folder.dart';
 import '../model/eraser.dart';
+import '../model/library_view.dart';
 import '../model/page_view_mode.dart';
 import '../model/ids.dart';
 import '../model/note.dart';
@@ -676,6 +677,21 @@ class VisibleToolsNotifier extends Notifier<int> {
 
 final visibleToolsProvider = NotifierProvider<VisibleToolsNotifier, int>(
   VisibleToolsNotifier.new,
+);
+
+/// The note list's layout and size: a device setting, stored at once.
+class LibraryViewNotifier extends Notifier<LibraryView> {
+  @override
+  LibraryView build() => ref.read(penSlotsStoreProvider).readLibraryView();
+
+  void set(LibraryView v) {
+    state = v;
+    ref.read(penSlotsStoreProvider).writeLibraryView(v);
+  }
+}
+
+final libraryViewProvider = NotifierProvider<LibraryViewNotifier, LibraryView>(
+  LibraryViewNotifier.new,
 );
 
 /// The palettes of the pen and the highlighter ([tool] -> `#rrggbb` list): a

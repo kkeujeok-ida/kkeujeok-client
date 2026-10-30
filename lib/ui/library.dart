@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../design_tokens/build/tokens.dart';
 import '../drive/root_folder.dart' show RootStatus;
 import '../l10n/app_localizations.dart';
+import '../model/library_view.dart';
 import '../model/note.dart';
 import '../render/page_painter.dart';
 import '../sync/conflict_notifier.dart' show askConflictPermissionOnce;
@@ -26,6 +27,18 @@ import 'sync_display.dart';
 import 'sync_indicator.dart';
 
 const double _phoneMaxWidth = 600; // dp: below this the grid has 2 columns
+
+// View sizes are fractions of the cover column minimum (web uses the same).
+const _gridFactor = {
+  LibrarySize.small: 0.38,
+  LibrarySize.standard: 0.55,
+  LibrarySize.large: 1.2,
+};
+const _rowThumbFactor = {LibrarySize.small: 0.33, LibrarySize.standard: 0.5};
+
+/// Small and standard lists are one note per row, thumbnail on the left.
+bool _isRows(LibraryView v) =>
+    v.layout == LibraryLayout.list && v.size != LibrarySize.large;
 
 /// The cover grid, its empty state and the round `+`.
 class LibraryScreen extends ConsumerStatefulWidget {
@@ -381,6 +394,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       for (final c in recv.cards)
         if (!local.contains(c.noteId)) c,
     ];
+    final view = ref.watch(libraryViewProvider);
+    // Cards other than a note keep one thumbnail's width in a row list.
+    Widget cap(Widget w) => _isRows(view)
+        ? Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: KkjTokens.spacingCoverColumnMin,
+              ),
+              child: w,
+            ),
+          )
+        : w;
     final failed = async.hasError && !async.hasValue;
     final entries = sortEntries(
       async.value ?? const <LibraryEntry>[],
@@ -409,13 +435,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           entries.isEmpty &&
           remote.isEmpty &&
           !recv.scanning)
-        _NewNoteCard(onTap: _newNote),
-      if (_showScan && recv.scanning) ...const [
-        _ScanPlaceholder(),
-        _ScanPlaceholder(),
+        cap(_NewNoteCard(onTap: _newNote)),
+      if (_showScan && recv.scanning) ...[
+        cap(const _ScanPlaceholder()),
+        cap(const _ScanPlaceholder()),
       ],
       for (final c in remote)
-        _RemoteNoteCard(card: c, receiving: recv.receiving.contains(c.noteId)),
+        cap(
+          _RemoteNoteCard(
+            card: c,
+            receiving: recv.receiving.contains(c.noteId),
+          ),
+        ),
       for (final e in entries)
         e.readable
             ? _NoteCard(
@@ -424,7 +455,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 onTap: () => _open(e.note!),
                 onDelete: () => _delete(e.noteId),
               )
-            : _UnreadableCard(noteId: e.noteId),
+            : cap(_UnreadableCard(noteId: e.noteId)),
     ];
 
     return Stack(
@@ -453,6 +484,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       ),
                     ),
                     const SizedBox(width: KkjTokens.spacing3),
+                    const LibraryViewMenu(),
                     // Sort sits at the right edge; the title shrinks first.
                     Expanded(
                       child: Align(
@@ -467,7 +499,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 ),
               ),
               if (root.status == RootStatus.preparing) const _Preparing(),
-              Expanded(child: _Grid(children: cards)),
+              Expanded(
+                child: _Grid(view: view, children: cards),
+              ),
             ],
           ),
         ),
@@ -505,39 +539,47 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 /// Rows of equal-width cards. Rows size to their content, so large text
 /// never clips a card.
 class _Grid extends StatelessWidget {
-  const _Grid({required this.children});
+  const _Grid({required this.view, required this.children});
 
+  final LibraryView view;
   final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
-    const gap = KkjTokens.spacing5;
+    const edge = KkjTokens.spacing5;
+    final grid = view.layout == LibraryLayout.grid;
+    final rowList = _isRows(view);
+    // Large list is the original card flow; the grid packs tighter.
+    final gap = grid || rowList ? KkjTokens.spacing3 : edge;
     return LayoutBuilder(
       builder: (context, c) {
-        final inner = c.maxWidth - 2 * gap;
-        final cols = c.maxWidth < _phoneMaxWidth
+        final inner = c.maxWidth - 2 * edge;
+        final min =
+            KkjTokens.spacingCoverColumnMin *
+            (grid ? _gridFactor[view.size]! : 1.0);
+        final cols = rowList
+            ? 1
+            : grid
+            ? math.max(1, ((inner + gap) / (min + gap)).floor())
+            : c.maxWidth < _phoneMaxWidth
             ? 2
-            : math.max(
-                2,
-                ((inner + gap) / (KkjTokens.spacingCoverColumnMin + gap))
-                    .floor(),
-              );
-        final rows = (children.length + cols - 1) ~/ cols;
+            : math.max(2, ((inner + gap) / (min + gap)).floor());
+        final lines = (children.length + cols - 1) ~/ cols;
         return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(
-            gap,
+          padding: EdgeInsets.fromLTRB(
+            edge,
             0,
-            gap,
+            edge,
             KkjLight.componentsFabSize + 2 * KkjLight.componentsFabInset,
           ),
-          itemCount: rows,
+          itemCount: lines,
           itemBuilder: (context, r) => Padding(
-            padding: const EdgeInsets.only(bottom: gap),
+            padding: EdgeInsets.only(bottom: gap),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 for (var i = 0; i < cols; i++) ...[
-                  if (i > 0) const SizedBox(width: gap),
+                  if (i > 0) SizedBox(width: gap),
                   Expanded(
                     child: r * cols + i < children.length
                         ? children[r * cols + i]
@@ -808,6 +850,48 @@ class _NoteCard extends ConsumerWidget {
         ? null
         : DateFormat.yMd(Localizations.localeOf(context).toString())
               .format(at.toLocal());
+    final view = ref.watch(libraryViewProvider);
+    final thumb = _CardThumb(
+      thumb: _Thumb(page: note.pages.isEmpty ? null : note.pages.first),
+      label: label,
+    );
+    // The 48dp ⋯ button floats at the top end instead of sizing the title
+    // row, so the title and date stay close; minHeight keeps the whole
+    // button inside the card's hit-test bounds.
+    final text = Stack(
+      children: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Padding(
+            padding: const EdgeInsetsDirectional.only(end: 48),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  note.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelMedium,
+                ),
+                if (date != null) Text(date, style: theme.textTheme.bodySmall),
+              ],
+            ),
+          ),
+        ),
+        PositionedDirectional(
+          top: 0,
+          end: 0,
+          child: PopupMenuButton<void>(
+            tooltip: l.moreMenu,
+            icon: const Icon(Icons.more_horiz),
+            onSelected: (_) => onDelete(),
+            itemBuilder: (_) => [
+              PopupMenuItem<void>(child: Text(l.noteDelete)),
+            ],
+          ),
+        ),
+      ],
+    );
     return Semantics(
       button: true,
       label: note.title,
@@ -825,54 +909,28 @@ class _NoteCard extends ConsumerWidget {
         borderRadius: BorderRadius.circular(
           KkjLight.componentsCoverCardRounded,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _CardThumb(
-              thumb: _Thumb(page: note.pages.isEmpty ? null : note.pages.first),
-              label: label,
-            ),
-            const SizedBox(height: KkjTokens.spacing2),
-            // The 48dp ⋯ button floats at the top end instead of sizing the
-            // title row, so the title and date stay close; minHeight keeps
-            // the whole button inside the card's hit-test bounds.
-            Stack(
-              children: [
-                ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 48),
-                  child: Padding(
-                    padding: const EdgeInsetsDirectional.only(end: 48),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          note.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelMedium,
-                        ),
-                        if (date != null)
-                          Text(date, style: theme.textTheme.bodySmall),
-                      ],
-                    ),
+        child: _isRows(view)
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width:
+                        KkjTokens.spacingCoverColumnMin *
+                        _rowThumbFactor[view.size]!,
+                    child: thumb,
                   ),
-                ),
-                PositionedDirectional(
-                  top: 0,
-                  end: 0,
-                  child: PopupMenuButton<void>(
-                    tooltip: l.moreMenu,
-                    icon: const Icon(Icons.more_horiz),
-                    onSelected: (_) => onDelete(),
-                    itemBuilder: (_) => [
-                      PopupMenuItem<void>(child: Text(l.noteDelete)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+                  const SizedBox(width: KkjTokens.spacing3),
+                  Expanded(child: text),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  thumb,
+                  const SizedBox(height: KkjTokens.spacing2),
+                  text,
+                ],
+              ),
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/model/eraser.dart';
+import 'package:kkeujeok/model/library_view.dart';
 import 'package:kkeujeok/model/page_view_mode.dart';
 import 'package:kkeujeok/model/pen.dart';
 import 'package:kkeujeok/model/pen_only.dart';
@@ -243,6 +244,35 @@ void main() {
       }
       final p = await _prefs({'toolbarPos': 5});
       expect(PenSlotsStore(p).readToolbar(), ToolbarPos.defaults);
+    });
+  });
+
+  group('library view', () {
+    test('default large list; write persists', () async {
+      final p = await _prefs({});
+      expect(PenSlotsStore(p).readLibraryView(), LibraryView.defaults);
+      const v = LibraryView(LibraryLayout.grid, LibrarySize.small);
+      await PenSlotsStore(p).writeLibraryView(v);
+      expect(PenSlotsStore(p).readLibraryView(), v);
+    });
+
+    test('broken stored value is the default', () async {
+      for (final raw in [
+        'x',
+        '{}',
+        '{"layout":"grid"}',
+        '{"layout":"a","size":"small"}',
+        'null',
+      ]) {
+        final p = await _prefs({'libraryView': raw});
+        expect(
+          PenSlotsStore(p).readLibraryView(),
+          LibraryView.defaults,
+          reason: raw,
+        );
+      }
+      final p = await _prefs({'libraryView': 5});
+      expect(PenSlotsStore(p).readLibraryView(), LibraryView.defaults);
     });
   });
 

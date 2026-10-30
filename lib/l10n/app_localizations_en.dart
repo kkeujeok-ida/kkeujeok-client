@@ -16,6 +16,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get library => 'Notes';
 
   @override
+  String get viewLabel => 'View';
+
+  @override
+  String get viewList => 'list';
+
+  @override
+  String get viewGrid => 'grid';
+
+  @override
+  String get viewSmall => 'Small';
+
+  @override
+  String get viewStandard => 'Standard';
+
+  @override
+  String get viewLarge => 'Large';
+
+  @override
   String get sortNameAsc => 'Name (A-Z)';
 
   @override
