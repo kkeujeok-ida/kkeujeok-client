@@ -15,7 +15,7 @@ import 'has_unsent.dart';
 import 'merge_step.dart';
 import 'note_chain.dart';
 import 'sync_log.dart';
-import 'sync_log_entry.dart' show logWhy;
+import 'sync_log_entry.dart' show backoffReason, logWhy;
 import 'sync_rules.dart';
 
 /// A note another device made that is not on this device yet, drawn from
@@ -1276,6 +1276,8 @@ class NoteReceiver {
           'delayMs': delay,
           'noteId': ?noteId,
           'scope': noteId == null ? 'global' : 'note',
+          'reason': backoffReason(e),
+          'stage': 'download', // the receiver only reads Drive
         });
         await sleep(Duration(milliseconds: delay));
         if (_disposed) throw _Stop();

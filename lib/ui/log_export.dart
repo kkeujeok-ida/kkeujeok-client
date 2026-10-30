@@ -14,6 +14,7 @@ Future<void> exportSyncLog(WidgetRef ref, BuildContext context) async {
   final log = ref.read(syncLogProvider);
   final version = ref.read(appVersionProvider);
   final buildId = ref.read(buildIdProvider);
+  final buildNumber = ref.read(buildNumberProvider);
   final exportDir = ref.read(exportDirProvider);
   final share = ref.read(logSharerProvider);
   final messenger = ScaffoldMessenger.of(context);
@@ -23,6 +24,7 @@ Future<void> exportSyncLog(WidgetRef ref, BuildContext context) async {
     file = await log.exportJsonl(
       appVersion: await version(),
       buildId: await buildId().catchError((_) => 'unknown'),
+      buildNumber: await buildNumber().catchError((_) => 'unknown'),
       now: DateTime.now(),
       into: await exportDir(),
     );

@@ -21,7 +21,7 @@ import 'merge.dart';
 import 'merge_step.dart';
 import 'note_chain.dart';
 import 'sync_log.dart';
-import 'sync_log_entry.dart' show logWhy;
+import 'sync_log_entry.dart' show backoffReason, logWhy;
 import 'sync_rules.dart';
 
 /// What one [NoteUploader.upload] ended in.
@@ -580,6 +580,7 @@ class NoteUploader {
     Future<T> Function() fn, {
     bool Function(DriveError)? pass,
     Future<T?> Function()? beforeRetry,
+    String stage = 'upload',
   }) async {
     var attempt = 0;
     while (true) {
@@ -609,6 +610,8 @@ class NoteUploader {
           'delayMs': delay,
           'noteId': noteId,
           'scope': 'note',
+          'reason': backoffReason(e),
+          'stage': stage,
         });
         await sleep(Duration(milliseconds: delay));
       }
@@ -619,6 +622,7 @@ class NoteUploader {
     final bytes = await _call(
       noteId,
       () => drive.downloadRevision(fileId, revision),
+      stage: 'download',
     );
     await log.append('revisionDownloaded', {
       'noteId': noteId,
@@ -1079,10 +1083,15 @@ class NoteUploader {
       final head = (await _call(
         noteId,
         () => drive.get(id, fields: 'headRevisionId'),
+        stage: 'merge',
       )).headRevisionId;
       if (head == null) return null;
       heads[id] = head;
-      final bytes = await _call(noteId, () => drive.downloadRevision(id, head));
+      final bytes = await _call(
+        noteId,
+        () => drive.downloadRevision(id, head),
+        stage: 'merge',
+      );
       final n = decodeKkj(bytes).note;
       return n != null && n.noteId == noteId ? n : null;
     }
@@ -1583,7 +1592,7 @@ class NoteUploader {
         await sleep(Duration(milliseconds: (w['delayMs'] as int?) ?? 1000));
       }
       throw const DriveError('network');
-    });
+    }, stage: 'verify');
     await log.append('verifyRound', {
       'noteId': noteId,
       'round': round,

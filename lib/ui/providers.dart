@@ -408,8 +408,16 @@ final appVersionProvider = Provider<Future<String> Function()>(
       () async => (await PackageInfo.fromPlatform()).version,
 );
 
-/// The build number, for the sync log header.
+/// The short commit hash of the build, for the sync log header: pass
+/// `--dart-define=BUILD_ID=$(git rev-parse --short HEAD)` (spec sync-log).
 final buildIdProvider = Provider<Future<String> Function()>(
+  (ref) =>
+      () async =>
+          const String.fromEnvironment('BUILD_ID', defaultValue: 'unknown'),
+);
+
+/// The app's build number (pubspec `+N`), for the sync log header.
+final buildNumberProvider = Provider<Future<String> Function()>(
   (ref) =>
       () async => (await PackageInfo.fromPlatform()).buildNumber,
 );

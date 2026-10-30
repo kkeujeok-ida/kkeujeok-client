@@ -67,69 +67,94 @@ class SyncLog {
   /// invalid or the write fails. Never throws.
   Future<bool> append(String event, [Map<String, Object?> fields = const {}]) =>
       _locked(() async {
-        try {
-          final entry = <String, Object?>{
-            ...fields,
-            'at': canonicalNow(_clock()),
-            'event': event,
-          };
-          if (entry.containsKey('reason') && !validLogReason(entry['reason'])) {
-            entry['reason'] = 'other';
-          }
-          if (entry.containsKey('cause') &&
-              !logCauses.contains(entry['cause'])) {
-            entry['cause'] = 'unknown';
-          }
-          if (entry['exception'] is String) {
-            // A type name only: other characters become `_`, 64 at most.
-            var t = (entry['exception'] as String).replaceAll(
-              RegExp(r'[^A-Za-z0-9_.$:]'),
-              '_',
-            );
-            if (t.length > 64) t = t.substring(0, 64);
-            if (t.isEmpty) {
-              entry.remove('exception');
-            } else {
-              entry['exception'] = t;
-            }
-          } else {
-            entry.remove('exception');
-          }
-          if (checkLogEntry(entry)['ok'] != true) return false;
-
-          final file = await _file();
-          if (_lines == null) {
-            final bytes = await _bytes();
-            _cutShort = bytes.isNotEmpty && bytes.last != 10;
-            _lines = bytes.where((b) => b == 10).length + (_cutShort ? 1 : 0);
-          }
-          // No fsync per entry: the log is diagnostic and a cut-short line
-          // is repaired above.
-          await file.parent.create(recursive: true);
-          await file.writeAsString(
-            '${_cutShort ? '\n' : ''}${jsonEncode(entry)}\n',
-            mode: FileMode.append,
-          );
-          _cutShort = false;
-          _lines = _lines! + 1;
-          if (_lines! >= _compactAt) {
-            try {
-              final kept = _newest(_valid(await _bytes()));
-              await writeFileAtomic(
-                file,
-                utf8.encode(kept.map((l) => '$l\n').join()),
-              );
-              _lines = kept.length;
-            } catch (_) {
-              // The entry is stored; the next append tries compacting again.
-            }
-          }
-          return true;
-        } catch (_) {
-          _lines = null; // look at the file again next time
-          return false;
-        }
+        final ok = await _put(event, fields);
+        if (ok) await _trackFailures(event, fields);
+        return ok;
       });
+
+  // Consecutive `error` entries per note since its last `synced`, in memory:
+  // a restart starts the count again (shortcut: the log is diagnostic only).
+  final _failures = <String, int>{};
+
+  /// More than 3 failures in a row of one note add a `repeatedFailure` line.
+  Future<void> _trackFailures(String event, Map<String, Object?> f) async {
+    final id = f['noteId'];
+    if (id is! String) return;
+    if (event == 'stateChange' && f['to'] == 'synced') _failures.remove(id);
+    if (event != 'error') return;
+    final n = _failures[id] = (_failures[id] ?? 0) + 1;
+    if (n > 3) {
+      await _put('repeatedFailure', {
+        'noteId': id,
+        'count': n,
+        if (f['reason'] is String) 'reason': f['reason'],
+      });
+    }
+  }
+
+  Future<bool> _put(String event, Map<String, Object?> fields) async {
+    try {
+      final entry = <String, Object?>{
+        ...fields,
+        'at': canonicalNow(_clock()),
+        'event': event,
+      };
+      if (entry.containsKey('reason') && !validLogReason(entry['reason'])) {
+        entry['reason'] = 'other';
+      }
+      if (entry.containsKey('cause') && !logCauses.contains(entry['cause'])) {
+        entry['cause'] = 'unknown';
+      }
+      if (entry['exception'] is String) {
+        // A type name only: other characters become `_`, 64 at most.
+        var t = (entry['exception'] as String).replaceAll(
+          RegExp(r'[^A-Za-z0-9_.$:]'),
+          '_',
+        );
+        if (t.length > 64) t = t.substring(0, 64);
+        if (t.isEmpty) {
+          entry.remove('exception');
+        } else {
+          entry['exception'] = t;
+        }
+      } else {
+        entry.remove('exception');
+      }
+      if (checkLogEntry(entry)['ok'] != true) return false;
+
+      final file = await _file();
+      if (_lines == null) {
+        final bytes = await _bytes();
+        _cutShort = bytes.isNotEmpty && bytes.last != 10;
+        _lines = bytes.where((b) => b == 10).length + (_cutShort ? 1 : 0);
+      }
+      // No fsync per entry: the log is diagnostic and a cut-short line
+      // is repaired above.
+      await file.parent.create(recursive: true);
+      await file.writeAsString(
+        '${_cutShort ? '\n' : ''}${jsonEncode(entry)}\n',
+        mode: FileMode.append,
+      );
+      _cutShort = false;
+      _lines = _lines! + 1;
+      if (_lines! >= _compactAt) {
+        try {
+          final kept = _newest(_valid(await _bytes()));
+          await writeFileAtomic(
+            file,
+            utf8.encode(kept.map((l) => '$l\n').join()),
+          );
+          _lines = kept.length;
+        } catch (_) {
+          // The entry is stored; the next append tries compacting again.
+        }
+      }
+      return true;
+    } catch (_) {
+      _lines = null; // look at the file again next time
+      return false;
+    }
+  }
 
   /// The newest [syncLogKeep] valid entries, oldest first.
   Future<List<Map<String, Object?>>> entries() => _locked(() async {
@@ -164,6 +189,7 @@ class SyncLog {
   Future<File> exportJsonl({
     required String appVersion,
     String buildId = 'unknown',
+    String buildNumber = 'unknown',
     required DateTime now,
     required Directory into,
   }) async {
@@ -174,6 +200,7 @@ class SyncLog {
       'app': 'kkeujeok',
       'appVersion': appVersion,
       'buildId': buildId,
+      'buildNumber': buildNumber,
       'deviceLabel': await _deviceLabel(),
       'platform': 'android',
       'supportedFormatVersion': supportedFormatVersion,

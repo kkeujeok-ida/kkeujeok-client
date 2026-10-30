@@ -61,6 +61,8 @@ const _events = <String, List<(String, bool)>>{
     ('delayMs', true),
     ('noteId', false),
     ('scope', false),
+    ('reason', false),
+    ('stage', false),
   ],
   'error': [
     ('class', true),
@@ -74,6 +76,7 @@ const _events = <String, List<(String, bool)>>{
   'conflictResolved': [('noteId', true), ('choice', true)],
   'pageTokenRejected': [],
   'duplicatesCleaned': [('count', true)],
+  'repeatedFailure': [('noteId', true), ('count', true), ('reason', false)],
 };
 
 final _at = RegExp(
@@ -89,6 +92,7 @@ bool validLogReason(Object? reason) =>
     reason is String && _reason.hasMatch(reason);
 
 final _exception = RegExp(r'^[A-Za-z0-9_.$:]{1,64}$');
+const logStages = {'download', 'upload', 'verify', 'merge'};
 const logCauses = {'network', 'auth', 'quota', 'server', 'unknown'};
 
 const _states = {'synced', 'pending', 'syncing', 'conflict', 'error'};
@@ -118,6 +122,7 @@ bool _valid(String field, Object? v, Object? event) => switch (field) {
   'scope' => v == 'global' || v == 'note',
   'choice' => v == 'local' || v == 'remote' || v == 'both',
   'reason' => validLogReason(v),
+  'stage' => v is String && logStages.contains(v),
   'attempt' => _int(v, 1, 7),
   'delayMs' => _int(v, 0, 32000),
   'round' => _int(v, 1, 3),
@@ -129,6 +134,11 @@ final _quotaReason = RegExp(
   r'quota|ratelimit|limitexceeded',
   caseSensitive: false,
 );
+
+/// The `reason` of a `backoff` entry: Drive's reason, else what the failure
+/// was (`network`, `http429`, ...). The log writer turns a bad one into `other`.
+String backoffReason(DriveError e) =>
+    e.reason ?? (e.status != null ? 'http${e.status}' : e.kind);
 
 /// The `cause`, `exception` and `scope` of an `error` entry, from what the
 /// caller has in hand: the error class, HTTP status, reason and the thrown

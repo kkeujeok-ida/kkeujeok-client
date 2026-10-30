@@ -282,6 +282,40 @@ void main() {
     expect(e.length, 1);
   });
 
+  group('repeatedFailure', () {
+    Future<void> fail(String reason) =>
+        log.append('error', {'class': 'backoff', 'noteId': noteId, 'reason': reason});
+
+    test('the 4th failure in a row adds a line; synced resets', () async {
+      for (var i = 0; i < 3; i++) {
+        await fail('a');
+      }
+      expect((await log.entries()).where((e) => e['event'] == 'repeatedFailure'), isEmpty);
+      await fail('headMoved');
+      await fail('headMoved');
+      final r = (await log.entries()).where((e) => e['event'] == 'repeatedFailure').toList();
+      expect(r.map((e) => e['count']), [4, 5]);
+      expect(r.first['reason'], 'headMoved');
+      expect(r.first['noteId'], noteId);
+      await log.append('stateChange', {'noteId': noteId, 'from': 'syncing', 'to': 'synced'});
+      await fail('a');
+      expect((await log.entries()).where((e) => e['event'] == 'repeatedFailure'), hasLength(2));
+    });
+
+    test('a backoff keeps reason and stage; a bad stage is refused', () async {
+      expect(
+        await log.append('backoff', {'class': 'backoff', 'attempt': 1, 'delayMs': 1000, 'reason': 'http429', 'stage': 'download'}),
+        isTrue,
+      );
+      expect(
+        await log.append('backoff', {'class': 'backoff', 'attempt': 1, 'delayMs': 1000, 'stage': 'x'}),
+        isFalse,
+      );
+      expect(backoffReason(const DriveError('http', status: 429)), 'http429');
+      expect(backoffReason(const DriveError('network')), 'network');
+    });
+  });
+
   group('export', () {
     test('header then entries, named by the UTC date', () async {
       await log.append('pageTokenRejected');
@@ -289,6 +323,7 @@ void main() {
       final f = await log.exportJsonl(
         appVersion: '1.2.3',
         buildId: '42',
+        buildNumber: '7',
         now: DateTime.parse('2026-10-10T23:30:00-05:00'),
         into: out,
       );
@@ -307,6 +342,7 @@ void main() {
         'app': 'kkeujeok',
         'appVersion': '1.2.3',
         'buildId': '42',
+        'buildNumber': '7',
         'platform': 'android',
         'supportedFormatVersion': 1,
         'exportedAt': '2026-10-11T04:30:00.000Z',
