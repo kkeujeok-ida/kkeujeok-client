@@ -260,6 +260,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncLogExportFailed => 'Couldn\'t export the log';
 
   @override
+  String get penDiagTitle => 'Pen input diagnostic';
+
+  @override
+  String get penDiagHint =>
+      'Touch, press the pen button, or use the eraser end inside the box below.';
+
+  @override
+  String get penDiagEmpty => 'No events yet';
+
+  @override
+  String get penDiagCopy => 'Copy events';
+
+  @override
+  String get penDiagCopied => 'Copied';
+
+  @override
   String get drivePreparing => 'Preparing Drive';
 
   @override

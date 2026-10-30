@@ -8,6 +8,7 @@ import '../storage/pen_slots_store.dart';
 import '../storage/language_store.dart';
 import 'disconnect_dialog.dart';
 import 'log_export.dart';
+import 'pen_input_diagnostic.dart';
 import 'pen_palette_editor.dart';
 import 'providers.dart';
 import 'unsent_widgets.dart';
@@ -380,6 +381,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const _ExportLogRow(),
+          action(
+            l10n.penDiagTitle,
+            () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const PenInputDiagnosticScreen(),
+              ),
+            ),
+          ),
           if (signedIn) ...[
             Divider(color: theme.colorScheme.outlineVariant),
             action(l10n.logOut, _logOut),

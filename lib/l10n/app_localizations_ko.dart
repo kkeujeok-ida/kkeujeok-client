@@ -257,6 +257,21 @@ class AppLocalizationsKo extends AppLocalizations {
   String get syncLogExportFailed => '로그를 내보내지 못했어요';
 
   @override
+  String get penDiagTitle => '펜 입력 진단';
+
+  @override
+  String get penDiagHint => '아래 영역에 펜을 대거나, 펜 버튼을 누르거나, 지우개 끝으로 그어 보세요.';
+
+  @override
+  String get penDiagEmpty => '아직 이벤트가 없어요';
+
+  @override
+  String get penDiagCopy => '이벤트 복사';
+
+  @override
+  String get penDiagCopied => '복사했어요';
+
+  @override
   String get drivePreparing => 'Drive 준비 중';
 
   @override

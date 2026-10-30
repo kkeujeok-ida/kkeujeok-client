@@ -572,6 +572,36 @@ abstract class AppLocalizations {
   /// **'Couldn\'t export the log'**
   String get syncLogExportFailed;
 
+  /// No description provided for @penDiagTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pen input diagnostic'**
+  String get penDiagTitle;
+
+  /// No description provided for @penDiagHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Touch, press the pen button, or use the eraser end inside the box below.'**
+  String get penDiagHint;
+
+  /// No description provided for @penDiagEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No events yet'**
+  String get penDiagEmpty;
+
+  /// No description provided for @penDiagCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy events'**
+  String get penDiagCopy;
+
+  /// No description provided for @penDiagCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied'**
+  String get penDiagCopied;
+
   /// No description provided for @drivePreparing.
   ///
   /// In en, this message translates to:
