@@ -94,6 +94,7 @@ class LibrarySortMenu extends ConsumerWidget {
         value: sort,
         isExpanded: true, // long labels ellipsize instead of overflowing
         isDense: false,
+        alignment: AlignmentDirectional.centerEnd, // text hugs the right edge
         borderRadius: BorderRadius.circular(8),
         onChanged: (s) {
           if (s != null) ref.read(librarySortProvider.notifier).set(s);
