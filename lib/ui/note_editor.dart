@@ -2466,13 +2466,18 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   /// Most the slot list may take along the bar.
   double _maxSlots(bool vertical, Size win, EdgeInsets pad, bool inRow) {
     const gap = KkjTokens.spacing3;
-    return vertical
+    final room = vertical
         ? win.height - _vIn(pad).vertical - 2 * gap - PenToolbar.fixedHeight
         : win.width -
               pad.horizontal -
               2 * gap -
               PenToolbar.fixedWidth -
               (inRow ? 144 : 0);
+    // The "tools shown at once" setting; a smaller window wins.
+    return math.min(
+      room,
+      ref.read(visibleToolsProvider) * (vertical ? _toolbarHeight : _slotCell),
+    );
   }
 
   Size _barSize(bool vertical, Size win, EdgeInsets pad, {bool inRow = false}) {
@@ -3544,6 +3549,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     );
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
     final tbPos = ref.watch(toolbarPosProvider);
+    ref.watch(visibleToolsProvider); // _maxSlots reads it
+
     final stored = ref.watch(pageViewModeProvider);
     final phone = isPhone(MediaQuery.sizeOf(context));
     final viewMode = stored == PageViewMode.twoPage && phone

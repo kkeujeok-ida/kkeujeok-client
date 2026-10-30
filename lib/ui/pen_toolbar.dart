@@ -656,8 +656,9 @@ class _PenSlot extends StatelessWidget {
                 pen.width.toStringAsFixed(1),
                 textScaler: TextScaler.noScaling,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: 9,
                   height: 1,
+                  letterSpacing: -0.2,
                   fontWeight: FontWeight.w600,
                   color: Theme.of(context).colorScheme.onSurface,
                 ),

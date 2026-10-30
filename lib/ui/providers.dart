@@ -663,6 +663,21 @@ final penOnlyProvider = NotifierProvider<PenOnlyNotifier, PenOnlyMode>(
   PenOnlyNotifier.new,
 );
 
+/// "Tools shown at once" on the toolbar: a device setting, stored at once.
+class VisibleToolsNotifier extends Notifier<int> {
+  @override
+  int build() => ref.read(penSlotsStoreProvider).readVisibleTools();
+
+  void set(int n) {
+    state = PenSlotsStore.clampVisibleTools(n);
+    ref.read(penSlotsStoreProvider).writeVisibleTools(state);
+  }
+}
+
+final visibleToolsProvider = NotifierProvider<VisibleToolsNotifier, int>(
+  VisibleToolsNotifier.new,
+);
+
 /// A stylus was seen on this device: kept whatever the setting says.
 class StylusSeenNotifier extends Notifier<bool> {
   @override

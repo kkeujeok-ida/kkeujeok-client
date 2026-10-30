@@ -227,6 +227,39 @@ class PenSlotsStore {
     });
   }
 
+  static const visibleToolsDefault = 7, visibleToolsMin = 3, visibleToolsMax = 12;
+  static const _visibleKey = 'toolbarVisibleTools';
+
+  int? _visibleSession;
+
+  /// A number is rounded into 3..12; anything else is 7.
+  static int clampVisibleTools(Object? v) => v is num && v.isFinite
+      ? v.round().clamp(visibleToolsMin, visibleToolsMax)
+      : visibleToolsDefault;
+
+  /// How many tools the toolbar shows at once.
+  int readVisibleTools() {
+    final session = _visibleSession;
+    if (session != null) return session;
+    try {
+      return clampVisibleTools(_prefs?.get(_visibleKey));
+    } catch (_) {
+      return visibleToolsDefault;
+    }
+  }
+
+  Future<void> writeVisibleTools(int n) {
+    n = clampVisibleTools(n);
+    _visibleSession = n;
+    return _pending = _pending.then((_) async {
+      try {
+        await _prefs?.setInt(_visibleKey, n);
+      } catch (_) {
+        // Save failed: the setting still applies for this session.
+      }
+    });
+  }
+
   static const _toolbarKey = 'toolbarPos';
 
   ToolbarPos? _toolbarSession;

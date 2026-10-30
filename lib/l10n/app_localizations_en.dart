@@ -951,6 +951,15 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get visibleToolsTitle => 'Tools shown at once';
+
+  @override
+  String get visibleToolsLess => 'Show fewer tools';
+
+  @override
+  String get visibleToolsMore => 'Show more tools';
+
+  @override
   String get penOnlyTitle => 'Write with pen only';
 
   @override

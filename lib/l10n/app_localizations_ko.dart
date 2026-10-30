@@ -889,6 +889,15 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
+  String get visibleToolsTitle => '한 번에 볼 도구 수';
+
+  @override
+  String get visibleToolsLess => '도구 수 줄이기';
+
+  @override
+  String get visibleToolsMore => '도구 수 늘리기';
+
+  @override
   String get penOnlyTitle => '펜으로만 필기';
 
   @override

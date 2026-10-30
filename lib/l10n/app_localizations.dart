@@ -1724,6 +1724,24 @@ abstract class AppLocalizations {
   /// **'Custom color {hex}'**
   String customColorSlotLabel(String hex);
 
+  /// No description provided for @visibleToolsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tools shown at once'**
+  String get visibleToolsTitle;
+
+  /// No description provided for @visibleToolsLess.
+  ///
+  /// In en, this message translates to:
+  /// **'Show fewer tools'**
+  String get visibleToolsLess;
+
+  /// No description provided for @visibleToolsMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Show more tools'**
+  String get visibleToolsMore;
+
   /// No description provided for @penOnlyTitle.
   ///
   /// In en, this message translates to:

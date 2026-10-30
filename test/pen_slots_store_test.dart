@@ -245,4 +245,21 @@ void main() {
       expect(PenSlotsStore(p).readToolbar(), ToolbarPos.defaults);
     });
   });
+
+  group('visible tools', () {
+    test('default 7; write persists; out of range is clamped', () async {
+      final p = await _prefs({});
+      final s = PenSlotsStore(p);
+      expect(s.readVisibleTools(), 7);
+      await s.writeVisibleTools(10);
+      expect(PenSlotsStore(p).readVisibleTools(), 10);
+      expect(PenSlotsStore.clampVisibleTools(1), 3);
+      expect(PenSlotsStore.clampVisibleTools(99), 12);
+    });
+
+    test('non-numeric stored value is 7', () async {
+      final p = await _prefs({'toolbarVisibleTools': 'x'});
+      expect(PenSlotsStore(p).readVisibleTools(), 7);
+    });
+  });
 }

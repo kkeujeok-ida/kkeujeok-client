@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
 import '../model/pen_only.dart';
+import '../storage/pen_slots_store.dart';
 import '../storage/language_store.dart';
 import 'disconnect_dialog.dart';
 import 'log_export.dart';
@@ -264,6 +265,49 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ),
             ),
+          Divider(color: theme.colorScheme.outlineVariant),
+          Builder(
+            builder: (_) {
+              final n = ref.watch(visibleToolsProvider);
+              final set = ref.read(visibleToolsProvider.notifier).set;
+              return Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: KkjTokens.spacing4,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(l10n.visibleToolsTitle)),
+                    IconButton(
+                      tooltip: l10n.visibleToolsLess,
+                      constraints: const BoxConstraints(
+                        minWidth: 48,
+                        minHeight: 48,
+                      ),
+                      icon: const Icon(Icons.remove),
+                      onPressed: n > PenSlotsStore.visibleToolsMin
+                          ? () => set(n - 1)
+                          : null,
+                    ),
+                    Semantics(
+                      liveRegion: true,
+                      child: Text('$n', style: theme.textTheme.titleMedium),
+                    ),
+                    IconButton(
+                      tooltip: l10n.visibleToolsMore,
+                      constraints: const BoxConstraints(
+                        minWidth: 48,
+                        minHeight: 48,
+                      ),
+                      icon: const Icon(Icons.add),
+                      onPressed: n < PenSlotsStore.visibleToolsMax
+                          ? () => set(n + 1)
+                          : null,
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
           Divider(color: theme.colorScheme.outlineVariant),
           Padding(
             padding: const EdgeInsets.fromLTRB(
