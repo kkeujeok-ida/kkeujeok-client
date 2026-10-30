@@ -700,7 +700,7 @@ class _PenSlot extends StatelessWidget {
 
 // Shapes from spec/tool-icons.md: absolute M L H V Z only.
 const _penD = 'M3 0V22.3L10 36L17 22.3V0M3 22.3H17';
-const _highlighterD = 'M3 0V22.3L6 36H14L17 22.3V0M3 22.3H17';
+const _highlighterD = 'M3 0V36H17V0M3 22.3H17';
 const _eraserD = 'M15 3.5L20.5 9L10 19.5L4.5 14ZM8.7 9.8L14.2 15.3';
 const _eraserPartialD = 'M3 22H7M10 22H14M17 22H21';
 
