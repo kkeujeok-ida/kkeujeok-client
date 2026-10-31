@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../design_tokens/build/tokens.dart';
@@ -28,19 +29,22 @@ class PenPaletteEditor extends ConsumerWidget {
           : penColorName(l10n, key);
     }
 
-    Widget btn(IconData icon, String tip, VoidCallback? onTap) => IconButton(
-      tooltip: tip,
-      constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-      icon: Icon(icon),
-      onPressed: onTap,
+    Widget swatch(String hex, {double size = 32}) => Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Color(int.parse('ff${hex.substring(1)}', radix: 16)),
+        borderRadius: BorderRadius.circular(KkjTokens.roundedSm),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
     );
 
     Widget section(String tool, String title) {
       final list = palettes[tool]!;
       final full = list.length >= PenSlotsStore.paletteMax;
-      void move(int i, int d) {
+      void move(int from, int to) {
         final next = [...list];
-        next.insert(i + d, next.removeAt(i));
+        next.insert(to, next.removeAt(from));
         notifier.set(tool, next);
       }
 
@@ -59,57 +63,76 @@ class PenPaletteEditor extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(title, style: theme.textTheme.labelLarge),
+            // Only the colors: press and hold to drag one to a new place,
+            // tap for the remove menu.
             Wrap(
-              spacing: KkjTokens.spacing2,
               children: [
                 for (var i = 0; i < list.length; i++)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Semantics(
-                        label: name(list[i]),
-                        child: ExcludeSemantics(
-                          child: Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: Color(
-                                int.parse(
-                                  'ff${list[i].substring(1)}',
-                                  radix: 16,
+                  DragTarget<int>(
+                    onWillAcceptWithDetails: (d) => d.data != i,
+                    onAcceptWithDetails: (d) => move(d.data, i),
+                    builder: (context, candidates, _) => Semantics(
+                      label: name(list[i]),
+                      customSemanticsActions: {
+                        if (i > 0)
+                          CustomSemanticsAction(
+                            label: l10n.paletteEarlier(name(list[i])),
+                          ): () =>
+                              move(i, i - 1),
+                        if (i < list.length - 1)
+                          CustomSemanticsAction(
+                            label: l10n.paletteLater(name(list[i])),
+                          ): () =>
+                              move(i, i + 1),
+                      },
+                      child: LongPressDraggable<int>(
+                        data: i,
+                        feedback: Material(
+                          color: Colors.transparent,
+                          child: swatch(list[i], size: 40),
+                        ),
+                        childWhenDragging: const SizedBox(
+                          width: 48,
+                          height: 48,
+                        ),
+                        child: PopupMenuButton<void>(
+                          tooltip: name(list[i]),
+                          enabled: list.length > 1,
+                          padding: EdgeInsets.zero,
+                          onSelected: (_) => notifier.set(tool, [
+                            for (final c in list)
+                              if (c != list[i]) c,
+                          ]),
+                          itemBuilder: (_) => [
+                            PopupMenuItem<void>(
+                              child: Text(l10n.paletteRemove(name(list[i]))),
+                            ),
+                          ],
+                          child: SizedBox(
+                            width: 48,
+                            height: 48,
+                            child: Center(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(
+                                    KkjTokens.roundedSm,
+                                  ),
+                                  boxShadow: candidates.isEmpty
+                                      ? null
+                                      : [
+                                          BoxShadow(
+                                            color: theme.colorScheme.primary,
+                                            spreadRadius: 2,
+                                          ),
+                                        ],
                                 ),
-                              ),
-                              borderRadius: BorderRadius.circular(
-                                KkjTokens.roundedSm,
-                              ),
-                              border: Border.all(
-                                color: theme.colorScheme.outlineVariant,
+                                child: swatch(list[i]),
                               ),
                             ),
                           ),
                         ),
                       ),
-                      btn(
-                        Icons.chevron_left,
-                        l10n.paletteEarlier(name(list[i])),
-                        i == 0 ? null : () => move(i, -1),
-                      ),
-                      btn(
-                        Icons.chevron_right,
-                        l10n.paletteLater(name(list[i])),
-                        i == list.length - 1 ? null : () => move(i, 1),
-                      ),
-                      btn(
-                        Icons.close,
-                        l10n.paletteRemove(name(list[i])),
-                        list.length <= 1
-                            ? null
-                            : () => notifier.set(tool, [
-                                for (final c in list)
-                                  if (c != list[i]) c,
-                              ]),
-                      ),
-                    ],
+                    ),
                   ),
               ],
             ),

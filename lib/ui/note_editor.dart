@@ -2448,7 +2448,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   // ---- toolbar position (Story 5.9) --------------------------------------
 
   static const _rowH = KkjTokens.spacingHitMinAndroid;
-  static const _slotCell = KkjLight.componentsPenSlotHitSize;
+  static const _slotCell = PenToolbar.slotAlong;
   final _handleKey = GlobalKey();
   EdgeInsets _safe = EdgeInsets.zero;
   Size? _lastWin;
@@ -3396,11 +3396,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     bool wrapped = false,
   }) {
     const gap = KkjTokens.spacing3;
+    // No side margin: a width fit is the whole view width.
     final padding = EdgeInsets.fromLTRB(
-      gap + pad.left,
+      pad.left,
       // A toolbar wrapped below the corners adds its own row.
       pad.top + gap + (wrapped ? _rowH : 0) + _toolbarHeight + gap,
-      gap + pad.right,
+      pad.right,
       gap + pad.bottom,
     );
     final extra = _extraFor(ref.read(toolbarPosProvider), size, pad);
@@ -3948,6 +3949,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                       slots: ref.watch(penSlotsProvider),
                       selectedSlot: ref.watch(selectedPenSlotProvider),
                       vertical: tbPos.vertical,
+                      fromRight:
+                          tbPos.dock == ToolbarDock.right ||
+                          (tbPos.dock == ToolbarDock.float && tbPos.x > 0.5),
                       // Room left by the corner (48), the menu (96) and the
                       // controls that never shrink.
                       maxSlotsWidth: tbPos.vertical

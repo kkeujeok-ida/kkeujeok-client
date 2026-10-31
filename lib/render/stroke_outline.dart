@@ -155,8 +155,9 @@ List<List<List<double>>> highlighterPolygons(double width, List points) {
     ys.add(y);
   }
   if (xs.isEmpty) return [];
-  final h = width / 2 * math.sqrt(0.5);
-  final ax = h, ay = -h;
+  // Upright chisel; the 1/16 lean keeps a straight vertical stroke visible.
+  final ax = width / 16;
+  final ay = -width / 2;
   List<double> pt(double x, double y) => [round2(x), round2(y)];
   if (xs.length == 1) {
     final nx = -ay * 0.25, ny = ax * 0.25;

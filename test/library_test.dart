@@ -409,6 +409,8 @@ void main() {
       seedBytes(5, [1, 2, 3]); // unreadable goes last
       await pumpApp(t, noteData: data);
       await settle(t);
+      t.view.physicalSize = const Size(900, 3000); // one column: all built
+      await settle(t);
       final names = ['Oldest', 'TieLow', 'TieHigh', 'Newest', "Can't open"];
       expect(order(t, names), [
         'Newest',
@@ -455,12 +457,12 @@ void main() {
       expect(size.width / size.height, closeTo(0.75, 0.001));
     });
 
-    testWidgets('a long title takes two lines then ellipsis', (t) async {
+    testWidgets('a long title stays on one line then ellipsis', (t) async {
       seed(_note(1, 'Long ' * 15));
       await pumpApp(t, noteData: data);
       await settle(t);
       final text = t.widget<Text>(find.textContaining('Long'));
-      expect(text.maxLines, 2);
+      expect(text.maxLines, 1);
       expect(text.overflow, TextOverflow.ellipsis);
     });
 
@@ -473,7 +475,7 @@ void main() {
       expect(find.byType(NoteEditor), findsOneWidget);
     });
 
-    testWidgets('phone width has 2 columns, a tablet more', (t) async {
+    testWidgets('the default large list is one column at any width', (t) async {
       for (var i = 1; i <= 6; i++) {
         seed(_note(i, 'N$i', at: '2026-10-1${i}T12:00:00.000Z'));
       }
@@ -482,11 +484,13 @@ void main() {
           t.getTopLeft(find.text('N$i')).dx.roundToDouble(),
       };
       await pumpApp(t, noteData: data, width: 400);
+      t.view.physicalSize = const Size(400, 6000); // all rows built
       await settle(t);
-      expect(columns(), hasLength(2));
+      expect(columns(), hasLength(1));
       await pumpApp(t, noteData: data, width: 700);
+      t.view.physicalSize = const Size(700, 6000);
       await settle(t);
-      expect(columns().length, greaterThanOrEqualTo(3));
+      expect(columns(), hasLength(1));
     });
 
     testWidgets('unreadable and newer notes are dimmed and inert', (t) async {

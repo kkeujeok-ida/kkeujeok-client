@@ -38,6 +38,7 @@ class PenToolbar extends StatefulWidget {
     this.maxSlotsWidth = double.infinity,
     this.maxSlotsExtent,
     this.vertical = false,
+    this.fromRight = false,
     this.handleKey,
     this.onHandleTap,
     this.onHandleLongPressStart,
@@ -69,6 +70,10 @@ class PenToolbar extends StatefulWidget {
   /// The same for the vertical bar (the [+] is 34 tall, not 48).
   static const fixedHeight = 297.0;
 
+  /// Length of one slot along a horizontal bar (tighter than the 48 dp cell
+  /// the vertical bar is wide).
+  static const slotAlong = 42.0;
+
   /// Width of the vertical bar: one slot cell.
   static const verticalWidth = KkjLight.componentsPenSlotHitSize;
 
@@ -83,6 +88,9 @@ class PenToolbar extends StatefulWidget {
 
   /// Laid out top to bottom (docked left or right).
   final bool vertical;
+
+  /// Vertical bar on the right half: nibs come in from the right edge.
+  final bool fromRight;
 
   /// Anchors the position menu.
   final GlobalKey? handleKey;
@@ -130,7 +138,7 @@ class _PenToolbarState extends State<PenToolbar> {
   bool get _v => widget.vertical;
 
   // Along the bar a slot is 48 dp wide, or 34 dp tall when vertical.
-  double get _item => _v ? _hit : _slotW;
+  double get _item => _v ? _hit : PenToolbar.slotAlong;
   double get _viewW => math.max(
     _v ? widget.maxSlotsExtent ?? widget.maxSlotsWidth : widget.maxSlotsWidth,
     _item,
@@ -228,7 +236,12 @@ class _PenToolbarState extends State<PenToolbar> {
           borderRadius: BorderRadius.circular(
             KkjLight.componentsToolbarRounded,
           ),
-          child: _PenSlot(pen: pen, selected: selected),
+          child: _PenSlot(
+            pen: pen,
+            selected: selected,
+            vertical: _v,
+            fromRight: widget.fromRight,
+          ),
         ),
       ),
     );
@@ -614,10 +627,17 @@ class _DashPainter extends CustomPainter {
 }
 
 class _PenSlot extends StatelessWidget {
-  const _PenSlot({required this.pen, required this.selected});
+  const _PenSlot({
+    required this.pen,
+    required this.selected,
+    required this.vertical,
+    required this.fromRight,
+  });
 
   final Pen pen;
   final bool selected;
+  final bool vertical;
+  final bool fromRight;
 
   static const _w = KkjLight.componentsPenSlotHitSize;
   static const _nibW = 16.0;
@@ -625,72 +645,98 @@ class _PenSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final nib = CustomPaint(
+      size: const Size(_nibW, _nibH),
+      painter: _ToolGlyphPainter(
+        parseColor(pen.color),
+        [pen.isHighlighter ? _highlighterD : _penD],
+        20,
+        36,
+      ),
+    );
+    // Width number at the nib's lower right (spec/tool-icons.md).
+    final number = Text(
+      pen.width.toStringAsFixed(1),
+      textScaler: TextScaler.noScaling,
+      style: TextStyle(
+        fontSize: 9,
+        height: 1,
+        letterSpacing: -0.2,
+        fontWeight: FontWeight.w600,
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
+    );
+    final lift = selected ? KkjLight.componentsPenSlotSelectedOffset : 0.0;
+    final indicator = DecoratedBox(
+      decoration: BoxDecoration(
+        color: KkjLight.componentsPenSlotSelectedIndicator,
+        borderRadius: BorderRadius.circular(
+          KkjLight.componentsPenSlotSelectedRounded,
+        ),
+      ),
+      child: SizedBox(
+        width: vertical
+            ? KkjLight.componentsPenSlotSelectedHeight
+            : KkjLight.componentsPenSlotSelectedWidth,
+        height: vertical
+            ? KkjLight.componentsPenSlotSelectedWidth
+            : KkjLight.componentsPenSlotSelectedHeight,
+      ),
+    );
+    if (vertical) {
+      // Docked at a side: the nib lies on its side and comes in from the
+      // edge, tip toward the screen center.
+      const edge = -8.0;
+      const gap = _nibH + edge + 1;
+      return SizedBox(
+        width: _w,
+        height: _hit,
+        child: ClipRect(
+          child: Stack(
+            children: [
+              PositionedDirectional(
+                start: fromRight ? null : edge + lift,
+                end: fromRight ? edge + lift : null,
+                top: (_hit - _nibW) / 2 - 3,
+                child: RotatedBox(quarterTurns: fromRight ? 1 : 3, child: nib),
+              ),
+              Positioned(
+                left: fromRight ? null : gap + lift,
+                right: fromRight ? gap + lift : null,
+                bottom: 4,
+                child: number,
+              ),
+              if (selected)
+                Positioned(
+                  left: fromRight ? 0 : null,
+                  right: fromRight ? null : 0,
+                  top: (_hit - KkjLight.componentsPenSlotSelectedWidth) / 2,
+                  child: indicator,
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+    const along = PenToolbar.slotAlong;
+    const pairW = _nibW + 1 + 14; // nib, gap, a "1.5"-sized number
+    final left = (along - pairW) / 2;
     return SizedBox(
-      width: _w,
+      width: along,
       height: _hit,
       child: ClipRect(
         child: Stack(
           children: [
             // The nib hangs from the toolbar's top edge: its top is cut off,
             // and the selected pen sits `selected-offset` lower.
-            Positioned(
-              left: (_w - _nibW) / 2,
-              top:
-                  -8 +
-                  (selected ? KkjLight.componentsPenSlotSelectedOffset : 0),
-              child: CustomPaint(
-                size: const Size(_nibW, _nibH),
-                painter: _ToolGlyphPainter(
-                  parseColor(pen.color),
-                  [pen.isHighlighter ? _highlighterD : _penD],
-                  20,
-                  36,
-                ),
-              ),
-            ),
-            // Width number at the nib's lower right (spec/tool-icons.md).
-            Positioned(
-              right: 2,
-              bottom: 3,
-              child: Text(
-                pen.width.toStringAsFixed(1),
-                textScaler: TextScaler.noScaling,
-                style: TextStyle(
-                  fontSize: 9,
-                  height: 1,
-                  letterSpacing: -0.2,
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
-            ),
-            if (selected) ...[
-              const Positioned(
-                right: 4,
-                top: 10,
-                child: Icon(
-                  Icons.arrow_drop_down,
-                  size: 14,
-                  color: KkjLight.componentsPenSlotCaret,
-                ),
-              ),
+            Positioned(left: left, top: -8 + lift, child: nib),
+            Positioned(left: left + _nibW + 1, bottom: 3, child: number),
+            if (selected)
               Positioned(
-                left: (_w - KkjLight.componentsPenSlotSelectedWidth) / 2,
+                left: (along - KkjLight.componentsPenSlotSelectedWidth) / 2,
                 bottom: 0,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: KkjLight.componentsPenSlotSelectedIndicator,
-                    borderRadius: BorderRadius.circular(
-                      KkjLight.componentsPenSlotSelectedRounded,
-                    ),
-                  ),
-                  child: const SizedBox(
-                    width: KkjLight.componentsPenSlotSelectedWidth,
-                    height: KkjLight.componentsPenSlotSelectedHeight,
-                  ),
-                ),
+                child: indicator,
               ),
-            ],
           ],
         ),
       ),
@@ -700,7 +746,7 @@ class _PenSlot extends StatelessWidget {
 
 // Shapes from spec/tool-icons.md: absolute M L H V Z only.
 const _penD = 'M3 0V22.3L10 36L17 22.3V0M3 22.3H17';
-const _highlighterD = 'M3 0V36H17V0M3 22.3H17';
+const _highlighterD = 'M3 0V22.3L6 36H14L17 22.3V0M3 22.3H17';
 const _eraserD = 'M15 3.5L20.5 9L10 19.5L4.5 14ZM8.7 9.8L14.2 15.3';
 const _eraserPartialD = 'M3 22H7M10 22H14M17 22H21';
 

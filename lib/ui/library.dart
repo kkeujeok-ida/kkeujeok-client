@@ -26,19 +26,20 @@ import 'sync_banner.dart';
 import 'sync_display.dart';
 import 'sync_indicator.dart';
 
-const double _phoneMaxWidth = 600; // dp: below this the grid has 2 columns
-
 // View sizes are fractions of the cover column minimum (web uses the same).
 const _gridFactor = {
   LibrarySize.small: 0.38,
   LibrarySize.standard: 0.55,
   LibrarySize.large: 1.2,
 };
-const _rowThumbFactor = {LibrarySize.small: 0.33, LibrarySize.standard: 0.5};
+const _rowThumbFactor = {
+  LibrarySize.small: 0.33,
+  LibrarySize.standard: 0.5,
+  LibrarySize.large: 1.0,
+};
 
-/// Small and standard lists are one note per row, thumbnail on the left.
-bool _isRows(LibraryView v) =>
-    v.layout == LibraryLayout.list && v.size != LibrarySize.large;
+/// Every list is one note per row, thumbnail on the left.
+bool _isRows(LibraryView v) => v.layout == LibraryLayout.list;
 
 /// The cover grid, its empty state and the round `+`.
 class LibraryScreen extends ConsumerStatefulWidget {
@@ -472,30 +473,30 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   top: KkjTokens.spacing4,
                   bottom: KkjTokens.spacing3,
                 ),
-                child: Row(
-                  children: [
-                    Flexible(
-                      child: Semantics(
-                        header: true,
-                        child: Text(
-                          l10n.library,
-                          style: Theme.of(context).textTheme.titleLarge,
+                child: LayoutBuilder(
+                  builder: (context, c) => Row(
+                    children: [
+                      Expanded(
+                        child: Semantics(
+                          header: true,
+                          child: Text(
+                            l10n.library,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: KkjTokens.spacing3),
-                    const LibraryViewMenu(),
-                    // Sort sits at the right edge; the title shrinks first.
-                    Expanded(
-                      child: Align(
-                        alignment: AlignmentDirectional.centerEnd,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 240),
-                          child: const LibrarySortMenu(),
-                        ),
+                      const SizedBox(width: KkjTokens.spacing3),
+                      // View picker and sort sit together at the right edge;
+                      // the title shrinks first.
+                      const LibraryViewMenu(),
+                      // At most 200, and never more than 60% of what the view
+                      // picker leaves, so the title keeps some room.
+                      SizedBox(
+                        width: math.min(200, (c.maxWidth - 60) * 0.6),
+                        child: const LibrarySortMenu(),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               if (root.status == RootStatus.preparing) const _Preparing(),
@@ -548,22 +549,16 @@ class _Grid extends StatelessWidget {
   Widget build(BuildContext context) {
     const edge = KkjTokens.spacing5;
     final grid = view.layout == LibraryLayout.grid;
-    final rowList = _isRows(view);
-    // Large list is the original card flow; the grid packs tighter.
-    final gap = grid || rowList ? KkjTokens.spacing3 : edge;
+    final gap = KkjTokens.spacing3;
     return LayoutBuilder(
       builder: (context, c) {
         final inner = c.maxWidth - 2 * edge;
         final min =
             KkjTokens.spacingCoverColumnMin *
             (grid ? _gridFactor[view.size]! : 1.0);
-        final cols = rowList
-            ? 1
-            : grid
+        final cols = grid
             ? math.max(1, ((inner + gap) / (min + gap)).floor())
-            : c.maxWidth < _phoneMaxWidth
-            ? 2
-            : math.max(2, ((inner + gap) / (min + gap)).floor());
+            : 1;
         final lines = (children.length + cols - 1) ~/ cols;
         return ListView.builder(
           padding: EdgeInsets.fromLTRB(
@@ -809,11 +804,17 @@ class _RemoteNoteCard extends StatelessWidget {
           const SizedBox(height: KkjTokens.spacing2),
           Text(
             card.title,
-            maxLines: 2,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.labelMedium,
           ),
-          if (date != null) Text(date, style: theme.textTheme.bodySmall),
+          if (date != null)
+            Text(
+              date,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall,
+            ),
         ],
       ),
     );
@@ -869,11 +870,17 @@ class _NoteCard extends ConsumerWidget {
               children: [
                 Text(
                   note.title,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.labelMedium,
                 ),
-                if (date != null) Text(date, style: theme.textTheme.bodySmall),
+                if (date != null)
+                  Text(
+                    date,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall,
+                  ),
               ],
             ),
           ),
