@@ -55,6 +55,9 @@ String _description(AppLocalizations l, NoteSyncView v) => switch (v.label) {
 };
 
 /// Turns while `saving`, unless the system asks for no animation (UX-DR87).
+/// Same height as the pen toolbar (34 dp) so the corners match it.
+const double _cornerButton = 34;
+
 class _Spin extends StatefulWidget {
   const _Spin({required this.child});
 
@@ -179,11 +182,11 @@ class _SyncIndicatorState extends ConsumerState<SyncIndicator> {
     final v = ref.watch(noteSyncProvider(id));
     // Until the first read ends there is nothing true to say.
     if (!v.loaded) {
-      return const SizedBox.square(dimension: KkjTokens.spacingHitMinAndroid);
+      return const SizedBox.square(dimension: _cornerButton);
     }
     const hit = BoxConstraints(
-      minWidth: KkjTokens.spacingHitMinAndroid,
-      minHeight: KkjTokens.spacingHitMinAndroid,
+      minWidth: _cornerButton,
+      minHeight: _cornerButton,
     );
     const item = ButtonStyle(
       minimumSize: WidgetStatePropertyAll(
@@ -250,7 +253,8 @@ class _SyncIndicatorState extends ConsumerState<SyncIndicator> {
           onTap: toggle,
           child: IconButton(
             constraints: hit,
-            icon: SyncIcon(v.label),
+            padding: EdgeInsets.zero,
+            icon: SyncIcon(v.label, size: 20),
             onPressed: toggle,
           ),
         );

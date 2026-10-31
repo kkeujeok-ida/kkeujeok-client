@@ -2447,7 +2447,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   // ---- toolbar position (Story 5.9) --------------------------------------
 
-  static const _rowH = KkjTokens.spacingHitMinAndroid;
+  static const _rowH = _toolbarHeight;
   static const _slotCell = PenToolbar.slotAlong;
   final _handleKey = GlobalKey();
   EdgeInsets _safe = EdgeInsets.zero;
@@ -4016,9 +4016,11 @@ class _Corner extends StatelessWidget {
         IconButton(
           tooltip: tooltip,
           constraints: const BoxConstraints(
-            minWidth: KkjTokens.spacingHitMinAndroid,
-            minHeight: KkjTokens.spacingHitMinAndroid,
+            minWidth: _toolbarHeight,
+            minHeight: _toolbarHeight,
           ),
+          padding: EdgeInsets.zero,
+          iconSize: 20,
           icon: const Icon(Icons.arrow_back),
           onPressed: onBack,
         ),
@@ -4163,7 +4165,12 @@ class _MoreMenu extends StatelessWidget {
             ],
             builder: (context, controller, _) => IconButton(
               tooltip: l10n.moreMenu,
-              constraints: _hit,
+              constraints: const BoxConstraints(
+                minWidth: _toolbarHeight,
+                minHeight: _toolbarHeight,
+              ),
+              padding: EdgeInsets.zero,
+              iconSize: 20,
               icon: const Icon(Icons.more_horiz),
               onPressed: () =>
                   controller.isOpen ? controller.close() : controller.open(),
