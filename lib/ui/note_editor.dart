@@ -4446,6 +4446,10 @@ class _OverviewHost implements PageOverviewHost {
   @override
   String? duplicatePages(List<String> ids) =>
       _do({'op': 'duplicatePage', 'pageIds': ids});
+
+  @override
+  String? movePages(List<String> ids, int index) =>
+      _do({'op': 'movePages', 'pageIds': ids, 'index': index});
 }
 
 /// Story 5.13: three fingers that land within [_secondFinger] of the first

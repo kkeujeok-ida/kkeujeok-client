@@ -471,5 +471,21 @@
   "pageDuplicate": "Duplicate",
   "pageDelete": "Delete",
   "pagePullMore": "Keep pulling to add a page",
-  "pagePullRelease": "Release to add a page"
+  "pagePullRelease": "Release to add a page",
+  "pageSelected": "{count} selected",
+  "@pageSelected": {"placeholders": {"count": {"type": "int"}}},
+  "pageSelectDone": "Done",
+  "pageMoveEarlier": "Move earlier",
+  "pageMoveLater": "Move later",
+  "pageMoveFirst": "Move to start",
+  "pageMoveLast": "Move to end",
+  "pageMoved": "Page {n} moved to position {pos}",
+  "@pageMoved": {"placeholders": {"n": {"type": "int"}, "pos": {"type": "int"}}},
+  "pagesMoved": "{count} pages moved",
+  "@pagesMoved": {"placeholders": {"count": {"type": "int"}}},
+  "pagesDeleted": "{count} pages deleted",
+  "@pagesDeleted": {"placeholders": {"count": {"type": "int"}}},
+  "pagesDuplicated": "{count} pages duplicated",
+  "@pagesDuplicated": {"placeholders": {"count": {"type": "int"}}},
+  "pageBackgroundShort": "Background"
 }

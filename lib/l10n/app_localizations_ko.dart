@@ -1068,4 +1068,47 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get pagePullRelease => '놓으면 페이지 추가';
+
+  @override
+  String pageSelected(int count) {
+    return '$count장 선택';
+  }
+
+  @override
+  String get pageSelectDone => '완료';
+
+  @override
+  String get pageMoveEarlier => '앞으로';
+
+  @override
+  String get pageMoveLater => '뒤로';
+
+  @override
+  String get pageMoveFirst => '맨 앞으로';
+
+  @override
+  String get pageMoveLast => '맨 뒤로';
+
+  @override
+  String pageMoved(int n, int pos) {
+    return '$n페이지를 $pos번째로 옮겼어요';
+  }
+
+  @override
+  String pagesMoved(int count) {
+    return '$count장을 옮겼어요';
+  }
+
+  @override
+  String pagesDeleted(int count) {
+    return '$count장을 지웠어요';
+  }
+
+  @override
+  String pagesDuplicated(int count) {
+    return '$count장을 복제했어요';
+  }
+
+  @override
+  String get pageBackgroundShort => '배경';
 }

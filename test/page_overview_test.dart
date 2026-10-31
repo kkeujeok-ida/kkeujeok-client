@@ -195,8 +195,8 @@ void main() {
     await settle(t);
     await t.tap(find.byTooltip('Page menu'));
     await settle(t);
-    final item = t.widget<PopupMenuItem<VoidCallback?>>(
-      find.widgetWithText(PopupMenuItem<VoidCallback?>, 'Delete'),
+    final item = t.widget<PopupMenuItem<VoidCallback>>(
+      find.widgetWithText(PopupMenuItem<VoidCallback>, 'Delete'),
     );
     expect(item.enabled, isFalse);
   });
@@ -223,6 +223,108 @@ void main() {
     await pull(-4000); // far past the end, released
     expect(onDisk(), 3);
     expect(find.text('Page 3 added'), findsOneWidget);
+  });
+
+  List<String> order() => [
+    for (final p in decodeKkj(file.readAsBytesSync()).note!.pages)
+      p['id'] as String,
+  ];
+
+  Future<void> openOverview(WidgetTester t) async {
+    await t.tap(find.byTooltip('Pages'));
+    await settle(t);
+  }
+
+  // The thumbnail of page [n] sits above its number.
+  Offset thumb(WidgetTester t, int n) =>
+      t.getCenter(
+        find.descendant(
+          of: find.byType(PageOverview),
+          matching: find.byWidgetPredicate(
+            (w) => w is Text && (w.data == '$n' || w.data == '$n · Current'),
+          ),
+        ),
+      ) -
+      const Offset(0, 40);
+
+  testWidgets('menu moves a page; undo is one step', (t) async {
+    seed(_note(3));
+    await open(t);
+    await openOverview(t);
+    await t.tap(find.byTooltip('Page menu').at(0));
+    await settle(t);
+    await t.tap(find.text('Move later'));
+    await settle(t);
+    expect(find.text('Page 1 moved to position 2'), findsOneWidget);
+    expect(order(), [_b, _a, _c]);
+    await t.tap(find.text('Undo'));
+    await settle(t);
+    expect(order(), [_a, _b, _c]);
+    // The first page cannot go earlier.
+    await t.tap(find.byTooltip('Page menu').at(0));
+    await settle(t);
+    final item = t.widget<PopupMenuItem<VoidCallback>>(
+      find.widgetWithText(PopupMenuItem<VoidCallback>, 'Move to start'),
+    );
+    expect(item.enabled, isFalse);
+  });
+
+  testWidgets('long press and drag puts a page where it is dropped', (t) async {
+    seed(_note(3));
+    await open(t);
+    await openOverview(t);
+    final g = await t.startGesture(thumb(t, 1));
+    await t.pump(const Duration(milliseconds: 700));
+    await g.moveTo(thumb(t, 2));
+    await t.pump();
+    await g.moveTo(thumb(t, 3));
+    await t.pump();
+    await g.up();
+    await settle(t);
+    expect(order(), [_b, _c, _a]);
+    expect(find.text('Page 1 moved to position 3'), findsOneWidget);
+  });
+
+  testWidgets('select mode: header, multi delete with undo, no delete of all', (
+    t,
+  ) async {
+    seed(_note(3));
+    await open(t);
+    await openOverview(t);
+    await t.tap(find.text('Select'));
+    await settle(t);
+    expect(find.text('0 selected'), findsOneWidget);
+    await t.tapAt(thumb(t, 1));
+    await t.tapAt(thumb(t, 3));
+    await settle(t);
+    expect(find.text('2 selected'), findsOneWidget);
+    // Dragging a chosen page moves both, in their old relative order.
+    final g = await t.startGesture(thumb(t, 3));
+    await t.pump(const Duration(milliseconds: 700));
+    await g.moveTo(thumb(t, 2));
+    await t.pump();
+    await g.up();
+    await settle(t);
+    expect(order(), [_a, _c, _b]);
+    expect(find.text('2 pages moved'), findsOneWidget);
+    await t.tap(find.text('Delete'));
+    await settle(t);
+    expect(find.text('2 pages deleted'), findsOneWidget);
+    expect(order().length, 1);
+    await t.tap(find.text('Undo'));
+    await settle(t);
+    expect(order().length, 3);
+    // Every page chosen: [삭제] is off.
+    await t.tap(find.text('Select'));
+    await settle(t);
+    for (var n = 1; n <= 3; n++) {
+      await t.tapAt(thumb(t, n));
+    }
+    await settle(t);
+    expect(
+      t.widget<TextButton>(find.widgetWithText(TextButton, 'Delete')).onPressed,
+      isNull,
+    );
   });
 
   test('TalkBack label in Korean', () {

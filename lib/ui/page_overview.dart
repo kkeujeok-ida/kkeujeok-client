@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
@@ -26,17 +29,41 @@ abstract class PageOverviewHost {
   String? addPage(int index);
   String? deletePages(List<String> ids);
   String? duplicatePages(List<String> ids);
+
+  /// [index] counts the pages that are not moved (spec `ops.movePages`).
+  String? movePages(List<String> ids, int index);
 }
 
 /// Story 6.2: the full-screen page overview. Pops with the tapped page index,
 /// or null when closed. Story 6.4: [+] and the ⋯ menu add, duplicate and
-/// delete pages; [선택] stays disabled until Story 6.6.
-class PageOverview extends StatelessWidget {
+/// delete pages. Story 6.6: long-press drag, ⋯ move items, TalkBack actions
+/// and the [선택] mode with its header.
+class PageOverview extends StatefulWidget {
   const PageOverview({super.key, required this.host});
 
   final PageOverviewHost host;
 
-  void _note(BuildContext context, String text, {bool undo = false}) {
+  @override
+  State<PageOverview> createState() => _PageOverviewState();
+}
+
+class _PageOverviewState extends State<PageOverview> {
+  PageOverviewHost get host => widget.host;
+
+  bool _selecting = false;
+  final _sel = <String>{};
+  final _scroll = ScrollController();
+  Timer? _auto;
+  double? _dragY;
+
+  @override
+  void dispose() {
+    _auto?.cancel();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _note(String text, {bool undo = false}) {
     final l = AppLocalizations.of(context);
     final d = host.undoDepth; // the undo is for this change only
     ScaffoldMessenger.of(context)
@@ -56,28 +83,149 @@ class PageOverview extends StatelessWidget {
       );
   }
 
-  void _add(BuildContext context) {
+  String _id(int i) => host.pages[i]['id'] as String;
+
+  void _add() {
     final l = AppLocalizations.of(context);
     final at = host.current + 1;
-    if (host.addPage(at) == null) {
-      _note(context, l.pageAdded(at + 1), undo: true);
+    if (host.addPage(at) == null) _note(l.pageAdded(at + 1), undo: true);
+  }
+
+  void _delete(List<String> ids) {
+    final l = AppLocalizations.of(context);
+    final first = host.pages.indexWhere((p) => p['id'] == ids.first);
+    final text = ids.length == 1
+        ? l.pageDeleted(first + 1)
+        : l.pagesDeleted(ids.length);
+    if (host.deletePages(ids) != null) return;
+    _leaveSelection();
+    _note(text, undo: true);
+  }
+
+  void _duplicate(List<String> ids) {
+    final l = AppLocalizations.of(context);
+    final first = host.pages.indexWhere((p) => p['id'] == ids.first);
+    final text = ids.length == 1
+        ? l.pageDuplicated(first + 1)
+        : l.pagesDuplicated(ids.length);
+    if (host.duplicatePages(ids) != null) return;
+    _leaveSelection();
+    _note(text, undo: true);
+  }
+
+  void _leaveSelection() {
+    if (_selecting) {
+      setState(() {
+        _selecting = false;
+        _sel.clear();
+      });
     }
   }
 
-  void _delete(BuildContext context, int i) {
+  void _moveOne(int i, int index) {
     final l = AppLocalizations.of(context);
-    final id = host.pages[i]['id'] as String;
-    if (host.deletePages([id]) == null) {
-      _note(context, l.pageDeleted(i + 1), undo: true);
-    }
+    final id = _id(i);
+    if (host.movePages([id], index) != null) return;
+    _note(l.pageMoved(i + 1, index + 1), undo: true);
   }
 
-  void _duplicate(BuildContext context, int i) {
-    final l = AppLocalizations.of(context);
-    final id = host.pages[i]['id'] as String;
-    if (host.duplicatePages([id]) == null) {
-      _note(context, l.pageDuplicated(i + 1), undo: true);
+  /// A page was dropped on the thumbnail at [j].
+  void _drop(String dragged, int j) {
+    final pages = host.pages;
+    final ids = _selecting && _sel.contains(dragged) ? _sel.toList() : [dragged];
+    final target = pages[j]['id'];
+    if (ids.contains(target)) return;
+    final from = pages.indexWhere((p) => p['id'] == dragged);
+    final pick = ids.toSet();
+    // Before the target when moving up, after it when moving down.
+    final end = from < j ? j + 1 : j;
+    var index = 0;
+    for (var k = 0; k < end; k++) {
+      if (!pick.contains(pages[k]['id'])) index++;
     }
+    final l = AppLocalizations.of(context);
+    if (host.movePages(ids, index) != null) return;
+    final at = host.pages.indexWhere((p) => p['id'] == dragged) + 1;
+    _note(
+      ids.length == 1 ? l.pageMoved(from + 1, at) : l.pagesMoved(ids.length),
+      undo: true,
+    );
+  }
+
+  // While a thumbnail is dragged, the list scrolls when it nears an edge.
+  void _dragStart() {
+    _auto?.cancel();
+    _auto = Timer.periodic(const Duration(milliseconds: 16), (_) {
+      final y = _dragY;
+      if (y == null || !_scroll.hasClients) return;
+      final h = MediaQuery.sizeOf(context).height;
+      final dy = y < 140 ? -12.0 : (y > h - 100 ? 12.0 : 0.0);
+      if (dy == 0) return;
+      final p = _scroll.position;
+      _scroll.jumpTo((p.pixels + dy).clamp(p.minScrollExtent, p.maxScrollExtent));
+    });
+  }
+
+  void _dragEnd() {
+    _auto?.cancel();
+    _auto = null;
+    _dragY = null;
+  }
+
+  PreferredSizeWidget _header(AppLocalizations l, int total) {
+    if (_selecting) {
+      final none = _sel.isEmpty;
+      return AppBar(
+        automaticallyImplyLeading: false,
+        backgroundColor: KkjLight.colorSurfaceBase,
+        titleSpacing: KkjTokens.spacing3,
+        title: Semantics(
+          header: true,
+          liveRegion: true,
+          child: Text(l.pageSelected(_sel.length)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: none ? null : () => _duplicate(_sel.toList()),
+            child: Text(l.pageDuplicate),
+          ),
+          TextButton(
+            // Every page chosen: the last page cannot be deleted.
+            onPressed: none || _sel.length >= total
+                ? null
+                : () => _delete(_sel.toList()),
+            child: Text(l.pageDelete),
+          ),
+          TextButton(onPressed: null, child: Text(l.pageBackgroundShort)),
+          IconButton(
+            tooltip: l.pageSelectDone,
+            icon: const Icon(Icons.close),
+            onPressed: _leaveSelection,
+          ),
+        ],
+      );
+    }
+    return AppBar(
+      automaticallyImplyLeading: false,
+      backgroundColor: KkjLight.colorSurfaceBase,
+      title: Semantics(header: true, child: Text(l.pageOverviewTitle)),
+      actions: [
+        IconButton(
+          tooltip: l.pageAdd,
+          icon: const Icon(Icons.add),
+          onPressed: _add,
+        ),
+        TextButton(
+          onPressed: () => setState(() => _selecting = true),
+          child: Text(l.pageSelect),
+        ),
+        IconButton(
+          tooltip: l.close,
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
+    );
   }
 
   @override
@@ -88,28 +236,14 @@ class PageOverview extends StatelessWidget {
       builder: (context, _) {
         final pages = host.pages;
         final conflicted = host.conflicted;
+        // A merge or undo may have taken a chosen page away.
+        _sel.removeWhere((id) => !pages.any((p) => p['id'] == id));
         return Scaffold(
           backgroundColor: KkjLight.colorSurfaceBase,
-          appBar: AppBar(
-            automaticallyImplyLeading: false,
-            backgroundColor: KkjLight.colorSurfaceBase,
-            title: Semantics(header: true, child: Text(l.pageOverviewTitle)),
-            actions: [
-              IconButton(
-                tooltip: l.pageAdd,
-                icon: const Icon(Icons.add),
-                onPressed: () => _add(context),
-              ),
-              TextButton(onPressed: null, child: Text(l.pageSelect)),
-              IconButton(
-                tooltip: l.close,
-                icon: const Icon(Icons.close),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ],
-          ),
+          appBar: _header(l, pages.length),
           // Built lazily: only the thumbnails in view are drawn (NFR2).
           body: GridView.builder(
+            controller: _scroll,
             padding: const EdgeInsets.all(KkjTokens.spacing3),
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
               maxCrossAxisExtent: 180,
@@ -118,17 +252,36 @@ class PageOverview extends StatelessWidget {
               childAspectRatio: 0.72,
             ),
             itemCount: pages.length,
-            itemBuilder: (context, i) => _Cell(
-              key: ValueKey(pages[i]['id']),
-              page: pages[i],
-              index: i,
-              total: pages.length,
-              isCurrent: i == host.current,
-              conflict: conflicted.contains(pages[i]['id']),
-              onTap: () => Navigator.of(context).pop(i),
-              onDuplicate: () => _duplicate(context, i),
-              onDelete: pages.length > 1 ? () => _delete(context, i) : null,
-            ),
+            itemBuilder: (context, i) {
+              final id = pages[i]['id'] as String;
+              final last = pages.length - 1;
+              return _Cell(
+                key: ValueKey(id),
+                page: pages[i],
+                index: i,
+                total: pages.length,
+                isCurrent: i == host.current,
+                conflict: conflicted.contains(id),
+                selecting: _selecting,
+                selected: _sel.contains(id),
+                onTap: _selecting
+                    ? () => setState(
+                        () => _sel.contains(id) ? _sel.remove(id) : _sel.add(id),
+                      )
+                    : () => Navigator.of(context).pop(i),
+                onDuplicate: () => _duplicate([id]),
+                onDelete: pages.length > 1 ? () => _delete([id]) : null,
+                onEarlier: i > 0 ? () => _moveOne(i, i - 1) : null,
+                onLater: i < last ? () => _moveOne(i, i + 1) : null,
+                onFirst: i > 0 ? () => _moveOne(i, 0) : null,
+                onLast: i < last ? () => _moveOne(i, last) : null,
+                onDrop: (dragged) => _drop(dragged, i),
+                onDragStart: _dragStart,
+                onDragUpdate: (y) => _dragY = y,
+                onDragEnd: _dragEnd,
+                dragCount: _selecting && _sel.contains(id) ? _sel.length : 1,
+              );
+            },
           ),
         );
       },
@@ -144,19 +297,35 @@ class _Cell extends StatefulWidget {
     required this.total,
     required this.isCurrent,
     required this.conflict,
+    required this.selecting,
+    required this.selected,
     required this.onTap,
     required this.onDuplicate,
     required this.onDelete,
+    required this.onEarlier,
+    required this.onLater,
+    required this.onFirst,
+    required this.onLast,
+    required this.onDrop,
+    required this.onDragStart,
+    required this.onDragUpdate,
+    required this.onDragEnd,
+    required this.dragCount,
   });
 
   final Map<String, dynamic> page;
-  final int index, total;
-  final bool isCurrent, conflict;
-  final VoidCallback onTap;
-  final VoidCallback onDuplicate;
+  final int index, total, dragCount;
+  final bool isCurrent, conflict, selecting, selected;
+  final VoidCallback onTap, onDuplicate, onDragStart, onDragEnd;
 
   /// Null for the last page left: it cannot be deleted.
   final VoidCallback? onDelete;
+
+  /// Null where the move makes no sense (the first page cannot go earlier).
+  final VoidCallback? onEarlier, onLater, onFirst, onLast;
+
+  final void Function(String dragged) onDrop;
+  final void Function(double y) onDragUpdate;
 
   @override
   State<_Cell> createState() => _CellState();
@@ -169,6 +338,7 @@ class _CellState extends State<_Cell> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final p = widget.page;
+    final id = p['id'] as String;
     final w = (p['width'] as num).toDouble(),
         h = (p['height'] as num).toDouble();
     final ratio = (w / h).isFinite && w > 0 && h > 0
@@ -191,6 +361,24 @@ class _CellState extends State<_Cell> {
     const radius = KkjLight.componentsPageThumbnailRounded;
     final badge = Theme.of(context).textTheme.labelSmall
         ?.copyWith(color: KkjLight.colorStatusWarningText);
+    final thumb = DecoratedBox(
+      position: DecorationPosition.foreground,
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: widget.isCurrent
+              ? KkjLight.componentsPageThumbnailCurrentRing
+              : KkjLight.componentsPageThumbnailBorder,
+          width: widget.isCurrent ? 3 : 1,
+        ),
+        borderRadius: BorderRadius.circular(radius),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: RepaintBoundary(
+          child: CustomPaint(painter: PagePainter(page: p, cache: _cache)),
+        ),
+      ),
+    );
     return Column(
       children: [
         Expanded(
@@ -200,61 +388,119 @@ class _CellState extends State<_Cell> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Semantics(
-                    button: true,
-                    label: label,
-                    excludeSemantics: true,
-                    onTap: widget.onTap,
-                    child: GestureDetector(
-                      onTap: widget.onTap,
-                      child: DecoratedBox(
-                        position: DecorationPosition.foreground,
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: widget.isCurrent
-                                ? KkjLight.componentsPageThumbnailCurrentRing
-                                : KkjLight.componentsPageThumbnailBorder,
-                            width: widget.isCurrent ? 3 : 1,
-                          ),
-                          borderRadius: BorderRadius.circular(radius),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(radius),
-                          child: RepaintBoundary(
-                            child: CustomPaint(
-                              painter: PagePainter(page: p, cache: _cache),
+                  DragTarget<String>(
+                    onWillAcceptWithDetails: (d) => d.data != id,
+                    onAcceptWithDetails: (d) => widget.onDrop(d.data),
+                    builder: (context, candidates, _) => DecoratedBox(
+                      // Where the dragged page would land.
+                      position: DecorationPosition.foreground,
+                      decoration: BoxDecoration(
+                        border: candidates.isEmpty
+                            ? null
+                            : Border.all(
+                                color: KkjLight.componentsPageThumbnailCurrentRing,
+                                width: 4,
+                              ),
+                        borderRadius: BorderRadius.circular(radius),
+                      ),
+                      child: LongPressDraggable<String>(
+                        data: id,
+                        onDragStarted: widget.onDragStart,
+                        onDragUpdate: (d) =>
+                            widget.onDragUpdate(d.globalPosition.dy),
+                        onDragEnd: (_) => widget.onDragEnd(),
+                        onDraggableCanceled: (_, _) => widget.onDragEnd(),
+                        feedback: Material(
+                          color: Colors.transparent,
+                          child: Opacity(
+                            opacity: 0.85,
+                            child: SizedBox(
+                              width: 96,
+                              height: 96 / ratio,
+                              child: Stack(
+                                children: [
+                                  Positioned.fill(child: thumb),
+                                  if (widget.dragCount > 1)
+                                    Positioned(
+                                      right: 2,
+                                      top: 2,
+                                      child: CircleAvatar(
+                                        radius: 11,
+                                        child: Text('${widget.dragCount}'),
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
+                        childWhenDragging: Opacity(opacity: 0.3, child: thumb),
+                        child: Semantics(
+                          button: true,
+                          label: label,
+                          selected: widget.selecting ? widget.selected : null,
+                          excludeSemantics: true,
+                          onTap: widget.onTap,
+                          customSemanticsActions: {
+                            if (widget.onEarlier != null)
+                              CustomSemanticsAction(label: l.pageMoveEarlier):
+                                  widget.onEarlier!,
+                            if (widget.onLater != null)
+                              CustomSemanticsAction(label: l.pageMoveLater):
+                                  widget.onLater!,
+                            if (widget.onFirst != null)
+                              CustomSemanticsAction(label: l.pageMoveFirst):
+                                  widget.onFirst!,
+                            if (widget.onLast != null)
+                              CustomSemanticsAction(label: l.pageMoveLast):
+                                  widget.onLast!,
+                          },
+                          child: GestureDetector(
+                            onTap: widget.onTap,
+                            child: thumb,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                  Positioned(
-                    top: 0,
-                    right: 0,
-                    child: PopupMenuButton<VoidCallback?>(
-                      tooltip: l.pageMenu,
-                      iconSize: 18,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: KkjLight.componentsPageThumbnailMenuButton,
-                        minHeight: KkjLight.componentsPageThumbnailMenuButton,
+                  if (widget.selecting)
+                    Positioned(
+                      top: 4,
+                      left: 4,
+                      child: ExcludeSemantics(
+                        child: Icon(
+                          widget.selected
+                              ? Icons.check_box
+                              : Icons.check_box_outline_blank,
+                          color: KkjLight.componentsPageThumbnailCurrentRing,
+                        ),
                       ),
-                      icon: const Icon(Icons.more_horiz),
-                      onSelected: (f) => f?.call(),
-                      itemBuilder: (_) => [
-                        PopupMenuItem(
-                          value: widget.onDuplicate,
-                          child: Text(l.pageDuplicate),
+                    )
+                  else
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: PopupMenuButton<VoidCallback>(
+                        tooltip: l.pageMenu,
+                        iconSize: 18,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: KkjLight.componentsPageThumbnailMenuButton,
+                          minHeight: KkjLight.componentsPageThumbnailMenuButton,
                         ),
-                        PopupMenuItem(
-                          value: widget.onDelete,
-                          enabled: widget.onDelete != null,
-                          child: Text(l.pageDelete),
-                        ),
-                      ],
+                        icon: const Icon(Icons.more_horiz),
+                        onSelected: (f) => f(),
+                        itemBuilder: (_) => [
+                          _item(widget.onDuplicate, l.pageDuplicate),
+                          _item(widget.onDelete, l.pageDelete),
+                          const PopupMenuDivider(),
+                          _item(widget.onEarlier, l.pageMoveEarlier),
+                          _item(widget.onLater, l.pageMoveLater),
+                          _item(widget.onFirst, l.pageMoveFirst),
+                          _item(widget.onLast, l.pageMoveLast),
+                        ],
+                      ),
                     ),
-                  ),
                   if (widget.conflict || out > 0)
                     Positioned(
                       left: 4,
@@ -310,4 +556,12 @@ class _CellState extends State<_Cell> {
       ],
     );
   }
+
+  /// A menu entry that does nothing and is greyed out when [f] is null.
+  PopupMenuEntry<VoidCallback> _item(VoidCallback? f, String text) =>
+      PopupMenuItem<VoidCallback>(
+        value: f,
+        enabled: f != null,
+        child: Text(text),
+      );
 }

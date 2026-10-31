@@ -417,5 +417,21 @@
   "pageDuplicate": "복제",
   "pageDelete": "삭제",
   "pagePullMore": "계속 당기면 페이지 추가",
-  "pagePullRelease": "놓으면 페이지 추가"
+  "pagePullRelease": "놓으면 페이지 추가",
+  "pageSelected": "{count}장 선택",
+  "@pageSelected": {"placeholders": {"count": {"type": "int"}}},
+  "pageSelectDone": "완료",
+  "pageMoveEarlier": "앞으로",
+  "pageMoveLater": "뒤로",
+  "pageMoveFirst": "맨 앞으로",
+  "pageMoveLast": "맨 뒤로",
+  "pageMoved": "{n}페이지를 {pos}번째로 옮겼어요",
+  "@pageMoved": {"placeholders": {"n": {"type": "int"}, "pos": {"type": "int"}}},
+  "pagesMoved": "{count}장을 옮겼어요",
+  "@pagesMoved": {"placeholders": {"count": {"type": "int"}}},
+  "pagesDeleted": "{count}장을 지웠어요",
+  "@pagesDeleted": {"placeholders": {"count": {"type": "int"}}},
+  "pagesDuplicated": "{count}장을 복제했어요",
+  "@pagesDuplicated": {"placeholders": {"count": {"type": "int"}}},
+  "pageBackgroundShort": "배경"
 }

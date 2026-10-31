@@ -1131,4 +1131,47 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pagePullRelease => 'Release to add a page';
+
+  @override
+  String pageSelected(int count) {
+    return '$count selected';
+  }
+
+  @override
+  String get pageSelectDone => 'Done';
+
+  @override
+  String get pageMoveEarlier => 'Move earlier';
+
+  @override
+  String get pageMoveLater => 'Move later';
+
+  @override
+  String get pageMoveFirst => 'Move to start';
+
+  @override
+  String get pageMoveLast => 'Move to end';
+
+  @override
+  String pageMoved(int n, int pos) {
+    return 'Page $n moved to position $pos';
+  }
+
+  @override
+  String pagesMoved(int count) {
+    return '$count pages moved';
+  }
+
+  @override
+  String pagesDeleted(int count) {
+    return '$count pages deleted';
+  }
+
+  @override
+  String pagesDuplicated(int count) {
+    return '$count pages duplicated';
+  }
+
+  @override
+  String get pageBackgroundShort => 'Background';
 }

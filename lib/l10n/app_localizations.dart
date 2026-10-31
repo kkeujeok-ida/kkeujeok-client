@@ -2041,6 +2041,72 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Release to add a page'**
   String get pagePullRelease;
+
+  /// No description provided for @pageSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} selected'**
+  String pageSelected(int count);
+
+  /// No description provided for @pageSelectDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get pageSelectDone;
+
+  /// No description provided for @pageMoveEarlier.
+  ///
+  /// In en, this message translates to:
+  /// **'Move earlier'**
+  String get pageMoveEarlier;
+
+  /// No description provided for @pageMoveLater.
+  ///
+  /// In en, this message translates to:
+  /// **'Move later'**
+  String get pageMoveLater;
+
+  /// No description provided for @pageMoveFirst.
+  ///
+  /// In en, this message translates to:
+  /// **'Move to start'**
+  String get pageMoveFirst;
+
+  /// No description provided for @pageMoveLast.
+  ///
+  /// In en, this message translates to:
+  /// **'Move to end'**
+  String get pageMoveLast;
+
+  /// No description provided for @pageMoved.
+  ///
+  /// In en, this message translates to:
+  /// **'Page {n} moved to position {pos}'**
+  String pageMoved(int n, int pos);
+
+  /// No description provided for @pagesMoved.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} pages moved'**
+  String pagesMoved(int count);
+
+  /// No description provided for @pagesDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} pages deleted'**
+  String pagesDeleted(int count);
+
+  /// No description provided for @pagesDuplicated.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} pages duplicated'**
+  String pagesDuplicated(int count);
+
+  /// No description provided for @pageBackgroundShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Background'**
+  String get pageBackgroundShort;
 }
 
 class _AppLocalizationsDelegate
