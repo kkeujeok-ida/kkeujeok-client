@@ -487,5 +487,16 @@
   "@pagesDeleted": {"placeholders": {"count": {"type": "int"}}},
   "pagesDuplicated": "{count} pages duplicated",
   "@pagesDuplicated": {"placeholders": {"count": {"type": "int"}}},
-  "pageBackgroundShort": "Background"
+  "pageBackgroundShort": "Background",
+  "pageChangeBackground": "Change background",
+  "pageToLandscape": "Make landscape",
+  "pageToPortrait": "Make portrait",
+  "pageBackgroundChanged": "Page {n} background changed",
+  "@pageBackgroundChanged": {"placeholders": {"n": {"type": "int"}}},
+  "pagesBackgroundChanged": "Background of {count} pages changed",
+  "@pagesBackgroundChanged": {"placeholders": {"count": {"type": "int"}}},
+  "pageTurnedLandscape": "Page {n} is now landscape",
+  "@pageTurnedLandscape": {"placeholders": {"n": {"type": "int"}}},
+  "pageTurnedPortrait": "Page {n} is now portrait",
+  "@pageTurnedPortrait": {"placeholders": {"n": {"type": "int"}}}
 }

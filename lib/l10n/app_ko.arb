@@ -433,5 +433,16 @@
   "@pagesDeleted": {"placeholders": {"count": {"type": "int"}}},
   "pagesDuplicated": "{count}장을 복제했어요",
   "@pagesDuplicated": {"placeholders": {"count": {"type": "int"}}},
-  "pageBackgroundShort": "배경"
+  "pageBackgroundShort": "배경",
+  "pageChangeBackground": "배경 바꾸기",
+  "pageToLandscape": "가로로 바꾸기",
+  "pageToPortrait": "세로로 바꾸기",
+  "pageBackgroundChanged": "{n}페이지 배경을 바꿨어요",
+  "@pageBackgroundChanged": {"placeholders": {"n": {"type": "int"}}},
+  "pagesBackgroundChanged": "{count}장의 배경을 바꿨어요",
+  "@pagesBackgroundChanged": {"placeholders": {"count": {"type": "int"}}},
+  "pageTurnedLandscape": "{n}페이지를 가로로 바꿨어요",
+  "@pageTurnedLandscape": {"placeholders": {"n": {"type": "int"}}},
+  "pageTurnedPortrait": "{n}페이지를 세로로 바꿨어요",
+  "@pageTurnedPortrait": {"placeholders": {"n": {"type": "int"}}}
 }

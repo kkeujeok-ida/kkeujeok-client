@@ -2107,6 +2107,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Background'**
   String get pageBackgroundShort;
+
+  /// No description provided for @pageChangeBackground.
+  ///
+  /// In en, this message translates to:
+  /// **'Change background'**
+  String get pageChangeBackground;
+
+  /// No description provided for @pageToLandscape.
+  ///
+  /// In en, this message translates to:
+  /// **'Make landscape'**
+  String get pageToLandscape;
+
+  /// No description provided for @pageToPortrait.
+  ///
+  /// In en, this message translates to:
+  /// **'Make portrait'**
+  String get pageToPortrait;
+
+  /// No description provided for @pageBackgroundChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Page {n} background changed'**
+  String pageBackgroundChanged(int n);
+
+  /// No description provided for @pagesBackgroundChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Background of {count} pages changed'**
+  String pagesBackgroundChanged(int count);
+
+  /// No description provided for @pageTurnedLandscape.
+  ///
+  /// In en, this message translates to:
+  /// **'Page {n} is now landscape'**
+  String pageTurnedLandscape(int n);
+
+  /// No description provided for @pageTurnedPortrait.
+  ///
+  /// In en, this message translates to:
+  /// **'Page {n} is now portrait'**
+  String pageTurnedPortrait(int n);
 }
 
 class _AppLocalizationsDelegate

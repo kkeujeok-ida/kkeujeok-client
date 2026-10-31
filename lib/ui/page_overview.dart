@@ -32,12 +32,28 @@ abstract class PageOverviewHost {
 
   /// [index] counts the pages that are not moved (spec `ops.movePages`).
   String? movePages(List<String> ids, int index);
+
+  /// Story 6.8. One undo step however many pages.
+  String? setBackground(List<String> ids, String background);
+  String? setOrientation(String id, String orientation);
 }
+
+/// What the overview closes with when a thumbnail was tapped: the page to
+/// show and, for the out-of-bounds badge, the elements to select there
+/// (Story 6.8).
+class PageOverviewResult {
+  const PageOverviewResult(this.index, [this.select = const []]);
+  final int index;
+  final List<String> select;
+}
+
+const _backgroundNames = ['plain', 'lined', 'grid', 'dot'];
 
 /// Story 6.2: the full-screen page overview. Pops with the tapped page index,
 /// or null when closed. Story 6.4: [+] and the ⋯ menu add, duplicate and
 /// delete pages. Story 6.6: long-press drag, ⋯ move items, TalkBack actions
-/// and the [선택] mode with its header.
+/// and the [선택] mode with its header. Story 6.8: background and
+/// orientation from the ⋯ menu and the header, and the out-of-bounds badge.
 class PageOverview extends StatefulWidget {
   const PageOverview({super.key, required this.host});
 
@@ -113,6 +129,60 @@ class _PageOverviewState extends State<PageOverview> {
     _note(text, undo: true);
   }
 
+  Future<String?> _pickBackground() {
+    final l = AppLocalizations.of(context);
+    final names = {
+      'plain': l.backgroundPlain,
+      'lined': l.backgroundLined,
+      'grid': l.backgroundGrid,
+      'dot': l.backgroundDot,
+    };
+    return showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: Text(l.pageBackground),
+        children: [
+          for (final b in _backgroundNames)
+            SimpleDialogOption(
+              onPressed: () => Navigator.of(context).pop(b),
+              child: Text(names[b]!),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _background(List<String> ids) async {
+    final b = await _pickBackground();
+    if (b == null || !mounted) return;
+    final l = AppLocalizations.of(context);
+    final first = host.pages.indexWhere((p) => p['id'] == ids.first);
+    final text = ids.length == 1
+        ? l.pageBackgroundChanged(first + 1)
+        : l.pagesBackgroundChanged(ids.length);
+    if (host.setBackground(ids, b) != null) return;
+    _leaveSelection();
+    _note(text, undo: true);
+  }
+
+  void _orient(int i, String orientation) {
+    final l = AppLocalizations.of(context);
+    if (host.setOrientation(_id(i), orientation) != null) return;
+    _note(
+      orientation == 'landscape'
+          ? l.pageTurnedLandscape(i + 1)
+          : l.pageTurnedPortrait(i + 1),
+      undo: true,
+    );
+  }
+
+  /// Turns the page the other way; null for a square page (nothing to turn).
+  VoidCallback? _turn(Map<String, dynamic> page, int i) {
+    final w = page['width'] as num, h = page['height'] as num;
+    if (w == h) return null;
+    return () => _orient(i, w > h ? 'portrait' : 'landscape');
+  }
+
   void _leaveSelection() {
     if (_selecting) {
       setState(() {
@@ -132,7 +202,9 @@ class _PageOverviewState extends State<PageOverview> {
   /// A page was dropped on the thumbnail at [j].
   void _drop(String dragged, int j) {
     final pages = host.pages;
-    final ids = _selecting && _sel.contains(dragged) ? _sel.toList() : [dragged];
+    final ids = _selecting && _sel.contains(dragged)
+        ? _sel.toList()
+        : [dragged];
     final target = pages[j]['id'];
     if (ids.contains(target)) return;
     final from = pages.indexWhere((p) => p['id'] == dragged);
@@ -162,7 +234,9 @@ class _PageOverviewState extends State<PageOverview> {
       final dy = y < 140 ? -12.0 : (y > h - 100 ? 12.0 : 0.0);
       if (dy == 0) return;
       final p = _scroll.position;
-      _scroll.jumpTo((p.pixels + dy).clamp(p.minScrollExtent, p.maxScrollExtent));
+      _scroll.jumpTo(
+        (p.pixels + dy).clamp(p.minScrollExtent, p.maxScrollExtent),
+      );
     });
   }
 
@@ -196,7 +270,10 @@ class _PageOverviewState extends State<PageOverview> {
                 : () => _delete(_sel.toList()),
             child: Text(l.pageDelete),
           ),
-          TextButton(onPressed: null, child: Text(l.pageBackgroundShort)),
+          TextButton(
+            onPressed: none ? null : () => _background(_sel.toList()),
+            child: Text(l.pageBackgroundShort),
+          ),
           IconButton(
             tooltip: l.pageSelectDone,
             icon: const Icon(Icons.close),
@@ -266,9 +343,14 @@ class _PageOverviewState extends State<PageOverview> {
                 selected: _sel.contains(id),
                 onTap: _selecting
                     ? () => setState(
-                        () => _sel.contains(id) ? _sel.remove(id) : _sel.add(id),
+                        () =>
+                            _sel.contains(id) ? _sel.remove(id) : _sel.add(id),
                       )
-                    : () => Navigator.of(context).pop(i),
+                    : () => Navigator.of(context).pop(PageOverviewResult(i)),
+                onOutTap: (ids) =>
+                    Navigator.of(context).pop(PageOverviewResult(i, ids)),
+                onBackground: () => _background([id]),
+                onOrientation: _turn(pages[i], i),
                 onDuplicate: () => _duplicate([id]),
                 onDelete: pages.length > 1 ? () => _delete([id]) : null,
                 onEarlier: i > 0 ? () => _moveOne(i, i - 1) : null,
@@ -300,6 +382,9 @@ class _Cell extends StatefulWidget {
     required this.selecting,
     required this.selected,
     required this.onTap,
+    required this.onOutTap,
+    required this.onBackground,
+    required this.onOrientation,
     required this.onDuplicate,
     required this.onDelete,
     required this.onEarlier,
@@ -320,6 +405,14 @@ class _Cell extends StatefulWidget {
 
   /// Null for the last page left: it cannot be deleted.
   final VoidCallback? onDelete;
+
+  final VoidCallback onBackground;
+
+  /// Null for a square page.
+  final VoidCallback? onOrientation;
+
+  /// The badge: the ids of the elements outside the page.
+  final void Function(List<String> ids) onOutTap;
 
   /// Null where the move makes no sense (the first page cannot go earlier).
   final VoidCallback? onEarlier, onLater, onFirst, onLast;
@@ -344,9 +437,10 @@ class _CellState extends State<_Cell> {
     final ratio = (w / h).isFinite && w > 0 && h > 0
         ? (w / h).clamp(0.2, 5.0).toDouble()
         : 0.7;
-    final out = pageOutOfBounds(w, h, [
+    final outIds = pageOutOfBounds(w, h, [
       for (final e in p['elements'] as List) (e as Map).cast<String, dynamic>(),
-    ]).length;
+    ]);
+    final out = outIds.length;
     final n = widget.index + 1;
     final label = [
       l.pageSemantics(
@@ -356,7 +450,6 @@ class _CellState extends State<_Cell> {
       ),
       if (widget.isCurrent) l.pageCurrent,
       if (widget.conflict) l.pageConflictBadge,
-      if (out > 0) l.pageOutOfBoundsBadge(out),
     ].join(', ');
     const radius = KkjLight.componentsPageThumbnailRounded;
     final badge = Theme.of(context).textTheme.labelSmall
@@ -375,7 +468,9 @@ class _CellState extends State<_Cell> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(radius),
         child: RepaintBoundary(
-          child: CustomPaint(painter: PagePainter(page: p, cache: _cache)),
+          child: CustomPaint(
+            painter: PagePainter(page: p, cache: _cache),
+          ),
         ),
       ),
     );
@@ -398,7 +493,8 @@ class _CellState extends State<_Cell> {
                         border: candidates.isEmpty
                             ? null
                             : Border.all(
-                                color: KkjLight.componentsPageThumbnailCurrentRing,
+                                color:
+                                    KkjLight.componentsPageThumbnailCurrentRing,
                                 width: 4,
                               ),
                         borderRadius: BorderRadius.circular(radius),
@@ -493,6 +589,11 @@ class _CellState extends State<_Cell> {
                         itemBuilder: (_) => [
                           _item(widget.onDuplicate, l.pageDuplicate),
                           _item(widget.onDelete, l.pageDelete),
+                          _item(widget.onBackground, l.pageChangeBackground),
+                          _item(
+                            widget.onOrientation,
+                            w > h ? l.pageToPortrait : l.pageToLandscape,
+                          ),
                           const PopupMenuDivider(),
                           _item(widget.onEarlier, l.pageMoveEarlier),
                           _item(widget.onLater, l.pageMoveLater),
@@ -506,39 +607,28 @@ class _CellState extends State<_Cell> {
                       left: 4,
                       bottom: 4,
                       right: 4,
-                      child: ExcludeSemantics(
-                        child: Wrap(
-                          spacing: 4,
-                          children: [
-                            for (final t in [
-                              if (widget.conflict) l.pageConflictBadge,
-                              if (out > 0) l.pageOutOfBoundsBadge(out),
-                            ])
-                              DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: KkjLight.colorSurfaceRaised,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 4,
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(
-                                        Icons.warning_amber,
-                                        size: 12,
-                                        color: KkjLight.colorStatusWarningText,
-                                      ),
-                                      const SizedBox(width: 2),
-                                      Flexible(child: Text(t, style: badge)),
-                                    ],
-                                  ),
+                      child: Wrap(
+                        spacing: 4,
+                        children: [
+                          if (widget.conflict)
+                            ExcludeSemantics(
+                              child: _badge(l.pageConflictBadge, badge),
+                            ),
+                          if (out > 0)
+                            Semantics(
+                              button: true,
+                              label: l.pageOutOfBoundsBadge(out),
+                              excludeSemantics: true,
+                              onTap: () => widget.onOutTap(outIds),
+                              child: GestureDetector(
+                                onTap: () => widget.onOutTap(outIds),
+                                child: _badge(
+                                  l.pageOutOfBoundsBadge(out),
+                                  badge,
                                 ),
                               ),
-                          ],
-                        ),
+                            ),
+                        ],
                       ),
                     ),
                 ],
@@ -556,6 +646,28 @@ class _CellState extends State<_Cell> {
       ],
     );
   }
+
+  Widget _badge(String t, TextStyle? style) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: KkjLight.colorSurfaceRaised,
+      borderRadius: BorderRadius.circular(4),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.warning_amber,
+            size: 12,
+            color: KkjLight.colorStatusWarningText,
+          ),
+          const SizedBox(width: 2),
+          Flexible(child: Text(t, style: style)),
+        ],
+      ),
+    ),
+  );
 
   /// A menu entry that does nothing and is greyed out when [f] is null.
   PopupMenuEntry<VoidCallback> _item(VoidCallback? f, String text) =>

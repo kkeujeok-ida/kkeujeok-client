@@ -23,6 +23,7 @@ import '../model/eraser.dart';
 import '../model/ids.dart';
 import '../model/image_rules.dart';
 import '../model/note.dart';
+import '../model/page_bounds.dart';
 import '../model/page_view_mode.dart';
 import '../model/pen.dart';
 import '../model/pen_only.dart';
@@ -1362,9 +1363,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   // ---- page operations (Stories 6.4, 6.6, 6.8) ---------------------------
 
   /// Pages, their order and sizes: what changes the layout.
-  String _shape() => [
-    for (final p in _pages) '${p['id']}:${p['width']}x${p['height']}',
-  ].join(',');
+  String _shape() =>
+      [for (final p in _pages) '${p['id']}:${p['width']}x${p['height']}']
+          .join(',');
 
   /// The view after the page list changed, with page [i] kept in view.
   void _relayoutAt(int i) {
@@ -2055,7 +2056,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _ovCur = _page?['id'] as String?;
     _ovDirty = false;
     final host = _OverviewHost(this);
-    final picked = await Navigator.of(context).push<int>(
+    final picked = await Navigator.of(context).push<PageOverviewResult>(
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (_) => PageOverview(host: host),
@@ -2063,9 +2064,15 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     );
     if (!mounted) return;
     // Closed after changes: back to the page the overview called current.
-    final at = picked ?? (_ovDirty ? _ovIndex : null);
+    final at = picked?.index ?? (_ovDirty ? _ovIndex : null);
     if (at == null || at >= _pages.length) return;
     _goTo(_laidOut(_Fit.width, at), _Fit.width);
+    final ids = picked?.select ?? const <String>[];
+    if (ids.isNotEmpty) {
+      // The badge: the elements outside the page, ready to be dragged back.
+      _setTool(_Tool.lasso);
+      _select(_pages[at]['id'] as String, ids.toSet());
+    }
     _canvasFocus.requestFocus();
   }
 
@@ -3692,51 +3699,143 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     final vp = _vp!;
     return [
       for (var i = 0; i < pages.length; i++)
-        () {
+        ...() {
           final p = pages[i];
           final id = p['id'] as String;
           final held = _held;
           final shown = held != null && held['id'] == id ? held : p;
           final landscape = (p['width'] as num) > (p['height'] as num);
-          return Semantics(
-            label: l10n.pageSemantics(
-              i + 1,
-              pages.length,
-              landscape ? l10n.orientationLandscape : l10n.orientationPortrait,
-            ),
-            value: _history.isLocked(id)
-                ? '${l10n.handwriting}, ${l10n.conflictPageSemantics}'
-                : l10n.handwriting,
-            child: RepaintBoundary(
-              child: CustomPaint(
-                size: Size.infinite,
-                painter: PagePainter(
-                  page: shown,
-                  cache: _caches.putIfAbsent(id, StrokePathCache.new),
-                  viewport: PageViewport(
-                    vp.scale,
-                    vp.offset + rects[i].topLeft * vp.scale,
+          final marker = _outMarker(shown, rects[i], vp, l10n);
+          return [
+            Semantics(
+              label: l10n.pageSemantics(
+                i + 1,
+                pages.length,
+                landscape
+                    ? l10n.orientationLandscape
+                    : l10n.orientationPortrait,
+              ),
+              value: _history.isLocked(id)
+                  ? '${l10n.handwriting}, ${l10n.conflictPageSemantics}'
+                  : l10n.handwriting,
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  size: Size.infinite,
+                  painter: PagePainter(
+                    page: shown,
+                    cache: _caches.putIfAbsent(id, StrokePathCache.new),
+                    viewport: PageViewport(
+                      vp.scale,
+                      vp.offset + rects[i].topLeft * vp.scale,
+                    ),
+                    // Read at paint time: the first stroke of a session starts after this
+                    // build, when `_strokePageId` was still null.
+                    live: () => id == _strokePageId ? _live() : null,
+                    erasePreview: () =>
+                        id == _strokePageId ? _erasePreview(shown) : null,
+                    hidden: () => _te?.element?['id'] as String?,
+                    draft: () {
+                      final te = _te;
+                      return te != null && te.pageId == id
+                          ? _teElement(te)
+                          : null;
+                    },
+                    images: _images,
+                    repaint: _tick,
                   ),
-                  // Read at paint time: the first stroke of a session starts after this
-                  // build, when `_strokePageId` was still null.
-                  live: () => id == _strokePageId ? _live() : null,
-                  erasePreview: () =>
-                      id == _strokePageId ? _erasePreview(shown) : null,
-                  hidden: () => _te?.element?['id'] as String?,
-                  draft: () {
-                    final te = _te;
-                    return te != null && te.pageId == id
-                        ? _teElement(te)
-                        : null;
-                  },
-                  images: _images,
-                  repaint: _tick,
                 ),
               ),
             ),
-          );
+            ?marker,
+          ];
         }(),
     ];
+  }
+
+  // Elements outside each page, found again only when the page's rev changed.
+  final _outCache = <String, (String, int)>{};
+
+  /// Story 6.8: a `status-warning` frame on the edge of a page that has
+  /// elements outside it, with the count in words (never colour alone).
+  Widget? _outMarker(
+    Map<String, dynamic> page,
+    Rect rect,
+    PageViewport vp,
+    AppLocalizations l10n,
+  ) {
+    final w = (page['width'] as num).toDouble();
+    final h = (page['height'] as num).toDouble();
+    final r = Rect.fromLTWH(
+      vp.offset.dx + rect.left * vp.scale,
+      vp.offset.dy + rect.top * vp.scale,
+      w * vp.scale,
+      h * vp.scale,
+    );
+    if (!r.overlaps(Offset.zero & _size)) return null; // only what is in view
+    final id = page['id'] as String, rev = page['rev'] as String;
+    var hit = _outCache[id];
+    if (hit == null || hit.$1 != rev) {
+      hit = (
+        rev,
+        pageOutOfBounds(w, h, [
+          for (final e in page['elements'] as List)
+            (e as Map).cast<String, dynamic>(),
+        ]).length,
+      );
+      _outCache[id] = hit;
+    }
+    final n = hit.$2;
+    if (n == 0) return null;
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Stack(
+          children: [
+            Positioned.fromRect(
+              rect: r,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: KkjLight.colorStatusWarning,
+                    width: 3,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              right: (_size.width - r.right + 6).clamp(6.0, _size.width),
+              top: (r.top + 6).clamp(_padding.top, _size.height - 32),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: KkjLight.colorSurfaceRaised,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.warning_amber,
+                        size: 14,
+                        color: KkjLight.colorStatusWarningText,
+                      ),
+                      const SizedBox(width: 2),
+                      Text(
+                        l10n.pageOutOfBoundsBadge(n),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: KkjLight.colorStatusWarningText,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _body(BuildContext context) {
@@ -4450,6 +4549,21 @@ class _OverviewHost implements PageOverviewHost {
   @override
   String? movePages(List<String> ids, int index) =>
       _do({'op': 'movePages', 'pageIds': ids, 'index': index});
+
+  @override
+  String? setBackground(List<String> ids, String background) => _do({
+    'op': 'setPageBackground',
+    'items': [
+      for (final id in ids) {'pageId': id, 'background': background},
+    ],
+  });
+
+  @override
+  String? setOrientation(String id, String orientation) => _do({
+    'op': 'setPageOrientation',
+    'pageId': id,
+    'orientation': orientation,
+  });
 }
 
 /// Story 5.13: three fingers that land within [_secondFinger] of the first

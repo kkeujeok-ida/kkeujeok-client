@@ -1111,4 +1111,33 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get pageBackgroundShort => '배경';
+
+  @override
+  String get pageChangeBackground => '배경 바꾸기';
+
+  @override
+  String get pageToLandscape => '가로로 바꾸기';
+
+  @override
+  String get pageToPortrait => '세로로 바꾸기';
+
+  @override
+  String pageBackgroundChanged(int n) {
+    return '$n페이지 배경을 바꿨어요';
+  }
+
+  @override
+  String pagesBackgroundChanged(int count) {
+    return '$count장의 배경을 바꿨어요';
+  }
+
+  @override
+  String pageTurnedLandscape(int n) {
+    return '$n페이지를 가로로 바꿨어요';
+  }
+
+  @override
+  String pageTurnedPortrait(int n) {
+    return '$n페이지를 세로로 바꿨어요';
+  }
 }

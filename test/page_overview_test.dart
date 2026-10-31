@@ -7,6 +7,7 @@ import 'package:kkeujeok/model/kkj_codec.dart';
 import 'package:kkeujeok/model/note.dart';
 import 'package:kkeujeok/ops/ops.dart';
 import 'package:kkeujeok/render/page_painter.dart';
+import 'package:kkeujeok/render/selection_painter.dart';
 import 'package:kkeujeok/storage/note_data.dart';
 import 'package:kkeujeok/storage/note_store.dart';
 import 'package:kkeujeok/ui/note_editor.dart';
@@ -325,6 +326,90 @@ void main() {
       t.widget<TextButton>(find.widgetWithText(TextButton, 'Delete')).onPressed,
       isNull,
     );
+  });
+
+  List<String> backgrounds() => [
+    for (final p in decodeKkj(file.readAsBytesSync()).note!.pages)
+      p['background'] as String,
+  ];
+
+  testWidgets('background: one page from the menu, two from the header', (
+    t,
+  ) async {
+    seed(_note(3));
+    await open(t);
+    await openOverview(t);
+    await t.tap(find.byTooltip('Page menu').at(1));
+    await settle(t);
+    await t.tap(find.text('Change background'));
+    await settle(t);
+    await t.tap(find.text('Grid'));
+    await settle(t);
+    expect(find.text('Page 2 background changed'), findsOneWidget);
+    expect(backgrounds(), ['plain', 'grid', 'plain']);
+    await t.tap(find.text('Select'));
+    await settle(t);
+    await t.tapAt(thumb(t, 1));
+    await t.tapAt(thumb(t, 2));
+    await settle(t);
+    await t.tap(find.text('Background'));
+    await settle(t);
+    await t.tap(find.text('Dot'));
+    await settle(t);
+    expect(backgrounds(), ['dot', 'dot', 'plain']);
+    await t.tap(find.text('Undo'));
+    await settle(t);
+    expect(backgrounds(), ['plain', 'grid', 'plain']); // one step
+  });
+
+  testWidgets('turning a page leaves elements; badge selects them', (t) async {
+    final n = _note(2).copyJson();
+    ((n['pages'] as List).first as Map)['elements'] = [
+      {
+        'id': _id(9001),
+        'type': 'stroke',
+        'tool': 'pen',
+        'color': '#000000',
+        'width': 2,
+        'usePressure': false,
+        'points': [
+          [500, 700, 0.5, 0],
+          [510, 710, 0.5, 10],
+        ],
+      },
+    ];
+    seed(Note.trusted(n));
+    await open(t);
+    await openOverview(t);
+    await t.tap(find.byTooltip('Page menu').at(0));
+    await settle(t);
+    await t.tap(find.text('Make landscape'));
+    await settle(t);
+    expect(find.text('Page 1 is now landscape'), findsOneWidget);
+    final page = decodeKkj(file.readAsBytesSync()).note!.pages.first;
+    expect([page['width'], page['height']], [842, 595]);
+    expect((page['elements'] as List).length, 1); // not moved, not removed
+    // The badge on the thumbnail; the menu now offers the way back.
+    expect(find.text('1 elements outside the page'), findsOneWidget);
+    await t.tap(find.byTooltip('Page menu').at(0));
+    await settle(t);
+    expect(find.text('Make portrait'), findsOneWidget);
+    await t.tapAt(const Offset(1, 1)); // closes the menu
+    await settle(t);
+    await t.tap(find.text('1 elements outside the page'));
+    await settle(t);
+    expect(find.byType(PageOverview), findsNothing);
+    // The editor shows the frame text and the element is selected.
+    expect(find.text('1 elements outside the page'), findsOneWidget);
+    final sel = find
+        .descendant(
+          of: find.byType(NoteEditor),
+          matching: find.byType(CustomPaint),
+        )
+        .evaluate()
+        .map((e) => (e.widget as CustomPaint).painter)
+        .whereType<SelectionPainter>();
+    expect(sel.single.box, isNotNull);
   });
 
   test('TalkBack label in Korean', () {

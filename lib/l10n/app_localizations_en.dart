@@ -1174,4 +1174,33 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pageBackgroundShort => 'Background';
+
+  @override
+  String get pageChangeBackground => 'Change background';
+
+  @override
+  String get pageToLandscape => 'Make landscape';
+
+  @override
+  String get pageToPortrait => 'Make portrait';
+
+  @override
+  String pageBackgroundChanged(int n) {
+    return 'Page $n background changed';
+  }
+
+  @override
+  String pagesBackgroundChanged(int count) {
+    return 'Background of $count pages changed';
+  }
+
+  @override
+  String pageTurnedLandscape(int n) {
+    return 'Page $n is now landscape';
+  }
+
+  @override
+  String pageTurnedPortrait(int n) {
+    return 'Page $n is now portrait';
+  }
 }
