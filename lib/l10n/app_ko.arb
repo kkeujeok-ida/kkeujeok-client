@@ -393,5 +393,18 @@
   "@noteBackTo": {"placeholders": {"title": {"type": "String"}}},
   "noteOpened": "‘{title}’ 열림",
   "@noteOpened": {"placeholders": {"title": {"type": "String"}}},
-  "noteBackUndo": "돌아가기"
+  "noteBackUndo": "돌아가기",
+  "pageOverviewOpen": "페이지",
+  "pageOverviewTitle": "페이지",
+  "pageAdd": "페이지 추가",
+  "pageSelect": "선택",
+  "pageMenu": "페이지 메뉴",
+  "pageCurrent": "현재",
+  "pageConflictBadge": "충돌",
+  "pageOutOfBoundsBadge": "페이지 밖 요소 {n}개",
+  "@pageOutOfBoundsBadge": {"placeholders": {"n": {"type": "int"}}},
+  "pageLandscape": "가로",
+  "pagePortrait": "세로",
+  "pageSemantics": "{n}페이지 / {total}, {orientation}",
+  "@pageSemantics": {"placeholders": {"n": {"type": "int"}, "total": {"type": "int"}, "orientation": {"type": "String"}}}
 }

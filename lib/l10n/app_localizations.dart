@@ -1933,6 +1933,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Back'**
   String get noteBackUndo;
+
+  /// No description provided for @pageOverviewOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Pages'**
+  String get pageOverviewOpen;
+
+  /// No description provided for @pageOverviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pages'**
+  String get pageOverviewTitle;
+
+  /// No description provided for @pageAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add page'**
+  String get pageAdd;
+
+  /// No description provided for @pageSelect.
+  ///
+  /// In en, this message translates to:
+  /// **'Select'**
+  String get pageSelect;
+
+  /// No description provided for @pageMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'Page menu'**
+  String get pageMenu;
+
+  /// No description provided for @pageCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Current'**
+  String get pageCurrent;
+
+  /// No description provided for @pageConflictBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'Conflict'**
+  String get pageConflictBadge;
+
+  /// No description provided for @pageOutOfBoundsBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'{n} elements outside the page'**
+  String pageOutOfBoundsBadge(int n);
+
+  /// No description provided for @pageLandscape.
+  ///
+  /// In en, this message translates to:
+  /// **'landscape'**
+  String get pageLandscape;
+
+  /// No description provided for @pagePortrait.
+  ///
+  /// In en, this message translates to:
+  /// **'portrait'**
+  String get pagePortrait;
 }
 
 class _AppLocalizationsDelegate

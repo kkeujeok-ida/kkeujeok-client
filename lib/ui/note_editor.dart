@@ -41,6 +41,7 @@ import '../storage/image_intake.dart';
 import '../sync/merge_step.dart';
 import '../sync/version_history.dart' show RestoreFailure;
 import 'conflict_sheet.dart';
+import 'page_overview.dart';
 import 'eraser_dialog.dart';
 import 'note_order.dart';
 import 'page_layout.dart';
@@ -1877,6 +1878,27 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _lastSync = f;
   }
 
+  /// Story 6.2: the page overview; a tap goes to that page.
+  Future<void> _openPages() async {
+    if (_leaving || !mounted || _pages.isEmpty) return;
+    final at = await Navigator.of(context).push<int>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => PageOverview(
+          pages: _pages,
+          current: _activeIndex(),
+          conflicted: {
+            for (final p in _pages)
+              if (_history.isLocked(p['id'] as String?)) p['id'] as String,
+          },
+        ),
+      ),
+    );
+    if (at == null || !mounted || at >= _pages.length) return;
+    _goTo(_laidOut(_Fit.width, at), _Fit.width);
+    _canvasFocus.requestFocus();
+  }
+
   Future<void> _openHistory() async {
     if (_leaving || !mounted) return;
     final restored = await showVersionHistory(
@@ -2479,7 +2501,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
               pad.horizontal -
               2 * gap -
               PenToolbar.fixedWidth -
-              (inRow ? 144 : 0);
+              (inRow ? 192 : 0);
     // The "tools shown at once" setting; a smaller window wins.
     return math.min(
       room,
@@ -2516,7 +2538,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     final minL = pad.left + gap + (inRow ? 48 : 0);
     final maxL = math.max(
       minL,
-      win.width - pad.right - gap - (inRow ? 96 : 0) - size.width,
+      win.width - pad.right - gap - (inRow ? 144 : 0) - size.width,
     );
     final left = ((pad.left + win.width - pad.right - size.width) / 2).clamp(
       minL,
@@ -3896,6 +3918,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                       onViewMode: (m) =>
                           ref.read(pageViewModeProvider.notifier).set(m),
                       menu: _menu,
+                      onPages: _openPages,
                       onVersionHistory: readOnly || receiving
                           ? null
                           : _openHistory,
@@ -4053,8 +4076,10 @@ class _MoreMenu extends StatelessWidget {
     required this.onViewMode,
     required this.menu,
     required this.onVersionHistory,
+    required this.onPages,
   });
 
+  final VoidCallback onPages;
   final MenuController menu;
 
   final PageViewMode viewMode;
@@ -4086,6 +4111,17 @@ class _MoreMenu extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           SyncIndicator(noteId: noteId),
+          IconButton(
+            tooltip: l10n.pageOverviewOpen,
+            constraints: const BoxConstraints(
+              minWidth: _toolbarHeight,
+              minHeight: _toolbarHeight,
+            ),
+            padding: EdgeInsets.zero,
+            iconSize: 20,
+            icon: const Icon(Icons.grid_view),
+            onPressed: onPages,
+          ),
           MenuAnchor(
             controller: menu,
             style: MenuStyle(

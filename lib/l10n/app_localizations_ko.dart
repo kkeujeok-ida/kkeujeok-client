@@ -1006,4 +1006,36 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get noteBackUndo => '돌아가기';
+
+  @override
+  String get pageOverviewOpen => '페이지';
+
+  @override
+  String get pageOverviewTitle => '페이지';
+
+  @override
+  String get pageAdd => '페이지 추가';
+
+  @override
+  String get pageSelect => '선택';
+
+  @override
+  String get pageMenu => '페이지 메뉴';
+
+  @override
+  String get pageCurrent => '현재';
+
+  @override
+  String get pageConflictBadge => '충돌';
+
+  @override
+  String pageOutOfBoundsBadge(int n) {
+    return '페이지 밖 요소 $n개';
+  }
+
+  @override
+  String get pageLandscape => '가로';
+
+  @override
+  String get pagePortrait => '세로';
 }

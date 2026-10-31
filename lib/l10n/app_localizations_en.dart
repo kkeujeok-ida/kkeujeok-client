@@ -1069,4 +1069,36 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noteBackUndo => 'Back';
+
+  @override
+  String get pageOverviewOpen => 'Pages';
+
+  @override
+  String get pageOverviewTitle => 'Pages';
+
+  @override
+  String get pageAdd => 'Add page';
+
+  @override
+  String get pageSelect => 'Select';
+
+  @override
+  String get pageMenu => 'Page menu';
+
+  @override
+  String get pageCurrent => 'Current';
+
+  @override
+  String get pageConflictBadge => 'Conflict';
+
+  @override
+  String pageOutOfBoundsBadge(int n) {
+    return '$n elements outside the page';
+  }
+
+  @override
+  String get pageLandscape => 'landscape';
+
+  @override
+  String get pagePortrait => 'portrait';
 }

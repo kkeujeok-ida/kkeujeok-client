@@ -15,6 +15,7 @@ import 'package:kkeujeok/model/note_title.dart';
 import 'package:kkeujeok/model/number.dart';
 import 'package:kkeujeok/l10n/app_localizations_en.dart';
 import 'package:kkeujeok/l10n/app_localizations_ko.dart';
+import 'package:kkeujeok/model/page_bounds.dart';
 import 'package:kkeujeok/model/pen.dart';
 import 'package:kkeujeok/model/pen_palette.dart';
 import 'package:kkeujeok/ui/pen_toolbar.dart'
@@ -297,6 +298,15 @@ final runners = <String, void Function(Case)>{
   'pen.defaultSlots': (c) => _same({
     'slots': [for (final p in defaultPenSlots) p.toJson()],
   }, c['expected']),
+  'page.outOfBounds': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    _same({
+      'ids': pageOutOfBounds(i['width'] as num, i['height'] as num, [
+        for (final e in i['elements'] as List)
+          (e as Map).cast<String, dynamic>(),
+      ]),
+    }, c['expected']);
+  },
   'page.background': (c) {
     final i = c['input'] as Map<String, dynamic>;
     _same(
@@ -426,6 +436,7 @@ final runners = <String, void Function(Case)>{
     'merge.unknownFields',
     'merge.formatVersion',
     'merge.undoDrop',
+    'merge.pageOps',
   ])
     id: _runMerge,
   'merge.requeue': (c) {
@@ -598,7 +609,17 @@ void _runOp(Case c) {
 // needs a valid fixture file and must not have a runner yet: when its story
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6. The erase rules have runners (Story 5.6): none pending.
-const pendingRules = <String>{};
+// Page operations (Story 6.1) arrive with the Android stories 6.4, 6.6, 6.8.
+const pendingRules = <String>{
+  'ops.addPage',
+  'ops.deletePage',
+  'ops.insertPages',
+  'ops.duplicatePage',
+  'ops.movePages',
+  'ops.setPageOrder',
+  'ops.setPageBackground',
+  'ops.setPageOrientation',
+};
 
 final _sep = Platform.pathSeparator;
 

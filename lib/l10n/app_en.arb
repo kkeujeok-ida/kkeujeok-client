@@ -447,5 +447,18 @@
   "@noteBackTo": {"placeholders": {"title": {"type": "String"}}},
   "noteOpened": "‘{title}’ opened",
   "@noteOpened": {"placeholders": {"title": {"type": "String"}}},
-  "noteBackUndo": "Back"
+  "noteBackUndo": "Back",
+  "pageOverviewOpen": "Pages",
+  "pageOverviewTitle": "Pages",
+  "pageAdd": "Add page",
+  "pageSelect": "Select",
+  "pageMenu": "Page menu",
+  "pageCurrent": "Current",
+  "pageConflictBadge": "Conflict",
+  "pageOutOfBoundsBadge": "{n} elements outside the page",
+  "@pageOutOfBoundsBadge": {"placeholders": {"n": {"type": "int"}}},
+  "pageLandscape": "landscape",
+  "pagePortrait": "portrait",
+  "pageSemantics": "Page {n} of {total}, {orientation}",
+  "@pageSemantics": {"placeholders": {"n": {"type": "int"}, "total": {"type": "int"}, "orientation": {"type": "String"}}}
 }
