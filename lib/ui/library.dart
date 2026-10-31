@@ -29,7 +29,7 @@ import 'sync_indicator.dart';
 // View sizes are fractions of the cover column minimum (web uses the same).
 const _gridFactor = {
   LibrarySize.small: 0.38,
-  LibrarySize.standard: 0.55,
+  LibrarySize.standard: 0.8,
   LibrarySize.large: 1.2,
 };
 const _rowThumbFactor = {
