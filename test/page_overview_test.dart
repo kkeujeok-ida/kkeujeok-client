@@ -142,6 +142,89 @@ void main() {
     expect(painters()[0].viewport!.offset, before);
   });
 
+  int onDisk() => decodeKkj(file.readAsBytesSync()).note!.pages.length;
+
+  testWidgets('[+] adds after the current page; the snackbar undoes it', (
+    t,
+  ) async {
+    seed(_note(3));
+    await open(t);
+    await t.tap(find.byTooltip('Pages'));
+    await settle(t);
+    await t.tap(find.byTooltip('Add page'));
+    await settle(t);
+    expect(find.text('Page 2 added'), findsOneWidget);
+    expect(find.byTooltip('Page menu'), findsNWidgets(4));
+    expect(onDisk(), 4);
+    await t.tap(find.text('Undo'));
+    await settle(t);
+    expect(find.byTooltip('Page menu'), findsNWidgets(3));
+    expect(onDisk(), 3);
+  });
+
+  testWidgets('menu: duplicate, delete with undo, current page falls back', (
+    t,
+  ) async {
+    seed(_note(3));
+    await open(t);
+    await t.tap(find.byTooltip('Pages'));
+    await settle(t);
+    await t.tap(find.byTooltip('Page menu').at(1));
+    await settle(t);
+    await t.tap(find.text('Duplicate'));
+    await settle(t);
+    expect(find.text('Page 2 duplicated'), findsOneWidget);
+    expect(onDisk(), 4);
+    // The current page (1) is deleted: the next one (2) becomes current.
+    await t.tap(find.byTooltip('Page menu').at(0));
+    await settle(t);
+    await t.tap(find.text('Delete'));
+    await settle(t);
+    expect(find.text('Page 1 deleted'), findsOneWidget);
+    expect(onDisk(), 3);
+    expect(find.text('1 · Current'), findsOneWidget);
+    await t.tap(find.text('Undo'));
+    await settle(t);
+    expect(onDisk(), 4);
+  });
+
+  testWidgets('the last page left cannot be deleted', (t) async {
+    seed(_note(1));
+    await open(t);
+    await t.tap(find.byTooltip('Pages'));
+    await settle(t);
+    await t.tap(find.byTooltip('Page menu'));
+    await settle(t);
+    final item = t.widget<PopupMenuItem<VoidCallback?>>(
+      find.widgetWithText(PopupMenuItem<VoidCallback?>, 'Delete'),
+    );
+    expect(item.enabled, isFalse);
+  });
+
+  testWidgets('a two-finger pull past the end adds a page, a short one not', (
+    t,
+  ) async {
+    seed(_note(2));
+    await open(t);
+    Future<void> pull(double dy) async {
+      final a = await t.startGesture(const Offset(300, 300), pointer: 1);
+      final b = await t.startGesture(const Offset(400, 300), pointer: 2);
+      for (var k = 1; k <= 10; k++) {
+        await a.moveBy(Offset(0, dy / 10));
+        await b.moveBy(Offset(0, dy / 10));
+      }
+      await a.up();
+      await b.up();
+      await settle(t);
+    }
+
+    await pull(-50); // a short scroll, nowhere near the end
+    expect(onDisk(), 2);
+    await pull(-4000); // far past the end, released
+    expect(onDisk(), 3);
+    expect(find.text('Page 3 added'), findsOneWidget);
+  });
+
   test('TalkBack label in Korean', () {
     final l = AppLocalizationsKo();
     expect(

@@ -406,5 +406,16 @@
   "pageLandscape": "가로",
   "pagePortrait": "세로",
   "pageSemantics": "{n}페이지 / {total}, {orientation}",
-  "@pageSemantics": {"placeholders": {"n": {"type": "int"}, "total": {"type": "int"}, "orientation": {"type": "String"}}}
+  "@pageSemantics": {"placeholders": {"n": {"type": "int"}, "total": {"type": "int"}, "orientation": {"type": "String"}}},
+  "pageAdded": "{n}페이지를 추가했어요",
+  "@pageAdded": {"placeholders": {"n": {"type": "int"}}},
+  "pageDeleted": "{n}페이지를 지웠어요",
+  "@pageDeleted": {"placeholders": {"n": {"type": "int"}}},
+  "pageDuplicated": "{n}페이지를 복제했어요",
+  "@pageDuplicated": {"placeholders": {"n": {"type": "int"}}},
+  "pageUndo": "되돌리기",
+  "pageDuplicate": "복제",
+  "pageDelete": "삭제",
+  "pagePullMore": "계속 당기면 페이지 추가",
+  "pagePullRelease": "놓으면 페이지 추가"
 }

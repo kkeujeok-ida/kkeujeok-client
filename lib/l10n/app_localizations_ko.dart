@@ -1038,4 +1038,34 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get pagePortrait => '세로';
+
+  @override
+  String pageAdded(int n) {
+    return '$n페이지를 추가했어요';
+  }
+
+  @override
+  String pageDeleted(int n) {
+    return '$n페이지를 지웠어요';
+  }
+
+  @override
+  String pageDuplicated(int n) {
+    return '$n페이지를 복제했어요';
+  }
+
+  @override
+  String get pageUndo => '되돌리기';
+
+  @override
+  String get pageDuplicate => '복제';
+
+  @override
+  String get pageDelete => '삭제';
+
+  @override
+  String get pagePullMore => '계속 당기면 페이지 추가';
+
+  @override
+  String get pagePullRelease => '놓으면 페이지 추가';
 }

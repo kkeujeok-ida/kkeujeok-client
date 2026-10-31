@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:math' as math;
 
 import '../model/eraser.dart';
@@ -7,30 +8,73 @@ import '../model/note_title.dart';
 import '../model/number.dart';
 import '../model/select.dart';
 import '../model/text_layout.dart';
+import 'page_ops.dart';
 
 /// Values the caller injects so results are deterministic.
 class Ctx {
   const Ctx({
-    required this.rev,
+    this.rev = '',
     required this.now,
     required this.editedBy,
     this.lastSeenRemoteSeq = 0,
     this.ids = const [],
+    this.revs = const [],
+    this.pageIds = const [],
+    this.elementIds = const [],
+    this.orderRev = '',
   });
 
-  factory Ctx.fromJson(Map<String, dynamic> j) => Ctx(
-    rev: j['rev'] as String,
-    now: j['now'] as String,
-    editedBy: j['editedBy'] as String,
-    lastSeenRemoteSeq: (j['lastSeenRemoteSeq'] as num?)?.toInt() ?? 0,
-    ids: [for (final i in (j['ids'] as List? ?? const [])) i as String],
-  );
+  factory Ctx.fromJson(Map<String, dynamic> j) {
+    List<String> list(String k) => [
+      for (final i in (j[k] as List? ?? const [])) i as String,
+    ];
+    final revs = list('revs');
+    return Ctx(
+      rev: j['rev'] as String? ?? (revs.isEmpty ? '' : revs.first),
+      now: j['now'] as String,
+      editedBy: j['editedBy'] as String,
+      lastSeenRemoteSeq: (j['lastSeenRemoteSeq'] as num?)?.toInt() ?? 0,
+      ids: list('ids'),
+      revs: revs,
+      pageIds: list('pageIds'),
+      elementIds: list('elementIds'),
+      orderRev: j['orderRev'] as String? ?? '',
+    );
+  }
 
   final String rev, now, editedBy;
   final int lastSeenRemoteSeq;
 
   /// New element ids for `paste`, one per pasted element.
   final List<String> ids;
+
+  /// Page operations (spec/ops.md "Page operations"): UUIDv7 lists the caller
+  /// makes long enough, and the note's new `orderRev`.
+  final List<String> revs, pageIds, elementIds;
+  final String orderRev;
+}
+
+/// Ids made when first asked for, for a [Ctx] whose operation needs an
+/// unknown number of them (undo of a page deletion inserts as many pages).
+class LazyIds extends ListBase<String> {
+  LazyIds(this._make);
+  final String Function() _make;
+  final _ids = <String>[];
+
+  @override
+  int get length => _ids.length;
+  @override
+  set length(int _) => throw UnsupportedError('LazyIds');
+  @override
+  String operator [](int i) {
+    while (_ids.length <= i) {
+      _ids.add(_make());
+    }
+    return _ids[i];
+  }
+
+  @override
+  void operator []=(int i, String v) => throw UnsupportedError('LazyIds');
 }
 
 /// Either a new note plus its inverse, or an error code.
@@ -106,6 +150,7 @@ OpResult applyOp(Note note, Map<String, dynamic> op, Ctx ctx) =>
       'insertImage' => _insertImage(note, op, ctx),
       'editText' => _editText(note, op, ctx),
       'setTextBoxWidth' => _editText(note, op, ctx),
+      final o when pageOpNames.contains(o) => applyPageOp(note, op, ctx),
       _ => const OpResult.error('unknownOp'),
     };
 

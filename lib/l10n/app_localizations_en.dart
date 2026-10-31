@@ -1101,4 +1101,34 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pagePortrait => 'portrait';
+
+  @override
+  String pageAdded(int n) {
+    return 'Page $n added';
+  }
+
+  @override
+  String pageDeleted(int n) {
+    return 'Page $n deleted';
+  }
+
+  @override
+  String pageDuplicated(int n) {
+    return 'Page $n duplicated';
+  }
+
+  @override
+  String get pageUndo => 'Undo';
+
+  @override
+  String get pageDuplicate => 'Duplicate';
+
+  @override
+  String get pageDelete => 'Delete';
+
+  @override
+  String get pagePullMore => 'Keep pulling to add a page';
+
+  @override
+  String get pagePullRelease => 'Release to add a page';
 }

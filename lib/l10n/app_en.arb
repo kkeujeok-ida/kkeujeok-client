@@ -460,5 +460,16 @@
   "pageLandscape": "landscape",
   "pagePortrait": "portrait",
   "pageSemantics": "Page {n} of {total}, {orientation}",
-  "@pageSemantics": {"placeholders": {"n": {"type": "int"}, "total": {"type": "int"}, "orientation": {"type": "String"}}}
+  "@pageSemantics": {"placeholders": {"n": {"type": "int"}, "total": {"type": "int"}, "orientation": {"type": "String"}}},
+  "pageAdded": "Page {n} added",
+  "@pageAdded": {"placeholders": {"n": {"type": "int"}}},
+  "pageDeleted": "Page {n} deleted",
+  "@pageDeleted": {"placeholders": {"n": {"type": "int"}}},
+  "pageDuplicated": "Page {n} duplicated",
+  "@pageDuplicated": {"placeholders": {"n": {"type": "int"}}},
+  "pageUndo": "Undo",
+  "pageDuplicate": "Duplicate",
+  "pageDelete": "Delete",
+  "pagePullMore": "Keep pulling to add a page",
+  "pagePullRelease": "Release to add a page"
 }

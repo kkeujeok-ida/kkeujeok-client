@@ -143,6 +143,14 @@ final runners = <String, void Function(Case)>{
     );
   },
   'ops.addStroke': _runOp,
+  'ops.addPage': _runOp,
+  'ops.deletePage': _runOp,
+  'ops.insertPages': _runOp,
+  'ops.duplicatePage': _runOp,
+  'ops.movePages': _runOp,
+  'ops.setPageOrder': _runOp,
+  'ops.setPageBackground': _runOp,
+  'ops.setPageOrientation': _runOp,
   'ops.move': _runOp,
   'ops.scale': _runOp,
   'ops.rotate': _runOp,
@@ -609,17 +617,7 @@ void _runOp(Case c) {
 // needs a valid fixture file and must not have a runner yet: when its story
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6. The erase rules have runners (Story 5.6): none pending.
-// Page operations (Story 6.1) arrive with the Android stories 6.4, 6.6, 6.8.
-const pendingRules = <String>{
-  'ops.addPage',
-  'ops.deletePage',
-  'ops.insertPages',
-  'ops.duplicatePage',
-  'ops.movePages',
-  'ops.setPageOrder',
-  'ops.setPageBackground',
-  'ops.setPageOrientation',
-};
+const pendingRules = <String>{};
 
 final _sep = Platform.pathSeparator;
 

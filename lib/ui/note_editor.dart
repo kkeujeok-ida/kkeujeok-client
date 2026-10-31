@@ -1321,6 +1321,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     now: canonicalNow(DateTime.now()),
     editedBy: deviceEditedBy,
     lastSeenRemoteSeq: _lastSeen,
+    revs: LazyIds(newId),
+    pageIds: LazyIds(newId),
+    elementIds: LazyIds(newId),
+    orderRev: newId(),
   );
 
   /// Queues the history's current note for saving.
@@ -1343,14 +1347,181 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     final depth = undo ? _history.undoDepth : _history.redoDepth;
     if (depth == 0) return;
     _selTurn = 0; // the frame of a turned group is forgotten
+    final shape = _shape(), at = _activeIndex();
     final err = undo ? _history.undo(_ctx()) : _history.redo(_ctx());
     if (err != null) {
       _snack(AppLocalizations.of(context).historyNotApplied);
       return;
     }
+    if (shape != _shape()) _relayoutAt(at); // pages made, taken away or turned
     setState(() {});
     _tick.value++;
     _commit();
+  }
+
+  // ---- page operations (Stories 6.4, 6.6, 6.8) ---------------------------
+
+  /// Pages, their order and sizes: what changes the layout.
+  String _shape() => [
+    for (final p in _pages) '${p['id']}:${p['width']}x${p['height']}',
+  ].join(',');
+
+  /// The view after the page list changed, with page [i] kept in view.
+  void _relayoutAt(int i) {
+    if (_vp == null || _pages.isEmpty) return;
+    _anim.stop();
+    final a = i.clamp(0, _pages.length - 1);
+    _vp = _fit != _Fit.free ? _laidOut(_fit, a) : _clamp(_vp!);
+  }
+
+  /// One page operation through the note's history and save queue (AD-16).
+  /// Error code, or null when done.
+  String? _pageOp(Map<String, dynamic> op) {
+    if (_leaving || !mounted || _readOnly || _receiving || _pointer != null) {
+      return 'busy';
+    }
+    _commitText();
+    final touched = [
+      op['pageId'],
+      ...?(op['pageIds'] as List?),
+      for (final it in (op['items'] as List? ?? const []))
+        if (it is Map) it['pageId'],
+    ];
+    // A page waiting for a conflict answer stays as it is.
+    if (op['op'] != 'movePages' &&
+        op['op'] != 'addPage' &&
+        touched.any((id) => _history.isLocked(id as String?))) {
+      _blocked();
+      return 'pageReadOnly';
+    }
+    final at = _activeIndex();
+    final err = _history.doOp(op, _ctx());
+    if (err != null) {
+      _snack(AppLocalizations.of(context).historyNotApplied);
+      return err;
+    }
+    _clearSelection();
+    _relayoutAt(at);
+    setState(() {});
+    _tick.value++;
+    _commit();
+    return null;
+  }
+
+  /// Page id the overview calls current; it follows the view when it opens.
+  String? _ovCur;
+  bool _ovDirty = false;
+
+  int get _ovIndex {
+    final i = _pages.indexWhere((p) => p['id'] == _ovCur);
+    return i < 0 ? _activeIndex() : i;
+  }
+
+  // The pull past the end that adds a page (Story 6.4): how far the fingers
+  // went beyond the edge of the paging axis, negative past the end.
+  static const _pullAt = 96.0;
+  final _pull = ValueNotifier<double>(0);
+
+  void _pulled(
+    PageViewport cand,
+    PageViewport c,
+    Offset d, {
+    bool abs = false,
+  }) {
+    final v = _laidMode == PageViewMode.vertical;
+    final lost = v
+        ? cand.offset.dy - c.offset.dy
+        : cand.offset.dx - c.offset.dx;
+    final dd = v ? d.dy : d.dx;
+    final p = _pull.value;
+    _pull.value = abs
+        ? lost
+        : lost != 0
+        ? p + lost
+        : (p < 0 ? math.min(0.0, p + dd) : math.max(0.0, p + dd));
+  }
+
+  /// The fingers are up: past the threshold, a page goes in at that end.
+  void _endPull() {
+    final p = _pull.value;
+    _pull.value = 0;
+    if (p.abs() < _pullAt || _leaving || _readOnly || _receiving) return;
+    final index = p < 0 ? _pages.length : 0;
+    if (_pageOp({'op': 'addPage', 'index': index}) != null) return;
+    _goTo(_laidOut(_Fit.width, index), _Fit.width);
+    _snack(AppLocalizations.of(context).pageAdded(index + 1));
+  }
+
+  Widget _pullIndicator(AppLocalizations l, EdgeInsets pad) =>
+      // Positioned at the top, so the Stack keeps its full size.
+      Positioned.fill(
+        child: IgnorePointer(
+          child: ValueListenableBuilder<double>(
+            valueListenable: _pull,
+            builder: (context, p, _) {
+              if (p == 0) return const SizedBox.shrink();
+              final t = (p.abs() / _pullAt).clamp(0.0, 1.0);
+              final vertical = _laidMode == PageViewMode.vertical;
+              final end = p < 0;
+              final align = vertical
+                  ? (end ? Alignment.bottomCenter : Alignment.topCenter)
+                  : (end ? Alignment.centerRight : Alignment.centerLeft);
+              return Padding(
+                padding: pad + const EdgeInsets.all(KkjTokens.spacing4),
+                child: Align(
+                  alignment: align,
+                  child: Semantics(
+                    liveRegion: true,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: KkjLight.colorSurfaceRaised,
+                        borderRadius: BorderRadius.circular(
+                          KkjLight.componentsBadgeRounded,
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(KkjTokens.spacing2),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                value: t,
+                                strokeWidth: 3,
+                              ),
+                            ),
+                            const SizedBox(width: KkjTokens.spacing2),
+                            Text(
+                              t >= 1 ? l.pagePullRelease : l.pagePullMore,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+
+  /// The page the overview shows as current once [gone] are taken away: the
+  /// next page, else the previous one (Story 6.4).
+  void _ovAfterDelete(Set<String> gone) {
+    if (!gone.contains(_ovCur)) return;
+    final at = _ovIndex;
+    String? pick;
+    for (var i = at + 1; i < _pages.length && pick == null; i++) {
+      if (!gone.contains(_pages[i]['id'])) pick = _pages[i]['id'] as String;
+    }
+    for (var i = at - 1; i >= 0 && pick == null; i--) {
+      if (!gone.contains(_pages[i]['id'])) pick = _pages[i]['id'] as String;
+    }
+    _ovCur = pick;
   }
 
   bool get _pageLocked => _history.isLocked(_page?['id'] as String?);
@@ -1881,20 +2052,19 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   /// Story 6.2: the page overview; a tap goes to that page.
   Future<void> _openPages() async {
     if (_leaving || !mounted || _pages.isEmpty) return;
-    final at = await Navigator.of(context).push<int>(
+    _ovCur = _page?['id'] as String?;
+    _ovDirty = false;
+    final host = _OverviewHost(this);
+    final picked = await Navigator.of(context).push<int>(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => PageOverview(
-          pages: _pages,
-          current: _activeIndex(),
-          conflicted: {
-            for (final p in _pages)
-              if (_history.isLocked(p['id'] as String?)) p['id'] as String,
-          },
-        ),
+        builder: (_) => PageOverview(host: host),
       ),
     );
-    if (at == null || !mounted || at >= _pages.length) return;
+    if (!mounted) return;
+    // Closed after changes: back to the page the overview called current.
+    final at = picked ?? (_ovDirty ? _ovIndex : null);
+    if (at == null || at >= _pages.length) return;
     _goTo(_laidOut(_Fit.width, at), _Fit.width);
     _canvasFocus.requestFocus();
   }
@@ -3012,6 +3182,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   void _startGesture(int a, int b) {
     _snap();
+    _pull.value = 0;
     _fit = _Fit.free;
     _mode = _Mode.gesture;
     _gA = a;
@@ -3035,13 +3206,20 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     // leaves the snap (spec zoom.snap, "Releasing").
     final s = zoomSnap(_s0 * (pa - pb).distance / _d0, _fitScale);
     if (s != _vp?.scale) _flashZoom(s);
-    _setView(_clamp(PageViewport(s, focal - _p0 * s)), _Fit.free);
+    final cand = PageViewport(s, focal - _p0 * s);
+    final c = _clamp(cand);
+    // A two-finger scroll, not a zoom, pulls.
+    if ((s - _s0).abs() < _s0 * 0.02) _pulled(cand, c, Offset.zero, abs: true);
+    _setView(c, _Fit.free);
   }
 
-  void _panBy(Offset d) {
+  void _panBy(Offset d, {bool pull = false}) {
     final vp = _vp;
     if (vp == null || _pointer != null) return;
-    _setView(_clamp(PageViewport(vp.scale, vp.offset + d)), _Fit.free);
+    final cand = PageViewport(vp.scale, vp.offset + d);
+    final c = _clamp(cand);
+    if (pull) _pulled(cand, c, d);
+    _setView(c, _Fit.free);
   }
 
   void _signal(PointerSignalEvent e) {
@@ -3077,9 +3255,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       // A finger that is not drawing scrolls a note of several pages.
       if (_mode == _Mode.touchIdle &&
           e.pointer == _firstId &&
-          _touches.length == 1 &&
-          _pages.length > 1) {
-        _panBy(e.delta);
+          _touches.length == 1) {
+        _panBy(e.delta, pull: true);
         return;
       }
     }
@@ -3201,9 +3378,13 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     if (known && _mode == _Mode.gesture && (id == _gA || id == _gB)) {
       _commitSelPinch();
       _mode = _Mode.ignored;
+      _endPull();
     }
     // All contacts up and nothing drawing: clean slate.
-    if (_touches.isEmpty && _pointer == null) _mode = _Mode.none;
+    if (_touches.isEmpty && _pointer == null) {
+      _mode = _Mode.none;
+      _endPull();
+    }
   }
 
   /// Ends the stroke with the points so far (also for a cancel).
@@ -3668,6 +3849,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                 ),
               ),
               if (page != null) ..._retryButtons(l10n),
+              if (page != null) _pullIndicator(l10n, pad),
               if (_showLatest)
                 Positioned(
                   bottom: pad.bottom + gap,
@@ -4216,6 +4398,54 @@ class _MoreMenu extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The overview's view of this editor (Story 6.2, 6.4): every change goes
+/// through the editor's history and save queue.
+class _OverviewHost implements PageOverviewHost {
+  _OverviewHost(this.s);
+  final _NoteEditorState s;
+
+  @override
+  List<Map<String, dynamic>> get pages => s._pages;
+  @override
+  int get current => s._ovIndex;
+  @override
+  Set<String> get conflicted => {
+    for (final p in s._pages)
+      if (s._history.isLocked(p['id'] as String?)) p['id'] as String,
+  };
+  @override
+  Listenable get changes => s._tick;
+  @override
+  int get undoDepth => s._history.undoDepth;
+  @override
+  void undo() {
+    s._ovDirty = true;
+    s._replay(true);
+  }
+
+  String? _do(Map<String, dynamic> op) {
+    final err = s._pageOp(op);
+    if (err == null) s._ovDirty = true;
+    return err;
+  }
+
+  @override
+  String? addPage(int index) => _do({'op': 'addPage', 'index': index});
+
+  @override
+  String? deletePages(List<String> ids) {
+    final cur = s._ovCur;
+    s._ovAfterDelete(ids.toSet());
+    final err = _do({'op': 'deletePage', 'pageIds': ids});
+    if (err != null) s._ovCur = cur;
+    return err;
+  }
+
+  @override
+  String? duplicatePages(List<String> ids) =>
+      _do({'op': 'duplicatePage', 'pageIds': ids});
 }
 
 /// Story 5.13: three fingers that land within [_secondFinger] of the first

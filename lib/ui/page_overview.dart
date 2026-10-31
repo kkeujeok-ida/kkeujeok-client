@@ -5,83 +5,158 @@ import '../l10n/app_localizations.dart';
 import '../model/page_bounds.dart';
 import '../render/page_painter.dart';
 
-/// Story 6.2: the full-screen page overview. Pops with the tapped page index,
-/// or null when closed. [+], [선택] and ⋯ are entry points that stay disabled
-/// until the page operations (Stories 6.4-6.8).
-class PageOverview extends StatelessWidget {
-  const PageOverview({
-    super.key,
-    required this.pages,
-    required this.current,
-    required this.conflicted,
-  });
+/// What the overview needs from the editor that owns the note: its pages, and
+/// page operations that go through the note's history and save queue.
+abstract class PageOverviewHost {
+  List<Map<String, dynamic>> get pages;
 
-  final List<Map<String, dynamic>> pages;
-  final int current;
+  /// Index of the current page.
+  int get current;
 
   /// Ids of the pages with an unresolved conflict.
-  final Set<String> conflicted;
+  Set<String> get conflicted;
+
+  /// Fires when [pages] or [current] may have changed.
+  Listenable get changes;
+
+  int get undoDepth;
+  void undo();
+
+  /// Each answers an error code, or null when done.
+  String? addPage(int index);
+  String? deletePages(List<String> ids);
+  String? duplicatePages(List<String> ids);
+}
+
+/// Story 6.2: the full-screen page overview. Pops with the tapped page index,
+/// or null when closed. Story 6.4: [+] and the ⋯ menu add, duplicate and
+/// delete pages; [선택] stays disabled until Story 6.6.
+class PageOverview extends StatelessWidget {
+  const PageOverview({super.key, required this.host});
+
+  final PageOverviewHost host;
+
+  void _note(BuildContext context, String text, {bool undo = false}) {
+    final l = AppLocalizations.of(context);
+    final d = host.undoDepth; // the undo is for this change only
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(text),
+          action: undo
+              ? SnackBarAction(
+                  label: l.pageUndo,
+                  onPressed: () {
+                    if (host.undoDepth == d) host.undo();
+                  },
+                )
+              : null,
+        ),
+      );
+  }
+
+  void _add(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final at = host.current + 1;
+    if (host.addPage(at) == null) {
+      _note(context, l.pageAdded(at + 1), undo: true);
+    }
+  }
+
+  void _delete(BuildContext context, int i) {
+    final l = AppLocalizations.of(context);
+    final id = host.pages[i]['id'] as String;
+    if (host.deletePages([id]) == null) {
+      _note(context, l.pageDeleted(i + 1), undo: true);
+    }
+  }
+
+  void _duplicate(BuildContext context, int i) {
+    final l = AppLocalizations.of(context);
+    final id = host.pages[i]['id'] as String;
+    if (host.duplicatePages([id]) == null) {
+      _note(context, l.pageDuplicated(i + 1), undo: true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    return Scaffold(
-      backgroundColor: KkjLight.colorSurfaceBase,
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        backgroundColor: KkjLight.colorSurfaceBase,
-        title: Semantics(header: true, child: Text(l.pageOverviewTitle)),
-        actions: [
-          IconButton(
-            tooltip: l.pageAdd,
-            icon: const Icon(Icons.add),
-            onPressed: null,
+    return ListenableBuilder(
+      listenable: host.changes,
+      builder: (context, _) {
+        final pages = host.pages;
+        final conflicted = host.conflicted;
+        return Scaffold(
+          backgroundColor: KkjLight.colorSurfaceBase,
+          appBar: AppBar(
+            automaticallyImplyLeading: false,
+            backgroundColor: KkjLight.colorSurfaceBase,
+            title: Semantics(header: true, child: Text(l.pageOverviewTitle)),
+            actions: [
+              IconButton(
+                tooltip: l.pageAdd,
+                icon: const Icon(Icons.add),
+                onPressed: () => _add(context),
+              ),
+              TextButton(onPressed: null, child: Text(l.pageSelect)),
+              IconButton(
+                tooltip: l.close,
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
           ),
-          TextButton(onPressed: null, child: Text(l.pageSelect)),
-          IconButton(
-            tooltip: l.close,
-            icon: const Icon(Icons.close),
-            onPressed: () => Navigator.of(context).pop(),
+          // Built lazily: only the thumbnails in view are drawn (NFR2).
+          body: GridView.builder(
+            padding: const EdgeInsets.all(KkjTokens.spacing3),
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 180,
+              mainAxisSpacing: KkjTokens.spacing3,
+              crossAxisSpacing: KkjTokens.spacing3,
+              childAspectRatio: 0.72,
+            ),
+            itemCount: pages.length,
+            itemBuilder: (context, i) => _Cell(
+              key: ValueKey(pages[i]['id']),
+              page: pages[i],
+              index: i,
+              total: pages.length,
+              isCurrent: i == host.current,
+              conflict: conflicted.contains(pages[i]['id']),
+              onTap: () => Navigator.of(context).pop(i),
+              onDuplicate: () => _duplicate(context, i),
+              onDelete: pages.length > 1 ? () => _delete(context, i) : null,
+            ),
           ),
-        ],
-      ),
-      // Built lazily: only the thumbnails in view are drawn (NFR2).
-      body: GridView.builder(
-        padding: const EdgeInsets.all(KkjTokens.spacing3),
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 180,
-          mainAxisSpacing: KkjTokens.spacing3,
-          crossAxisSpacing: KkjTokens.spacing3,
-          childAspectRatio: 0.72,
-        ),
-        itemCount: pages.length,
-        itemBuilder: (context, i) => _Cell(
-          page: pages[i],
-          index: i,
-          total: pages.length,
-          isCurrent: i == current,
-          conflict: conflicted.contains(pages[i]['id']),
-          onTap: () => Navigator.of(context).pop(i),
-        ),
-      ),
+        );
+      },
     );
   }
 }
 
 class _Cell extends StatefulWidget {
   const _Cell({
+    super.key,
     required this.page,
     required this.index,
     required this.total,
     required this.isCurrent,
     required this.conflict,
     required this.onTap,
+    required this.onDuplicate,
+    required this.onDelete,
   });
 
   final Map<String, dynamic> page;
   final int index, total;
   final bool isCurrent, conflict;
   final VoidCallback onTap;
+  final VoidCallback onDuplicate;
+
+  /// Null for the last page left: it cannot be deleted.
+  final VoidCallback? onDelete;
 
   @override
   State<_Cell> createState() => _CellState();
@@ -157,16 +232,27 @@ class _CellState extends State<_Cell> {
                   Positioned(
                     top: 0,
                     right: 0,
-                    child: IconButton(
+                    child: PopupMenuButton<VoidCallback?>(
                       tooltip: l.pageMenu,
                       iconSize: 18,
+                      padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(
                         minWidth: KkjLight.componentsPageThumbnailMenuButton,
                         minHeight: KkjLight.componentsPageThumbnailMenuButton,
                       ),
-                      padding: EdgeInsets.zero,
                       icon: const Icon(Icons.more_horiz),
-                      onPressed: null,
+                      onSelected: (f) => f?.call(),
+                      itemBuilder: (_) => [
+                        PopupMenuItem(
+                          value: widget.onDuplicate,
+                          child: Text(l.pageDuplicate),
+                        ),
+                        PopupMenuItem(
+                          value: widget.onDelete,
+                          enabled: widget.onDelete != null,
+                          child: Text(l.pageDelete),
+                        ),
+                      ],
                     ),
                   ),
                   if (widget.conflict || out > 0)

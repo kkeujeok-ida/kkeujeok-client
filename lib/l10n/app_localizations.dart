@@ -1993,6 +1993,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'portrait'**
   String get pagePortrait;
+
+  /// No description provided for @pageAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Page {n} added'**
+  String pageAdded(int n);
+
+  /// No description provided for @pageDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Page {n} deleted'**
+  String pageDeleted(int n);
+
+  /// No description provided for @pageDuplicated.
+  ///
+  /// In en, this message translates to:
+  /// **'Page {n} duplicated'**
+  String pageDuplicated(int n);
+
+  /// No description provided for @pageUndo.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get pageUndo;
+
+  /// No description provided for @pageDuplicate.
+  ///
+  /// In en, this message translates to:
+  /// **'Duplicate'**
+  String get pageDuplicate;
+
+  /// No description provided for @pageDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get pageDelete;
+
+  /// No description provided for @pagePullMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep pulling to add a page'**
+  String get pagePullMore;
+
+  /// No description provided for @pagePullRelease.
+  ///
+  /// In en, this message translates to:
+  /// **'Release to add a page'**
+  String get pagePullRelease;
 }
 
 class _AppLocalizationsDelegate
