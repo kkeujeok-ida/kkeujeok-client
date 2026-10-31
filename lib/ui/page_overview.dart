@@ -160,9 +160,11 @@ class _PageOverviewState extends State<PageOverview> {
     final text = ids.length == 1
         ? l.pageBackgroundChanged(first + 1)
         : l.pagesBackgroundChanged(ids.length);
+    final d = host.undoDepth;
     if (host.setBackground(ids, b) != null) return;
     _leaveSelection();
-    _note(text, undo: true);
+    // Nothing changed: no record, so no message and no Undo for another edit.
+    if (host.undoDepth > d) _note(text, undo: true);
   }
 
   void _orient(int i, String orientation) {

@@ -41,11 +41,8 @@ Map<String, dynamic> _stroke(String id) => {
 };
 
 var _n = 0;
-Ctx _ctx() => Ctx(
-  rev: 'rev${++_n}',
-  now: '2026-10-10T04:20:01.000Z',
-  editedBy: 'x',
-);
+Ctx _ctx() =>
+    Ctx(rev: 'rev${++_n}', now: '2026-10-10T04:20:01.000Z', editedBy: 'x');
 
 Map<String, dynamic> _add(String page, String id) => {
   'op': 'addStroke',
@@ -58,6 +55,28 @@ int _strokes(History h, String page) =>
         .length;
 
 void main() {
+  test('page-op records (items) honour locks and merge undoDrop', () {
+    Map<String, dynamic> bg() => {
+      'op': 'setPageBackground',
+      'items': [
+        {'pageId': _a, 'background': 'grid'},
+      ],
+    };
+    final h = History(_twoPages());
+    const c = Ctx(
+      now: '2026-10-10T04:20:01.000Z',
+      editedBy: 'x',
+      revs: ['rv1', 'rv2'],
+    );
+    expect(h.doOp(bg(), c), isNull);
+    expect(h.undoDepth, 1);
+    h.lockPages({_a});
+    expect(h.undo(c), 'pageReadOnly');
+    expect(h.undoDepth, 1);
+    h.adopt(h.note, {_a});
+    expect(h.undoDepth, 0);
+  });
+
   test('an op on a locked page is pageReadOnly and changes nothing', () {
     final h = History(_twoPages())..lockPages({_a});
     expect(h.doOp(_add(_a, 's1'), _ctx()), 'pageReadOnly');

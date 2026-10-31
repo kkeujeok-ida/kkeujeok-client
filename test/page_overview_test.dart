@@ -226,6 +226,21 @@ void main() {
     expect(find.text('Page 3 added'), findsOneWidget);
   });
 
+  testWidgets('a cancelled pull adds no page', (t) async {
+    seed(_note(2));
+    await open(t);
+    final a = await t.startGesture(const Offset(300, 300), pointer: 1);
+    final b = await t.startGesture(const Offset(400, 300), pointer: 2);
+    for (var k = 1; k <= 10; k++) {
+      await a.moveBy(const Offset(0, -400));
+      await b.moveBy(const Offset(0, -400));
+    }
+    await a.cancel();
+    await b.cancel();
+    await settle(t);
+    expect(onDisk(), 2);
+  });
+
   List<String> order() => [
     for (final p in decodeKkj(file.readAsBytesSync()).note!.pages)
       p['id'] as String,

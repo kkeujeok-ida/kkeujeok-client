@@ -33,6 +33,22 @@ class History {
 
   bool isLocked(String? pageId) => pageId != null && _locked.contains(pageId);
 
+  /// Every page id a record names: `pageId`, `pageIds`, `items[].pageId` and
+  /// the pages an `insertPages` brings back.
+  static Set<String> _touched(Map<String, dynamic> op) => {
+    if (op['pageId'] is String) op['pageId'] as String,
+    for (final id in (op['pageIds'] as List? ?? const [])) id as String,
+    for (final it in (op['items'] as List? ?? const []))
+      if (it is Map && it['pageId'] is String)
+        it['pageId'] as String
+      else if (it is Map &&
+          it['page'] is Map &&
+          (it['page'] as Map)['id'] is String)
+        (it['page'] as Map)['id'] as String,
+  };
+
+  bool _lockedOp(Map<String, dynamic> op) => _touched(op).any(_locked.contains);
+
   /// Error code, or null on success. A failure changes nothing.
   String? doOp(Map<String, dynamic> op, Ctx ctx) {
     if (isLocked(op['pageId'] as String?)) return 'pageReadOnly';
@@ -52,8 +68,9 @@ class History {
   /// work. Records of other pages stay.
   void adopt(Note merged, Set<String> pages) {
     note = merged;
-    _undo.removeWhere((op) => pages.contains(op['pageId']));
-    _redo.removeWhere((op) => pages.contains(op['pageId']));
+    bool hit(Map<String, dynamic> op) => _touched(op).any(pages.contains);
+    _undo.removeWhere(hit);
+    _redo.removeWhere(hit);
   }
 
   String? undo(Ctx ctx) => _replay(_undo, _redo, ctx);
@@ -65,7 +82,7 @@ class History {
     Ctx ctx,
   ) {
     if (from.isEmpty) return null;
-    if (isLocked(from.last['pageId'] as String?)) return 'pageReadOnly';
+    if (_lockedOp(from.last)) return 'pageReadOnly';
     final r = applyOp(note, from.last, ctx);
     if (r.error != null) return r.error;
     note = r.note!;

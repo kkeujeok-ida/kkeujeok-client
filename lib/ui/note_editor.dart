@@ -1348,13 +1348,13 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     final depth = undo ? _history.undoDepth : _history.redoDepth;
     if (depth == 0) return;
     _selTurn = 0; // the frame of a turned group is forgotten
-    final shape = _shape(), at = _activeIndex();
+    final shape = _shape(), at = _activeIndex(), cur = _curId(at);
     final err = undo ? _history.undo(_ctx()) : _history.redo(_ctx());
     if (err != null) {
       _snack(AppLocalizations.of(context).historyNotApplied);
       return;
     }
-    if (shape != _shape()) _relayoutAt(at); // pages made, taken away or turned
+    if (shape != _shape()) _relayoutAt(_follow(cur, at)); // made, removed, turned
     setState(() {});
     _tick.value++;
     _commit();
@@ -1366,6 +1366,14 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   String _shape() =>
       [for (final p in _pages) '${p['id']}:${p['width']}x${p['height']}']
           .join(',');
+
+  String? _curId(int i) => i < _pages.length ? _pages[i]['id'] as String? : null;
+
+  /// Where the page [id] is now; [at] (clamped later) when it is gone.
+  int _follow(String? id, int at) {
+    final j = _pages.indexWhere((p) => p['id'] == id);
+    return j < 0 ? at : j;
+  }
 
   /// The view after the page list changed, with page [i] kept in view.
   void _relayoutAt(int i) {
@@ -1395,14 +1403,14 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _blocked();
       return 'pageReadOnly';
     }
-    final at = _activeIndex();
+    final at = _activeIndex(), cur = _curId(at);
     final err = _history.doOp(op, _ctx());
     if (err != null) {
       _snack(AppLocalizations.of(context).historyNotApplied);
       return err;
     }
     _clearSelection();
-    _relayoutAt(at);
+    _relayoutAt(_follow(cur, at));
     setState(() {});
     _tick.value++;
     _commit();
@@ -1439,7 +1447,11 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
         ? lost
         : lost != 0
         ? p + lost
-        : (p < 0 ? math.min(0.0, p + dd) : math.max(0.0, p + dd));
+        : p < 0
+        ? math.min(0.0, p + dd)
+        : p > 0
+        ? math.max(0.0, p + dd)
+        : 0.0; // only a view that hit the edge starts a pull
   }
 
   /// The fingers are up: past the threshold, a page goes in at that end.
@@ -3216,7 +3228,11 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     final cand = PageViewport(s, focal - _p0 * s);
     final c = _clamp(cand);
     // A two-finger scroll, not a zoom, pulls.
-    if ((s - _s0).abs() < _s0 * 0.02) _pulled(cand, c, Offset.zero, abs: true);
+    if ((s - _s0).abs() < _s0 * 0.02) {
+      _pulled(cand, c, Offset.zero, abs: true);
+    } else {
+      _pull.value = 0; // a zoom never adds a page
+    }
     _setView(c, _Fit.free);
   }
 
@@ -3262,7 +3278,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       // A finger that is not drawing scrolls a note of several pages.
       if (_mode == _Mode.touchIdle &&
           e.pointer == _firstId &&
-          _touches.length == 1) {
+          _touches.length == 1 &&
+          _pages.length > 1) {
         _panBy(e.delta, pull: true);
         return;
       }
@@ -3376,6 +3393,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
           ? _discardStroke() // a cancelled finger leaves no ink
           : _finish();
     }
+    _pull.value = 0; // a cancel never adds a page
     _release(e.pointer);
   }
 
