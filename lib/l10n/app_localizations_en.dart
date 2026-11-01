@@ -1207,4 +1207,71 @@ class AppLocalizationsEn extends AppLocalizations {
   String pageTurnedPortrait(int n) {
     return 'Page $n is now portrait';
   }
+
+  @override
+  String get allNotes => 'All notes';
+
+  @override
+  String get folderAdd => 'New folder';
+
+  @override
+  String folderMenu(String name) {
+    return '$name menu';
+  }
+
+  @override
+  String get folderNewSub => 'New subfolder';
+
+  @override
+  String get folderRename => 'Rename';
+
+  @override
+  String get folderMove => 'Move';
+
+  @override
+  String get folderDelete => 'Delete';
+
+  @override
+  String get folderNameLabel => 'Folder name';
+
+  @override
+  String get folderNameTooLong =>
+      'A folder name can have up to 100 characters.';
+
+  @override
+  String get folderSave => 'Save';
+
+  @override
+  String get folderEmpty => 'No notes in this folder';
+
+  @override
+  String folderDeleteBody(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other: 'This folder and its $n notes go to the app trash.',
+      one: 'This folder and its note go to the app trash.',
+      zero: 'This folder goes to the app trash.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get folderDeleteConfirm => 'Delete';
+
+  @override
+  String get folderTopLevel => 'Top level';
+
+  @override
+  String folderMoveTitle(String name) {
+    return 'Move \"$name\" to';
+  }
+
+  @override
+  String folderMoved(String name) {
+    return 'Moved \"$name\"';
+  }
+
+  @override
+  String get folderFailed => 'The folder could not be changed.';
 }

@@ -99,6 +99,7 @@ class SyncDevice {
   SyncDevice copyWith({
     Object? conflictsFolderId = _keep,
     List<Map<String, Object?>>? createIntents,
+    Map<String, Object?>? extra,
   }) => SyncDevice(
     sub: sub,
     email: email,
@@ -108,7 +109,7 @@ class SyncDevice {
         : conflictsFolderId as String?,
     pageToken: pageToken,
     createIntents: createIntents ?? this.createIntents,
-    extra: extra,
+    extra: extra ?? this.extra,
   );
 
   static const _keep = Object();

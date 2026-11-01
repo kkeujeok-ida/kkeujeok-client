@@ -136,18 +136,20 @@ class UploadEnv {
   }
 
   /// A new uploader over the same files and Drive (as after a restart).
-  NoteUploader uploader() => NoteUploader(
-    store: store,
-    drive: drive,
-    device: device,
-    log: log,
-    merge: merge,
-    allowed: () async => allowed,
-    online: () async => online,
-    sleep: (d) async => sleeps.add(d),
-    jitter: () => jitter,
-    thumbnail: thumbnail,
-  );
+  NoteUploader uploader({Future<String?> Function(String)? parentFileId}) =>
+      NoteUploader(
+        parentFileId: parentFileId,
+        store: store,
+        drive: drive,
+        device: device,
+        log: log,
+        merge: merge,
+        allowed: () async => allowed,
+        online: () async => online,
+        sleep: (d) async => sleeps.add(d),
+        jitter: () => jitter,
+        thumbnail: thumbnail,
+      );
 
   Directory get noteDir => Directory('${docs.path}/$noteDataDirName/$noteId');
   File get working => File('${noteDir.path}/working.kkj');

@@ -34,3 +34,6 @@ String? normalizeTitle(String title, Iterable<String> existingTitles) {
   }
   return '이름 없는 노트 $n';
 }
+
+/// The title trim set as a public test, for rules that trim other names.
+bool isTitleTrim(int codePoint) => _isTrim(codePoint);

@@ -4,6 +4,8 @@ import 'package:kkeujeok/drive/note_summary.dart';
 import 'package:kkeujeok/model/kkj_codec.dart';
 import 'package:kkeujeok/model/note.dart';
 
+const folderMimeType = 'application/vnd.google-apps.folder';
+
 class FakeRevision {
   FakeRevision(this.id, this.modifiedTime, this.bytes);
 
@@ -371,6 +373,8 @@ class FakeDrive implements DriveClient {
       m = m.where((i) => i.parents.contains(v));
     } else if (q == noteTreeQuery) {
       m = m.where((i) => i.mimeType == noteMimeType);
+    } else if (q == folderTreeQuery) {
+      m = m.where((i) => i.mimeType == folderMimeType);
     } else {
       throw StateError('unsupported q: $q');
     }
@@ -421,6 +425,7 @@ class FakeDrive implements DriveClient {
   @override
   Future<DriveFile> update(
     String id, {
+    String? name,
     String? addParents,
     String? removeParents,
     bool? trashed,
@@ -429,13 +434,20 @@ class FakeDrive implements DriveClient {
     final what = switch (trashed) {
       true => 'trash',
       false => 'untrash',
-      null => appProperties != null ? 'props' : 'move',
+      null => appProperties != null
+          ? 'props'
+          : name != null
+          ? 'rename'
+          : 'move',
     };
     _enter('update:$id:$what');
     final i = _find(id);
     if (i == null) throw const DriveError('http', status: 404);
     if (addParents != null) i.parents.add(addParents);
-    if (removeParents != null) i.parents.remove(removeParents);
+    for (final p in removeParents?.split(',') ?? const <String>[]) {
+      i.parents.remove(p);
+    }
+    if (name != null) i.name = name;
     if (trashed != null) i.trashed = trashed;
     if (appProperties != null) i.appProperties.addAll(appProperties);
     changeLog.add((i.id, false));

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
@@ -12,6 +13,7 @@ import '../drive/drive_client.dart';
 import '../drive/google_auth_gateway.dart';
 import '../drive/http_drive_client.dart';
 import '../drive/root_folder.dart';
+import '../library/folder_service.dart';
 import '../model/eraser.dart';
 import '../model/library_view.dart';
 import '../model/page_view_mode.dart';
@@ -30,6 +32,7 @@ import '../storage/note_data.dart';
 import '../storage/note_store.dart';
 import '../storage/pen_slots_store.dart';
 import '../storage/session_hint.dart';
+import '../storage/sync_info.dart' show SyncState;
 import '../storage/sync_device_store.dart';
 import '../sync/asset_sync.dart';
 import '../sync/background_upload.dart';
@@ -321,8 +324,112 @@ final noteUploaderProvider = Provider<NoteUploader>(
     heartbeat: ref.read(uploadLeaseProvider).renew,
     assets: ref.read(assetStoreProvider),
     onAssetConfirmed: ref.read(assetSyncProvider).markConfirmed,
+    parentFileId: ref.read(folderServiceProvider).parentFileId,
   ),
 );
+
+/// The folders of the library (Story 7.5): cache, queue and Drive calls.
+final Provider<FolderService> folderServiceProvider = Provider<FolderService>(
+  (ref) => FolderService(
+    drive: ref.read(driveClientProvider),
+    device: ref.read(syncDeviceStoreProvider),
+    store: ref.read(noteStoreProvider),
+    allowed: () async => ref.read(uploadsAllowedProvider),
+    online: ref.read(networkProbeProvider),
+    upload: (id) async {
+      await ref.read(noteUploaderProvider).upload(id);
+      final s = await ref.read(noteStoreProvider).readSync(id);
+      return !(s.hasUnsent ||
+          s.info.pendingVerify != null ||
+          s.info.state == SyncState.conflict);
+    },
+  ),
+);
+
+/// The folder the library shows; null = "모든 노트". A folder that is gone
+/// from the tree counts as null (see [effectiveFolderProvider]).
+class CurrentFolderNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void select(String? id) => state = id;
+}
+
+final currentFolderProvider = NotifierProvider<CurrentFolderNotifier, String?>(
+  CurrentFolderNotifier.new,
+);
+
+/// The visible folder tree. Built from the device record at once; a Drive
+/// refresh follows when the root is ready and on every receive.
+class FolderTreeNotifier extends AsyncNotifier<FolderView> {
+  @override
+  Future<FolderView> build() async {
+    final ready = ref.watch(
+      rootFolderProvider.select((s) => s.status == RootStatus.ready),
+    );
+    ref.watch(receiveStateProvider.select((r) => r.version));
+    if (ready) unawaited(refresh());
+    return _view();
+  }
+
+  Future<FolderView> _view() async {
+    try {
+      return await ref.read(folderServiceProvider).view();
+    } catch (_) {
+      return const FolderView();
+    }
+  }
+
+  Future<void> _publish() async {
+    final v = await _view();
+    if (!ref.mounted) return;
+    state = AsyncData(v);
+    // Which notes show, and in which folder, comes from the same tree.
+    unawaited(ref.read(libraryProvider.notifier).reload());
+  }
+
+  /// Sends what waits and reads Drive again; the old tree stays on failure.
+  Future<void> refresh() async {
+    try {
+      await ref.read(folderServiceProvider).refresh();
+    } catch (_) {}
+    if (ref.mounted) await _publish();
+  }
+
+  Future<FolderResult> _act(
+    Future<FolderResult> Function(FolderService s) f,
+  ) async {
+    final r = await f(ref.read(folderServiceProvider));
+    if (ref.mounted) await _publish();
+    return r;
+  }
+
+  Future<FolderResult> create(String name, String parentId) =>
+      _act((s) => s.createFolder(name, parentId));
+
+  Future<FolderResult> rename(String id, String name) =>
+      _act((s) => s.renameFolder(id, name));
+
+  Future<FolderResult> move(String id, String parentId) =>
+      _act((s) => s.moveFolder(id, parentId));
+
+  Future<FolderResult> delete(String id) => _act((s) => s.deleteFolder(id));
+
+  Future<FolderResult> undo(Map<String, Object?> inverse) =>
+      _act((s) => s.undo(inverse));
+}
+
+final folderTreeProvider =
+    AsyncNotifierProvider.autoDispose<FolderTreeNotifier, FolderView>(
+      FolderTreeNotifier.new,
+    );
+
+/// [currentFolderProvider] when that folder still exists, else null.
+final effectiveFolderProvider = Provider.autoDispose<String?>((ref) {
+  final cur = ref.watch(currentFolderProvider);
+  final view = ref.watch(folderTreeProvider).value;
+  return cur != null && view != null && view.has(cur) ? cur : null;
+});
 
 /// Receives remote changes (Story 3.13): app start, foreground, 20 s poll.
 final Provider<NoteReceiver> noteReceiverProvider = Provider<NoteReceiver>((
@@ -750,10 +857,13 @@ final stylusSeenProvider = NotifierProvider<StylusSeenNotifier, bool>(
 /// One row of the library: a readable note, or one that cannot be opened
 /// ([note] null).
 class LibraryEntry {
-  const LibraryEntry(this.noteId, this.note, this.editedAt);
+  const LibraryEntry(this.noteId, this.note, this.editedAt, {this.folderId});
 
   final String noteId;
   final Note? note;
+
+  /// The folder of the note (`library.tree`); null = the top level.
+  final String? folderId;
 
   /// Latest page `editedAt`; null when no page has a readable date.
   final DateTime? editedAt;
@@ -790,14 +900,21 @@ class LibraryNotifier extends AsyncNotifier<List<LibraryEntry>> {
   Future<List<LibraryEntry>> _load() async {
     final store = ref.read(noteStoreProvider);
     final rows = await store.list();
+    // The one point where the library is filtered (spec `library.tree`).
+    var tree = const FolderView();
+    try {
+      tree = await ref.read(folderServiceProvider).view();
+    } catch (_) {}
     return [
       for (final r in rows)
         // Story 7.7: a deleted note waiting to be trashed is not shown.
-        if (!(await store.readSync(r.noteId)).info.pendingTrash)
+        if (!tree.hiddenNotes.contains(r.noteId) &&
+            !(await store.readSync(r.noteId)).info.pendingTrash)
           LibraryEntry(
             r.noteId,
             r.result.note,
             r.result.note == null ? null : _lastEdited(r.result.note!),
+            folderId: tree.noteFolder[r.noteId],
           ),
     ]..sort(_compare);
   }
@@ -844,12 +961,29 @@ class LibraryNotifier extends AsyncNotifier<List<LibraryEntry>> {
     await ref
         .read(newNoteDefaultsStoreProvider)
         .write(background: background, orientation: orientation);
+    // A note made while a folder is open goes into it (its upload puts it
+    // there); a folder that is gone means the top level.
+    String? folder = ref.read(currentFolderProvider);
+    if (folder != null) {
+      try {
+        final service = ref.read(folderServiceProvider);
+        if ((await service.view()).has(folder)) {
+          await service.assignNote(note.noteId, folder);
+        } else {
+          folder = null;
+        }
+      } catch (_) {
+        folder = null;
+      }
+    }
     if (ref.mounted) {
       // The list may have changed while the save ran: add to what is there.
       final latest = state.value ?? current;
       state = AsyncData(
-        [LibraryEntry(note.noteId, note, _lastEdited(note)), ...latest]
-          ..sort(_compare),
+        [
+          LibraryEntry(note.noteId, note, _lastEdited(note), folderId: folder),
+          ...latest,
+        ]..sort(_compare),
       );
     }
     return note;

@@ -110,10 +110,12 @@ abstract interface class DriveClient {
 
   Future<DriveFile> get(String id, {String? fields});
 
-  /// `files.update` of metadata: parents moved, the file trashed and/or
-  /// [appProperties] set (the given keys; others are kept).
+  /// `files.update` of metadata: parents moved, the file renamed, trashed
+  /// and/or [appProperties] set (the given keys; others are kept).
+  /// [removeParents] may name several ids, comma separated.
   Future<DriveFile> update(
     String id, {
+    String? name,
     String? addParents,
     String? removeParents,
     bool? trashed,
@@ -179,6 +181,10 @@ const noteFileFields =
 
 /// `q` for every live note file (the tree scan of spec `sync`).
 const noteTreeQuery = "trashed=false and mimeType='$noteMimeType'";
+
+/// `q` for every live folder (the folder scan of Story 7.5).
+const folderTreeQuery =
+    "trashed=false and mimeType='application/vnd.google-apps.folder'";
 
 /// `q` for one `kkeujeokId` (spec `drive-layout` "Finding").
 String kkeujeokIdQuery(String id) =>

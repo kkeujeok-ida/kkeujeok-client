@@ -89,6 +89,7 @@ class NoteUploader {
     this.heartbeat,
     this.assets,
     this.onAssetConfirmed,
+    this.parentFileId,
     NoteChain? chain,
     DateTime Function()? clock,
     String Function()? newRev,
@@ -127,6 +128,10 @@ class NoteUploader {
 
   /// Told of every asset known to be on Drive (for the pending mark).
   final void Function(String hash)? onAssetConfirmed;
+
+  /// Story 7.5: the Drive folder a new note is created in (null = the root).
+  /// May create the folder; a [DriveError] is handled like any upload call.
+  final Future<String?> Function(String noteId)? parentFileId;
 
   /// For the `ctx` of the duplicate folds (the merge reads no clock itself).
   final DateTime Function() _clock;
@@ -729,7 +734,11 @@ class NoteUploader {
             var intent = info.createIntent;
             if (intent == null) {
               if (root == null) throw _Failure('fatal', reason: 'rootMissing');
-              intent = {'kkeujeokId': noteId, 'parentId': root};
+              final folder = await _call(
+                noteId,
+                () async => await parentFileId?.call(noteId),
+              );
+              intent = {'kkeujeokId': noteId, 'parentId': folder ?? root};
               info = await _commit(
                 noteId,
                 (c) => c.copyWith(createIntent: intent),

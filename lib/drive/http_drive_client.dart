@@ -205,6 +205,7 @@ class HttpDriveClient implements DriveClient {
   @override
   Future<DriveFile> update(
     String id, {
+    String? name,
     String? addParents,
     String? removeParents,
     bool? trashed,
@@ -217,7 +218,7 @@ class HttpDriveClient implements DriveClient {
         'addParents': ?addParents,
         'removeParents': ?removeParents,
       }),
-      {'trashed': ?trashed, 'appProperties': ?appProperties},
+      {'name': ?name, 'trashed': ?trashed, 'appProperties': ?appProperties},
     ),
   );
 

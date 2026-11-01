@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart'
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/drive/duplicates.dart';
 import 'package:kkeujeok/drive/note_summary.dart';
+import 'package:kkeujeok/library/library_rules.dart';
 import 'package:kkeujeok/model/image_rules.dart';
 import 'package:kkeujeok/model/kkj_codec.dart';
 import 'package:kkeujeok/model/note.dart';
@@ -110,6 +111,21 @@ final runners = <String, void Function(Case)>{
       if (r.note != null) 'note': r.note!.copyJson(),
     }, c['expected']);
   },
+  'library.folderName': (c) =>
+      _same(libraryFolderName(_json(c['input'])), c['expected']),
+  'library.createFolder': (c) =>
+      _same(libraryCreateFolder(_json(c['input'])), c['expected']),
+  'library.renameFolder': (c) =>
+      _same(libraryRenameFolder(_json(c['input'])), c['expected']),
+  'library.moveFolder': (c) =>
+      _same(libraryMoveFolder(_json(c['input'])), c['expected']),
+  'library.moveNote': (c) =>
+      _same(libraryMoveNote(_json(c['input'])), c['expected']),
+  'library.tree': (c) => _same(libraryTree(_json(c['input'])), c['expected']),
+  'trash.trashNote': (c) =>
+      _same(trashNoteRule(_json(c['input'])), c['expected']),
+  'trash.trashFolder': (c) =>
+      _same(trashFolderRule(_json(c['input'])), c['expected']),
   'note.title': (c) {
     final input = c['input'] as Map<String, dynamic>;
     final t = normalizeTitle(
@@ -618,9 +634,7 @@ void _runOp(Case c) {
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6. The erase rules have runners (Story 5.6): none pending.
 const pendingRules = <String>{
-  // Trash rules (Story 14.1) arrive with the Android stories 14.2, 7.7.
-  'trash.trashNote',
-  'trash.trashFolder',
+  // Trash rules (Story 14.1): trashNote and trashFolder have runners (7.5); the rest arrive with 14.2, 7.7.
   'trash.restoreNote',
   'trash.restoreFolder',
   'trash.purgeItem',
@@ -629,15 +643,9 @@ const pendingRules = <String>{
   'trash.access',
   'trash.remoteTrashed',
   'drive.trashbinFolder',
-  // Library rules (Story 7.1) arrive with the Android stories 7.3, 7.5, 7.7, 7.9.
+  // Library rules (Story 7.1) arrive with the Android stories 7.3, 7.7, 7.9 (the folder rules have runners, 7.5).
   'library.renameNote',
   'library.setCover',
-  'library.moveNote',
-  'library.folderName',
-  'library.createFolder',
-  'library.renameFolder',
-  'library.moveFolder',
-  'library.tree',
   'library.coverResolve',
   'library.normalize',
   'library.sort',

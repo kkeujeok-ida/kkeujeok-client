@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
+import 'folder_sidebar.dart';
 import 'library.dart';
 import 'settings.dart';
 
@@ -27,6 +28,12 @@ class _ShellState extends State<Shell> {
 
   void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
 
+  void _closeDrawer() {
+    if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
+      Navigator.of(context).pop();
+    }
+  }
+
   void _openSettings() {
     final nav = Navigator.of(context);
     if (_scaffoldKey.currentState?.isDrawerOpen ?? false) nav.pop();
@@ -46,6 +53,7 @@ class _ShellState extends State<Shell> {
       width: _sidebarWidth,
       color: sidebarColor,
       onSettings: _openSettings,
+      onFolderSelected: _closeDrawer,
     );
 
     final library = LibraryScreen(
@@ -127,11 +135,13 @@ class _Sidebar extends StatelessWidget {
     required this.width,
     required this.color,
     required this.onSettings,
+    required this.onFolderSelected,
   });
 
   final double width;
   final Color color;
   final VoidCallback onSettings;
+  final VoidCallback onFolderSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -154,7 +164,7 @@ class _Sidebar extends StatelessWidget {
                 ),
               ),
             ),
-            const Spacer(),
+            Expanded(child: FolderSidebarSection(onSelected: onFolderSelected)),
             Semantics(
               button: true,
               label: l10n.settings,

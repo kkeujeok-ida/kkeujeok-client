@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 
 import '../design_tokens/build/tokens.dart';
 import '../drive/root_folder.dart' show RootStatus;
+import '../library/folder_service.dart' show FolderView;
 import '../l10n/app_localizations.dart';
 import '../model/library_view.dart';
 import '../model/note.dart';
@@ -148,6 +149,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final coordinator = ref.read(uploadCoordinatorProvider);
     if (s == AppLifecycleState.resumed) {
       ref.read(rootFolderProvider.notifier).checkForeground();
+      unawaited(ref.read(folderTreeProvider.notifier).refresh());
       unawaited(coordinator.foreground());
       _receive.resume();
       _receive.kick();
@@ -370,7 +372,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         _receive.kick(force: true);
       }
     });
-    ref.listen(onlineProvider, (_, _) {}); // the reconnect upload
+    ref.listen(onlineProvider, (prev, on) {
+      // The reconnect upload; folder changes made offline go up too.
+      if (on && prev == false) {
+        unawaited(ref.read(folderTreeProvider.notifier).refresh());
+      }
+    });
     ref.listen(syncProblemsProvider.select((p) => p.conflict), (_, on) {
       if (on) _askNotifyPermission();
     });
@@ -388,12 +395,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     ref.listen(receiveStateProvider.select((r) => r.scanning), (_, next) {
       _watchScan(next);
     });
+    final folder = ref.watch(effectiveFolderProvider);
+    final tree = ref.watch(folderTreeProvider).value ?? const FolderView();
     final local = {
       for (final e in async.value ?? const <LibraryEntry>[]) e.noteId,
     };
+    // Hidden (trashed) notes show nowhere; a folder shows only its notes.
     final remote = [
       for (final c in recv.cards)
-        if (!local.contains(c.noteId)) c,
+        if (!local.contains(c.noteId) &&
+            !tree.hiddenNotes.contains(c.noteId) &&
+            (folder == null || tree.noteFolder[c.noteId] == folder))
+          c,
     ];
     final view = ref.watch(libraryViewProvider);
     // Cards other than a note keep one thumbnail's width in a row list.
@@ -409,10 +422,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           )
         : w;
     final failed = async.hasError && !async.hasValue;
-    final entries = sortEntries(
-      async.value ?? const <LibraryEntry>[],
-      ref.watch(librarySortProvider),
-    );
+    final entries = sortEntries([
+      for (final e in async.value ?? const <LibraryEntry>[])
+        if (folder == null || e.folderId == folder) e,
+    ], ref.watch(librarySortProvider));
     final cards = <Widget>[
       if (root.status == RootStatus.failed)
         ?switch (root.errorClass) {
@@ -435,8 +448,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       else if (async.hasValue &&
           entries.isEmpty &&
           remote.isEmpty &&
-          !recv.scanning)
+          !recv.scanning) ...[
+        if (folder != null)
+          Padding(
+            padding: const EdgeInsets.all(KkjTokens.spacing3),
+            child: Text(
+              l10n.folderEmpty,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
         cap(_NewNoteCard(onTap: _newNote)),
+      ],
       if (_showScan && recv.scanning) ...[
         cap(const _ScanPlaceholder()),
         cap(const _ScanPlaceholder()),

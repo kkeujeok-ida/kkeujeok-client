@@ -2155,6 +2155,108 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Page {n} is now portrait'**
   String pageTurnedPortrait(int n);
+
+  /// No description provided for @allNotes.
+  ///
+  /// In en, this message translates to:
+  /// **'All notes'**
+  String get allNotes;
+
+  /// No description provided for @folderAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'New folder'**
+  String get folderAdd;
+
+  /// No description provided for @folderMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} menu'**
+  String folderMenu(String name);
+
+  /// No description provided for @folderNewSub.
+  ///
+  /// In en, this message translates to:
+  /// **'New subfolder'**
+  String get folderNewSub;
+
+  /// No description provided for @folderRename.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename'**
+  String get folderRename;
+
+  /// No description provided for @folderMove.
+  ///
+  /// In en, this message translates to:
+  /// **'Move'**
+  String get folderMove;
+
+  /// No description provided for @folderDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get folderDelete;
+
+  /// No description provided for @folderNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Folder name'**
+  String get folderNameLabel;
+
+  /// No description provided for @folderNameTooLong.
+  ///
+  /// In en, this message translates to:
+  /// **'A folder name can have up to 100 characters.'**
+  String get folderNameTooLong;
+
+  /// No description provided for @folderSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get folderSave;
+
+  /// No description provided for @folderEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No notes in this folder'**
+  String get folderEmpty;
+
+  /// No description provided for @folderDeleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'{n, plural, =0{This folder goes to the app trash.} =1{This folder and its note go to the app trash.} other{This folder and its {n} notes go to the app trash.}}'**
+  String folderDeleteBody(int n);
+
+  /// No description provided for @folderDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get folderDeleteConfirm;
+
+  /// No description provided for @folderTopLevel.
+  ///
+  /// In en, this message translates to:
+  /// **'Top level'**
+  String get folderTopLevel;
+
+  /// No description provided for @folderMoveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Move \"{name}\" to'**
+  String folderMoveTitle(String name);
+
+  /// No description provided for @folderMoved.
+  ///
+  /// In en, this message translates to:
+  /// **'Moved \"{name}\"'**
+  String folderMoved(String name);
+
+  /// No description provided for @folderFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The folder could not be changed.'**
+  String get folderFailed;
 }
 
 class _AppLocalizationsDelegate

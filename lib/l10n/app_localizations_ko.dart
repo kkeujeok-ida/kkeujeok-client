@@ -1143,4 +1143,69 @@ class AppLocalizationsKo extends AppLocalizations {
   String pageTurnedPortrait(int n) {
     return '$n페이지를 세로로 바꿨어요';
   }
+
+  @override
+  String get allNotes => '모든 노트';
+
+  @override
+  String get folderAdd => '새 폴더';
+
+  @override
+  String folderMenu(String name) {
+    return '$name 메뉴';
+  }
+
+  @override
+  String get folderNewSub => '새 하위 폴더';
+
+  @override
+  String get folderRename => '이름 변경';
+
+  @override
+  String get folderMove => '이동';
+
+  @override
+  String get folderDelete => '삭제';
+
+  @override
+  String get folderNameLabel => '폴더 이름';
+
+  @override
+  String get folderNameTooLong => '폴더 이름은 100자까지예요.';
+
+  @override
+  String get folderSave => '저장';
+
+  @override
+  String get folderEmpty => '이 폴더에 노트가 없어요';
+
+  @override
+  String folderDeleteBody(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other: '이 폴더와 안의 노트 $n개를 앱 휴지통으로 옮겨요.',
+      zero: '이 폴더를 앱 휴지통으로 옮겨요.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get folderDeleteConfirm => '지우기';
+
+  @override
+  String get folderTopLevel => '최상위';
+
+  @override
+  String folderMoveTitle(String name) {
+    return '\"$name\" 옮길 곳';
+  }
+
+  @override
+  String folderMoved(String name) {
+    return '\"$name\" 폴더를 옮겼어요';
+  }
+
+  @override
+  String get folderFailed => '폴더를 바꾸지 못했어요.';
 }
