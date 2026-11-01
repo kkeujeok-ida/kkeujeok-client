@@ -121,10 +121,6 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
           _phase = _Phase.failed;
         });
       }
-    } finally {
-      try {
-        await file?.delete(); // the share sheet has copied it by now
-      } catch (_) {}
     }
   }
 
