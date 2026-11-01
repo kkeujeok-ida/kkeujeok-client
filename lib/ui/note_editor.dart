@@ -1429,7 +1429,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   // The pull past the end that adds a page (Story 6.4): how far the fingers
   // went beyond the edge of the paging axis, negative past the end.
-  static const _pullAt = 96.0;
+  static const _pullAt = 160.0;
   final _pull = ValueNotifier<double>(0);
 
   void _pulled(
@@ -1469,7 +1469,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   /// How far the pages follow a pull of [p]: it gets harder the further you
   /// go, like a rubber band (Story 6.4). Negative past the end.
   static double _pullShift(double p) =>
-      p.sign * 140 * (1 - math.exp(-p.abs() / 140));
+      p.sign * 200 * (1 - math.exp(-p.abs() / 200));
 
   /// The pages move with the pull and leave a blank strip at that end.
   Widget _pullable(Widget child) => ValueListenableBuilder<double>(
@@ -1510,13 +1510,25 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                   liveRegion: true,
                   label: t >= 1 ? l.pagePullRelease : l.pagePullMore,
                   child: Center(
-                    child: SizedBox(
-                      width: 28,
-                      height: 28,
-                      child: CircularProgressIndicator(
-                        value: t,
-                        strokeWidth: 3,
-                      ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 48,
+                          height: 48,
+                          child: CircularProgressIndicator(
+                            value: t,
+                            strokeWidth: 6,
+                            backgroundColor:
+                                KkjLight.componentsPageThumbnailBorder,
+                          ),
+                        ),
+                        const SizedBox(height: KkjTokens.spacing2),
+                        Text(
+                          t >= 1 ? l.pagePullRelease : l.pagePullMore,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -3208,6 +3220,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   void _startGesture(int a, int b) {
     _snap();
     _pull.value = 0;
+    _pullLock = false;
     _fit = _Fit.free;
     _mode = _Mode.gesture;
     _gA = a;
@@ -3219,6 +3232,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _p0 = vp.toPage((pa + pb) / 2);
   }
 
+  bool _pullLock = false;
+
   void _pinch() {
     if (_spA >= 0) {
       _selPinchMove();
@@ -3229,22 +3244,44 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     final focal = (pa + pb) / 2;
     // The request counts from the unsnapped start scale, so a long pinch
     // leaves the snap (spec zoom.snap, "Releasing").
-    final s = zoomSnap(_s0 * (pa - pb).distance / _d0, _fitScale);
+    // Once a pull has begun the gesture stays a scroll: the spread of the
+    // fingers no longer zooms, so a wobble cannot cancel the pull.
+    final s = _pullLock
+        ? _s0
+        : zoomSnap(_s0 * (pa - pb).distance / _d0, _fitScale);
     if (s != _vp?.scale) _flashZoom(s);
     final cand = PageViewport(s, focal - _p0 * s);
     final c = _clamp(cand);
     // A two-finger scroll, not a zoom, pulls.
-    if ((s - _s0).abs() < _s0 * 0.02) {
+    if (_pullLock || (s - _s0).abs() < _s0 * 0.06) {
       _pulled(cand, c, Offset.zero, abs: true);
+      if (_pull.value != 0) _pullLock = true;
     } else {
       _pull.value = 0; // a zoom never adds a page
     }
     _setView(c, _Fit.free);
   }
 
+  /// Moving back from a pull first gives the stretch back, one for one, so
+  /// the ring empties as fast as it filled; only the rest scrolls the view.
+  Offset _unpull(Offset d) {
+    final p = _pull.value;
+    final vertical = _laidMode == PageViewMode.vertical;
+    final v = vertical ? d.dy : d.dx;
+    if (p == 0 || v * p >= 0) return d;
+    final take = v.abs() < p.abs() ? v : -p;
+    _pull.value = p + take;
+    final rest = v - take;
+    return vertical ? Offset(d.dx, rest) : Offset(rest, d.dy);
+  }
+
   void _panBy(Offset d, {bool pull = false}) {
     final vp = _vp;
     if (vp == null || _pointer != null) return;
+    if (pull) {
+      d = _unpull(d);
+      if (d == Offset.zero) return;
+    }
     final cand = PageViewport(vp.scale, vp.offset + d);
     final c = _clamp(cand);
     if (pull) _pulled(cand, c, d);

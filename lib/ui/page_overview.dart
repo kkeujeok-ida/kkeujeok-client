@@ -384,55 +384,61 @@ class _PageOverviewState extends State<PageOverview> {
           backgroundColor: KkjLight.colorSurfaceBase,
           appBar: _header(l, pages.length),
           // Built lazily: only the thumbnails in view are drawn (NFR2).
-          body: GridView.builder(
-            controller: _scroll,
-            padding: const EdgeInsets.all(KkjTokens.spacing3),
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 180,
-              mainAxisSpacing: KkjTokens.spacing3,
-              crossAxisSpacing: KkjTokens.spacing3,
-              childAspectRatio: 0.72,
+          body: GestureDetector(
+            // A tap on the empty space ends the choosing.
+            behavior: HitTestBehavior.translucent,
+            onTap: _selecting ? _leaveSelection : null,
+            child: GridView.builder(
+              controller: _scroll,
+              padding: const EdgeInsets.all(KkjTokens.spacing3),
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 180,
+                mainAxisSpacing: KkjTokens.spacing3,
+                crossAxisSpacing: KkjTokens.spacing3,
+                childAspectRatio: 0.72,
+              ),
+              itemCount: pages.length,
+              itemBuilder: (context, i) {
+                final id = pages[i]['id'] as String;
+                final last = pages.length - 1;
+                return _Cell(
+                  key: ValueKey(id),
+                  page: pages[i],
+                  index: i,
+                  total: pages.length,
+                  isCurrent: i == host.current,
+                  conflict: conflicted.contains(id),
+                  selecting: _selecting,
+                  selected: _sel.contains(id),
+                  onTap: _selecting
+                      ? () => setState(
+                          () => _sel.contains(id)
+                              ? _sel.remove(id)
+                              : _sel.add(id),
+                        )
+                      : () => Navigator.of(context).pop(PageOverviewResult(i)),
+                  onOutTap: (ids) =>
+                      Navigator.of(context).pop(PageOverviewResult(i, ids)),
+                  onBackground: () => _background([id]),
+                  onOrientation: _turn(pages[i], i),
+                  onDuplicate: () => _duplicate([id]),
+                  onDelete: pages.length > 1 ? () => _delete([id]) : null,
+                  onEarlier: i > 0 ? () => _moveOne(i, i - 1) : null,
+                  onLater: i < last ? () => _moveOne(i, i + 1) : null,
+                  onFirst: i > 0 ? () => _moveOne(i, 0) : null,
+                  onLast: i < last ? () => _moveOne(i, last) : null,
+                  onDrop: (dragged) => _drop(dragged, i),
+                  onDragStart: () => _dragStart(id),
+                  fromBefore: (dragged) =>
+                      pages.indexWhere((p) => p['id'] == dragged) < i,
+                  onDragUpdate: (y) => _dragY = y,
+                  onDragEnd: _dragEnd,
+                  dragCount: _selecting
+                      ? (_sel.contains(id) ? _sel.length : _sel.length + 1)
+                      : 1,
+                );
+              },
             ),
-            itemCount: pages.length,
-            itemBuilder: (context, i) {
-              final id = pages[i]['id'] as String;
-              final last = pages.length - 1;
-              return _Cell(
-                key: ValueKey(id),
-                page: pages[i],
-                index: i,
-                total: pages.length,
-                isCurrent: i == host.current,
-                conflict: conflicted.contains(id),
-                selecting: _selecting,
-                selected: _sel.contains(id),
-                onTap: _selecting
-                    ? () => setState(
-                        () =>
-                            _sel.contains(id) ? _sel.remove(id) : _sel.add(id),
-                      )
-                    : () => Navigator.of(context).pop(PageOverviewResult(i)),
-                onOutTap: (ids) =>
-                    Navigator.of(context).pop(PageOverviewResult(i, ids)),
-                onBackground: () => _background([id]),
-                onOrientation: _turn(pages[i], i),
-                onDuplicate: () => _duplicate([id]),
-                onDelete: pages.length > 1 ? () => _delete([id]) : null,
-                onEarlier: i > 0 ? () => _moveOne(i, i - 1) : null,
-                onLater: i < last ? () => _moveOne(i, i + 1) : null,
-                onFirst: i > 0 ? () => _moveOne(i, 0) : null,
-                onLast: i < last ? () => _moveOne(i, last) : null,
-                onDrop: (dragged) => _drop(dragged, i),
-                onDragStart: () => _dragStart(id),
-                fromBefore: (dragged) =>
-                    pages.indexWhere((p) => p['id'] == dragged) < i,
-                onDragUpdate: (y) => _dragY = y,
-                onDragEnd: _dragEnd,
-                dragCount: _selecting
-                    ? (_sel.contains(id) ? _sel.length : _sel.length + 1)
-                    : 1,
-              );
-            },
           ),
         );
       },
