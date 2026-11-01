@@ -541,5 +541,21 @@
   "coverOptionSelected": "Cover, {name}, selected",
   "@coverOptionSelected": {"placeholders": {"name": {"type": "String"}}},
   "coverOptionUnselected": "Cover, {name}",
-  "@coverOptionUnselected": {"placeholders": {"name": {"type": "String"}}}
+  "@coverOptionUnselected": {"placeholders": {"name": {"type": "String"}}},
+  "exportMenu": "Export",
+  "exportTitle": "Export as PDF",
+  "exportRangeAll": "All pages",
+  "exportRangeCurrent": "Current page",
+  "exportRangeCustom": "Page range",
+  "exportRangeLabel": "Pages, for example 3-7",
+  "exportErrEmpty": "Enter the pages to export.",
+  "exportErrFormat": "Use a page number or a range like 3-7.",
+  "exportErrReversed": "The first page must not come after the last.",
+  "exportErrOutOfRange": "Pages must be between 1 and {count}.",
+  "@exportErrOutOfRange": {"placeholders": {"count": {"type": "int"}}},
+  "exportStart": "Export",
+  "exportProgress": "Making PDF · {done}/{total} pages",
+  "@exportProgress": {"placeholders": {"done": {"type": "int"}, "total": {"type": "int"}}},
+  "exportFailed": "Could not make the PDF.",
+  "exportAssetMissing": "Some images are not on this device yet. Connect to the internet to download them, then try again."
 }

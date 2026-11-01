@@ -30,6 +30,9 @@ dependencies:
   flutter_image_compress: 2.5.1
   permission_handler: 12.0.3
   flutter_svg: 2.3.2
+  pdf: 3.12.0
+  image: 4.8.0
+  vector_math: 2.4.0
 
 dev_dependencies:
   flutter_test:
@@ -41,6 +44,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/fonts/OFL-Pretendard.txt
+    - assets/fonts/Pretendard-Regular.ttf
+    - assets/fonts/Pretendard-SemiBold.ttf
     - lib/design_tokens/covers/
   fonts:
     - family: Pretendard

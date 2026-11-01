@@ -57,7 +57,7 @@ void paintTextBox(Canvas canvas, Map<String, dynamic> e) {
   final text = e['text'] as String;
   final cps = text.runes.toList();
   final (:size, :bold, :base) = textStyles(e);
-  final styles = _styleKeys(e, cps.length);
+  final styles = textStyleKeys(e, cps.length);
   final m = TextMetrics.instance;
   final x = (e['x'] as num).toDouble(), y = (e['y'] as num).toDouble();
   final w = math.max(widthMin, (e['width'] as num).toDouble());
@@ -113,7 +113,7 @@ void paintTextBox(Canvas canvas, Map<String, dynamic> e) {
 
 // A key per code point for what changes how it is drawn: size, bold, italic,
 // color. The italic flag rides in the key as its first character.
-List<String> _styleKeys(Map<String, dynamic> e, int n) {
+List<String> textStyleKeys(Map<String, dynamic> e, int n) {
   final st = textStyles(e);
   final runs = normalizeRuns(
     e['runs'] is List ? e['runs'] as List : const [],

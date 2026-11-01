@@ -2347,6 +2347,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Cover, {name}'**
   String coverOptionUnselected(String name);
+
+  /// No description provided for @exportMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'Export'**
+  String get exportMenu;
+
+  /// No description provided for @exportTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Export as PDF'**
+  String get exportTitle;
+
+  /// No description provided for @exportRangeAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All pages'**
+  String get exportRangeAll;
+
+  /// No description provided for @exportRangeCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Current page'**
+  String get exportRangeCurrent;
+
+  /// No description provided for @exportRangeCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Page range'**
+  String get exportRangeCustom;
+
+  /// No description provided for @exportRangeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Pages, for example 3-7'**
+  String get exportRangeLabel;
+
+  /// No description provided for @exportErrEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the pages to export.'**
+  String get exportErrEmpty;
+
+  /// No description provided for @exportErrFormat.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a page number or a range like 3-7.'**
+  String get exportErrFormat;
+
+  /// No description provided for @exportErrReversed.
+  ///
+  /// In en, this message translates to:
+  /// **'The first page must not come after the last.'**
+  String get exportErrReversed;
+
+  /// No description provided for @exportErrOutOfRange.
+  ///
+  /// In en, this message translates to:
+  /// **'Pages must be between 1 and {count}.'**
+  String exportErrOutOfRange(int count);
+
+  /// No description provided for @exportStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Export'**
+  String get exportStart;
+
+  /// No description provided for @exportProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Making PDF · {done}/{total} pages'**
+  String exportProgress(int done, int total);
+
+  /// No description provided for @exportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not make the PDF.'**
+  String get exportFailed;
+
+  /// No description provided for @exportAssetMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Some images are not on this device yet. Connect to the internet to download them, then try again.'**
+  String get exportAssetMissing;
 }
 
 class _AppLocalizationsDelegate

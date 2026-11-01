@@ -54,6 +54,7 @@ import 'sync_indicator.dart';
 import 'text_edit.dart';
 import 'text_format_bar.dart';
 import 'toolbar_dock.dart';
+import 'export_screen.dart';
 import 'version_history.dart';
 
 /// The writing screen: page, toolbar and the top-left `editor-corner`.
@@ -2104,6 +2105,17 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _select(_pages[at]['id'] as String, ids.toSet());
     }
     _canvasFocus.requestFocus();
+  }
+
+  /// Story 8.2: PDF export of the note as it is on this device; read only.
+  Future<void> _openExport() async {
+    if (_leaving || !mounted) return;
+    await showExportScreen(
+      context,
+      note: _history.note,
+      currentIndex: _pages.isEmpty ? 0 : _activeIndex(),
+    );
+    if (mounted) _canvasFocus.requestFocus();
   }
 
   Future<void> _openHistory() async {
@@ -4181,6 +4193,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                       onVersionHistory: readOnly || receiving
                           ? null
                           : _openHistory,
+                      onExport: _openExport,
                     );
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -4336,6 +4349,7 @@ class _MoreMenu extends StatelessWidget {
     required this.onViewMode,
     required this.menu,
     required this.onVersionHistory,
+    required this.onExport,
     required this.onPages,
   });
 
@@ -4351,6 +4365,7 @@ class _MoreMenu extends StatelessWidget {
   final bool canZoomOut, canZoomIn;
   final VoidCallback onZoomOut, onZoomIn, onFitWidth, onFitPage;
   final VoidCallback? onVersionHistory;
+  final VoidCallback onExport;
 
   static const _hit = BoxConstraints(
     minWidth: KkjTokens.spacingHitMinAndroid,
@@ -4458,6 +4473,11 @@ class _MoreMenu extends StatelessWidget {
                 style: item,
                 onPressed: onVersionHistory,
                 child: Text(l10n.versionHistory),
+              ),
+              MenuItemButton(
+                style: item,
+                onPressed: onExport,
+                child: Text(l10n.exportMenu),
               ),
             ],
             builder: (context, controller, _) => IconButton(

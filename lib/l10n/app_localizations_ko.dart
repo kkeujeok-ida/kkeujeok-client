@@ -1264,4 +1264,51 @@ class AppLocalizationsKo extends AppLocalizations {
   String coverOptionUnselected(String name) {
     return '표지, $name';
   }
+
+  @override
+  String get exportMenu => '내보내기';
+
+  @override
+  String get exportTitle => 'PDF 내보내기';
+
+  @override
+  String get exportRangeAll => '전체';
+
+  @override
+  String get exportRangeCurrent => '현재 페이지';
+
+  @override
+  String get exportRangeCustom => '페이지 범위';
+
+  @override
+  String get exportRangeLabel => '페이지, 예: 3-7';
+
+  @override
+  String get exportErrEmpty => '내보낼 페이지를 입력해 주세요.';
+
+  @override
+  String get exportErrFormat => '페이지 번호나 3-7처럼 범위로 입력해 주세요.';
+
+  @override
+  String get exportErrReversed => '시작 페이지가 끝 페이지보다 뒤에 있어요.';
+
+  @override
+  String exportErrOutOfRange(int count) {
+    return '페이지는 1부터 $count 사이여야 해요.';
+  }
+
+  @override
+  String get exportStart => '내보내기';
+
+  @override
+  String exportProgress(int done, int total) {
+    return 'PDF 만드는 중 · $done/$total페이지';
+  }
+
+  @override
+  String get exportFailed => 'PDF를 만들지 못했어요.';
+
+  @override
+  String get exportAssetMissing =>
+      '아직 이 기기에 없는 이미지가 있어요. 인터넷에 연결해 이미지를 받은 뒤 다시 시도해 주세요.';
 }

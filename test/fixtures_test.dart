@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart'
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/drive/duplicates.dart';
 import 'package:kkeujeok/drive/note_summary.dart';
+import 'package:kkeujeok/export/export_rules.dart';
 import 'package:kkeujeok/library/library_rules.dart';
 import 'package:kkeujeok/model/image_rules.dart';
 import 'package:kkeujeok/model/kkj_codec.dart';
@@ -342,6 +343,22 @@ final runners = <String, void Function(Case)>{
       ]),
     }, c['expected']);
   },
+  'export.range': (c) =>
+      _same(exportRange(_json(c['input'])), c['expected']),
+  'export.fileName': (c) =>
+      _same(exportFileName(_json(c['input'])), c['expected']),
+  'export.plan': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    _same(
+      exportPlan(
+        // trusted: the plan reads an unknown page background as plain.
+        Note.trusted(copyJsonValue(i['note']) as Map<String, dynamic>),
+        (i['range'] as Map).cast<String, dynamic>(),
+        (i['localAssets'] as List).cast<String>(),
+      ),
+      c['expected'],
+    );
+  },
   'page.background': (c) {
     final i = c['input'] as Map<String, dynamic>;
     _same(
@@ -654,10 +671,6 @@ const pendingRules = <String>{
   'trash.access',
   'trash.remoteTrashed',
   'drive.trashbinFolder',
-  // Export rules (Story 8.1) arrive with the Android story 8.2.
-  'export.range',
-  'export.fileName',
-  'export.plan',
 };
 
 final _sep = Platform.pathSeparator;

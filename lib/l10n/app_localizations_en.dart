@@ -1337,4 +1337,52 @@ class AppLocalizationsEn extends AppLocalizations {
   String coverOptionUnselected(String name) {
     return 'Cover, $name';
   }
+
+  @override
+  String get exportMenu => 'Export';
+
+  @override
+  String get exportTitle => 'Export as PDF';
+
+  @override
+  String get exportRangeAll => 'All pages';
+
+  @override
+  String get exportRangeCurrent => 'Current page';
+
+  @override
+  String get exportRangeCustom => 'Page range';
+
+  @override
+  String get exportRangeLabel => 'Pages, for example 3-7';
+
+  @override
+  String get exportErrEmpty => 'Enter the pages to export.';
+
+  @override
+  String get exportErrFormat => 'Use a page number or a range like 3-7.';
+
+  @override
+  String get exportErrReversed =>
+      'The first page must not come after the last.';
+
+  @override
+  String exportErrOutOfRange(int count) {
+    return 'Pages must be between 1 and $count.';
+  }
+
+  @override
+  String get exportStart => 'Export';
+
+  @override
+  String exportProgress(int done, int total) {
+    return 'Making PDF · $done/$total pages';
+  }
+
+  @override
+  String get exportFailed => 'Could not make the PDF.';
+
+  @override
+  String get exportAssetMissing =>
+      'Some images are not on this device yet. Connect to the internet to download them, then try again.';
 }

@@ -567,6 +567,14 @@ final noteFilesSharerProvider = Provider<Future<void> Function(List<File>)>(
       ),
 );
 
+/// Hands an exported PDF to the system share sheet (Story 8.2).
+final pdfSharerProvider = Provider<Future<void> Function(File)>(
+  (ref) =>
+      (file) => SharePlus.instance.share(
+        ShareParams(files: [XFile(file.path, mimeType: 'application/pdf')]),
+      ),
+);
+
 /// The notes with changes Drive does not have; null = could not check.
 final unsentIdsProvider = Provider<Future<List<String>?> Function()>(
   (ref) =>
