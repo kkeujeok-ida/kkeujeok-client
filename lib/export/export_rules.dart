@@ -61,8 +61,7 @@ final _reserved = RegExp(
 Map<String, dynamic> exportFileName(Map<String, dynamic> input) {
   var s = String.fromCharCodes([
     for (final c in _trim(input['title'] as String).runes)
-      // The fixture keeps `\` (the reference's JS string drops it); spec says replace.
-      r'/:*?"<>|'.contains(String.fromCharCode(c)) || c <= 0x1f || c == 0x7f
+      r'\/:*?"<>|'.contains(String.fromCharCode(c)) || c <= 0x1f || c == 0x7f
           ? 0x5f
           : c,
   ]);
