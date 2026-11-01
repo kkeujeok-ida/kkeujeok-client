@@ -9,6 +9,9 @@ import 'package:intl/intl.dart';
 import '../design_tokens/build/tokens.dart';
 import '../drive/root_folder.dart' show RootStatus;
 import '../library/folder_service.dart' show FolderView;
+import '../storage/note_store.dart' show NoteSaveException;
+import 'folder_picker_sheet.dart';
+import 'folder_sidebar.dart' show NameDialog;
 import '../l10n/app_localizations.dart';
 import '../model/library_view.dart';
 import '../model/note.dart';
@@ -294,6 +297,78 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     if (note != null && mounted) await _afterEditor(_push(note), note);
   });
 
+  void _noteAction(_NoteAction a, LibraryEntry e) {
+    switch (a) {
+      case _NoteAction.rename:
+        _rename(e);
+      case _NoteAction.move:
+        _move(e);
+      case _NoteAction.delete:
+        _delete(e.noteId);
+    }
+  }
+
+  /// Story 7.7: new title in a dialog (empty is not accepted); the card and
+  /// the Drive file name follow.
+  Future<void> _rename(LibraryEntry e) => _guarded(() async {
+    final l = AppLocalizations.of(context);
+    final title = await showDialog<String>(
+      context: context,
+      builder: (_) => NameDialog(
+        title: l.noteRename,
+        confirm: l.folderSave,
+        initial: e.note!.title,
+        label: l.noteTitle,
+        tooLong: l.noteTitleTooLong,
+      ),
+    );
+    if (title == null || !mounted) return;
+    try {
+      await ref.read(libraryProvider.notifier).rename(e.noteId, title);
+    } on NoteSaveException {
+      if (mounted) _snack(l.noteActionFailed);
+    }
+  });
+
+  /// Story 7.7: folder picker, then a snackbar with [되돌리기].
+  Future<void> _move(LibraryEntry e) => _guarded(() async {
+    final l = AppLocalizations.of(context);
+    final tree = ref.read(folderTreeProvider).value ?? const FolderView();
+    final target = await showFolderPicker(
+      context,
+      title: l.noteMoveTitle(e.note!.title),
+      view: tree,
+      selected: e.folderId ?? 'root',
+    );
+    if (target == null || !mounted) return;
+    final r = await ref
+        .read(folderTreeProvider.notifier)
+        .moveNote(e.noteId, target);
+    if (!mounted) return;
+    if (!r.ok) return _snack(l.noteActionFailed);
+    final inverse = r.inverse;
+    if (inverse == null) return; // already there
+    final name = target == 'root'
+        ? l.folderTopLevel
+        : tree.folder(target)!.name;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(l.noteMoved(name)),
+          action: SnackBarAction(
+            label: l.undo,
+            onPressed: () =>
+                ref.read(folderTreeProvider.notifier).undo(inverse),
+          ),
+        ),
+      );
+  });
+
+  void _snack(String text) => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(text)));
+
   /// Story 7.7: asks in place, then hides the card at once; the upload of
   /// unsent changes and the Drive trash follow (offline: when connected).
   Future<void> _delete(String noteId) => _guarded(() async {
@@ -392,6 +467,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           ..showSnackBar(SnackBar(content: Text(l10n.revivedSnack)));
       }
     });
+    ref.listen(revivedNoticeProvider, (prev, next) {
+      if (next > (prev ?? 0)) _snack(l10n.revivedSnack);
+    });
     ref.listen(receiveStateProvider.select((r) => r.scanning), (_, next) {
       _watchScan(next);
     });
@@ -476,7 +554,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 entry: e,
                 receiving: recv.receiving.contains(e.noteId),
                 onTap: () => _open(e.note!),
-                onDelete: () => _delete(e.noteId),
+                onAction: (a) => _noteAction(a, e),
               )
             : cap(_UnreadableCard(noteId: e.noteId)),
     ];
@@ -843,21 +921,33 @@ class _RemoteNoteCard extends StatelessWidget {
   }
 }
 
-class _NoteCard extends ConsumerWidget {
+enum _NoteAction { rename, move, delete }
+
+class _NoteCard extends ConsumerStatefulWidget {
   const _NoteCard({
     required this.entry,
     required this.onTap,
-    required this.onDelete,
+    required this.onAction,
     this.receiving = false,
   });
 
   final LibraryEntry entry;
   final VoidCallback onTap;
-  final VoidCallback onDelete;
+  final void Function(_NoteAction) onAction;
   final bool receiving;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_NoteCard> createState() => _NoteCardState();
+}
+
+class _NoteCardState extends ConsumerState<_NoteCard> {
+  final _menu = GlobalKey<PopupMenuButtonState<_NoteAction>>();
+
+  @override
+  Widget build(BuildContext context) {
+    final entry = widget.entry;
+    final receiving = widget.receiving;
+    final onTap = widget.onTap;
     final theme = Theme.of(context);
     final l = AppLocalizations.of(context);
     final v = ref.watch(noteSyncProvider(entry.noteId));
@@ -910,12 +1000,21 @@ class _NoteCard extends ConsumerWidget {
         PositionedDirectional(
           top: 0,
           end: 0,
-          child: PopupMenuButton<void>(
+          child: PopupMenuButton<_NoteAction>(
+            key: _menu,
             tooltip: l.moreMenu,
             icon: const Icon(Icons.more_horiz),
-            onSelected: (_) => onDelete(),
+            onSelected: widget.onAction,
             itemBuilder: (_) => [
-              PopupMenuItem<void>(child: Text(l.noteDelete)),
+              PopupMenuItem(
+                value: _NoteAction.rename,
+                child: Text(l.noteRename),
+              ),
+              PopupMenuItem(value: _NoteAction.move, child: Text(l.noteMove)),
+              PopupMenuItem(
+                value: _NoteAction.delete,
+                child: Text(l.noteDelete),
+              ),
             ],
           ),
         ),
@@ -930,11 +1029,16 @@ class _NoteCard extends ConsumerWidget {
       excludeSemantics: true,
       onTap: onTap,
       customSemanticsActions: {
-        CustomSemanticsAction(label: l.noteDelete): onDelete,
+        CustomSemanticsAction(label: l.noteRename): () =>
+            widget.onAction(_NoteAction.rename),
+        CustomSemanticsAction(label: l.noteMove): () =>
+            widget.onAction(_NoteAction.move),
+        CustomSemanticsAction(label: l.noteDelete): () =>
+            widget.onAction(_NoteAction.delete),
       },
       child: InkWell(
         onTap: onTap,
-        onLongPress: onDelete,
+        onLongPress: () => _menu.currentState?.showButtonMenu(),
         borderRadius: BorderRadius.circular(
           KkjLight.componentsCoverCardRounded,
         ),

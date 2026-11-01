@@ -151,6 +151,7 @@ class FolderService {
     required this.allowed,
     required this.online,
     required this.upload,
+    this.isOpen,
     DateTime Function()? clock,
     String Function()? newFolderId,
   }) : _clock = clock ?? DateTime.now,
@@ -166,6 +167,9 @@ class FolderService {
 
   /// Uploads one note; true when nothing of it is left unsent.
   final Future<bool> Function(String noteId) upload;
+
+  /// True while the editor shows the note (a remote delete waits for it).
+  final Future<bool> Function(String noteId)? isOpen;
   final DateTime Function() _clock;
   final String Function() _newId;
 
@@ -259,6 +263,37 @@ class FolderService {
     await _mutate((s) {
       if (s.folder(parentId) != null) s.noteParents[noteId] = parentId;
     });
+  }
+
+  /// The `kkeujeokId` of the folder the note is in (`root` = top level).
+  Future<String> parentIdOf(String noteId) async =>
+      (await _load()).noteParents[noteId] ?? 'root';
+
+  /// A deleted note's device copy is gone: its parent entry and any queued
+  /// change of it are dropped.
+  Future<void> forgetNote(String noteId) => _mutate((s) {
+    s.noteParents.remove(noteId);
+    s.ops.removeWhere((o) => o['kind'] == 'moveNote' && o['noteId'] == noteId);
+  });
+
+  /// The Drive id of `.trashbin`, created when missing (Story 14.1); null
+  /// while the root is not known.
+  Future<String?> trashbinFileId() async {
+    final root = (await device.read()).rootFolderId;
+    if (root == null) return null;
+    return _ensureItem('trashbin', name: '.trashbin', parentFile: root);
+  }
+
+  /// How many notes another device deleted although this one had unsent
+  /// changes, and that were revived since the last call (the snackbar).
+  Future<int> takeRevived() async {
+    var n = 0;
+    await device.update((d) {
+      final v = d.extra['revivedCount'];
+      n = v is int ? v : 0;
+      return n == 0 ? d : d.copyWith(extra: {...d.extra, 'revivedCount': 0});
+    });
+    return n;
   }
 
   // ---- changes -------------------------------------------------------------
@@ -487,10 +522,15 @@ class FolderService {
         case 'moveNote':
           final s = await _load();
           final to = op['addParent'] as String;
-          final fileId = (await store.readSync(op['noteId'] as String))
-              .info
-              .fileId;
-          // A note without a Drive file is put in its folder by its upload.
+          final noteId = op['noteId'] as String;
+          var fileId = (await store.readSync(noteId)).info.fileId;
+          // No local Drive file id (not uploaded, or a card not received
+          // yet): look it up by `kkeujeokId`. A note that Drive does not
+          // have is put in its folder by its upload.
+          fileId ??= (await _all(
+            kkeujeokIdQuery(noteId),
+            fields: 'id,createdTime',
+          )).firstOrNull?.id;
           if (fileId == null || (to != 'root' && s.folder(to) == null)) {
             return true;
           }
@@ -540,9 +580,11 @@ class FolderService {
   /// The Drive id of folder [id] of the cache, created when it is not there
   /// yet (spec `drive-layout` "Idempotent creation": the intent is saved, the
   /// folder is looked for by `kkeujeokId`, created only when missing).
-  Future<String?> _ensureFolder(String id) =>
-      _creating[id] ??= _create(id).whenComplete(() {
-        _creating.remove(id); // a block: returning the future would wait on itself
+  Future<String?> _ensureFolder(String id) => _creating[id] ??= _create(id)
+      .whenComplete(() {
+        _creating.remove(
+          id,
+        ); // a block: returning the future would wait on itself
       });
 
   Future<String?> _create(String id) async {
@@ -732,6 +774,54 @@ class FolderService {
     );
   });
 
+  /// `trash.remoteTrashed`: another device moved a note this device has into
+  /// `.trashbin`. Nothing unsent: the device copy goes (after the editor
+  /// closed). Unsent changes: the note is moved back to `trashedFrom` (else
+  /// the top level) and the revive notice is counted. This device's own
+  /// pending delete wins.
+  Future<void> _remoteTrashed(
+    Set<Object?> hidden,
+    Set<Object?> hiddenFolders,
+    Set<String> local,
+    Map<String, DriveFile> files,
+    Map<String, DriveFile> folders,
+    String root,
+  ) async {
+    for (final id in hidden) {
+      final file = files[id];
+      if (id is! String || !local.contains(id) || file == null) continue;
+      final r = await store.readSync(id);
+      if (r.info.pendingTrash) continue;
+      try {
+        if (!await _unsent(id)) {
+          if (await isOpen?.call(id) ?? false) continue; // next refresh
+          await forgetNote(id);
+          await _removeLocal(id);
+          continue;
+        }
+        final from = file.appProperties['trashedFrom'];
+        final origin = from == null ? null : folders[from];
+        // An origin that is itself in the trash is no destination.
+        final target = origin == null || hiddenFolders.contains(from)
+            ? root
+            : origin.id;
+        await drive.update(
+          file.id,
+          addParents: target,
+          removeParents: file.parents.join(','),
+        );
+        await device.update((d) {
+          final v = d.extra['revivedCount'];
+          return d.copyWith(
+            extra: {...d.extra, 'revivedCount': (v is int ? v : 0) + 1},
+          );
+        });
+      } on DriveError {
+        // The next refresh repeats it.
+      }
+    }
+  }
+
   // ---- reading Drive -------------------------------------------------------
 
   /// Sends what waits, then reads the folders and the note parents from Drive
@@ -797,6 +887,14 @@ class FolderService {
         }
       }
       final local = {...await store.ids()};
+      await _remoteTrashed(
+        {...(t['hidden'] as Map)['notes'] as List},
+        {...(t['hidden'] as Map)['folders'] as List},
+        local,
+        {for (final n in noteFiles) ?n.appProperties['kkeujeokId']: n},
+        byKid,
+        root,
+      );
       await _mutate((s) {
         final old = {for (final f in s.folders) f['id']: f};
         final folders = <_Map>[

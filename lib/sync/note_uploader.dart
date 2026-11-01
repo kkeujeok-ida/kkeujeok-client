@@ -7,6 +7,7 @@ import 'package:crypto/crypto.dart' as crypto;
 import '../drive/drive_client.dart';
 import '../drive/duplicates.dart';
 import '../drive/note_summary.dart';
+import '../library/library_rules.dart' show trashNoteRule;
 import '../model/ids.dart' as mid;
 import '../model/image_rules.dart';
 import '../model/kkj_codec.dart';
@@ -90,6 +91,9 @@ class NoteUploader {
     this.assets,
     this.onAssetConfirmed,
     this.parentFileId,
+    this.trashbinFileId,
+    this.parentIdOf,
+    this.forgetNote,
     NoteChain? chain,
     DateTime Function()? clock,
     String Function()? newRev,
@@ -132,6 +136,16 @@ class NoteUploader {
   /// Story 7.5: the Drive folder a new note is created in (null = the root).
   /// May create the folder; a [DriveError] is handled like any upload call.
   final Future<String?> Function(String noteId)? parentFileId;
+
+  /// Story 14.1: the Drive id of `.trashbin` (created when missing); null =
+  /// not available, a delete waits.
+  final Future<String?> Function()? trashbinFileId;
+
+  /// The `kkeujeokId` of the folder a note is in (`root` = top level).
+  final Future<String> Function(String noteId)? parentIdOf;
+
+  /// Told when a deleted note's device copy is gone.
+  final Future<void> Function(String noteId)? forgetNote;
 
   /// For the `ctx` of the duplicate folds (the merge reads no clock itself).
   final DateTime Function() _clock;
@@ -220,50 +234,110 @@ class NoteUploader {
         }
       });
 
-  // ---- delete (Story 7.7) -------------------------------------------------
+  static bool _is404(DriveError e) => e.kind == 'http' && e.status == 404;
 
-  /// Marks [noteId] as deleted by the person: the library hides it and every
-  /// trigger runs [trashNote] until it is done. False when `sync.json`
-  /// cannot be written (nothing is deleted).
+  // ---- delete (Story 7.7, rule `trash.trashNote` of Story 14.1) -----------
+
+  /// Marks [noteId] as deleted by the person: `pendingTrash` takes
+  /// `{trashedAt, from}`, the library hides the note and every trigger runs
+  /// [trashNote] until it is done. A mark already there keeps its date and
+  /// origin. False when `sync.json` cannot be written (nothing is deleted).
   Future<bool> markTrash(String noteId) => _chained(noteId, () async {
     try {
-      await store.updateSync(
-        noteId,
-        (c) => c.copyWith(extra: {...c.extra, pendingTrashKey: true}),
-      );
+      final from = await parentIdOf?.call(noteId) ?? 'root';
+      await store.updateSync(noteId, (c) {
+        if (c.extra[pendingTrashKey] is Map) return c;
+        return c.copyWith(
+          extra: {
+            ...c.extra,
+            pendingTrashKey: {
+              'trashedAt': mid.canonicalNow(_clock()),
+              'from': from,
+            },
+          },
+        );
+      });
       return true;
     } on NoteSaveException {
       return false;
     }
   });
 
-  /// Sends what is unsent, trashes the Drive file, then removes the local
-  /// note. False while it must wait (offline, a failed upload): the mark
-  /// stays and the next trigger repeats this.
+  /// Sends what is unsent, moves the Drive file into `.trashbin` (never
+  /// `trashed=true`), then removes the local note. False while it must wait
+  /// (offline, a failed upload, a conflict): the mark stays and the next
+  /// trigger repeats this.
   Future<bool> trashNote(String noteId) => _chained(noteId, () async {
     try {
       var s = await store.readSync(noteId);
+      var mark = s.info.extra[pendingTrashKey];
+      if (mark is! Map) {
+        // The earlier `extra.pendingTrash: true`: migrated to the official
+        // field; `from` null = the parent at the time of the move.
+        mark = {'trashedAt': mid.canonicalNow(_clock()), 'from': null};
+        await store.updateSync(
+          noteId,
+          (c) => c.copyWith(extra: {...c.extra, pendingTrashKey: mark}),
+        );
+      }
       if (s.hasUnsent || s.info.pendingVerify != null) {
         if (await _upload(noteId, recoverOnly: false) !=
             UploadOutcome.uploaded) {
           return false;
         }
         s = await store.readSync(noteId);
-        if (s.hasUnsent || s.info.pendingVerify != null) return false;
+      }
+      if (s.hasUnsent ||
+          s.info.pendingVerify != null ||
+          s.info.state == SyncState.conflict) {
+        return false; // nothing is lost: the device copy stays
       }
       final fileId = s.info.fileId;
       if (fileId != null) {
         if (!await allowed() || !await online()) return false;
+        final trashbin = await trashbinFileId?.call();
+        if (trashbin == null) return false;
         try {
-          await _call(
+          final cur = await _call(
             noteId,
-            () => drive.update(fileId, trashed: true),
-            pass: (e) => e.status == 404, // already gone
+            () => drive.get(fileId, fields: 'id,parents'),
+            pass: _is404,
           );
-        } on DriveError {
-          // 404: nothing left to trash.
+          if (!cur.parents.contains(trashbin)) {
+            final r = trashNoteRule({
+              'noteId': noteId,
+              'fileId': fileId,
+              'parentId': await parentIdOf?.call(noteId) ?? 'root',
+              'parentFileId': cur.parents.join(','),
+              'trashbinFileId': trashbin,
+              'now': mark['trashedAt'],
+              'unsent': false,
+              'online': true,
+              'pending': {'trashedAt': mark['trashedAt'], 'from': mark['from']},
+            });
+            final q = r['request'] as Map?;
+            if (q == null) return false;
+            await _call(
+              noteId,
+              () => drive.update(
+                fileId,
+                addParents: q['addParents'] as String,
+                removeParents: q['removeParents'] as String,
+                appProperties: {
+                  for (final e in (q['appProperties'] as Map).entries)
+                    '${e.key}': '${e.value}',
+                },
+              ),
+              pass: _is404,
+            );
+          }
+        } on DriveError catch (e) {
+          if (!(e.kind == 'http' && e.status == 404)) rethrow; // already gone
         }
       }
+      // The queue forgets the note first: a left-over move must never pull
+      // the trashed file back out of `.trashbin`.
+      await forgetNote?.call(noteId);
       final note = (await store.read(noteId))?.note;
       return note == null || await store.removeNote(noteId, expected: note);
     } on _Failure catch (f) {

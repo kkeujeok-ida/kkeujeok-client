@@ -1,5 +1,6 @@
 // Spec `library.*` folder rules and `trash.trashNote` / `trash.trashFolder`.
 // Pure; output maps equal the fixtures. Never mutates its input.
+import '../drive/note_summary.dart' show driveFileNameRule;
 import '../model/note_title.dart';
 
 typedef RuleJson = Map<String, Object?>;
@@ -243,3 +244,30 @@ RuleJson trashNoteRule(RuleJson i) => _trash(i, folder: false);
 
 /// `trash.trashFolder`.
 RuleJson trashFolderRule(RuleJson i) => _trash(i, folder: true);
+
+/// `library.renameNote`.
+RuleJson libraryRenameNote(RuleJson i) {
+  final note = (i['note'] as Map).cast<String, Object?>();
+  final title = normalizeTitle(((i['op'] as Map)['title']) as String, [
+    for (final t in i['existingTitles'] as List) t as String,
+  ]);
+  if (title == null) return {'error': 'titleTooLong'};
+  final name = driveFileNameRule({'title': title})['name'];
+  final meta = (note['meta'] as Map).cast<String, Object?>();
+  if (title == meta['title']) {
+    return {'note': note, 'inverse': null, 'name': name};
+  }
+  final ctx = (i['ctx'] as Map).cast<String, Object?>();
+  final seq = (note['metaSeq'] as num),
+      seen = (ctx['lastSeenRemoteSeq'] as num);
+  return {
+    'note': {
+      ...note,
+      'meta': {...meta, 'title': title},
+      'metaRev': ctx['rev'],
+      'metaSeq': (seq > seen ? seq : seen) + 1,
+    },
+    'inverse': {'op': 'renameNote', 'title': meta['title']},
+    'name': name,
+  };
+}

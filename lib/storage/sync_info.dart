@@ -76,9 +76,11 @@ class SyncInfo {
     return copyWith(extra: {...extra, 'knownRevisionIds': known});
   }
 
-  /// Story 7.7: the person deleted the note; it waits to be uploaded and
-  /// trashed on Drive (an unknown key of `sync.json`, so it survives commits).
-  bool get pendingTrash => extra[pendingTrashKey] == true;
+  /// Story 14.1: the person deleted the note; it waits to be uploaded and
+  /// moved into `.trashbin`. `{trashedAt, from}` (the legacy `true` of
+  /// Story 7.7 counts too and is migrated by the uploader).
+  bool get pendingTrash =>
+      extra[pendingTrashKey] is Map || extra[pendingTrashKey] == true;
 
   /// The entries of [conflicts] nobody has resolved yet.
   List<JsonMap> get unresolvedConflicts => [

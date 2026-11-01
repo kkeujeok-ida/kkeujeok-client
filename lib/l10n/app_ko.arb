@@ -284,7 +284,7 @@
   "versionRestorePinFailed": "복원 전 버전을 표시하지 못해서 복원하지 않았어요.",
   "versionRestoreUnreadable": "이 버전을 읽을 수 없어요.",
   "noteDelete": "삭제",
-  "noteDeleteBody": "노트를 지울까요? Drive 휴지통으로 옮겨져요. 복원은 Drive에서 할 수 있어요.",
+  "noteDeleteBody": "노트를 지울까요? 휴지통으로 옮겨져요. 휴지통에서 복구할 수 있어요.",
   "noteDeleteConfirm": "지우기",
   "ratioLock": "비율 잠금",
   "scaleUp": "크게",
@@ -466,5 +466,13 @@
   "@folderMoveTitle": {"placeholders": {"name": {"type": "String"}}},
   "folderMoved": "\"{name}\" 폴더를 옮겼어요",
   "@folderMoved": {"placeholders": {"name": {"type": "String"}}},
-  "folderFailed": "폴더를 바꾸지 못했어요."
+  "folderFailed": "폴더를 바꾸지 못했어요.",
+  "noteRename": "이름 변경",
+  "noteMove": "이동",
+  "noteMoveTitle": "\"{name}\" 옮길 곳",
+  "@noteMoveTitle": {"placeholders": {"name": {"type": "String"}}},
+  "noteMoved": "\"{name}\" 폴더로 옮겼어요",
+  "@noteMoved": {"placeholders": {"name": {"type": "String"}}},
+  "noteTitleTooLong": "노트 제목은 100자까지예요.",
+  "noteActionFailed": "노트를 바꾸지 못했어요."
 }

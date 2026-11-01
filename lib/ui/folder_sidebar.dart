@@ -46,7 +46,7 @@ class _SectionState extends ConsumerState<FolderSidebarSection> {
   }) => showDialog<String>(
     context: context,
     builder: (_) =>
-        _NameDialog(title: title, confirm: confirm, initial: initial),
+        NameDialog(title: title, confirm: confirm, initial: initial),
   );
 
   Future<void> _create(String parent) async {
@@ -413,22 +413,30 @@ class _ConfirmRow extends StatelessWidget {
 
 /// A name field whose confirm button stays off until `library.folderName`
 /// accepts the text.
-class _NameDialog extends StatefulWidget {
-  const _NameDialog({
+/// A name asked in a dialog: trimmed, never empty, 100 characters at most.
+class NameDialog extends StatefulWidget {
+  const NameDialog({
+    super.key,
     required this.title,
     required this.confirm,
     required this.initial,
+    this.label,
+    this.tooLong,
   });
 
   final String title;
   final String confirm;
   final String initial;
 
+  /// Field label and the too-long message; the folder ones when null.
+  final String? label;
+  final String? tooLong;
+
   @override
-  State<_NameDialog> createState() => _NameDialogState();
+  State<NameDialog> createState() => NameDialogState();
 }
 
-class _NameDialogState extends State<_NameDialog> {
+class NameDialogState extends State<NameDialog> {
   late final _text = TextEditingController(text: widget.initial);
 
   @override
@@ -455,9 +463,9 @@ class _NameDialogState extends State<_NameDialog> {
           if (ok) Navigator.of(context).pop(check['name']);
         },
         decoration: InputDecoration(
-          labelText: l10n.folderNameLabel,
+          labelText: widget.label ?? l10n.folderNameLabel,
           errorText: check['reason'] == 'nameTooLong'
-              ? l10n.folderNameTooLong
+              ? widget.tooLong ?? l10n.folderNameTooLong
               : null,
         ),
       ),

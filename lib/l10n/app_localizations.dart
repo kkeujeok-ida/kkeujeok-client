@@ -1373,7 +1373,7 @@ abstract class AppLocalizations {
   /// No description provided for @noteDeleteBody.
   ///
   /// In en, this message translates to:
-  /// **'Delete this note? It moves to the Drive trash. You can restore it from Drive.'**
+  /// **'Delete this note? It moves to the trash, where you can restore it.'**
   String get noteDeleteBody;
 
   /// No description provided for @noteDeleteConfirm.
@@ -2257,6 +2257,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The folder could not be changed.'**
   String get folderFailed;
+
+  /// No description provided for @noteRename.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename'**
+  String get noteRename;
+
+  /// No description provided for @noteMove.
+  ///
+  /// In en, this message translates to:
+  /// **'Move'**
+  String get noteMove;
+
+  /// No description provided for @noteMoveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Move \"{name}\" to'**
+  String noteMoveTitle(String name);
+
+  /// No description provided for @noteMoved.
+  ///
+  /// In en, this message translates to:
+  /// **'Moved to \"{name}\"'**
+  String noteMoved(String name);
+
+  /// No description provided for @noteTitleTooLong.
+  ///
+  /// In en, this message translates to:
+  /// **'A note title is 100 characters at most.'**
+  String get noteTitleTooLong;
+
+  /// No description provided for @noteActionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not change the note.'**
+  String get noteActionFailed;
 }
 
 class _AppLocalizationsDelegate

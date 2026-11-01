@@ -702,8 +702,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get noteDelete => '삭제';
 
   @override
-  String get noteDeleteBody =>
-      '노트를 지울까요? Drive 휴지통으로 옮겨져요. 복원은 Drive에서 할 수 있어요.';
+  String get noteDeleteBody => '노트를 지울까요? 휴지통으로 옮겨져요. 휴지통에서 복구할 수 있어요.';
 
   @override
   String get noteDeleteConfirm => '지우기';
@@ -1208,4 +1207,26 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get folderFailed => '폴더를 바꾸지 못했어요.';
+
+  @override
+  String get noteRename => '이름 변경';
+
+  @override
+  String get noteMove => '이동';
+
+  @override
+  String noteMoveTitle(String name) {
+    return '\"$name\" 옮길 곳';
+  }
+
+  @override
+  String noteMoved(String name) {
+    return '\"$name\" 폴더로 옮겼어요';
+  }
+
+  @override
+  String get noteTitleTooLong => '노트 제목은 100자까지예요.';
+
+  @override
+  String get noteActionFailed => '노트를 바꾸지 못했어요.';
 }

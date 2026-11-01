@@ -14,6 +14,7 @@ import '../drive/google_auth_gateway.dart';
 import '../drive/http_drive_client.dart';
 import '../drive/root_folder.dart';
 import '../library/folder_service.dart';
+import '../library/library_rules.dart' show libraryRenameNote;
 import '../model/eraser.dart';
 import '../model/library_view.dart';
 import '../model/page_view_mode.dart';
@@ -325,6 +326,9 @@ final noteUploaderProvider = Provider<NoteUploader>(
     assets: ref.read(assetStoreProvider),
     onAssetConfirmed: ref.read(assetSyncProvider).markConfirmed,
     parentFileId: ref.read(folderServiceProvider).parentFileId,
+    trashbinFileId: ref.read(folderServiceProvider).trashbinFileId,
+    parentIdOf: ref.read(folderServiceProvider).parentIdOf,
+    forgetNote: ref.read(folderServiceProvider).forgetNote,
   ),
 );
 
@@ -336,6 +340,7 @@ final Provider<FolderService> folderServiceProvider = Provider<FolderService>(
     store: ref.read(noteStoreProvider),
     allowed: () async => ref.read(uploadsAllowedProvider),
     online: ref.read(networkProbeProvider),
+    isOpen: (id) async => await ref.read(openNoteProvider).read() == id,
     upload: (id) async {
       await ref.read(noteUploaderProvider).upload(id);
       final s = await ref.read(noteStoreProvider).readSync(id);
@@ -391,7 +396,10 @@ class FolderTreeNotifier extends AsyncNotifier<FolderView> {
   /// Sends what waits and reads Drive again; the old tree stays on failure.
   Future<void> refresh() async {
     try {
-      await ref.read(folderServiceProvider).refresh();
+      final service = ref.read(folderServiceProvider);
+      await service.refresh();
+      final n = await service.takeRevived();
+      if (n > 0 && ref.mounted) ref.read(revivedNoticeProvider.notifier).bump();
     } catch (_) {}
     if (ref.mounted) await _publish();
   }
@@ -417,7 +425,23 @@ class FolderTreeNotifier extends AsyncNotifier<FolderView> {
 
   Future<FolderResult> undo(Map<String, Object?> inverse) =>
       _act((s) => s.undo(inverse));
+
+  Future<FolderResult> moveNote(String noteId, String parentId) =>
+      _act((s) => s.moveNote(noteId, parentId));
 }
+
+/// Counts notes a refresh revived because another device deleted them while
+/// this one had unsent changes (the snackbar listens).
+class RevivedNoticeNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void bump() => state++;
+}
+
+final revivedNoticeProvider = NotifierProvider<RevivedNoticeNotifier, int>(
+  RevivedNoticeNotifier.new,
+);
 
 final folderTreeProvider =
     AsyncNotifierProvider.autoDispose<FolderTreeNotifier, FolderView>(
@@ -929,6 +953,37 @@ class LibraryNotifier extends AsyncNotifier<List<LibraryEntry>> {
     } catch (e, st) {
       if (ref.mounted && !state.hasValue) state = AsyncError(e, st);
     }
+  }
+
+  /// Story 7.7 `library.renameNote`: the new title goes into the working
+  /// copy (`metaRev`, `metaSeq` renewed), so the note is pending and its
+  /// next upload renames the Drive file. Returns false for an unchanged
+  /// title; throws [NoteSaveException] when it cannot be saved.
+  Future<bool> rename(String noteId, String title) async {
+    final store = ref.read(noteStoreProvider);
+    final note = (await store.read(noteId))?.note;
+    if (note == null) throw NoteSaveException('no such note');
+    final current = state.value ?? await _load();
+    final r = libraryRenameNote({
+      'note': note.copyJson(),
+      'op': {'op': 'renameNote', 'title': title},
+      'existingTitles': [
+        for (final e in current)
+          if (e.note != null && e.noteId != noteId) e.note!.title,
+      ],
+      'ctx': {
+        'rev': newId(),
+        'lastSeenRemoteSeq': (await store.readSync(noteId))
+            .info
+            .lastSeenRemoteSeq,
+      },
+    });
+    if (r['error'] != null) throw NoteSaveException('${r['error']}');
+    if (r['inverse'] == null) return false;
+    await store.write(Note.trusted((r['note'] as Map).cast<String, dynamic>()));
+    if (ref.mounted) await reload();
+    unawaited(ref.read(uploadCoordinatorProvider).noteClosed(noteId));
+    return true;
   }
 
   /// Creates, saves and lists a one-page note. Throws [NoteSaveException];

@@ -331,7 +331,7 @@
   "versionRestorePinFailed": "Could not mark the version before restore, so nothing was restored.",
   "versionRestoreUnreadable": "This version cannot be read.",
   "noteDelete": "Delete",
-  "noteDeleteBody": "Delete this note? It moves to the Drive trash. You can restore it from Drive.",
+  "noteDeleteBody": "Delete this note? It moves to the trash, where you can restore it.",
   "noteDeleteConfirm": "Delete",
   "ratioLock": "Lock aspect ratio",
   "scaleUp": "Scale up",
@@ -520,5 +520,13 @@
   "@folderMoveTitle": {"placeholders": {"name": {"type": "String"}}},
   "folderMoved": "Moved \"{name}\"",
   "@folderMoved": {"placeholders": {"name": {"type": "String"}}},
-  "folderFailed": "The folder could not be changed."
+  "folderFailed": "The folder could not be changed.",
+  "noteRename": "Rename",
+  "noteMove": "Move",
+  "noteMoveTitle": "Move \"{name}\" to",
+  "@noteMoveTitle": {"placeholders": {"name": {"type": "String"}}},
+  "noteMoved": "Moved to \"{name}\"",
+  "@noteMoved": {"placeholders": {"name": {"type": "String"}}},
+  "noteTitleTooLong": "A note title is 100 characters at most.",
+  "noteActionFailed": "Could not change the note."
 }

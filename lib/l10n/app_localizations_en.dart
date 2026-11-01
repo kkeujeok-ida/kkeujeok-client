@@ -758,7 +758,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noteDeleteBody =>
-      'Delete this note? It moves to the Drive trash. You can restore it from Drive.';
+      'Delete this note? It moves to the trash, where you can restore it.';
 
   @override
   String get noteDeleteConfirm => 'Delete';
@@ -1274,4 +1274,26 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get folderFailed => 'The folder could not be changed.';
+
+  @override
+  String get noteRename => 'Rename';
+
+  @override
+  String get noteMove => 'Move';
+
+  @override
+  String noteMoveTitle(String name) {
+    return 'Move \"$name\" to';
+  }
+
+  @override
+  String noteMoved(String name) {
+    return 'Moved to \"$name\"';
+  }
+
+  @override
+  String get noteTitleTooLong => 'A note title is 100 characters at most.';
+
+  @override
+  String get noteActionFailed => 'Could not change the note.';
 }
