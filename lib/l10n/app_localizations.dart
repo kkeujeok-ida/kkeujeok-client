@@ -2293,6 +2293,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not change the note.'**
   String get noteActionFailed;
+
+  /// No description provided for @noteCover.
+  ///
+  /// In en, this message translates to:
+  /// **'Cover'**
+  String get noteCover;
+
+  /// No description provided for @noteChangeCover.
+  ///
+  /// In en, this message translates to:
+  /// **'Change cover'**
+  String get noteChangeCover;
+
+  /// No description provided for @coverNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No cover'**
+  String get coverNone;
+
+  /// No description provided for @coverOptionSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'Cover, {name}, selected'**
+  String coverOptionSelected(String name);
+
+  /// No description provided for @coverOptionUnselected.
+  ///
+  /// In en, this message translates to:
+  /// **'Cover, {name}'**
+  String coverOptionUnselected(String name);
 }
 
 class _AppLocalizationsDelegate

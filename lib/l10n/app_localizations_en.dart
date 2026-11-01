@@ -1296,4 +1296,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noteActionFailed => 'Could not change the note.';
+
+  @override
+  String get noteCover => 'Cover';
+
+  @override
+  String get noteChangeCover => 'Change cover';
+
+  @override
+  String get coverNone => 'No cover';
+
+  @override
+  String coverOptionSelected(String name) {
+    return 'Cover, $name, selected';
+  }
+
+  @override
+  String coverOptionUnselected(String name) {
+    return 'Cover, $name';
+  }
 }

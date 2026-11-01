@@ -99,6 +99,7 @@ OpResult createNote({
   required String orderRev,
   required String now,
   required String editedBy,
+  String? coverId,
 }) {
   final t = normalizeTitle(title, existingTitles);
   if (t == null) return const OpResult.error('titleTooLong');
@@ -107,7 +108,7 @@ OpResult createNote({
     Note.trusted({
       'formatVersion': supportedFormatVersion,
       'noteId': noteId,
-      'meta': {'title': t},
+      'meta': {'title': t, 'coverId': ?coverId},
       'metaRev': metaRev,
       'metaSeq': 1,
       'orderRev': orderRev,

@@ -1,5 +1,7 @@
 // Spec `library.*` folder rules and `trash.trashNote` / `trash.trashFolder`.
 // Pure; output maps equal the fixtures. Never mutates its input.
+import 'dart:convert' show utf8;
+
 import '../drive/note_summary.dart' show driveFileNameRule;
 import '../model/note_title.dart';
 
@@ -270,4 +272,81 @@ RuleJson libraryRenameNote(RuleJson i) {
     'inverse': {'op': 'renameNote', 'title': meta['title']},
     'name': name,
   };
+}
+
+/// `library.setCover`.
+RuleJson librarySetCover(RuleJson i) {
+  final note = (i['note'] as Map).cast<String, Object?>();
+  final cover = (i['op'] as Map)['coverId'];
+  if (cover != null &&
+      (cover is! String || cover.isEmpty || utf8.encode(cover).length > 116)) {
+    return {'error': 'invalidCoverId'};
+  }
+  final meta = (note['meta'] as Map).cast<String, Object?>();
+  final old = meta['coverId'] is String ? meta['coverId'] : null;
+  if (cover == old) return {'note': note, 'inverse': null};
+  final ctx = (i['ctx'] as Map).cast<String, Object?>();
+  final seq = (note['metaSeq'] as num),
+      seen = (ctx['lastSeenRemoteSeq'] as num);
+  final newMeta = {...meta};
+  if (cover == null) {
+    newMeta.remove('coverId');
+  } else {
+    newMeta['coverId'] = cover;
+  }
+  return {
+    'note': {
+      ...note,
+      'meta': newMeta,
+      'metaRev': ctx['rev'],
+      'metaSeq': (seq > seen ? seq : seen) + 1,
+    },
+    'inverse': {'op': 'setCover', 'coverId': old},
+  };
+}
+
+final _coverIdRe = RegExp(r'^[a-z][a-z0-9-]{0,31}$');
+final _coverFileRe = RegExp(r'^[a-z0-9][a-z0-9-]*\.svg$');
+
+bool _nonEmptyStr(Object? v) => v is String && v.isNotEmpty;
+
+/// The valid entries of a covers index (`id`, `ko`, `en`, `file`), in order;
+/// empty when the index itself is not valid.
+List<({String id, String ko, String en, String file})> libraryCoverEntries(
+  Object? index,
+) {
+  if (index is! Map || index['version'] != 1 || index['covers'] is! List) {
+    return const [];
+  }
+  final out = <({String id, String ko, String en, String file})>[];
+  for (final e in index['covers'] as List) {
+    if (e is! Map) continue;
+    final id = e['id'], name = e['name'], file = e['file'];
+    if (id is! String || !_coverIdRe.hasMatch(id)) continue;
+    if (name is! Map ||
+        !_nonEmptyStr(name['ko']) ||
+        !_nonEmptyStr(name['en'])) {
+      continue;
+    }
+    if (file is! String || !_coverFileRe.hasMatch(file)) continue;
+    if (out.any((o) => o.id == id)) continue; // first valid entry wins
+    out.add((
+      id: id,
+      ko: name['ko'] as String,
+      en: name['en'] as String,
+      file: file,
+    ));
+  }
+  return out;
+}
+
+/// `library.coverResolve`.
+RuleJson libraryCoverResolve(RuleJson i) {
+  final id = i['coverId'];
+  if (id is String) {
+    for (final e in libraryCoverEntries(i['index'])) {
+      if (e.id == id) return {'kind': 'cover', 'id': e.id, 'file': e.file};
+    }
+  }
+  return {'kind': 'none'};
 }

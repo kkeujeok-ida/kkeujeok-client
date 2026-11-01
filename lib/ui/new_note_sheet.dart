@@ -7,6 +7,7 @@ import '../l10n/app_localizations.dart';
 import '../model/note.dart';
 import '../model/note_title.dart';
 import '../render/page_background.dart';
+import 'cover_art.dart';
 import 'providers.dart';
 
 /// Creates a note from the sheet. Resolves to the new note, or null when the
@@ -60,6 +61,7 @@ class _NewNoteSheetState extends ConsumerState<_NewNoteSheet> {
   final _title = TextEditingController();
   late String _background;
   late String _orientation;
+  String? _coverId;
   bool _saving = false;
   bool _failed = false;
 
@@ -90,6 +92,7 @@ class _NewNoteSheetState extends ConsumerState<_NewNoteSheet> {
             title: _title.text,
             background: _background,
             orientation: _orientation,
+            coverId: _coverId,
           );
       if (mounted) Navigator.of(context).pop(note);
     } catch (_) {
@@ -194,6 +197,14 @@ class _NewNoteSheetState extends ConsumerState<_NewNoteSheet> {
                     options: orientations,
                     enabled: !_saving,
                     onChanged: (v) => setState(() => _orientation = v),
+                  ),
+                  const SizedBox(height: KkjTokens.spacing3),
+                  Text(l10n.noteCover, style: theme.textTheme.bodySmall),
+                  const SizedBox(height: KkjTokens.spacing2),
+                  CoverChoice(
+                    selected: _coverId,
+                    enabled: !_saving,
+                    onChanged: (v) => setState(() => _coverId = v),
                   ),
                   if (_failed) ...[
                     const SizedBox(height: KkjTokens.spacing3),

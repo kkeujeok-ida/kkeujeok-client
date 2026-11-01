@@ -49,6 +49,12 @@ class Note {
   String get metaRev => _json['metaRev'] as String;
   String get title => (_json['meta'] as Map)['title'] as String;
 
+  /// `meta.coverId` when it is a string, else null (also when not known).
+  String? get coverId {
+    final c = (_json['meta'] as Map)['coverId'];
+    return c is String ? c : null;
+  }
+
   /// Do not modify.
   List<Map<String, dynamic>> get pages =>
       (_json['pages'] as List).cast<Map<String, dynamic>>();

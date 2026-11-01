@@ -474,5 +474,12 @@
   "noteMoved": "\"{name}\" 폴더로 옮겼어요",
   "@noteMoved": {"placeholders": {"name": {"type": "String"}}},
   "noteTitleTooLong": "노트 제목은 100자까지예요.",
-  "noteActionFailed": "노트를 바꾸지 못했어요."
+  "noteActionFailed": "노트를 바꾸지 못했어요.",
+  "noteCover": "표지",
+  "noteChangeCover": "표지 변경",
+  "coverNone": "표지 없음",
+  "coverOptionSelected": "표지, {name}, 선택됨",
+  "@coverOptionSelected": {"placeholders": {"name": {"type": "String"}}},
+  "coverOptionUnselected": "표지, {name}",
+  "@coverOptionUnselected": {"placeholders": {"name": {"type": "String"}}}
 }

@@ -528,5 +528,12 @@
   "noteMoved": "Moved to \"{name}\"",
   "@noteMoved": {"placeholders": {"name": {"type": "String"}}},
   "noteTitleTooLong": "A note title is 100 characters at most.",
-  "noteActionFailed": "Could not change the note."
+  "noteActionFailed": "Could not change the note.",
+  "noteCover": "Cover",
+  "noteChangeCover": "Change cover",
+  "coverNone": "No cover",
+  "coverOptionSelected": "Cover, {name}, selected",
+  "@coverOptionSelected": {"placeholders": {"name": {"type": "String"}}},
+  "coverOptionUnselected": "Cover, {name}",
+  "@coverOptionUnselected": {"placeholders": {"name": {"type": "String"}}}
 }

@@ -20,6 +20,7 @@ import '../sync/conflict_notifier.dart' show askConflictPermissionOnce;
 import '../sync/note_receiver.dart';
 import '../sync/receive_scheduler.dart';
 import 'cannot_open_sheet.dart';
+import 'cover_art.dart';
 import 'library_fab.dart';
 import 'library_sort.dart';
 import 'new_note_sheet.dart';
@@ -303,6 +304,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         _rename(e);
       case _NoteAction.move:
         _move(e);
+      case _NoteAction.cover:
+        _cover(e);
       case _NoteAction.delete:
         _delete(e.noteId);
     }
@@ -327,6 +330,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       await ref.read(libraryProvider.notifier).rename(e.noteId, title);
     } on NoteSaveException {
       if (mounted) _snack(l.noteActionFailed);
+    }
+  });
+
+  /// Story 7.3: pick a cover (or none); the card follows.
+  Future<void> _cover(LibraryEntry e) => _guarded(() async {
+    final pick = await showCoverSheet(context, selected: e.note!.coverId);
+    if (pick == null || !mounted) return;
+    try {
+      await ref.read(libraryProvider.notifier).setCover(e.noteId, pick.id);
+    } on NoteSaveException {
+      if (mounted) _snack(AppLocalizations.of(context).noteActionFailed);
     }
   });
 
@@ -704,9 +718,12 @@ BoxDecoration _coverBox({Color? border}) => BoxDecoration(
 /// The 3:4 thumbnail place: the first page, drawn by the same painter as the
 /// writing screen, kept in its own proportions inside the card.
 class _Thumb extends StatelessWidget {
-  const _Thumb({this.page, this.disabled = false, this.child});
+  const _Thumb({this.page, this.disabled = false, this.child, this.coverFile});
 
   final Map<String, dynamic>? page;
+
+  /// A known cover's file: drawn instead of the first page.
+  final String? coverFile;
   final bool disabled;
   final Widget? child;
 
@@ -714,6 +731,25 @@ class _Thumb extends StatelessWidget {
   Widget build(BuildContext context) {
     final w = (page?['width'] as num?)?.toDouble();
     final h = (page?['height'] as num?)?.toDouble();
+    if (child == null && coverFile != null) {
+      return AspectRatio(
+        aspectRatio: 3 / 4,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(
+              KkjLight.componentsCoverCardRounded,
+            ),
+            boxShadow: kkjShadow(KkjLight.componentsCoverCardShadow),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(
+              KkjLight.componentsCoverCardRounded,
+            ),
+            child: CoverArt(coverFile!),
+          ),
+        ),
+      );
+    }
     if (child == null && w != null && h != null) {
       // Only the page, like the web library: no card frame or margin around it.
       return AspectRatio(
@@ -921,7 +957,7 @@ class _RemoteNoteCard extends StatelessWidget {
   }
 }
 
-enum _NoteAction { rename, move, delete }
+enum _NoteAction { rename, move, cover, delete }
 
 class _NoteCard extends ConsumerStatefulWidget {
   const _NoteCard({
@@ -964,8 +1000,19 @@ class _NoteCardState extends ConsumerState<_NoteCard> {
         : DateFormat.yMd(Localizations.localeOf(context).toString())
               .format(at.toLocal());
     final view = ref.watch(libraryViewProvider);
+    // An id the index does not know (or no index yet) stays a thumbnail.
+    final coverId = note.coverId;
+    final coverFile = coverId == null
+        ? null
+        : (ref.watch(coverIndexProvider).value ?? const [])
+              .where((c) => c.id == coverId)
+              .firstOrNull
+              ?.file;
     final thumb = _CardThumb(
-      thumb: _Thumb(page: note.pages.isEmpty ? null : note.pages.first),
+      thumb: _Thumb(
+        page: note.pages.isEmpty ? null : note.pages.first,
+        coverFile: coverFile,
+      ),
       label: label,
     );
     // The 48dp ⋯ button floats at the top end instead of sizing the title
@@ -1012,6 +1059,10 @@ class _NoteCardState extends ConsumerState<_NoteCard> {
               ),
               PopupMenuItem(value: _NoteAction.move, child: Text(l.noteMove)),
               PopupMenuItem(
+                value: _NoteAction.cover,
+                child: Text(l.noteChangeCover),
+              ),
+              PopupMenuItem(
                 value: _NoteAction.delete,
                 child: Text(l.noteDelete),
               ),
@@ -1033,6 +1084,8 @@ class _NoteCardState extends ConsumerState<_NoteCard> {
             widget.onAction(_NoteAction.rename),
         CustomSemanticsAction(label: l.noteMove): () =>
             widget.onAction(_NoteAction.move),
+        CustomSemanticsAction(label: l.noteChangeCover): () =>
+            widget.onAction(_NoteAction.cover),
         CustomSemanticsAction(label: l.noteDelete): () =>
             widget.onAction(_NoteAction.delete),
       },

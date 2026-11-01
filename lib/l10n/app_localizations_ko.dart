@@ -1229,4 +1229,23 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get noteActionFailed => '노트를 바꾸지 못했어요.';
+
+  @override
+  String get noteCover => '표지';
+
+  @override
+  String get noteChangeCover => '표지 변경';
+
+  @override
+  String get coverNone => '표지 없음';
+
+  @override
+  String coverOptionSelected(String name) {
+    return '표지, $name, 선택됨';
+  }
+
+  @override
+  String coverOptionUnselected(String name) {
+    return '표지, $name';
+  }
 }

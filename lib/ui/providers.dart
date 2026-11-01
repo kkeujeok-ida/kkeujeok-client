@@ -14,7 +14,7 @@ import '../drive/google_auth_gateway.dart';
 import '../drive/http_drive_client.dart';
 import '../drive/root_folder.dart';
 import '../library/folder_service.dart';
-import '../library/library_rules.dart' show libraryRenameNote;
+import '../library/library_rules.dart' show libraryRenameNote, librarySetCover;
 import '../model/eraser.dart';
 import '../model/library_view.dart';
 import '../model/page_view_mode.dart';
@@ -986,12 +986,37 @@ class LibraryNotifier extends AsyncNotifier<List<LibraryEntry>> {
     return true;
   }
 
+  /// Story 7.3 `library.setCover`: like [rename], for `meta.coverId` (null
+  /// removes it). Returns false when the cover is already that value.
+  Future<bool> setCover(String noteId, String? coverId) async {
+    final store = ref.read(noteStoreProvider);
+    final note = (await store.read(noteId))?.note;
+    if (note == null) throw NoteSaveException('no such note');
+    final r = librarySetCover({
+      'note': note.copyJson(),
+      'op': {'op': 'setCover', 'coverId': coverId},
+      'ctx': {
+        'rev': newId(),
+        'lastSeenRemoteSeq': (await store.readSync(noteId))
+            .info
+            .lastSeenRemoteSeq,
+      },
+    });
+    if (r['error'] != null) throw NoteSaveException('${r['error']}');
+    if (r['inverse'] == null) return false;
+    await store.write(Note.trusted((r['note'] as Map).cast<String, dynamic>()));
+    if (ref.mounted) await reload();
+    unawaited(ref.read(uploadCoordinatorProvider).noteClosed(noteId));
+    return true;
+  }
+
   /// Creates, saves and lists a one-page note. Throws [NoteSaveException];
   /// nothing is stored and the defaults stay as they were in that case.
   Future<Note> create({
     required String title,
     required String background,
     required String orientation,
+    String? coverId,
   }) async {
     final current = state.value ?? await _load();
     final r = createNote(
@@ -1009,6 +1034,7 @@ class LibraryNotifier extends AsyncNotifier<List<LibraryEntry>> {
       orderRev: newId(),
       now: canonicalNow(DateTime.now()),
       editedBy: deviceEditedBy,
+      coverId: coverId,
     );
     final note = r.note;
     if (note == null) throw NoteSaveException(r.error ?? 'could not create');

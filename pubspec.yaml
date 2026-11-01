@@ -29,6 +29,7 @@ dependencies:
   image_picker: 1.2.4
   flutter_image_compress: 2.5.1
   permission_handler: 12.0.3
+  flutter_svg: 2.3.2
 
 dev_dependencies:
   flutter_test:
@@ -40,6 +41,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/fonts/OFL-Pretendard.txt
+    - lib/design_tokens/covers/
   fonts:
     - family: Pretendard
       fonts:
