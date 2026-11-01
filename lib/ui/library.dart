@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart' show CustomSemanticsAction;
+import 'package:flutter/semantics.dart'
+    show Assertiveness, CustomSemanticsAction, SemanticsService;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -495,7 +496,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     // Hidden (trashed) notes show nowhere; a folder shows only its notes.
     final remote = [
       for (final c in recv.cards)
-        if (!local.contains(c.noteId) &&
+        if (ref.watch(libraryQueryProvider).trim().isEmpty &&
+            !local.contains(c.noteId) &&
             !tree.hiddenNotes.contains(c.noteId) &&
             (folder == null || tree.noteFolder[c.noteId] == folder))
           c,
@@ -514,10 +516,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           )
         : w;
     final failed = async.hasError && !async.hasValue;
-    final entries = sortEntries([
-      for (final e in async.value ?? const <LibraryEntry>[])
-        if (folder == null || e.folderId == folder) e,
-    ], ref.watch(librarySortProvider));
+    final entries = ref.watch(visibleEntriesProvider);
+    final query = ref.watch(libraryQueryProvider).trim();
     final cards = <Widget>[
       if (root.status == RootStatus.failed)
         ?switch (root.errorClass) {
@@ -536,6 +536,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         _ErrorCard(
           message: l10n.loadFailed,
           onRetry: () => ref.read(libraryProvider.notifier).reload(),
+        )
+      else if (query.isNotEmpty && async.hasValue && entries.isEmpty)
+        Padding(
+          padding: const EdgeInsets.all(KkjTokens.spacing3),
+          child: Text(
+            l10n.searchNoResults(query),
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
         )
       else if (async.hasValue &&
           entries.isEmpty &&
@@ -612,6 +620,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     ],
                   ),
                 ),
+              ),
+              _SearchField(
+                startInset: widget.headerStartInset,
+                count: entries.length,
               ),
               if (root.status == RootStatus.preparing) const _Preparing(),
               Expanded(
@@ -1276,6 +1288,83 @@ class _Preparing extends StatelessWidget {
             const SizedBox(width: KkjTokens.spacing3),
             Text(label, style: Theme.of(context).textTheme.bodySmall),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The title search under the header. The result count is announced politely
+/// a moment after the last keystroke.
+class _SearchField extends ConsumerStatefulWidget {
+  const _SearchField({required this.startInset, required this.count});
+
+  final double startInset;
+  final int count;
+
+  @override
+  ConsumerState<_SearchField> createState() => _SearchFieldState();
+}
+
+class _SearchFieldState extends ConsumerState<_SearchField> {
+  final _c = TextEditingController();
+  Timer? _timer;
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _c.dispose();
+    super.dispose();
+  }
+
+  void _announce() {
+    if (!mounted || ref.read(libraryQueryProvider).trim().isEmpty) return;
+    unawaited(
+      SemanticsService.sendAnnouncement(
+        View.of(context),
+        AppLocalizations.of(context).searchResultCount(widget.count),
+        Directionality.of(context),
+        assertiveness: Assertiveness.polite,
+      ),
+    );
+  }
+
+  void _changed(String v) {
+    ref.read(libraryQueryProvider.notifier).set(v);
+    _timer?.cancel();
+    _timer = Timer(const Duration(milliseconds: 600), _announce);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: EdgeInsetsDirectional.only(
+        start: KkjTokens.spacing5 + widget.startInset,
+        end: KkjTokens.spacing5,
+        bottom: KkjTokens.spacing3,
+      ),
+      child: TextField(
+        key: const Key('searchField'),
+        controller: _c,
+        onChanged: _changed,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          isDense: true,
+          hintText: l10n.searchHint,
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon: _c.text.isEmpty
+              ? null
+              : IconButton(
+                  key: const Key('searchClear'),
+                  tooltip: l10n.searchClear,
+                  icon: const Icon(Icons.close),
+                  onPressed: () {
+                    _c.clear();
+                    _changed('');
+                  },
+                ),
+          border: const OutlineInputBorder(),
         ),
       ),
     );

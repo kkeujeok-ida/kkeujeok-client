@@ -2216,6 +2216,30 @@ abstract class AppLocalizations {
   /// **'Save'**
   String get folderSave;
 
+  /// No description provided for @searchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search titles'**
+  String get searchHint;
+
+  /// No description provided for @searchClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear search'**
+  String get searchClear;
+
+  /// No description provided for @searchNoResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No notes match ‘{q}’'**
+  String searchNoResults(String q);
+
+  /// No description provided for @searchResultCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{n, plural, =1{1 note} other{{n} notes}}'**
+  String searchResultCount(int n);
+
   /// No description provided for @folderEmpty.
   ///
   /// In en, this message translates to:

@@ -128,6 +128,11 @@ final runners = <String, void Function(Case)>{
   'library.coverResolve': (c) =>
       _same(libraryCoverResolve(_json(c['input'])), c['expected']),
   'library.tree': (c) => _same(libraryTree(_json(c['input'])), c['expected']),
+  'library.normalize': (c) =>
+      _same(libraryNormalize(_json(c['input'])), c['expected']),
+  'library.sort': (c) => _same(librarySort(_json(c['input'])), c['expected']),
+  'library.search': (c) =>
+      _same(librarySearch(_json(c['input'])), c['expected']),
   'trash.trashNote': (c) =>
       _same(trashNoteRule(_json(c['input'])), c['expected']),
   'trash.trashFolder': (c) =>
@@ -649,10 +654,6 @@ const pendingRules = <String>{
   'trash.access',
   'trash.remoteTrashed',
   'drive.trashbinFolder',
-  // Library rules (Story 7.1) arrive with the Android stories 7.7, 7.9 (the folder rules have runners, 7.5).
-  'library.normalize',
-  'library.sort',
-  'library.search',
 };
 
 final _sep = Platform.pathSeparator;

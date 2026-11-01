@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../model/note.dart';
 import 'library_sort.dart';
-import 'providers.dart';
 import 'sync_display.dart';
 
 /// Device check (D-58) is a human task: if One UI takes the three-finger
@@ -53,10 +52,7 @@ class NoteArrival {
 
 /// Library order (the current sort) of the notes that can be opened.
 final openableNoteIdsProvider = Provider.autoDispose<List<String>>((ref) {
-  final entries = sortEntries(
-    ref.watch(libraryProvider).value ?? const <LibraryEntry>[],
-    ref.watch(librarySortProvider),
-  );
+  final entries = ref.watch(visibleEntriesProvider);
   return [
     for (final e in entries)
       if (e.readable &&

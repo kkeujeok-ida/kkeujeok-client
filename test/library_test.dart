@@ -97,6 +97,10 @@ void main() {
     await t.pumpAndSettle();
   }
 
+  // The library's search field is a TextField too.
+  final titleField = find.byWidgetPredicate(
+    (w) => w is TextField && w.key != const Key('searchField'),
+  );
   final fab = find.byType(LibraryFab);
   final fabPlus = find.descendant(of: fab, matching: find.byIcon(Icons.add));
   final fabItem = find.descendant(
@@ -216,7 +220,7 @@ void main() {
       await t.tap(fabItem);
       await t.pumpAndSettle();
       expect(fabItem, findsNothing);
-      expect(find.byType(TextField), findsOneWidget);
+      expect(titleField, findsOneWidget);
       expect(find.text('Create'), findsOneWidget);
     });
   });
@@ -274,7 +278,7 @@ void main() {
       await pumpApp(t, noteData: data);
       await settle(t);
       await openFromCard(t);
-      await t.enterText(find.byType(TextField), '  Algorithms ');
+      await t.enterText(titleField, '  Algorithms ');
       await t.tap(find.text('Grid'));
       await t.tap(find.text('Landscape'));
       await t.pump();
@@ -316,7 +320,7 @@ void main() {
       await t.pumpAndSettle();
       await t.tap(fabItem);
       await t.pumpAndSettle();
-      await t.enterText(find.byType(TextField), '   ');
+      await t.enterText(titleField, '   ');
       await t.tap(find.text('Create'));
       await settle(t);
       await t.tap(find.byTooltip('Back to library'));
@@ -332,7 +336,7 @@ void main() {
       await t.pumpAndSettle();
       await t.tap(fabItem);
       await t.pumpAndSettle();
-      await t.enterText(find.byType(TextField), 'Same');
+      await t.enterText(titleField, 'Same');
       await t.tap(find.text('Create'));
       await settle(t);
       expect(notes.listSync().whereType<Directory>(), hasLength(2));
@@ -342,17 +346,17 @@ void main() {
       await pumpApp(t, noteData: data);
       await settle(t);
       await openFromCard(t);
-      await t.enterText(find.byType(TextField), '가' * 150);
+      await t.enterText(titleField, '가' * 150);
       await t.pump();
       expect(
-        t.widget<TextField>(find.byType(TextField)).controller!.text.runes,
+        t.widget<TextField>(titleField).controller!.text.runes,
         hasLength(100),
       );
       // Astral characters count as one code point each.
-      await t.enterText(find.byType(TextField), '😀' * 120);
+      await t.enterText(titleField, '😀' * 120);
       await t.pump();
       expect(
-        t.widget<TextField>(find.byType(TextField)).controller!.text.runes,
+        t.widget<TextField>(titleField).controller!.text.runes,
         hasLength(100),
       );
     });
@@ -374,7 +378,7 @@ void main() {
       await settle(t);
 
       expect(find.text("Couldn't save to this device."), findsOneWidget);
-      expect(find.byType(TextField), findsOneWidget); // sheet is still open
+      expect(titleField, findsOneWidget); // sheet is still open
       expect(find.byType(NoteEditor), findsNothing);
       expect(notes.existsSync(), isFalse); // no folder, not even the root
       final sp = await SharedPreferences.getInstance();
@@ -393,13 +397,13 @@ void main() {
       await openFromCard(t);
       await t.tap(find.text('Cancel'));
       await t.pumpAndSettle();
-      expect(find.byType(TextField), findsNothing);
+      expect(titleField, findsNothing);
       expect(notes.existsSync(), isFalse);
     });
   });
 
   group('note cards', () {
-    testWidgets('by name at start; the drop-down picks another order', (
+    testWidgets('newest edit first at start; the drop-down picks another order', (
       t,
     ) async {
       seed(_note(1, 'Oldest', at: '2026-10-08T12:00:00.000Z'));
@@ -412,23 +416,24 @@ void main() {
       t.view.physicalSize = const Size(900, 3000); // one column: all built
       await settle(t);
       final names = ['Oldest', 'TieLow', 'TieHigh', 'Newest', "Can't open"];
+      // Newest edit first at start; equal dates by note id (spec 7.9).
       expect(order(t, names), [
         'Newest',
-        'Oldest',
-        'TieHigh',
         'TieLow',
+        'TieHigh',
+        'Oldest',
         "Can't open",
       ]);
 
       await t.tap(find.byKey(const Key('sortMenu')));
       await settle(t);
-      await t.tap(find.text('Edited (newest first)').last);
+      await t.tap(find.text('Name (A-Z)').last);
       await settle(t);
       expect(order(t, names), [
         'Newest',
-        'TieLow',
-        'TieHigh',
         'Oldest',
+        'TieHigh',
+        'TieLow',
         "Can't open",
       ]);
 
@@ -609,7 +614,7 @@ void main() {
       await t.tap(fabItem);
       await t.pumpAndSettle();
       expect(t.takeException(), isNull);
-      expect(find.byType(TextField), findsOneWidget);
+      expect(titleField, findsOneWidget);
     });
 
     testWidgets('sort sits at the top right, clear of the title', (t) async {
@@ -768,7 +773,7 @@ void main() {
       await t.pumpAndSettle();
       await t.fling(find.text('Create'), const Offset(0, 600), 2000);
       await t.pumpAndSettle();
-      expect(find.byType(TextField), findsOneWidget);
+      expect(titleField, findsOneWidget);
     });
   });
 

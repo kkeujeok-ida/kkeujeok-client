@@ -1242,6 +1242,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get folderSave => 'Save';
 
   @override
+  String get searchHint => 'Search titles';
+
+  @override
+  String get searchClear => 'Clear search';
+
+  @override
+  String searchNoResults(String q) {
+    return 'No notes match ‘$q’';
+  }
+
+  @override
+  String searchResultCount(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other: '$n notes',
+      one: '1 note',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get folderEmpty => 'No notes in this folder';
 
   @override

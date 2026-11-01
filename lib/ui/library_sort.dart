@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
+import '../library/library_rules.dart';
+import '../library/folder_service.dart' show FolderView;
 import '../model/library_view.dart';
 import 'providers.dart';
 
@@ -14,17 +16,55 @@ enum LibrarySort {
   editedAsc,
 }
 
-/// Kept for the run of the app only; every launch starts by name.
+/// A device setting, stored at once; newest edit first until chosen.
 class LibrarySortNotifier extends Notifier<LibrarySort> {
   @override
-  LibrarySort build() => LibrarySort.nameAsc;
+  LibrarySort build() {
+    final name = ref.read(penSlotsStoreProvider).readLibrarySort();
+    return LibrarySort.values.where((s) => s.name == name).firstOrNull ??
+        LibrarySort.editedDesc;
+  }
 
-  void set(LibrarySort s) => state = s;
+  void set(LibrarySort s) {
+    state = s;
+    ref.read(penSlotsStoreProvider).writeLibrarySort(s.name);
+  }
 }
 
 final librarySortProvider = NotifierProvider<LibrarySortNotifier, LibrarySort>(
   LibrarySortNotifier.new,
 );
+
+/// The title search of the library; never stored.
+class LibraryQueryNotifier extends Notifier<String> {
+  @override
+  String build() => '';
+
+  void set(String q) => state = q;
+}
+
+final libraryQueryProvider = NotifierProvider<LibraryQueryNotifier, String>(
+  LibraryQueryNotifier.new,
+);
+
+/// What the library shows: the folder (with its subfolders while searching),
+/// the title search, then the sort. The note list and the previous/next
+/// notes both read it.
+final visibleEntriesProvider = Provider.autoDispose<List<LibraryEntry>>((ref) {
+  final folder = ref.watch(effectiveFolderProvider);
+  final tree = ref.watch(folderTreeProvider).value ?? const FolderView();
+  final q = libraryKey(libraryTrim(ref.watch(libraryQueryProvider)));
+  return sortEntries([
+    for (final e in ref.watch(libraryProvider).value ?? const <LibraryEntry>[])
+      if (q.isEmpty
+          ? folder == null || e.folderId == folder
+          : e.readable &&
+                (folder == null ||
+                    (e.folderId != null && tree.isInside(e.folderId!, folder))) &&
+                libraryKey(e.note!.title).contains(q))
+        e,
+  ], ref.watch(librarySortProvider));
+});
 
 /// The creation time inside a UUIDv7 note id (48-bit milliseconds), or null.
 DateTime? createdAtOf(String noteId) {
@@ -46,11 +86,25 @@ List<LibraryEntry> sortEntries(List<LibraryEntry> entries, LibrarySort sort) {
     return desc ? b.compareTo(a) : a.compareTo(b);
   }
 
+  final keys = {
+    if (sort == LibrarySort.nameAsc || sort == LibrarySort.nameDesc)
+      for (final e in entries) e.noteId: libraryKey(_title(e)),
+  };
+  int name(LibraryEntry a, LibraryEntry b, bool desc) => libraryNameCompare(
+    keys[a.noteId]!,
+    _title(a),
+    a.noteId,
+    keys[b.noteId]!,
+    _title(b),
+    b.noteId,
+    desc: desc,
+  );
+
   int cmp(LibraryEntry a, LibraryEntry b) {
     if (a.readable != b.readable) return a.readable ? -1 : 1;
     final c = switch (sort) {
-      LibrarySort.nameAsc => _name(a).compareTo(_name(b)),
-      LibrarySort.nameDesc => _name(b).compareTo(_name(a)),
+      LibrarySort.nameAsc => name(a, b, false),
+      LibrarySort.nameDesc => name(a, b, true),
       LibrarySort.createdDesc => byTime(
         createdAtOf(a.noteId),
         createdAtOf(b.noteId),
@@ -64,13 +118,13 @@ List<LibraryEntry> sortEntries(List<LibraryEntry> entries, LibrarySort sort) {
       LibrarySort.editedDesc => byTime(a.editedAt, b.editedAt, true),
       LibrarySort.editedAsc => byTime(a.editedAt, b.editedAt, false),
     };
-    return c != 0 ? c : a.noteId.compareTo(b.noteId);
+    return c != 0 || sort.name.startsWith('name') ? c : a.noteId.compareTo(b.noteId);
   }
 
   return [...entries]..sort(cmp);
 }
 
-String _name(LibraryEntry e) => (e.note?.title ?? '').toLowerCase();
+String _title(LibraryEntry e) => e.note?.title ?? '';
 
 String _label(AppLocalizations l, LibrarySort s) => switch (s) {
   LibrarySort.nameAsc => l.sortNameAsc,

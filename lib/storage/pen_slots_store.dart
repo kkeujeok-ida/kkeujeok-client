@@ -289,6 +289,31 @@ class PenSlotsStore {
     });
   }
 
+  static const _sortKey = 'librarySort';
+  String? _sortSession;
+
+  /// The stored sort name, or null when nothing valid is stored.
+  String? readLibrarySort() {
+    if (_sortSession != null) return _sortSession;
+    try {
+      final v = _prefs?.get(_sortKey);
+      return v is String ? v : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> writeLibrarySort(String name) {
+    _sortSession = name;
+    return _pending = _pending.then((_) async {
+      try {
+        await _prefs?.setString(_sortKey, name);
+      } catch (_) {
+        // Save failed: the choice still applies for this session.
+      }
+    });
+  }
+
   static const paletteMax = 18; // 3 rows of 6
   static const _paletteKey = 'penPalette';
 
