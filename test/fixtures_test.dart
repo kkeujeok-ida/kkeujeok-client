@@ -654,6 +654,10 @@ const pendingRules = <String>{
   'trash.access',
   'trash.remoteTrashed',
   'drive.trashbinFolder',
+  // Export rules (Story 8.1) arrive with the Android story 8.2.
+  'export.range',
+  'export.fileName',
+  'export.plan',
 };
 
 final _sep = Platform.pathSeparator;
