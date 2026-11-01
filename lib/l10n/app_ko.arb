@@ -414,6 +414,7 @@
   "pageDuplicated": "{n}페이지를 복제했어요",
   "@pageDuplicated": {"placeholders": {"n": {"type": "int"}}},
   "pageUndo": "되돌리기",
+  "pageDeleteContentConfirm": "내용이 있는 페이지가 있습니다. 정말 삭제하시겠습니까?",
   "pageDuplicate": "복제",
   "pageDelete": "삭제",
   "pagePullMore": "계속 당기면 페이지 추가",

@@ -2018,6 +2018,12 @@ abstract class AppLocalizations {
   /// **'Undo'**
   String get pageUndo;
 
+  /// No description provided for @pageDeleteContentConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Some of these pages have content. Delete them anyway?'**
+  String get pageDeleteContentConfirm;
+
   /// No description provided for @pageDuplicate.
   ///
   /// In en, this message translates to:

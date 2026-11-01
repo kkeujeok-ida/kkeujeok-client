@@ -25,6 +25,10 @@ abstract class PageOverviewHost {
   int get undoDepth;
   void undo();
 
+  /// Deleted pages the overview can bring back; separate from [undoDepth].
+  int get deletedDepth;
+  String? undeletePages();
+
   /// Each answers an error code, or null when done.
   String? addPage(int index);
   String? deletePages(List<String> ids);
@@ -107,15 +111,57 @@ class _PageOverviewState extends State<PageOverview> {
     if (host.addPage(at) == null) _note(l.pageAdded(at + 1), undo: true);
   }
 
-  void _delete(List<String> ids) {
+  /// Pages with something on them are asked about first; blank ones go at once.
+  Future<void> _delete(List<String> ids) async {
     final l = AppLocalizations.of(context);
     final first = host.pages.indexWhere((p) => p['id'] == ids.first);
     final text = ids.length == 1
         ? l.pageDeleted(first + 1)
         : l.pagesDeleted(ids.length);
+    final full = host.pages.any(
+      (p) => ids.contains(p['id']) && (p['elements'] as List).isNotEmpty,
+    );
+    if (full) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          content: Text(l.pageDeleteContentConfirm),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(l.cancel),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(l.pageDelete),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
+    }
     if (host.deletePages(ids) != null) return;
     _leaveSelection();
-    _note(text, undo: true);
+    _noteDeleted(text);
+  }
+
+  /// The delete history is the overview's own: only deletes, gone on leaving.
+  void _undelete() {
+    if (host.undeletePages() == null) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    }
+  }
+
+  void _noteDeleted(String text) {
+    final l = AppLocalizations.of(context);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(text),
+          action: SnackBarAction(label: l.pageUndo, onPressed: _undelete),
+        ),
+      );
   }
 
   void _duplicate(List<String> ids) {
@@ -227,7 +273,12 @@ class _PageOverviewState extends State<PageOverview> {
   }
 
   // While a thumbnail is dragged, the list scrolls when it nears an edge.
-  void _dragStart() {
+  void _dragStart(String id) {
+    // A long press is a choice: checkboxes appear and this page is picked.
+    setState(() {
+      _selecting = true;
+      _sel.add(id);
+    });
     _auto?.cancel();
     _auto = Timer.periodic(const Duration(milliseconds: 16), (_) {
       final y = _dragY;
@@ -261,6 +312,12 @@ class _PageOverviewState extends State<PageOverview> {
           child: Text(l.pageSelected(_sel.length)),
         ),
         actions: [
+          if (host.deletedDepth > 0)
+            IconButton(
+              tooltip: l.pageUndo,
+              icon: const Icon(Icons.undo),
+              onPressed: _undelete,
+            ),
           TextButton(
             onPressed: none ? null : () => _duplicate(_sel.toList()),
             child: Text(l.pageDuplicate),
@@ -289,6 +346,12 @@ class _PageOverviewState extends State<PageOverview> {
       backgroundColor: KkjLight.colorSurfaceBase,
       title: Semantics(header: true, child: Text(l.pageOverviewTitle)),
       actions: [
+        if (host.deletedDepth > 0)
+          IconButton(
+            tooltip: l.pageUndo,
+            icon: const Icon(Icons.undo),
+            onPressed: _undelete,
+          ),
         IconButton(
           tooltip: l.pageAdd,
           icon: const Icon(Icons.add),
@@ -360,10 +423,14 @@ class _PageOverviewState extends State<PageOverview> {
                 onFirst: i > 0 ? () => _moveOne(i, 0) : null,
                 onLast: i < last ? () => _moveOne(i, last) : null,
                 onDrop: (dragged) => _drop(dragged, i),
-                onDragStart: _dragStart,
+                onDragStart: () => _dragStart(id),
+                fromBefore: (dragged) =>
+                    pages.indexWhere((p) => p['id'] == dragged) < i,
                 onDragUpdate: (y) => _dragY = y,
                 onDragEnd: _dragEnd,
-                dragCount: _selecting && _sel.contains(id) ? _sel.length : 1,
+                dragCount: _selecting
+                    ? (_sel.contains(id) ? _sel.length : _sel.length + 1)
+                    : 1,
               );
             },
           ),
@@ -395,6 +462,7 @@ class _Cell extends StatefulWidget {
     required this.onLast,
     required this.onDrop,
     required this.onDragStart,
+    required this.fromBefore,
     required this.onDragUpdate,
     required this.onDragEnd,
     required this.dragCount,
@@ -420,6 +488,9 @@ class _Cell extends StatefulWidget {
   final VoidCallback? onEarlier, onLater, onFirst, onLast;
 
   final void Function(String dragged) onDrop;
+
+  /// True when the dragged page sits before this one (it would land after).
+  final bool Function(String dragged) fromBefore;
   final void Function(double y) onDragUpdate;
 
   @override
@@ -488,77 +559,97 @@ class _CellState extends State<_Cell> {
                   DragTarget<String>(
                     onWillAcceptWithDetails: (d) => d.data != id,
                     onAcceptWithDetails: (d) => widget.onDrop(d.data),
-                    builder: (context, candidates, _) => DecoratedBox(
-                      // Where the dragged page would land.
-                      position: DecorationPosition.foreground,
-                      decoration: BoxDecoration(
-                        border: candidates.isEmpty
-                            ? null
-                            : Border.all(
-                                color:
-                                    KkjLight.componentsPageThumbnailCurrentRing,
-                                width: 4,
-                              ),
-                        borderRadius: BorderRadius.circular(radius),
-                      ),
-                      child: LongPressDraggable<String>(
-                        data: id,
-                        onDragStarted: widget.onDragStart,
-                        onDragUpdate: (d) =>
-                            widget.onDragUpdate(d.globalPosition.dy),
-                        onDragEnd: (_) => widget.onDragEnd(),
-                        onDraggableCanceled: (_, _) => widget.onDragEnd(),
-                        feedback: Material(
-                          color: Colors.transparent,
-                          child: Opacity(
-                            opacity: 0.85,
-                            child: SizedBox(
-                              width: 96,
-                              height: 96 / ratio,
-                              child: Stack(
-                                children: [
-                                  Positioned.fill(child: thumb),
-                                  if (widget.dragCount > 1)
-                                    Positioned(
-                                      right: 2,
-                                      top: 2,
-                                      child: CircleAvatar(
-                                        radius: 11,
-                                        child: Text('${widget.dragCount}'),
+                    builder: (context, candidates, _) => Stack(
+                      // The bar sits in the gap between pages.
+                      clipBehavior: Clip.none,
+                      fit: StackFit.expand,
+                      children: [
+                        LongPressDraggable<String>(
+                          data: id,
+                          onDragStarted: widget.onDragStart,
+                          onDragUpdate: (d) =>
+                              widget.onDragUpdate(d.globalPosition.dy),
+                          onDragEnd: (_) => widget.onDragEnd(),
+                          onDraggableCanceled: (_, _) => widget.onDragEnd(),
+                          feedback: Material(
+                            color: Colors.transparent,
+                            child: Opacity(
+                              opacity: 0.85,
+                              child: SizedBox(
+                                width: 96,
+                                height: 96 / ratio,
+                                child: Stack(
+                                  children: [
+                                    Positioned.fill(child: thumb),
+                                    if (widget.dragCount > 1)
+                                      Positioned(
+                                        right: 2,
+                                        top: 2,
+                                        child: CircleAvatar(
+                                          radius: 11,
+                                          child: Text('${widget.dragCount}'),
+                                        ),
                                       ),
-                                    ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        childWhenDragging: Opacity(opacity: 0.3, child: thumb),
-                        child: Semantics(
-                          button: true,
-                          label: label,
-                          selected: widget.selecting ? widget.selected : null,
-                          excludeSemantics: true,
-                          onTap: widget.onTap,
-                          customSemanticsActions: {
-                            if (widget.onEarlier != null)
-                              CustomSemanticsAction(label: l.pageMoveEarlier):
-                                  widget.onEarlier!,
-                            if (widget.onLater != null)
-                              CustomSemanticsAction(label: l.pageMoveLater):
-                                  widget.onLater!,
-                            if (widget.onFirst != null)
-                              CustomSemanticsAction(label: l.pageMoveFirst):
-                                  widget.onFirst!,
-                            if (widget.onLast != null)
-                              CustomSemanticsAction(label: l.pageMoveLast):
-                                  widget.onLast!,
-                          },
-                          child: GestureDetector(
-                            onTap: widget.onTap,
+                          childWhenDragging: Opacity(
+                            opacity: 0.3,
                             child: thumb,
                           ),
+                          child: Semantics(
+                            button: true,
+                            label: label,
+                            selected: widget.selecting ? widget.selected : null,
+                            excludeSemantics: true,
+                            onTap: widget.onTap,
+                            customSemanticsActions: {
+                              if (widget.onEarlier != null)
+                                CustomSemanticsAction(label: l.pageMoveEarlier):
+                                    widget.onEarlier!,
+                              if (widget.onLater != null)
+                                CustomSemanticsAction(label: l.pageMoveLater):
+                                    widget.onLater!,
+                              if (widget.onFirst != null)
+                                CustomSemanticsAction(label: l.pageMoveFirst):
+                                    widget.onFirst!,
+                              if (widget.onLast != null)
+                                CustomSemanticsAction(label: l.pageMoveLast):
+                                    widget.onLast!,
+                            },
+                            child: GestureDetector(
+                              onTap: widget.onTap,
+                              child: thumb,
+                            ),
+                          ),
                         ),
-                      ),
+                        if (candidates.isNotEmpty)
+                          Positioned(
+                            top: 0,
+                            bottom: 0,
+                            // Before this page, or after it when moving down.
+                            left: widget.fromBefore(candidates.first!)
+                                ? null
+                                : -8,
+                            right: widget.fromBefore(candidates.first!)
+                                ? -8
+                                : null,
+                            width: 4,
+                            child: const IgnorePointer(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: KkjLight
+                                      .componentsPageThumbnailCurrentRing,
+                                  borderRadius: BorderRadius.all(
+                                    Radius.circular(2),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                   if (widget.selecting)
@@ -596,11 +687,6 @@ class _CellState extends State<_Cell> {
                             widget.onOrientation,
                             w > h ? l.pageToPortrait : l.pageToLandscape,
                           ),
-                          const PopupMenuDivider(),
-                          _item(widget.onEarlier, l.pageMoveEarlier),
-                          _item(widget.onLater, l.pageMoveLater),
-                          _item(widget.onFirst, l.pageMoveFirst),
-                          _item(widget.onLast, l.pageMoveLast),
                         ],
                       ),
                     ),
@@ -640,10 +726,7 @@ class _CellState extends State<_Cell> {
         ),
         const SizedBox(height: 4),
         ExcludeSemantics(
-          child: Text(
-            widget.isCurrent ? '$n · ${l.pageCurrent}' : '$n',
-            style: Theme.of(context).textTheme.labelMedium,
-          ),
+          child: Text('$n', style: Theme.of(context).textTheme.labelMedium),
         ),
       ],
     );

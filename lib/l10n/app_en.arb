@@ -468,6 +468,7 @@
   "pageDuplicated": "Page {n} duplicated",
   "@pageDuplicated": {"placeholders": {"n": {"type": "int"}}},
   "pageUndo": "Undo",
+  "pageDeleteContentConfirm": "Some of these pages have content. Delete them anyway?",
   "pageDuplicate": "Duplicate",
   "pageDelete": "Delete",
   "pagePullMore": "Keep pulling to add a page",

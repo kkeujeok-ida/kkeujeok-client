@@ -120,7 +120,7 @@ void main() {
     expect(find.text('Select'), findsOneWidget);
     expect(find.byTooltip('Close'), findsOneWidget);
     expect(find.byTooltip('Page menu'), findsNWidgets(3)); // always visible
-    expect(find.text('1 · Current'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget); // the ring says current, not words
     expect(find.bySemanticsLabel('Page 1 of 3, portrait, Current'), findsOne);
     expect(find.bySemanticsLabel('Page 3 of 3, portrait'), findsOne);
 
@@ -183,7 +183,7 @@ void main() {
     await settle(t);
     expect(find.text('Page 1 deleted'), findsOneWidget);
     expect(onDisk(), 3);
-    expect(find.text('1 · Current'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget); // the ring says current, not words
     await t.tap(find.text('Undo'));
     await settle(t);
     expect(onDisk(), 4);
@@ -263,26 +263,15 @@ void main() {
       ) -
       const Offset(0, 40);
 
-  testWidgets('menu moves a page; undo is one step', (t) async {
+  testWidgets('the menu has no move items', (t) async {
     seed(_note(3));
     await open(t);
     await openOverview(t);
     await t.tap(find.byTooltip('Page menu').at(0));
     await settle(t);
-    await t.tap(find.text('Move later'));
-    await settle(t);
-    expect(find.text('Page 1 moved to position 2'), findsOneWidget);
-    expect(order(), [_b, _a, _c]);
-    await t.tap(find.text('Undo'));
-    await settle(t);
-    expect(order(), [_a, _b, _c]);
-    // The first page cannot go earlier.
-    await t.tap(find.byTooltip('Page menu').at(0));
-    await settle(t);
-    final item = t.widget<PopupMenuItem<VoidCallback>>(
-      find.widgetWithText(PopupMenuItem<VoidCallback>, 'Move to start'),
-    );
-    expect(item.enabled, isFalse);
+    expect(find.text('Duplicate'), findsOneWidget);
+    expect(find.text('Move later'), findsNothing);
+    expect(find.text('Move to start'), findsNothing);
   });
 
   testWidgets('long press and drag puts a page where it is dropped', (t) async {
@@ -414,8 +403,8 @@ void main() {
     await t.tap(find.text('1 elements outside the page'));
     await settle(t);
     expect(find.byType(PageOverview), findsNothing);
-    // The editor shows the frame text and the element is selected.
-    expect(find.text('1 elements outside the page'), findsOneWidget);
+    // The editor shows no warning text; the element is selected.
+    expect(find.text('1 elements outside the page'), findsNothing);
     final sel = find
         .descendant(
           of: find.byType(NoteEditor),

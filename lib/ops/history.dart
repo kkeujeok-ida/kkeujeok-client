@@ -49,14 +49,21 @@ class History {
 
   bool _lockedOp(Map<String, dynamic> op) => _touched(op).any(_locked.contains);
 
-  /// Error code, or null on success. A failure changes nothing.
-  String? doOp(Map<String, dynamic> op, Ctx ctx) {
+  /// The inverse of the last [doOp] made with `record: false`, else null.
+  Map<String, dynamic>? lastInverse;
+
+  /// Error code, or null on success. A failure changes nothing. With
+  /// `record: false` the op leaves no undo record and the redo records stay;
+  /// the caller keeps its own undo in [lastInverse] (the page overview's
+  /// delete history).
+  String? doOp(Map<String, dynamic> op, Ctx ctx, {bool record = true}) {
     if (isLocked(op['pageId'] as String?)) return 'pageReadOnly';
     final r = applyOp(note, op, ctx);
     if (r.error != null) return r.error;
     note = r.note!;
     final inv = r.inverse;
-    if (inv != null) {
+    lastInverse = record ? null : inv;
+    if (inv != null && record) {
       _undo.add(inv);
       _redo.clear();
     }

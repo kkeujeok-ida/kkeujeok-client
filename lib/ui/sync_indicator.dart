@@ -58,6 +58,13 @@ String _description(AppLocalizations l, NoteSyncView v) => switch (v.label) {
 /// Same height as the pen toolbar (34 dp) so the corners match it.
 const double _cornerButton = 34;
 
+/// Corner buttons stay as tall as the pen toolbar: no 48dp tap padding.
+final cornerButtonStyle = IconButton.styleFrom(
+  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  minimumSize: const Size.square(_cornerButton),
+  padding: EdgeInsets.zero,
+);
+
 class _Spin extends StatefulWidget {
   const _Spin({required this.child});
 
@@ -253,8 +260,9 @@ class _SyncIndicatorState extends ConsumerState<SyncIndicator> {
           onTap: toggle,
           child: IconButton(
             constraints: hit,
+            style: cornerButtonStyle,
             padding: EdgeInsets.zero,
-            icon: SyncIcon(v.label, size: 20),
+            icon: SyncIcon(v.label, size: 18),
             onPressed: toggle,
           ),
         );

@@ -1121,6 +1121,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get pageUndo => 'Undo';
 
   @override
+  String get pageDeleteContentConfirm =>
+      'Some of these pages have content. Delete them anyway?';
+
+  @override
   String get pageDuplicate => 'Duplicate';
 
   @override

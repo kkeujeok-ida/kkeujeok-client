@@ -1058,6 +1058,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get pageUndo => '되돌리기';
 
   @override
+  String get pageDeleteContentConfirm => '내용이 있는 페이지가 있습니다. 정말 삭제하시겠습니까?';
+
+  @override
   String get pageDuplicate => '복제';
 
   @override

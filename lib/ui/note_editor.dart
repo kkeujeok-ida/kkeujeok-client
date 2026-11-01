@@ -23,7 +23,6 @@ import '../model/eraser.dart';
 import '../model/ids.dart';
 import '../model/image_rules.dart';
 import '../model/note.dart';
-import '../model/page_bounds.dart';
 import '../model/page_view_mode.dart';
 import '../model/pen.dart';
 import '../model/pen_only.dart';
@@ -1354,7 +1353,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _snack(AppLocalizations.of(context).historyNotApplied);
       return;
     }
-    if (shape != _shape()) _relayoutAt(_follow(cur, at)); // made, removed, turned
+    if (shape != _shape())
+      _relayoutAt(_follow(cur, at)); // made, removed, turned
     setState(() {});
     _tick.value++;
     _commit();
@@ -1367,7 +1367,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       [for (final p in _pages) '${p['id']}:${p['width']}x${p['height']}']
           .join(',');
 
-  String? _curId(int i) => i < _pages.length ? _pages[i]['id'] as String? : null;
+  String? _curId(int i) =>
+      i < _pages.length ? _pages[i]['id'] as String? : null;
 
   /// Where the page [id] is now; [at] (clamped later) when it is gone.
   int _follow(String? id, int at) {
@@ -1385,7 +1386,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   /// One page operation through the note's history and save queue (AD-16).
   /// Error code, or null when done.
-  String? _pageOp(Map<String, dynamic> op) {
+  String? _pageOp(Map<String, dynamic> op, {bool record = true}) {
     if (_leaving || !mounted || _readOnly || _receiving || _pointer != null) {
       return 'busy';
     }
@@ -1404,7 +1405,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       return 'pageReadOnly';
     }
     final at = _activeIndex(), cur = _curId(at);
-    final err = _history.doOp(op, _ctx());
+    final err = _history.doOp(op, _ctx(), record: record);
     if (err != null) {
       _snack(AppLocalizations.of(context).historyNotApplied);
       return err;
@@ -1465,62 +1466,67 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _snack(AppLocalizations.of(context).pageAdded(index + 1));
   }
 
-  Widget _pullIndicator(AppLocalizations l, EdgeInsets pad) =>
-      // Positioned at the top, so the Stack keeps its full size.
-      Positioned.fill(
-        child: IgnorePointer(
-          child: ValueListenableBuilder<double>(
-            valueListenable: _pull,
-            builder: (context, p, _) {
-              if (p == 0) return const SizedBox.shrink();
-              final t = (p.abs() / _pullAt).clamp(0.0, 1.0);
-              final vertical = _laidMode == PageViewMode.vertical;
-              final end = p < 0;
-              final align = vertical
-                  ? (end ? Alignment.bottomCenter : Alignment.topCenter)
-                  : (end ? Alignment.centerRight : Alignment.centerLeft);
-              return Padding(
-                padding: pad + const EdgeInsets.all(KkjTokens.spacing4),
-                child: Align(
-                  alignment: align,
-                  child: Semantics(
-                    liveRegion: true,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: KkjLight.colorSurfaceRaised,
-                        borderRadius: BorderRadius.circular(
-                          KkjLight.componentsBadgeRounded,
-                        ),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(KkjTokens.spacing2),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                value: t,
-                                strokeWidth: 3,
-                              ),
-                            ),
-                            const SizedBox(width: KkjTokens.spacing2),
-                            Text(
-                              t >= 1 ? l.pagePullRelease : l.pagePullMore,
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
+  /// How far the pages follow a pull of [p]: it gets harder the further you
+  /// go, like a rubber band (Story 6.4). Negative past the end.
+  static double _pullShift(double p) =>
+      p.sign * 140 * (1 - math.exp(-p.abs() / 140));
+
+  /// The pages move with the pull and leave a blank strip at that end.
+  Widget _pullable(Widget child) => ValueListenableBuilder<double>(
+    valueListenable: _pull,
+    builder: (context, p, _) {
+      if (p == 0) return child;
+      final shift = _pullShift(p);
+      return Transform.translate(
+        offset: _laidMode == PageViewMode.vertical
+            ? Offset(0, shift)
+            : Offset(shift, 0),
+        child: child,
+      );
+    },
+  );
+
+  /// The progress ring in the middle of the blank strip the pull opened.
+  Widget _pullIndicator(AppLocalizations l) => Positioned.fill(
+    child: IgnorePointer(
+      child: ValueListenableBuilder<double>(
+        valueListenable: _pull,
+        builder: (context, p, _) {
+          if (p == 0) return const SizedBox.shrink();
+          final t = (p.abs() / _pullAt).clamp(0.0, 1.0);
+          final vertical = _laidMode == PageViewMode.vertical;
+          final end = p < 0;
+          final shift = _pullShift(p).abs();
+          final align = vertical
+              ? (end ? Alignment.bottomCenter : Alignment.topCenter)
+              : (end ? Alignment.centerRight : Alignment.centerLeft);
+          return Align(
+            alignment: align,
+            child: SizedBox(
+              width: vertical ? double.infinity : shift,
+              height: vertical ? shift : double.infinity,
+              child: ClipRect(
+                child: Semantics(
+                  liveRegion: true,
+                  label: t >= 1 ? l.pagePullRelease : l.pagePullMore,
+                  child: Center(
+                    child: SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: CircularProgressIndicator(
+                        value: t,
+                        strokeWidth: 3,
                       ),
                     ),
                   ),
                 ),
-              );
-            },
-          ),
-        ),
-      );
+              ),
+            ),
+          );
+        },
+      ),
+    ),
+  );
 
   /// The page the overview shows as current once [gone] are taken away: the
   /// next page, else the previous one (Story 6.4).
@@ -3723,7 +3729,6 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
           final held = _held;
           final shown = held != null && held['id'] == id ? held : p;
           final landscape = (p['width'] as num) > (p['height'] as num);
-          final marker = _outMarker(shown, rects[i], vp, l10n);
           return [
             Semantics(
               label: l10n.pageSemantics(
@@ -3764,96 +3769,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                 ),
               ),
             ),
-            ?marker,
           ];
         }(),
     ];
-  }
-
-  // Elements outside each page, found again only when the page's rev changed.
-  final _outCache = <String, (String, int)>{};
-
-  /// Story 6.8: a `status-warning` frame on the edge of a page that has
-  /// elements outside it, with the count in words (never colour alone).
-  Widget? _outMarker(
-    Map<String, dynamic> page,
-    Rect rect,
-    PageViewport vp,
-    AppLocalizations l10n,
-  ) {
-    final w = (page['width'] as num).toDouble();
-    final h = (page['height'] as num).toDouble();
-    final r = Rect.fromLTWH(
-      vp.offset.dx + rect.left * vp.scale,
-      vp.offset.dy + rect.top * vp.scale,
-      w * vp.scale,
-      h * vp.scale,
-    );
-    if (!r.overlaps(Offset.zero & _size)) return null; // only what is in view
-    final id = page['id'] as String, rev = page['rev'] as String;
-    var hit = _outCache[id];
-    if (hit == null || hit.$1 != rev) {
-      hit = (
-        rev,
-        pageOutOfBounds(w, h, [
-          for (final e in page['elements'] as List)
-            (e as Map).cast<String, dynamic>(),
-        ]).length,
-      );
-      _outCache[id] = hit;
-    }
-    final n = hit.$2;
-    if (n == 0) return null;
-    return Positioned.fill(
-      child: IgnorePointer(
-        child: Stack(
-          children: [
-            Positioned.fromRect(
-              rect: r,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: KkjLight.colorStatusWarning,
-                    width: 3,
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              right: (_size.width - r.right + 6).clamp(6.0, _size.width),
-              top: (r.top + 6).clamp(_padding.top, _size.height - 32),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: KkjLight.colorSurfaceRaised,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.warning_amber,
-                        size: 14,
-                        color: KkjLight.colorStatusWarningText,
-                      ),
-                      const SizedBox(width: 2),
-                      Text(
-                        l10n.pageOutOfBoundsBadge(n),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: KkjLight.colorStatusWarningText,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _body(BuildContext context) {
@@ -3934,39 +3852,44 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                           focusNode: _canvasFocus,
                           autofocus: true,
                           onKeyEvent: _key,
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              ..._pageViews(l10n),
-                              CustomPaint(
-                                size: Size.infinite,
-                                painter: SelectionPainter(
-                                  viewport: _vp!,
-                                  box: _selFrame()?.rect,
-                                  angle: () => _selFrame()?.angle ?? 0,
-                                  lasso: () => _lassoing ? _lassoPts : const [],
-                                  preview: () {
-                                    final sp = _selPinchPreview();
-                                    if (sp != null) return sp;
-                                    final x = _xf;
-                                    if (x == null) return null;
-                                    final r = _xfResult(x, x.last);
-                                    return r == null ? null : (r.box, r.angle);
-                                  },
-                                  widthHandles: () {
-                                    final t = _textSel();
-                                    return t == null ? const [] : [t.l, t.r];
-                                  },
-                                  repaint: _tick,
+                          child: _pullable(
+                            Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                ..._pageViews(l10n),
+                                CustomPaint(
+                                  size: Size.infinite,
+                                  painter: SelectionPainter(
+                                    viewport: _vp!,
+                                    box: _selFrame()?.rect,
+                                    angle: () => _selFrame()?.angle ?? 0,
+                                    lasso: () =>
+                                        _lassoing ? _lassoPts : const [],
+                                    preview: () {
+                                      final sp = _selPinchPreview();
+                                      if (sp != null) return sp;
+                                      final x = _xf;
+                                      if (x == null) return null;
+                                      final r = _xfResult(x, x.last);
+                                      return r == null
+                                          ? null
+                                          : (r.box, r.angle);
+                                    },
+                                    widthHandles: () {
+                                      final t = _textSel();
+                                      return t == null ? const [] : [t.l, t.r];
+                                    },
+                                    repaint: _tick,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                 ),
               ),
               if (page != null) ..._retryButtons(l10n),
-              if (page != null) _pullIndicator(l10n, pad),
+              if (page != null) _pullIndicator(l10n),
               if (_showLatest)
                 Positioned(
                   bottom: pad.bottom + gap,
@@ -4341,8 +4264,9 @@ class _Corner extends StatelessWidget {
             minWidth: _toolbarHeight,
             minHeight: _toolbarHeight,
           ),
+          style: cornerButtonStyle,
           padding: EdgeInsets.zero,
-          iconSize: 20,
+          iconSize: 18,
           icon: const Icon(Icons.arrow_back),
           onPressed: onBack,
         ),
@@ -4416,8 +4340,9 @@ class _MoreMenu extends StatelessWidget {
               minWidth: _toolbarHeight,
               minHeight: _toolbarHeight,
             ),
+            style: cornerButtonStyle,
             padding: EdgeInsets.zero,
-            iconSize: 20,
+            iconSize: 18,
             icon: const Icon(Icons.grid_view),
             onPressed: onPages,
           ),
@@ -4504,8 +4429,9 @@ class _MoreMenu extends StatelessWidget {
                 minWidth: _toolbarHeight,
                 minHeight: _toolbarHeight,
               ),
+              style: cornerButtonStyle,
               padding: EdgeInsets.zero,
-              iconSize: 20,
+              iconSize: 18,
               icon: const Icon(Icons.more_horiz),
               onPressed: () =>
                   controller.isOpen ? controller.close() : controller.open(),
@@ -4551,12 +4477,38 @@ class _OverviewHost implements PageOverviewHost {
   @override
   String? addPage(int index) => _do({'op': 'addPage', 'index': index});
 
+  /// What brings deleted pages back, newest last. Not the note's history and
+  /// not saved: it ends with the overview (Story 6.4).
+  final _deleted = <Map<String, dynamic>>[];
+
+  @override
+  int get deletedDepth => _deleted.length;
+
   @override
   String? deletePages(List<String> ids) {
     final cur = s._ovCur;
     s._ovAfterDelete(ids.toSet());
-    final err = _do({'op': 'deletePage', 'pageIds': ids});
-    if (err != null) s._ovCur = cur;
+    final err = s._pageOp({'op': 'deletePage', 'pageIds': ids}, record: false);
+    if (err != null) {
+      s._ovCur = cur;
+      return err;
+    }
+    s._ovDirty = true;
+    _deleted.add(s._history.lastInverse!);
+    // The pen and tool undo must not reach into pages that are gone.
+    s._history.adopt(s._history.note, ids.toSet());
+    s._tick.value++;
+    return null;
+  }
+
+  @override
+  String? undeletePages() {
+    if (_deleted.isEmpty) return null;
+    final err = s._pageOp(_deleted.last, record: false);
+    if (err == null) {
+      _deleted.removeLast();
+      s._ovDirty = true;
+    }
     return err;
   }
 
