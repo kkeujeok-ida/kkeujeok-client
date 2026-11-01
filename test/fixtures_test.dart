@@ -617,7 +617,21 @@ void _runOp(Case c) {
 // needs a valid fixture file and must not have a runner yet: when its story
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6. The erase rules have runners (Story 5.6): none pending.
-const pendingRules = <String>{};
+const pendingRules = <String>{
+  // Library rules (Story 7.1) arrive with the Android stories 7.3, 7.5, 7.7, 7.9.
+  'library.renameNote',
+  'library.setCover',
+  'library.moveNote',
+  'library.folderName',
+  'library.createFolder',
+  'library.renameFolder',
+  'library.moveFolder',
+  'library.tree',
+  'library.coverResolve',
+  'library.normalize',
+  'library.sort',
+  'library.search',
+};
 
 final _sep = Platform.pathSeparator;
 
