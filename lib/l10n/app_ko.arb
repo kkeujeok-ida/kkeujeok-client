@@ -501,5 +501,20 @@
   "exportStart": "내보내기",
   "exportProgress": "PDF 만드는 중 · {done}/{total}페이지",
   "exportFailed": "PDF를 만들지 못했어요.",
-  "exportAssetMissing": "아직 이 기기에 없는 이미지가 있어요. 인터넷에 연결해 이미지를 받은 뒤 다시 시도해 주세요."
+  "exportAssetMissing": "아직 이 기기에 없는 이미지가 있어요. 인터넷에 연결해 이미지를 받은 뒤 다시 시도해 주세요.",
+  "folderParentCard": "상위 폴더로",
+  "folderOpenHint": "폴더를 열어요",
+  "folderDropHint": "길게 눌러 다른 폴더 위로 끌면 옮겨요",
+  "selectedCount": "{n}개 선택됨",
+  "@selectedCount": {"placeholders": {"n": {"type": "int"}}},
+  "selectCancel": "선택 취소",
+  "selectMove": "선택한 노트 이동",
+  "selectDelete": "선택한 노트 삭제",
+  "notesDeleteBody": "노트 {n}개를 지울까요? 휴지통으로 옮겨져요. 휴지통에서 복구할 수 있어요.",
+  "@notesDeleteBody": {"placeholders": {"n": {"type": "int"}}},
+  "notesMoveTitle": "노트 {n}개 옮길 곳",
+  "@notesMoveTitle": {"placeholders": {"n": {"type": "int"}}},
+  "notesMoved": "노트 {n}개를 \"{name}\" 폴더로 옮겼어요",
+  "@notesMoved": {"placeholders": {"n": {"type": "int"}, "name": {"type": "String"}}},
+  "searchOpen": "검색"
 }

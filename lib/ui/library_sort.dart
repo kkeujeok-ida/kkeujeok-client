@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
 import '../library/library_rules.dart';
-import '../library/folder_service.dart' show FolderView;
+import '../library/folder_service.dart' show FolderView, LibraryFolder;
 import '../model/library_view.dart';
 import 'providers.dart';
 
@@ -57,14 +57,45 @@ final visibleEntriesProvider = Provider.autoDispose<List<LibraryEntry>>((ref) {
   return sortEntries([
     for (final e in ref.watch(libraryProvider).value ?? const <LibraryEntry>[])
       if (q.isEmpty
-          ? folder == null || e.folderId == folder
+          ? folder == null ||
+                (folder == 'root' ? e.folderId == null : e.folderId == folder)
           : e.readable &&
                 (folder == null ||
-                    (e.folderId != null && tree.isInside(e.folderId!, folder))) &&
+                    folder == 'root' ||
+                    (e.folderId != null &&
+                        tree.isInside(e.folderId!, folder))) &&
                 libraryKey(e.note!.title).contains(q))
         e,
   ], ref.watch(librarySortProvider));
 });
+
+/// Folders in the order of [sort]: names by name, created by the time in the
+/// UUIDv7 id, edited (a folder has no edit date) by name ascending.
+List<LibraryFolder> sortFolders(List<LibraryFolder> folders, LibrarySort sort) {
+  final keys = {for (final f in folders) f.id: libraryKey(f.name)};
+  int name(LibraryFolder a, LibraryFolder b, bool desc) => libraryNameCompare(
+    keys[a.id]!,
+    a.name,
+    a.id,
+    keys[b.id]!,
+    b.name,
+    b.id,
+    desc: desc,
+  );
+  int cmp(LibraryFolder a, LibraryFolder b) => switch (sort) {
+    LibrarySort.nameDesc => name(a, b, true),
+    LibrarySort.createdDesc || LibrarySort.createdAsc => () {
+      final c = (createdAtOf(a.id) ?? DateTime(0)).compareTo(
+        createdAtOf(b.id) ?? DateTime(0),
+      );
+      return c == 0
+          ? a.id.compareTo(b.id)
+          : (sort == LibrarySort.createdDesc ? -c : c);
+    }(),
+    _ => name(a, b, false),
+  };
+  return [...folders]..sort(cmp);
+}
 
 /// The creation time inside a UUIDv7 note id (48-bit milliseconds), or null.
 DateTime? createdAtOf(String noteId) {
@@ -118,7 +149,9 @@ List<LibraryEntry> sortEntries(List<LibraryEntry> entries, LibrarySort sort) {
       LibrarySort.editedDesc => byTime(a.editedAt, b.editedAt, true),
       LibrarySort.editedAsc => byTime(a.editedAt, b.editedAt, false),
     };
-    return c != 0 || sort.name.startsWith('name') ? c : a.noteId.compareTo(b.noteId);
+    return c != 0 || sort.name.startsWith('name')
+        ? c
+        : a.noteId.compareTo(b.noteId);
   }
 
   return [...entries]..sort(cmp);

@@ -29,12 +29,17 @@ List<BoxShadow> kkjShadow(String css) {
 }
 
 /// The round `+` at the library's bottom right. Expanded it shows the
-/// "new note" item, turns into ×, and veils what is behind. Place it in a
+/// "new note" and "new folder" items, turns into ×, and veils what is behind. Place it in a
 /// Stack that fills the library.
 class LibraryFab extends StatefulWidget {
-  const LibraryFab({super.key, required this.onNewNote});
+  const LibraryFab({
+    super.key,
+    required this.onNewNote,
+    required this.onNewFolder,
+  });
 
   final VoidCallback onNewNote;
+  final VoidCallback onNewFolder;
 
   @override
   State<LibraryFab> createState() => _LibraryFabState();
@@ -67,11 +72,56 @@ class _LibraryFabState extends State<LibraryFab> {
     widget.onNewNote();
   }
 
+  void _newFolder() {
+    _set(false);
+    widget.onNewFolder();
+  }
+
+  Widget _item(
+    String text,
+    IconData icon,
+    VoidCallback onTap, {
+    FocusNode? focus,
+  }) {
+    final label = Theme.of(context).textTheme.labelMedium!
+        .copyWith(color: KkjLight.componentsFabLabelColor);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ExcludeSemantics(child: Text(text, style: label)),
+        const SizedBox(width: KkjLight.componentsFabItemGap),
+        Semantics(
+          button: true,
+          label: text,
+          excludeSemantics: true,
+          onTap: onTap,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: KkjLight.componentsFabItemBackground,
+              shape: BoxShape.circle,
+              boxShadow: kkjShadow(KkjLight.componentsFabShadow),
+            ),
+            child: Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                focusNode: focus,
+                customBorder: const CircleBorder(),
+                onTap: onTap,
+                child: SizedBox.square(
+                  dimension: KkjLight.componentsFabItemSize,
+                  child: Icon(icon, color: KkjLight.componentsFabItemIcon),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final label = Theme.of(context).textTheme.labelMedium!
-        .copyWith(color: KkjLight.componentsFabLabelColor);
     final shadow = kkjShadow(KkjLight.componentsFabShadow);
     final still = MediaQuery.disableAnimationsOf(context);
 
@@ -106,42 +156,17 @@ class _LibraryFabState extends State<LibraryFab> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   if (_open) ...[
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ExcludeSemantics(
-                          child: Text(l10n.newNote, style: label),
-                        ),
-                        const SizedBox(width: KkjLight.componentsFabItemGap),
-                        Semantics(
-                          button: true,
-                          label: l10n.newNote,
-                          excludeSemantics: true,
-                          onTap: _newNote,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: KkjLight.componentsFabItemBackground,
-                              shape: BoxShape.circle,
-                              boxShadow: shadow,
-                            ),
-                            child: Material(
-                              type: MaterialType.transparency,
-                              child: InkWell(
-                                focusNode: _itemFocus,
-                                customBorder: const CircleBorder(),
-                                onTap: _newNote,
-                                child: const SizedBox.square(
-                                  dimension: KkjLight.componentsFabItemSize,
-                                  child: Icon(
-                                    Icons.note_add_outlined,
-                                    color: KkjLight.componentsFabItemIcon,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                    _item(
+                      l10n.folderAdd,
+                      Icons.create_new_folder_outlined,
+                      _newFolder,
+                    ),
+                    const SizedBox(height: KkjLight.componentsFabItemGap),
+                    _item(
+                      l10n.newNote,
+                      Icons.note_add_outlined,
+                      _newNote,
+                      focus: _itemFocus,
                     ),
                     const SizedBox(height: KkjLight.componentsFabItemGap),
                   ],

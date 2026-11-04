@@ -9,10 +9,11 @@ import 'package:intl/intl.dart';
 
 import '../design_tokens/build/tokens.dart';
 import '../drive/root_folder.dart' show RootStatus;
-import '../library/folder_service.dart' show FolderView;
+import '../library/folder_service.dart' show FolderView, LibraryFolder;
 import '../storage/note_store.dart' show NoteSaveException;
 import 'folder_picker_sheet.dart';
-import 'folder_sidebar.dart' show NameDialog;
+import 'folder_actions.dart';
+import 'folder_sidebar.dart' show NameDialog, showConfirmDialog;
 import '../l10n/app_localizations.dart';
 import '../model/library_view.dart';
 import '../model/note.dart';
@@ -223,6 +224,109 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
   }
 
+  // Selection mode (Story 18.4): note ids picked by a long press.
+  final _selected = <String>{};
+  bool get _selecting => _selected.isNotEmpty;
+
+  void _announceSelected() {
+    if (!mounted) return;
+    unawaited(
+      SemanticsService.sendAnnouncement(
+        View.of(context),
+        AppLocalizations.of(context).selectedCount(_selected.length),
+        Directionality.of(context),
+        assertiveness: Assertiveness.polite,
+      ),
+    );
+  }
+
+  void _toggleSelect(String id) {
+    setState(
+      () => _selected.contains(id) ? _selected.remove(id) : _selected.add(id),
+    );
+    _announceSelected();
+  }
+
+  void _clearSelect() {
+    if (_selected.isNotEmpty) setState(_selected.clear);
+  }
+
+  /// The selected notes that are still in the list.
+  List<String> _selectedNow() {
+    final here = {for (final e in ref.read(visibleEntriesProvider)) e.noteId};
+    return [
+      for (final id in _selected)
+        if (here.contains(id)) id,
+    ];
+  }
+
+  Future<void> _deleteSelected() => _guarded(() async {
+    final ids = _selectedNow();
+    if (ids.isEmpty) return;
+    final l = AppLocalizations.of(context);
+    final ok = await showConfirmDialog(
+      context,
+      body: l.notesDeleteBody(ids.length),
+      confirm: l.noteDeleteConfirm,
+    );
+    if (!ok || !mounted) return;
+    final coordinator = ref.read(uploadCoordinatorProvider);
+    final notifier = ref.read(libraryProvider.notifier);
+    for (final id in ids) {
+      await coordinator.deleteNote(id);
+    }
+    if (!mounted) return;
+    _clearSelect();
+    notifier.reload();
+  });
+
+  Future<void> _moveSelected() => _guarded(() async {
+    final ids = _selectedNow();
+    if (ids.isEmpty) return;
+    final l = AppLocalizations.of(context);
+    final tree = ref.read(folderTreeProvider).value ?? const FolderView();
+    final target = await showFolderPicker(
+      context,
+      title: l.notesMoveTitle(ids.length),
+      view: tree,
+      selected: null,
+    );
+    if (target == null || !mounted) return;
+    final notifier = ref.read(folderTreeProvider.notifier);
+    final inverses = <Map<String, Object?>>[];
+    var failed = false;
+    for (final id in ids) {
+      final r = await notifier.moveNote(id, target);
+      if (!r.ok) {
+        failed = true;
+      } else if (r.inverse != null) {
+        inverses.add(r.inverse!);
+      }
+    }
+    if (!mounted) return;
+    _clearSelect();
+    if (failed) return _snack(l.noteActionFailed);
+    if (inverses.isEmpty) return;
+    final name = target == 'root'
+        ? l.folderTopLevel
+        : tree.folder(target)!.name;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(l.notesMoved(ids.length, name)),
+          action: SnackBarAction(
+            label: l.undo,
+            onPressed: () {
+              for (final inv in inverses) {
+                notifier.undo(inv);
+              }
+            },
+          ),
+        ),
+      );
+  });
+
   // One sheet or editor route at a time: a second tap while one is opening
   // or open would stack another (and could create a duplicate note).
   bool _busy = false;
@@ -388,24 +492,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   /// unsent changes and the Drive trash follow (offline: when connected).
   Future<void> _delete(String noteId) => _guarded(() async {
     final l = AppLocalizations.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        content: Text(l.noteDeleteBody),
-        actions: [
-          TextButton(
-            autofocus: true,
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l.noteDeleteConfirm),
-          ),
-        ],
-      ),
+    final ok = await showConfirmDialog(
+      context,
+      body: l.noteDeleteBody,
+      confirm: l.noteDeleteConfirm,
     );
-    if (ok != true || !mounted) return;
+    if (!ok || !mounted) return;
     final coordinator = ref.read(uploadCoordinatorProvider);
     final notifier = ref.read(libraryProvider.notifier);
     await coordinator.deleteNote(noteId);
@@ -489,6 +581,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       _watchScan(next);
     });
     final folder = ref.watch(effectiveFolderProvider);
+    ref.listen(effectiveFolderProvider, (_, _) => _clearSelect());
     final tree = ref.watch(folderTreeProvider).value ?? const FolderView();
     final local = {
       for (final e in async.value ?? const <LibraryEntry>[]) e.noteId,
@@ -499,7 +592,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         if (ref.watch(libraryQueryProvider).trim().isEmpty &&
             !local.contains(c.noteId) &&
             !tree.hiddenNotes.contains(c.noteId) &&
-            (folder == null || tree.noteFolder[c.noteId] == folder))
+            (folder == null || (tree.noteFolder[c.noteId] ?? 'root') == folder))
           c,
     ];
     final view = ref.watch(libraryViewProvider);
@@ -518,7 +611,37 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final failed = async.hasError && !async.hasValue;
     final entries = ref.watch(visibleEntriesProvider);
     final query = ref.watch(libraryQueryProvider).trim();
+    final sort = ref.watch(librarySortProvider);
+    // Story 18.3: subfolders first (not while searching or in "모든 노트"),
+    // after the `../` slot of a folder below the top level.
+    final inFolder = folder != null && query.isEmpty;
+    final subfolders = inFolder
+        ? sortFolders(tree.childrenOf(folder), sort)
+        : const <LibraryFolder>[];
+    final up = inFolder && folder != 'root' ? tree.folder(folder) : null;
     final cards = <Widget>[
+      if (up != null)
+        cap(
+          _ParentCard(
+            canDrop: (_) => true,
+            onDrop: (d) => moveFolderTo(context, ref, d, up.parentId),
+            onOpen: () =>
+                ref.read(currentFolderProvider.notifier).select(up.parentId),
+          ),
+        ),
+      for (final f in subfolders)
+        cap(
+          _FolderCard(
+            key: ValueKey('folder-card-${f.id}'),
+            folder: f,
+            onOpen: () => ref.read(currentFolderProvider.notifier).select(f.id),
+            canDrop: (d) => d.id != f.id && !tree.isInside(f.id, d.id),
+            onDrop: (d) => moveFolderTo(context, ref, d, f.id),
+            onRename: () => renameFolderDialog(context, ref, f),
+            onMove: () => moveFolderDialog(context, ref, f),
+            onDelete: () => deleteFolderDialog(context, ref, f),
+          ),
+        ),
       if (root.status == RootStatus.failed)
         ?switch (root.errorClass) {
           'reauth' => _ErrorCard(
@@ -548,8 +671,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       else if (async.hasValue &&
           entries.isEmpty &&
           remote.isEmpty &&
+          subfolders.isEmpty &&
           !recv.scanning) ...[
-        if (folder != null)
+        if (folder != null && folder != 'root')
           Padding(
             padding: const EdgeInsets.all(KkjTokens.spacing3),
             child: Text(
@@ -575,90 +699,93 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             ? _NoteCard(
                 entry: e,
                 receiving: recv.receiving.contains(e.noteId),
-                onTap: () => _open(e.note!),
+                selecting: _selecting,
+                selected: _selected.contains(e.noteId),
+                onTap: () =>
+                    _selecting ? _toggleSelect(e.noteId) : _open(e.note!),
+                onLongPress: () => _selected.contains(e.noteId)
+                    ? null
+                    : _toggleSelect(e.noteId),
                 onAction: (a) => _noteAction(a, e),
               )
             : cap(_UnreadableCard(noteId: e.noteId)),
     ];
 
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SyncBanner(startInset: widget.headerStartInset),
-              Padding(
-                padding: EdgeInsetsDirectional.only(
-                  start: KkjTokens.spacing5 + widget.headerStartInset,
-                  end: KkjTokens.spacing5,
-                  top: KkjTokens.spacing4,
-                  bottom: KkjTokens.spacing3,
+    return PopScope(
+      canPop: !_selecting,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _clearSelect();
+      },
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SyncBanner(startInset: widget.headerStartInset),
+                if (_selecting)
+                  _SelectBar(
+                    startInset: widget.headerStartInset,
+                    count: _selected.length,
+                    onCancel: _clearSelect,
+                    onMove: _moveSelected,
+                    onDelete: _deleteSelected,
+                  )
+                else
+                  _SearchHeader(
+                    startInset: widget.headerStartInset,
+                    count: entries.length,
+                    title: l10n.library,
+                  ),
+                if (root.status == RootStatus.preparing) const _Preparing(),
+                Expanded(
+                  child: GestureDetector(
+                    // A tap on empty space ends the selection.
+                    behavior: HitTestBehavior.translucent,
+                    onTap: _selecting ? _clearSelect : null,
+                    child: _Grid(view: view, children: cards),
+                  ),
                 ),
-                child: LayoutBuilder(
-                  builder: (context, c) => Row(
-                    children: [
-                      Expanded(
-                        child: Semantics(
-                          header: true,
-                          child: Text(
-                            l10n.library,
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: KkjTokens.spacing3),
-                      // View picker and sort sit together at the right edge;
-                      // the title shrinks first.
-                      const LibraryViewMenu(),
-                      // At most 200, and never more than 60% of what the view
-                      // picker leaves, so the title keeps some room.
-                      SizedBox(
-                        width: math.min(200, (c.maxWidth - 60) * 0.6),
-                        child: const LibrarySortMenu(),
-                      ),
-                    ],
+              ],
+            ),
+          ),
+          Positioned.fill(
+            child: LibraryFab(
+              onNewNote: _newNote,
+              onNewFolder: () =>
+                  createFolderDialog(context, ref, folder ?? 'root'),
+            ),
+          ),
+          // Offline notice (UX-DR40): floats at the top right, so it neither
+          // pushes nor covers the list.
+          if (root.status == RootStatus.failed && root.errorClass == 'backoff')
+            PositionedDirectional(
+              top: MediaQuery.paddingOf(context).top + KkjTokens.spacing3,
+              end: MediaQuery.paddingOf(context).right + KkjTokens.spacing3,
+              child: DecoratedBox(
+                key: const Key('offlineNotice'),
+                decoration: BoxDecoration(
+                  color: KkjLight.componentsBannerBackground,
+                  borderRadius: BorderRadius.circular(
+                    KkjLight.componentsCoverCardRounded,
+                  ),
+                  boxShadow: kkjShadow(KkjLight.componentsPopoverShadow),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(
+                    KkjLight.componentsBannerPadding,
+                  ),
+                  child: _ErrorCard(
+                    message: l10n.networkError,
+                    inline: true,
+                    onRetry: () =>
+                        ref.read(rootFolderProvider.notifier).check(),
                   ),
                 ),
               ),
-              _SearchField(
-                startInset: widget.headerStartInset,
-                count: entries.length,
-              ),
-              if (root.status == RootStatus.preparing) const _Preparing(),
-              Expanded(
-                child: _Grid(view: view, children: cards),
-              ),
-            ],
-          ),
-        ),
-        Positioned.fill(child: LibraryFab(onNewNote: _newNote)),
-        // Offline notice (UX-DR40): floats at the top right, so it neither
-        // pushes nor covers the list.
-        if (root.status == RootStatus.failed && root.errorClass == 'backoff')
-          PositionedDirectional(
-            top: MediaQuery.paddingOf(context).top + KkjTokens.spacing3,
-            end: MediaQuery.paddingOf(context).right + KkjTokens.spacing3,
-            child: DecoratedBox(
-              key: const Key('offlineNotice'),
-              decoration: BoxDecoration(
-                color: KkjLight.componentsBannerBackground,
-                borderRadius: BorderRadius.circular(
-                  KkjLight.componentsCoverCardRounded,
-                ),
-                boxShadow: kkjShadow(KkjLight.componentsPopoverShadow),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(KkjLight.componentsBannerPadding),
-                child: _ErrorCard(
-                  message: l10n.networkError,
-                  inline: true,
-                  onRetry: () => ref.read(rootFolderProvider.notifier).check(),
-                ),
-              ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -977,10 +1104,18 @@ class _NoteCard extends ConsumerStatefulWidget {
     required this.onTap,
     required this.onAction,
     this.receiving = false,
+    this.selecting = false,
+    this.selected = false,
+    this.onLongPress,
   });
 
   final LibraryEntry entry;
   final VoidCallback onTap;
+
+  /// Selection mode (Story 18.4): a long press starts it, a tap toggles.
+  final bool selecting;
+  final bool selected;
+  final VoidCallback? onLongPress;
   final void Function(_NoteAction) onAction;
   final bool receiving;
 
@@ -1026,6 +1161,22 @@ class _NoteCardState extends ConsumerState<_NoteCard> {
         coverFile: coverFile,
       ),
       label: label,
+    );
+    final picked = Stack(
+      children: [
+        _DropFrame(highlight: widget.selected, child: thumb),
+        if (widget.selecting)
+          PositionedDirectional(
+            top: KkjTokens.spacing2,
+            start: KkjTokens.spacing2,
+            child: Icon(
+              widget.selected ? Icons.check_circle : Icons.radio_button_unchecked,
+              color: widget.selected
+                  ? theme.colorScheme.primary
+                  : KkjLight.colorInkSecondary,
+            ),
+          ),
+      ],
     );
     // The 48dp ⋯ button floats at the top end instead of sizing the title
     // row, so the title and date stay close; minHeight keeps the whole
@@ -1085,12 +1236,14 @@ class _NoteCardState extends ConsumerState<_NoteCard> {
     );
     return Semantics(
       button: true,
+      selected: widget.selecting ? widget.selected : null,
       label: note.title,
       // "자료구조, 두 버전, 오늘": the state is part of the value; no date
       // text and no semantics date when unknown.
       value: [if (label != null) _badgeText(l, label), ?date].join(', '),
       excludeSemantics: true,
       onTap: onTap,
+      onLongPress: widget.onLongPress,
       customSemanticsActions: {
         CustomSemanticsAction(label: l.noteRename): () =>
             widget.onAction(_NoteAction.rename),
@@ -1103,7 +1256,7 @@ class _NoteCardState extends ConsumerState<_NoteCard> {
       },
       child: InkWell(
         onTap: onTap,
-        onLongPress: () => _menu.currentState?.showButtonMenu(),
+        onLongPress: widget.onLongPress,
         borderRadius: BorderRadius.circular(
           KkjLight.componentsCoverCardRounded,
         ),
@@ -1115,7 +1268,7 @@ class _NoteCardState extends ConsumerState<_NoteCard> {
                     width:
                         KkjTokens.spacingCoverColumnMin *
                         _rowThumbFactor[view.size]!,
-                    child: thumb,
+                    child: picked,
                   ),
                   const SizedBox(width: KkjTokens.spacing3),
                   Expanded(child: text),
@@ -1124,7 +1277,7 @@ class _NoteCardState extends ConsumerState<_NoteCard> {
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  thumb,
+                  picked,
                   const SizedBox(height: KkjTokens.spacing2),
                   text,
                 ],
@@ -1294,25 +1447,48 @@ class _Preparing extends StatelessWidget {
   }
 }
 
-/// The title search under the header. The result count is announced politely
-/// a moment after the last keystroke.
-class _SearchField extends ConsumerStatefulWidget {
-  const _SearchField({required this.startInset, required this.count});
+/// The header row (title, view picker, sort) with the title search folded
+/// into an icon at its far right (Story 18.8). The icon opens a field that
+/// grows leftwards over the row and takes focus; it stays open while the query
+/// is not empty and folds on empty + blur or Back. The result count is
+/// announced politely a moment after the last keystroke.
+class _SearchHeader extends ConsumerStatefulWidget {
+  const _SearchHeader({
+    required this.startInset,
+    required this.count,
+    required this.title,
+  });
 
   final double startInset;
   final int count;
+  final String title;
 
   @override
-  ConsumerState<_SearchField> createState() => _SearchFieldState();
+  ConsumerState<_SearchHeader> createState() => _SearchHeaderState();
 }
 
-class _SearchFieldState extends ConsumerState<_SearchField> {
+class _SearchHeaderState extends ConsumerState<_SearchHeader> {
   final _c = TextEditingController();
+  final _focus = FocusNode(debugLabel: 'search');
   Timer? _timer;
+  bool _open = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _c.text = ref.read(libraryQueryProvider);
+    _open = _c.text.isNotEmpty;
+    _focus.addListener(() {
+      if (!_focus.hasFocus && _c.text.isEmpty && _open && mounted) {
+        setState(() => _open = false);
+      }
+    });
+  }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _focus.dispose();
     _c.dispose();
     super.dispose();
   }
@@ -1335,38 +1511,391 @@ class _SearchFieldState extends ConsumerState<_SearchField> {
     _timer = Timer(const Duration(milliseconds: 600), _announce);
   }
 
+  void _show() {
+    setState(() => _open = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.requestFocus();
+    });
+  }
+
+  void _close() {
+    _c.clear();
+    _changed('');
+    _focus.unfocus();
+    setState(() => _open = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final still = MediaQuery.disableAnimationsOf(context);
+    const box = KkjTokens.spacingHitMinAndroid;
+    return PopScope(
+      canPop: !_open,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _close();
+      },
+      child: Padding(
+        padding: EdgeInsetsDirectional.only(
+          start: KkjTokens.spacing5 + widget.startInset,
+          end: KkjTokens.spacing5,
+          top: KkjTokens.spacing4,
+          bottom: KkjTokens.spacing3,
+        ),
+        child: LayoutBuilder(
+          builder: (context, c) => Stack(
+            children: [
+              // Under the open field: out of focus order and of TalkBack.
+              ExcludeFocus(
+                excluding: _open,
+                child: ExcludeSemantics(
+                  excluding: _open,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Semantics(
+                          header: true,
+                          child: Text(
+                            widget.title,
+                            style: theme.textTheme.titleLarge,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: KkjTokens.spacing3),
+                      // View picker and sort sit together left of the search
+                      // icon; the title shrinks first.
+                      const LibraryViewMenu(),
+                      // At most 200, and never more than 60% of what the view
+                      // picker leaves, so the title keeps some room.
+                      SizedBox(
+                        width: math.min(200, (c.maxWidth - 60 - box) * 0.6),
+                        child: const LibrarySortMenu(),
+                      ),
+                      const SizedBox(width: box),
+                    ],
+                  ),
+                ),
+              ),
+              PositionedDirectional(
+                end: 0,
+                top: 0,
+                bottom: 0,
+                child: AnimatedContainer(
+                  duration: still
+                      ? Duration.zero
+                      : const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  width: _open ? c.maxWidth : box,
+                  color: _open ? theme.scaffoldBackgroundColor : null,
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: _open
+                      ? ClipRect(
+                          child: OverflowBox(
+                            alignment: AlignmentDirectional.centerEnd,
+                            minWidth: 0,
+                            maxWidth: c.maxWidth,
+                            child: SizedBox(
+                              width: c.maxWidth,
+                              child: TextField(
+                                key: const Key('searchField'),
+                                controller: _c,
+                                focusNode: _focus,
+                                onChanged: _changed,
+                                textInputAction: TextInputAction.search,
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  hintText: l10n.searchHint,
+                                  prefixIcon: const Icon(Icons.search),
+                                  suffixIcon: IconButton(
+                                    key: const Key('searchClear'),
+                                    tooltip: l10n.searchClear,
+                                    icon: const Icon(Icons.close),
+                                    onPressed: _close,
+                                  ),
+                                  border: const OutlineInputBorder(),
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                      : IconButton(
+                          key: const Key('searchOpen'),
+                          tooltip: l10n.searchOpen,
+                          constraints: const BoxConstraints(
+                            minWidth: box,
+                            minHeight: box,
+                          ),
+                          icon: const Icon(Icons.search),
+                          onPressed: _show,
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The top bar of the selection mode: count, move, delete, cancel.
+class _SelectBar extends StatelessWidget {
+  const _SelectBar({
+    required this.startInset,
+    required this.count,
+    required this.onCancel,
+    required this.onMove,
+    required this.onDelete,
+  });
+
+  final double startInset;
+  final int count;
+  final VoidCallback onCancel;
+  final VoidCallback onMove;
+  final VoidCallback onDelete;
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Padding(
       padding: EdgeInsetsDirectional.only(
-        start: KkjTokens.spacing5 + widget.startInset,
+        start: KkjTokens.spacing5 + startInset,
         end: KkjTokens.spacing5,
+        top: KkjTokens.spacing4,
         bottom: KkjTokens.spacing3,
       ),
-      child: TextField(
-        key: const Key('searchField'),
-        controller: _c,
-        onChanged: _changed,
-        textInputAction: TextInputAction.search,
-        decoration: InputDecoration(
-          isDense: true,
-          hintText: l10n.searchHint,
-          prefixIcon: const Icon(Icons.search),
-          suffixIcon: _c.text.isEmpty
-              ? null
-              : IconButton(
-                  key: const Key('searchClear'),
-                  tooltip: l10n.searchClear,
-                  icon: const Icon(Icons.close),
-                  onPressed: () {
-                    _c.clear();
-                    _changed('');
-                  },
+      child: Row(
+        children: [
+          IconButton(
+            key: const Key('selectCancel'),
+            tooltip: l10n.selectCancel,
+            icon: const Icon(Icons.close),
+            onPressed: onCancel,
+          ),
+          Expanded(
+            child: Semantics(
+              header: true,
+              liveRegion: true,
+              child: Text(
+                l10n.selectedCount(count),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+          ),
+          IconButton(
+            key: const Key('selectMove'),
+            tooltip: l10n.selectMove,
+            icon: const Icon(Icons.drive_file_move_outlined),
+            onPressed: onMove,
+          ),
+          IconButton(
+            key: const Key('selectDelete'),
+            tooltip: l10n.selectDelete,
+            icon: const Icon(Icons.delete_outline),
+            onPressed: onDelete,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+enum _FolderAction { rename, move, delete }
+
+/// A subfolder in the list (Story 18.3): tap enters; a long press drags it
+/// onto another folder card or the `../` card; the ⋯ menu is the accessible
+/// way to rename, move and delete.
+class _FolderCard extends StatelessWidget {
+  const _FolderCard({
+    super.key,
+    required this.folder,
+    required this.onOpen,
+    required this.canDrop,
+    required this.onDrop,
+    required this.onRename,
+    required this.onMove,
+    required this.onDelete,
+  });
+
+  final LibraryFolder folder;
+  final VoidCallback onOpen;
+  final bool Function(LibraryFolder dragged) canDrop;
+  final void Function(LibraryFolder dragged) onDrop;
+  final VoidCallback onRename;
+  final VoidCallback onMove;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final face = DragTarget<LibraryFolder>(
+      onWillAcceptWithDetails: (d) => canDrop(d.data),
+      onAcceptWithDetails: (d) => onDrop(d.data),
+      builder: (context, hover, _) => _DropFrame(
+        highlight: hover.isNotEmpty,
+        child: InkWell(
+          onTap: onOpen,
+          borderRadius: BorderRadius.circular(
+            KkjLight.componentsCoverCardRounded,
+          ),
+          child: _Thumb(
+            child: Stack(
+              children: [
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(KkjTokens.spacing2),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.folder_outlined,
+                          size: 40,
+                          color: KkjLight.colorInkSecondary,
+                        ),
+                        const SizedBox(height: KkjTokens.spacing2),
+                        Text(
+                          folder.name,
+                          maxLines: 2,
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelMedium,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-          border: const OutlineInputBorder(),
+                PositionedDirectional(
+                  top: 0,
+                  end: 0,
+                  child: PopupMenuButton<_FolderAction>(
+                    tooltip: l.folderMenu(folder.name),
+                    icon: const Icon(Icons.more_horiz),
+                    onSelected: (a) => switch (a) {
+                      _FolderAction.rename => onRename(),
+                      _FolderAction.move => onMove(),
+                      _FolderAction.delete => onDelete(),
+                    },
+                    itemBuilder: (_) => [
+                      PopupMenuItem(
+                        value: _FolderAction.rename,
+                        child: Text(l.folderRename),
+                      ),
+                      PopupMenuItem(
+                        value: _FolderAction.move,
+                        child: Text(l.folderMove),
+                      ),
+                      PopupMenuItem(
+                        value: _FolderAction.delete,
+                        child: Text(l.folderDelete),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    return Semantics(
+      button: true,
+      label: folder.name,
+      hint: l.folderOpenHint,
+      excludeSemantics: true,
+      onTap: onOpen,
+      customSemanticsActions: {
+        CustomSemanticsAction(label: l.folderRename): onRename,
+        CustomSemanticsAction(label: l.folderMove): onMove,
+        CustomSemanticsAction(label: l.folderDelete): onDelete,
+      },
+      child: LongPressDraggable<LibraryFolder>(
+        data: folder,
+        feedback: Material(
+          color: Colors.transparent,
+          child: Chip(
+            avatar: const Icon(Icons.folder_outlined),
+            label: Text(folder.name),
+          ),
+        ),
+        childWhenDragging: Opacity(opacity: 0.4, child: face),
+        child: face,
+      ),
+    );
+  }
+}
+
+/// The `../` card: note-thumbnail sized, first slot of a folder below the top
+/// level. A tap goes up; a folder dropped on it moves up one level.
+class _ParentCard extends StatelessWidget {
+  const _ParentCard({
+    required this.onOpen,
+    required this.canDrop,
+    required this.onDrop,
+  });
+
+  final VoidCallback onOpen;
+  final bool Function(LibraryFolder dragged) canDrop;
+  final void Function(LibraryFolder dragged) onDrop;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return Semantics(
+      button: true,
+      label: l.folderParentCard,
+      excludeSemantics: true,
+      onTap: onOpen,
+      child: DragTarget<LibraryFolder>(
+        onWillAcceptWithDetails: (d) => canDrop(d.data),
+        onAcceptWithDetails: (d) => onDrop(d.data),
+        builder: (context, hover, _) => _DropFrame(
+          highlight: hover.isNotEmpty,
+          child: InkWell(
+            onTap: onOpen,
+            borderRadius: BorderRadius.circular(
+              KkjLight.componentsCoverCardRounded,
+            ),
+            child: _Thumb(
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.folder_open_outlined,
+                      size: 40,
+                      color: KkjLight.colorInkSecondary,
+                    ),
+                    const SizedBox(height: KkjTokens.spacing2),
+                    Text('../', style: Theme.of(context).textTheme.labelMedium),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
+}
+
+/// A ring around a card: a folder is dragged over it, or the note is picked.
+class _DropFrame extends StatelessWidget {
+  const _DropFrame({required this.highlight, required this.child});
+
+  final bool highlight;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    position: DecorationPosition.foreground,
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(KkjLight.componentsCoverCardRounded),
+      border: highlight
+          ? Border.all(color: Theme.of(context).colorScheme.primary, width: 3)
+          : null,
+    ),
+    child: child,
+  );
 }

@@ -67,6 +67,7 @@ void main() {
     await c.read(libraryProvider.future);
     await c.read(folderTreeProvider.future);
     c.read(librarySortProvider.notifier).set(LibrarySort.nameAsc);
+    c.read(currentFolderProvider.notifier).select(null); // 모든 노트
     return c;
   }
 
@@ -109,5 +110,16 @@ void main() {
     final c = await make();
     c.read(libraryQueryProvider.notifier).set('note');
     expect(c.read(openableNoteIdsProvider), [_id(2), _id(1)]);
+  });
+
+  test('the start folder is the root: only its notes show', () async {
+    final c = await make();
+    c.read(currentFolderProvider.notifier).select('root');
+    expect(ids(c), isNotEmpty);
+    expect(ids(c).length, lessThan(4));
+    for (final e in c.read(visibleEntriesProvider)) {
+      expect(e.folderId, isNull);
+    }
+    expect(ProviderContainer().read(currentFolderProvider), 'root');
   });
 }

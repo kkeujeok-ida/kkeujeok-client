@@ -1649,8 +1649,8 @@ abstract class AppLocalizations {
   /// No description provided for @selectedCount.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{1 element selected} other{{count} elements selected}}'**
-  String selectedCount(int count);
+  /// **'{n} selected'**
+  String selectedCount(int n);
 
   /// No description provided for @colorDarkGray.
   ///
@@ -2431,6 +2431,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Some images are not on this device yet. Connect to the internet to download them, then try again.'**
   String get exportAssetMissing;
+
+  /// No description provided for @folderParentCard.
+  ///
+  /// In en, this message translates to:
+  /// **'Up one folder'**
+  String get folderParentCard;
+
+  /// No description provided for @folderOpenHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Opens the folder'**
+  String get folderOpenHint;
+
+  /// No description provided for @folderDropHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Press and hold, then drag onto a folder to move'**
+  String get folderDropHint;
+
+  /// No description provided for @selectCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel selection'**
+  String get selectCancel;
+
+  /// No description provided for @selectMove.
+  ///
+  /// In en, this message translates to:
+  /// **'Move selected notes'**
+  String get selectMove;
+
+  /// No description provided for @selectDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete selected notes'**
+  String get selectDelete;
+
+  /// No description provided for @notesDeleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'{n, plural, =1{Delete this note? It moves to the trash, where you can restore it.} other{Delete these {n} notes? They move to the trash, where you can restore them.}}'**
+  String notesDeleteBody(int n);
+
+  /// No description provided for @notesMoveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Move {n} notes to'**
+  String notesMoveTitle(int n);
+
+  /// No description provided for @notesMoved.
+  ///
+  /// In en, this message translates to:
+  /// **'Moved {n} notes to \"{name}\"'**
+  String notesMoved(int n, String name);
+
+  /// No description provided for @searchOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get searchOpen;
 }
 
 class _AppLocalizationsDelegate

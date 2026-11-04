@@ -5,10 +5,10 @@ import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
 import '../library/folder_service.dart';
 import '../library/library_rules.dart';
-import 'folder_picker_sheet.dart';
+import 'folder_actions.dart';
 import 'providers.dart';
 
-enum _Action { newSub, rename, move, delete }
+enum _Action { rename, move, delete }
 
 /// "모든 노트" and the folder tree of the sidebar (Story 7.5).
 class FolderSidebarSection extends ConsumerStatefulWidget {
@@ -23,108 +23,20 @@ class FolderSidebarSection extends ConsumerStatefulWidget {
 
 class _SectionState extends ConsumerState<FolderSidebarSection> {
   final _expanded = <String>{};
-  String? _confirming; // the folder whose delete asks in place
-
-  FolderTreeNotifier get _tree => ref.read(folderTreeProvider.notifier);
 
   void _select(String? id) {
     ref.read(currentFolderProvider.notifier).select(id);
     widget.onSelected?.call();
   }
 
-  void _failed() {
-    final l10n = AppLocalizations.of(context);
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(l10n.folderFailed)));
-  }
-
-  Future<String?> _askName(
-    String title,
-    String confirm, {
-    String initial = '',
-  }) => showDialog<String>(
-    context: context,
-    builder: (_) =>
-        NameDialog(title: title, confirm: confirm, initial: initial),
-  );
-
-  Future<void> _create(String parent) async {
-    final l10n = AppLocalizations.of(context);
-    final name = await _askName(
-      parent == 'root' ? l10n.folderAdd : l10n.folderNewSub,
-      l10n.create,
-    );
-    if (name == null || !mounted) return;
-    final r = await _tree.create(name, parent);
-    if (!mounted) return;
-    if (!r.ok) return _failed();
-    if (parent != 'root') setState(() => _expanded.add(parent));
-  }
-
-  Future<void> _rename(LibraryFolder f) async {
-    final l10n = AppLocalizations.of(context);
-    final name = await _askName(
-      l10n.folderRename,
-      l10n.folderSave,
-      initial: f.name,
-    );
-    if (name == null || !mounted) return;
-    final r = await _tree.rename(f.id, name);
-    if (mounted && !r.ok) _failed();
-  }
-
-  Future<void> _move(LibraryFolder f) async {
-    final l10n = AppLocalizations.of(context);
-    final messenger = ScaffoldMessenger.of(context);
-    final view = ref.read(folderTreeProvider).value ?? const FolderView();
-    final target = await showFolderPicker(
-      context,
-      title: l10n.folderMoveTitle(f.name),
-      view: view,
-      disabled: {
-        for (final g in view.folders)
-          if (view.isInside(g.id, f.id)) g.id,
-      },
-      selected: f.parentId,
-    );
-    if (target == null || !mounted) return;
-    final r = await _tree.move(f.id, target);
-    if (!mounted) return;
-    if (!r.ok) return _failed();
-    final inverse = r.inverse;
-    if (inverse == null) return; // already there
-    if (target != 'root') setState(() => _expanded.add(target));
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(l10n.folderMoved(f.name)),
-          action: SnackBarAction(
-            label: l10n.undo,
-            onPressed: () =>
-                ref.read(folderTreeProvider.notifier).undo(inverse),
-          ),
-        ),
-      );
-  }
-
-  Future<void> _delete(String id) async {
-    setState(() => _confirming = null);
-    final r = await _tree.delete(id);
-    if (mounted && !r.ok) _failed();
-  }
-
   void _act(_Action a, LibraryFolder f) {
     switch (a) {
-      case _Action.newSub:
-        _create(f.id);
       case _Action.rename:
-        _rename(f);
+        renameFolderDialog(context, ref, f);
       case _Action.move:
-        _move(f);
+        moveFolderDialog(context, ref, f);
       case _Action.delete:
-        setState(() => _confirming = f.id);
+        deleteFolderDialog(context, ref, f);
     }
   }
 
@@ -134,27 +46,23 @@ class _SectionState extends ConsumerState<FolderSidebarSection> {
       final kids = view.childrenOf(f.id).isNotEmpty;
       final open = kids && _expanded.contains(f.id);
       out.add(
-        _confirming == f.id
-            ? _ConfirmRow(
-                key: ValueKey('confirm-${f.id}'),
-                depth: depth,
-                count: view.noteCount(f.id),
-                onCancel: () => setState(() => _confirming = null),
-                onConfirm: () => _delete(f.id),
-              )
-            : _FolderRow(
-                key: ValueKey('folder-${f.id}'),
-                folder: f,
-                depth: depth,
-                hasChildren: kids,
-                expanded: open,
-                selected: cur == f.id,
-                onTap: () => _select(f.id),
-                onToggle: () => setState(
-                  () => open ? _expanded.remove(f.id) : _expanded.add(f.id),
-                ),
-                onAction: (a) => _act(a, f),
-              ),
+        _FolderRow(
+          key: ValueKey('folder-${f.id}'),
+          folder: f,
+          depth: depth,
+          hasChildren: kids,
+          expanded: open,
+          selected: cur == f.id,
+          // A tap opens the folder and unfolds it.
+          onTap: () {
+            if (kids) setState(() => _expanded.add(f.id));
+            _select(f.id);
+          },
+          onToggle: () => setState(
+            () => open ? _expanded.remove(f.id) : _expanded.add(f.id),
+          ),
+          onAction: (a) => _act(a, f),
+        ),
       );
       if (open) out.addAll(_rows(view, f.id, depth + 1, cur));
     }
@@ -188,23 +96,29 @@ class _SectionState extends ConsumerState<FolderSidebarSection> {
             ],
           ),
         ),
-        ..._rows(view, 'root', 0, cur),
         _RowFrame(
           depth: 0,
-          selected: false,
-          label: l10n.folderAdd,
-          onTap: () => _create('root'),
+          selected: cur == 'root',
+          label: l10n.folderTopLevel,
+          onTap: () => _select('root'),
           child: Row(
             children: [
               const SizedBox(width: KkjTokens.spacingHitMinAndroid),
-              Icon(Icons.add, color: theme.colorScheme.onSurfaceVariant),
+              Icon(
+                Icons.home_outlined,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
               const SizedBox(width: KkjTokens.spacing3),
               Expanded(
-                child: Text(l10n.folderAdd, style: theme.textTheme.bodyMedium),
+                child: Text(
+                  l10n.folderTopLevel,
+                  style: theme.textTheme.bodyMedium,
+                ),
               ),
             ],
           ),
         ),
+        ..._rows(view, 'root', 0, cur),
       ],
     );
   }
@@ -287,11 +201,30 @@ class _FolderRow extends StatefulWidget {
 }
 
 class _FolderRowState extends State<_FolderRow> {
-  final _menu = GlobalKey<PopupMenuButtonState<_Action>>();
+  /// Long press (TalkBack: the "long press" action) opens the menu.
+  Future<void> _menu() async {
+    final l10n = AppLocalizations.of(context);
+    final box = context.findRenderObject() as RenderBox;
+    final o = box.localToGlobal(Offset.zero);
+    final a = await showMenu<_Action>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        o.dx + KkjTokens.spacing5,
+        o.dy + box.size.height / 2,
+        o.dx + box.size.width,
+        o.dy + box.size.height,
+      ),
+      items: [
+        PopupMenuItem(value: _Action.rename, child: Text(l10n.folderRename)),
+        PopupMenuItem(value: _Action.move, child: Text(l10n.folderMove)),
+        PopupMenuItem(value: _Action.delete, child: Text(l10n.folderDelete)),
+      ],
+    );
+    if (a != null) widget.onAction(a);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final f = widget.folder;
     return _RowFrame(
@@ -299,7 +232,7 @@ class _FolderRowState extends State<_FolderRow> {
       selected: widget.selected,
       label: f.name,
       onTap: widget.onTap,
-      onLongPress: () => _menu.currentState?.showButtonMenu(),
+      onLongPress: _menu,
       child: Row(
         children: [
           SizedBox(
@@ -330,85 +263,37 @@ class _FolderRowState extends State<_FolderRow> {
               style: theme.textTheme.bodyMedium,
             ),
           ),
-          PopupMenuButton<_Action>(
-            key: _menu,
-            tooltip: l10n.folderMenu(f.name),
-            constraints: const BoxConstraints(
-              minWidth: KkjTokens.spacingHitMinAndroid,
-              minHeight: KkjTokens.spacingHitMinAndroid,
-            ),
-            onSelected: widget.onAction,
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: _Action.newSub,
-                child: Text(l10n.folderNewSub),
-              ),
-              PopupMenuItem(
-                value: _Action.rename,
-                child: Text(l10n.folderRename),
-              ),
-              PopupMenuItem(value: _Action.move, child: Text(l10n.folderMove)),
-              PopupMenuItem(
-                value: _Action.delete,
-                child: Text(l10n.folderDelete),
-              ),
-            ],
-          ),
         ],
       ),
     );
   }
 }
 
-/// The delete question that replaces the row: how many notes go with it.
-class _ConfirmRow extends StatelessWidget {
-  const _ConfirmRow({
-    super.key,
-    required this.depth,
-    required this.count,
-    required this.onCancel,
-    required this.onConfirm,
-  });
-
-  final int depth;
-  final int count;
-  final VoidCallback onCancel;
-  final VoidCallback onConfirm;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    return Padding(
-      padding: EdgeInsetsDirectional.only(
-        start: KkjTokens.spacing4 + depth * KkjTokens.spacing4,
-        end: KkjTokens.spacing3,
-        top: KkjTokens.spacing2,
-        bottom: KkjTokens.spacing2,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(l10n.folderDeleteBody(count), style: theme.textTheme.bodyMedium),
-          const SizedBox(height: KkjTokens.spacing2),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(
-                autofocus: true,
-                onPressed: onCancel,
-                child: Text(l10n.cancel),
-              ),
-              FilledButton(
-                onPressed: onConfirm,
-                child: Text(l10n.folderDeleteConfirm),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+/// The centered question shared by note and folder deletes: true = confirmed.
+Future<bool> showConfirmDialog(
+  BuildContext context, {
+  required String body,
+  required String confirm,
+}) async {
+  final l10n = AppLocalizations.of(context);
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      content: Text(body),
+      actions: [
+        TextButton(
+          autofocus: true,
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: Text(l10n.cancel),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: Text(confirm),
+        ),
+      ],
+    ),
+  );
+  return ok == true;
 }
 
 /// A name field whose confirm button stays off until `library.folderName`

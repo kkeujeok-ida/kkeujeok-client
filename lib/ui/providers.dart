@@ -352,11 +352,12 @@ final Provider<FolderService> folderServiceProvider = Provider<FolderService>(
   ),
 );
 
-/// The folder the library shows; null = "모든 노트". A folder that is gone
-/// from the tree counts as null (see [effectiveFolderProvider]).
+/// The folder the library shows: `root` (the start), a folder id, or null =
+/// "모든 노트". A folder that is gone from the tree counts as `root` (see
+/// [effectiveFolderProvider]).
 class CurrentFolderNotifier extends Notifier<String?> {
   @override
-  String? build() => null;
+  String? build() => 'root';
 
   void select(String? id) => state = id;
 }
@@ -449,11 +450,13 @@ final folderTreeProvider =
       FolderTreeNotifier.new,
     );
 
-/// [currentFolderProvider] when that folder still exists, else null.
+/// [currentFolderProvider] when that folder still exists, else `root`
+/// (null stays "모든 노트").
 final effectiveFolderProvider = Provider.autoDispose<String?>((ref) {
   final cur = ref.watch(currentFolderProvider);
   final view = ref.watch(folderTreeProvider).value;
-  return cur != null && view != null && view.has(cur) ? cur : null;
+  if (cur == null || cur == 'root') return cur;
+  return view != null && view.has(cur) ? cur : 'root';
 });
 
 /// Receives remote changes (Story 3.13): app start, foreground, 20 s poll.
@@ -1054,6 +1057,7 @@ class LibraryNotifier extends AsyncNotifier<List<LibraryEntry>> {
     // A note made while a folder is open goes into it (its upload puts it
     // there); a folder that is gone means the top level.
     String? folder = ref.read(currentFolderProvider);
+    if (folder == 'root') folder = null;
     if (folder != null) {
       try {
         final service = ref.read(folderServiceProvider);

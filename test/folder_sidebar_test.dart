@@ -64,7 +64,9 @@ void main() {
     expect(c.read(effectiveFolderProvider), isNull);
   });
 
-  testWidgets('delete asks in place and names the note count', (t) async {
+  testWidgets('long press opens the menu; delete asks in a centered dialog', (
+    t,
+  ) async {
     await t.pumpWidget(
       ProviderScope(
         overrides: [folderTreeProvider.overrideWith(_Tree.new)],
@@ -76,19 +78,25 @@ void main() {
             GlobalWidgetsLocalizations.delegate,
           ],
           supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(body: FolderSidebarSection()),
+          home: Scaffold(
+            body: SizedBox(width: 280, child: FolderSidebarSection()),
+          ),
         ),
       ),
     );
     await t.pumpAndSettle();
-    await t.tap(find.byTooltip('Class menu'));
+    expect(find.byTooltip('Class menu'), findsNothing); // no per-row button
+    expect(find.text('New folder'), findsNothing);
+    await t.longPress(find.text('Class'));
     await t.pumpAndSettle();
+    expect(find.text('Rename'), findsOneWidget);
+    expect(find.text('Move'), findsOneWidget);
     await t.tap(find.text('Delete'));
     await t.pumpAndSettle();
-    expect(
-      find.text('This folder and its note go to the app trash.'),
-      findsOneWidget,
-    );
-    expect(find.text('Class'), findsNothing); // the row became the question
+    final body = find.text('This folder and its note go to the app trash.');
+    expect(body, findsOneWidget);
+    expect(find.byType(AlertDialog), findsOneWidget);
+    // Centered on the screen, not inside the 280 px sidebar.
+    expect((t.getCenter(body).dx - 400).abs() < 100, isTrue);
   });
 }

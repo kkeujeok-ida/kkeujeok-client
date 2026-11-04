@@ -557,5 +557,20 @@
   "exportProgress": "Making PDF · {done}/{total} pages",
   "@exportProgress": {"placeholders": {"done": {"type": "int"}, "total": {"type": "int"}}},
   "exportFailed": "Could not make the PDF.",
-  "exportAssetMissing": "Some images are not on this device yet. Connect to the internet to download them, then try again."
+  "exportAssetMissing": "Some images are not on this device yet. Connect to the internet to download them, then try again.",
+  "folderParentCard": "Up one folder",
+  "folderOpenHint": "Opens the folder",
+  "folderDropHint": "Press and hold, then drag onto a folder to move",
+  "selectedCount": "{n} selected",
+  "@selectedCount": {"placeholders": {"n": {"type": "int"}}},
+  "selectCancel": "Cancel selection",
+  "selectMove": "Move selected notes",
+  "selectDelete": "Delete selected notes",
+  "notesDeleteBody": "{n, plural, =1{Delete this note? It moves to the trash, where you can restore it.} other{Delete these {n} notes? They move to the trash, where you can restore them.}}",
+  "@notesDeleteBody": {"placeholders": {"n": {"type": "int"}}},
+  "notesMoveTitle": "Move {n} notes to",
+  "@notesMoveTitle": {"placeholders": {"n": {"type": "int"}}},
+  "notesMoved": "Moved {n} notes to \"{name}\"",
+  "@notesMoved": {"placeholders": {"n": {"type": "int"}, "name": {"type": "String"}}},
+  "searchOpen": "Search"
 }

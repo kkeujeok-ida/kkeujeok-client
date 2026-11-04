@@ -166,4 +166,17 @@ void main() {
     );
     expect(r, 'refused');
   });
+
+  test('cover SVGs hold no NaN (flutter_svg rejects it; Linen did)', () {
+    final dir = Directory('lib/design_tokens/covers');
+    final svgs = dir.listSync().where((f) => f.path.endsWith('.svg'));
+    expect(svgs, isNotEmpty);
+    for (final f in svgs) {
+      expect(
+        File(f.path).readAsStringSync(),
+        isNot(contains('NaN')),
+        reason: f.path,
+      );
+    }
+  });
 }

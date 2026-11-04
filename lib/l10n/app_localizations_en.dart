@@ -901,14 +901,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get off => 'off';
 
   @override
-  String selectedCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count elements selected',
-      one: '1 element selected',
-    );
-    return '$_temp0';
+  String selectedCount(int n) {
+    return '$n selected';
   }
 
   @override
@@ -1385,4 +1379,48 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get exportAssetMissing =>
       'Some images are not on this device yet. Connect to the internet to download them, then try again.';
+
+  @override
+  String get folderParentCard => 'Up one folder';
+
+  @override
+  String get folderOpenHint => 'Opens the folder';
+
+  @override
+  String get folderDropHint =>
+      'Press and hold, then drag onto a folder to move';
+
+  @override
+  String get selectCancel => 'Cancel selection';
+
+  @override
+  String get selectMove => 'Move selected notes';
+
+  @override
+  String get selectDelete => 'Delete selected notes';
+
+  @override
+  String notesDeleteBody(int n) {
+    String _temp0 = intl.Intl.pluralLogic(
+      n,
+      locale: localeName,
+      other:
+          'Delete these $n notes? They move to the trash, where you can restore them.',
+      one: 'Delete this note? It moves to the trash, where you can restore it.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String notesMoveTitle(int n) {
+    return 'Move $n notes to';
+  }
+
+  @override
+  String notesMoved(int n, String name) {
+    return 'Moved $n notes to \"$name\"';
+  }
+
+  @override
+  String get searchOpen => 'Search';
 }

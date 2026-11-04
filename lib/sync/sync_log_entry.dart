@@ -121,7 +121,11 @@ bool _valid(String field, Object? v, Object? event) => switch (field) {
   'cause' => v is String && logCauses.contains(v),
   'exception' => v is String && _exception.hasMatch(v),
   'scope' => v == 'global' || v == 'note',
-  'op' => v == 'create' || v == 'move' || v == 'rename' || v == 'delete',
+  'op' => v == 'create' ||
+      v == 'move' ||
+      v == 'rename' ||
+      v == 'delete' ||
+      v == 'remote',
   'done' => v == true,
   'choice' => v == 'local' || v == 'remote' || v == 'both',
   'reason' => validLogReason(v),

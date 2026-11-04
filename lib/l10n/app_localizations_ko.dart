@@ -843,8 +843,8 @@ class AppLocalizationsKo extends AppLocalizations {
   String get off => '꺼짐';
 
   @override
-  String selectedCount(int count) {
-    return '요소 $count개 선택됨';
+  String selectedCount(int n) {
+    return '$n개 선택됨';
   }
 
   @override
@@ -1311,4 +1311,40 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String get exportAssetMissing =>
       '아직 이 기기에 없는 이미지가 있어요. 인터넷에 연결해 이미지를 받은 뒤 다시 시도해 주세요.';
+
+  @override
+  String get folderParentCard => '상위 폴더로';
+
+  @override
+  String get folderOpenHint => '폴더를 열어요';
+
+  @override
+  String get folderDropHint => '길게 눌러 다른 폴더 위로 끌면 옮겨요';
+
+  @override
+  String get selectCancel => '선택 취소';
+
+  @override
+  String get selectMove => '선택한 노트 이동';
+
+  @override
+  String get selectDelete => '선택한 노트 삭제';
+
+  @override
+  String notesDeleteBody(int n) {
+    return '노트 $n개를 지울까요? 휴지통으로 옮겨져요. 휴지통에서 복구할 수 있어요.';
+  }
+
+  @override
+  String notesMoveTitle(int n) {
+    return '노트 $n개 옮길 곳';
+  }
+
+  @override
+  String notesMoved(int n, String name) {
+    return '노트 $n개를 \"$name\" 폴더로 옮겼어요';
+  }
+
+  @override
+  String get searchOpen => '검색';
 }

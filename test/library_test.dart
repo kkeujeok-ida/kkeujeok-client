@@ -625,7 +625,7 @@ void main() {
       final title = t.getRect(find.text('Notes'));
       final sort = t.getRect(find.byKey(const Key('sortMenu')));
       expect(sort.left, greaterThanOrEqualTo(title.right));
-      expect(320 - sort.right, lessThanOrEqualTo(24));
+      expect(320 - sort.right, lessThanOrEqualTo(24 + 48)); // the search icon sits at the far right
       // the date sits right under the title, not below a 48dp row
       final cardTitle = t.getRect(find.text('Lecture'));
       final cardDate = t.getRect(find.textContaining('2026').first);
