@@ -13,6 +13,7 @@ import '../model/ids.dart';
 import '../storage/note_store.dart';
 import '../storage/sync_device_store.dart';
 import '../storage/sync_info.dart';
+import '../sync/sync_log.dart';
 import 'library_rules.dart';
 
 const _folderMime = 'application/vnd.google-apps.folder';
@@ -152,6 +153,7 @@ class FolderService {
     required this.online,
     required this.upload,
     this.isOpen,
+    this.log,
     DateTime Function()? clock,
     String Function()? newFolderId,
   }) : _clock = clock ?? DateTime.now,
@@ -170,6 +172,9 @@ class FolderService {
 
   /// True while the editor shows the note (a remote delete waits for it).
   final Future<bool> Function(String noteId)? isOpen;
+
+  /// Folder changes are logged (`folderOp`); null in tests that do not look.
+  final SyncLog? log;
   final DateTime Function() _clock;
   final String Function() _newId;
 
@@ -296,6 +301,16 @@ class FolderService {
     return n;
   }
 
+  Future<void> _log(String op, String id, {bool done = false}) async {
+    try {
+      await log?.append('folderOp', {
+        'folderId': id,
+        'op': op,
+        if (done) 'done': true,
+      });
+    } catch (_) {}
+  }
+
   // ---- changes -------------------------------------------------------------
 
   static void _enqueue(List<_Map> ops, _Map op) {
@@ -372,6 +387,7 @@ class FolderService {
         },
       ),
     );
+    if (r.ok) await _log('create', id);
     _flushSoon();
     return r;
   }
@@ -387,6 +403,7 @@ class FolderService {
         onOk: _syncFolders,
       ),
     );
+    if (r.ok && r.inverse != null) await _log('rename', id);
     _flushSoon();
     return r;
   }
@@ -402,6 +419,7 @@ class FolderService {
         onOk: _syncFolders,
       ),
     );
+    if (r.ok && r.inverse != null) await _log('move', id);
     _flushSoon();
     return r;
   }
@@ -446,7 +464,10 @@ class FolderService {
         out = FolderResult(id: id);
       });
     });
-    if (out.ok) _flushSoon();
+    if (out.ok) {
+      await _log('delete', id);
+      _flushSoon();
+    }
     return out;
   }
 
@@ -490,6 +511,13 @@ class FolderService {
       for (final op in (await _load()).ops) {
         if (!await _send(op, root)) return false;
         await _mutate((s) => s.ops.removeWhere((e) => _same(e, op)));
+        final k = switch (op['kind']) {
+          'renameFolder' => 'rename',
+          'moveFolder' => 'move',
+          'trashFolder' => 'delete',
+          _ => null,
+        };
+        if (k != null) await _log(k, op['id'] as String, done: true);
       }
       return true;
     } on DriveError {
@@ -852,6 +880,18 @@ class FolderService {
         return p == null ? 'root' : kid[p] ?? p;
       }
 
+      // `.conflicts/<noteId>` (kkeujeokId `cf:<noteId>`, named by the note id)
+      // and anything inside `.assets`/`.conflicts` are system folders, never
+      // library folders: they showed as undeletable hash-named folders.
+      bool system(DriveFile f) {
+        final k = f.appProperties['kkeujeokId'];
+        if (k != null && (k.startsWith('cf:') || _systemIds.contains(k))) {
+          return true;
+        }
+        final p = kid[f.parents.firstOrNull];
+        return p == 'assets' || p == 'conflicts';
+      }
+
       final byKid = <String, DriveFile>{};
       final sorted = [...folderFiles]
         ..sort((a, b) {
@@ -860,7 +900,7 @@ class FolderService {
         });
       for (final f in sorted) {
         final k = f.appProperties['kkeujeokId'];
-        if (k != null && !_systemIds.contains(k)) byKid.putIfAbsent(k, () => f);
+        if (k != null && !system(f)) byKid.putIfAbsent(k, () => f);
       }
       final noteParentDrive = <String, String>{
         for (final n in noteFiles)

@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/drive/drive_client.dart';
 import 'package:kkeujeok/library/folder_service.dart';
+import 'package:kkeujeok/sync/sync_log.dart';
 
 import 'fake_drive.dart';
 import 'upload_env.dart';
@@ -10,7 +13,7 @@ const _b = '01926f3a-0000-7000-8000-000000001794';
 const _c = '01926f3a-0000-7000-8000-000000001795';
 
 class _Env {
-  _Env(this.env) {
+  _Env(this.env, [this.log]) {
     final ids = [_a, _b, _c];
     service = FolderService(
       drive: env.drive,
@@ -18,6 +21,7 @@ class _Env {
       store: env.store,
       allowed: () async => env.allowed,
       online: () async => env.online,
+      log: log,
       newFolderId: () => ids.removeAt(0),
       clock: () => DateTime.utc(2026, 11, 1, 9),
       upload: (id) async {
@@ -30,6 +34,7 @@ class _Env {
   }
 
   final UploadEnv env;
+  final SyncLog? log;
   late final FolderService service;
   bool uploadOk = true;
   final uploaded = <String>[];
@@ -233,4 +238,55 @@ void main() {
     expect(v.folder(_b)!.parentId, _a);
     expect(t.folder(_a).parents, [t.env.root.id]);
   });
+
+  test(
+    'sidecar folders (.conflicts/<noteId>) are not library folders',
+    () async {
+      final t = await _setup();
+      await t.service.createFolder('a', 'root');
+      await t.service.flush();
+      final cf = await t.env.drive.create({
+        'name': '.conflicts',
+        'mimeType': 'application/vnd.google-apps.folder',
+        'parents': [t.env.root.id],
+        'appProperties': {'kkeujeokId': 'conflicts'},
+      });
+      await t.env.drive.create({
+        'name': '01926f3a-0000-7000-8000-000000000900',
+        'mimeType': 'application/vnd.google-apps.folder',
+        'parents': [cf.id],
+        'appProperties': {
+          'kkeujeokId': 'cf:01926f3a-0000-7000-8000-000000000900',
+        },
+      });
+      expect(await t.service.refresh(), isTrue);
+      expect([for (final f in (await t.service.view()).folders) f.id], [_a]);
+    },
+  );
+
+  test(
+    'a folder moved elsewhere comes back on refresh; changes are logged',
+    () async {
+      final dir = await Directory.systemTemp.createTemp('folderlog');
+      addTearDown(() => dir.delete(recursive: true));
+      final log = SyncLog(() async => dir, () => DateTime.utc(2026, 11, 5));
+      final t = _Env(await UploadEnv.create(), log);
+      await t.service.createFolder('a', 'root');
+      await t.service.createFolder('b', 'root');
+      await t.service.flush();
+      await t.service.moveFolder(_a, _b);
+      await t.service.renameFolder(_a, 'x');
+      await t.service.flush();
+      expect(t.folder(_a).parents, [t.folder(_b).id]);
+      // Another device moves it back to the top level.
+      t.env.drive.moveForeign(t.folder(_a), t.env.root.id);
+      await t.service.refresh();
+      expect((await t.service.view()).folder(_a)!.parentId, 'root');
+      final lines = await File('${dir.path}/$syncLogFileName').readAsString();
+      for (final op in ['create', 'move', 'rename']) {
+        expect(lines, contains('"op":"$op"'));
+      }
+      expect(lines, contains('"done":true'));
+    },
+  );
 }

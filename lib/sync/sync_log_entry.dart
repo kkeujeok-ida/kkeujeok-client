@@ -76,6 +76,7 @@ const _events = <String, List<(String, bool)>>{
   'conflictResolved': [('noteId', true), ('choice', true)],
   'pageTokenRejected': [],
   'duplicatesCleaned': [('count', true)],
+  'folderOp': [('folderId', true), ('op', true), ('done', false)],
   'repeatedFailure': [('noteId', true), ('count', true), ('reason', false)],
 };
 
@@ -111,7 +112,7 @@ bool _int(Object? v, int min, int max) =>
 bool _valid(String field, Object? v, Object? event) => switch (field) {
   'at' => v is String && _at.hasMatch(v),
   'event' => v is String && _events.containsKey(v),
-  'noteId' || 'rev' => v is String && _uuid.hasMatch(v),
+  'noteId' || 'rev' || 'folderId' => v is String && _uuid.hasMatch(v),
   'revisionId' => v is String && revisionIdPattern.hasMatch(v),
   'from' || 'to' => v is String && _states.contains(v),
   'kind' => v == 'simple' || v == 'resumable',
@@ -120,6 +121,8 @@ bool _valid(String field, Object? v, Object? event) => switch (field) {
   'cause' => v is String && logCauses.contains(v),
   'exception' => v is String && _exception.hasMatch(v),
   'scope' => v == 'global' || v == 'note',
+  'op' => v == 'create' || v == 'move' || v == 'rename' || v == 'delete',
+  'done' => v == true,
   'choice' => v == 'local' || v == 'remote' || v == 'both',
   'reason' => validLogReason(v),
   'stage' => v is String && logStages.contains(v),

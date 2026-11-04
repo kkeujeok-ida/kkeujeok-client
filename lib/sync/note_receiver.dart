@@ -446,8 +446,13 @@ class NoteReceiver {
     final work = <DriveFile>[];
     final named = <DriveFile>[]; // live notes here whose name may have moved
     final cards = <RemoteCard>[];
+    var folderChanged = false;
     for (final c in last.values) {
       final f = c.file;
+      // A folder moved, renamed or made elsewhere: the library tree re-reads.
+      if (f?.mimeType == 'application/vnd.google-apps.folder') {
+        folderChanged = true;
+      }
       if (c.removed || f == null || f.trashed) {
         gone.add(c.fileId);
         if (owners == null) {
@@ -458,6 +463,7 @@ class NoteReceiver {
           }
         }
         final owner = owners[c.fileId];
+        if (owner == null && f?.mimeType != noteMimeType) folderChanged = true;
         if (owner != null) {
           goneNotes.add((
             id: owner,
@@ -483,6 +489,7 @@ class NoteReceiver {
       work.add(f);
     }
     await _guard(sub);
+    if (folderChanged) _bump();
     if (gone.isNotEmpty) {
       _emit(
         (s) => s.copyWith(

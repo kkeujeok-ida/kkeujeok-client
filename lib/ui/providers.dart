@@ -341,6 +341,7 @@ final Provider<FolderService> folderServiceProvider = Provider<FolderService>(
     allowed: () async => ref.read(uploadsAllowedProvider),
     online: ref.read(networkProbeProvider),
     isOpen: (id) async => await ref.read(openNoteProvider).read() == id,
+    log: ref.read(syncLogProvider),
     upload: (id) async {
       await ref.read(noteUploaderProvider).upload(id);
       final s = await ref.read(noteStoreProvider).readSync(id);
