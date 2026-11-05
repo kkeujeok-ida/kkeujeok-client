@@ -687,6 +687,13 @@ void _runOp(Case c) {
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6. The erase rules have runners (Story 5.6): none pending.
 const pendingRules = <String>{
+  // All Dark rules (Story 10.1) arrive with 10.2.
+  'invert.color',
+  'invert.ink',
+  'invert.paper',
+  'invert.highlighter',
+  'invert.background',
+  'invert.layers',
   // Trash rules (Story 14.1): trashNote and trashFolder have runners (7.5); the rest arrive with 14.2, 7.7.
   'trash.restoreNote',
   'trash.restoreFolder',
