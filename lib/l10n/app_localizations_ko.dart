@@ -82,6 +82,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get themeAllDark => '올 다크';
 
   @override
+  String get leftHanded => '왼손잡이';
+
+  @override
   String get privacyPolicy => '개인정보처리방침';
 
   @override

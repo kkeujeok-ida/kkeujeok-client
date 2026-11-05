@@ -242,6 +242,12 @@ abstract class AppLocalizations {
   /// **'All Dark'**
   String get themeAllDark;
 
+  /// No description provided for @leftHanded.
+  ///
+  /// In en, this message translates to:
+  /// **'Left-handed'**
+  String get leftHanded;
+
   /// No description provided for @privacyPolicy.
   ///
   /// In en, this message translates to:

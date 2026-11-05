@@ -24,6 +24,7 @@
   "themeLight": "라이트",
   "themeDark": "다크",
   "themeAllDark": "올 다크",
+  "leftHanded": "왼손잡이",
   "privacyPolicy": "개인정보처리방침",
   "privacyUnavailable": "개인정보처리방침 주소가 설정되지 않았어요.",
   "privacyOpenFailed": "개인정보처리방침을 열지 못했어요. 다시 시도해 주세요.",

@@ -300,6 +300,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ref.read(themeProvider.notifier).select(v);
           }),
           Divider(color: theme.colorScheme.outlineVariant),
+          SwitchListTile(
+            title: Text(l10n.leftHanded),
+            value: ref.watch(leftHandedProvider),
+            onChanged: ref.read(leftHandedProvider.notifier).set,
+          ),
+          Divider(color: theme.colorScheme.outlineVariant),
           Builder(
             builder: (_) {
               final n = ref.watch(visibleToolsProvider);

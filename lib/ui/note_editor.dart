@@ -3,7 +3,9 @@ import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/gestures.dart';
+
 import 'kk.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart'
@@ -1229,7 +1231,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     final max = math.max(min, _size.height - pad.bottom - size.height);
     final above = r.top - selectionRotateGap - m - size.height;
     final below = r.bottom + m;
-    final top = selectionMenuPrefersAbove
+    final top =
+        selectionMenuPrefersAbove(leftHanded: ref.read(leftHandedProvider))
         ? (above >= min ? above : below)
         : (below <= max ? below : above);
     final left = ((r.center.dx - size.width / 2).clamp(
@@ -1544,8 +1547,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                           child: CircularProgressIndicator(
                             value: t,
                             strokeWidth: 6,
-                            backgroundColor:
-                                Kk.componentsPageThumbnailBorder,
+                            backgroundColor: Kk.componentsPageThumbnailBorder,
                           ),
                         ),
                         const SizedBox(height: KkjTokens.spacing2),
@@ -4018,8 +4020,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                             excludeSemantics: true,
                             child: DecoratedBox(
                               decoration: BoxDecoration(
-                                color:
-                                    Kk.componentsBadgeNeutralBackground,
+                                color: Kk.componentsBadgeNeutralBackground,
                                 borderRadius: BorderRadius.circular(
                                   KkjLight.componentsBadgeRounded,
                                 ),

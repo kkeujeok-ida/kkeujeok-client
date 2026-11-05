@@ -47,6 +47,7 @@ import '../sync/note_uploader.dart';
 import '../sync/open_note.dart';
 import '../sync/sync_log.dart';
 import '../sync/unsent.dart';
+import '../storage/left_handed_store.dart';
 import '../storage/theme_store.dart';
 import '../sync/thumbnail.dart';
 import '../sync/upload_coordinator.dart';
@@ -87,6 +88,26 @@ class ThemeNotifier extends Notifier<ThemeChoice> {
 
 final themeProvider = NotifierProvider<ThemeNotifier, ThemeChoice>(
   ThemeNotifier.new,
+);
+
+/// Overridden in main() with the opened preferences.
+final leftHandedStoreProvider = Provider<LeftHandedStore>(
+  (ref) => LeftHandedStore(null),
+);
+
+/// Left-handed: popovers and menus open on the opposite side of their anchor.
+class LeftHandedNotifier extends Notifier<bool> {
+  @override
+  bool build() => ref.read(leftHandedStoreProvider).read();
+
+  Future<void> set(bool v) async {
+    state = v;
+    await ref.read(leftHandedStoreProvider).write(v);
+  }
+}
+
+final leftHandedProvider = NotifierProvider<LeftHandedNotifier, bool>(
+  LeftHandedNotifier.new,
 );
 
 /// Web `/privacy` address from `--dart-define-from-file` (PRIVACY_URL).

@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
 import 'kk.dart';
+
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -67,6 +69,10 @@ class EraserDialog extends ConsumerWidget {
     }
 
     return Dialog(
+      // Left-handed: opens on the opposite side.
+      alignment: ref.watch(leftHandedProvider)
+          ? AlignmentDirectional.centerStart
+          : null,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       backgroundColor: Kk.componentsPopoverBackground,
       shape: RoundedRectangleBorder(

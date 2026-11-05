@@ -4,6 +4,7 @@ import 'snack.dart';
 import 'kk.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/semantics.dart';
 
 import '../design_tokens/build/tokens.dart';
@@ -12,6 +13,8 @@ import '../model/page_bounds.dart';
 import '../model/pdf_rules.dart' show isPdfBackground;
 import '../render/page_painter.dart';
 import '../render/pdf_pages.dart';
+import 'handed_menu.dart';
+import 'providers.dart';
 
 /// What the overview needs from the editor that owns the note: its pages, and
 /// page operations that go through the note's history and save queue.
@@ -698,25 +701,41 @@ class _CellState extends State<_Cell> {
                     Positioned(
                       top: 0,
                       right: 0,
-                      child: PopupMenuButton<VoidCallback>(
-                        tooltip: l.pageMenu,
-                        iconSize: 18,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: KkjLight.componentsPageThumbnailMenuButton,
-                          minHeight: KkjLight.componentsPageThumbnailMenuButton,
-                        ),
-                        icon: const Icon(Icons.more_horiz),
-                        onSelected: (f) => f(),
-                        itemBuilder: (_) => [
-                          _item(widget.onDuplicate, l.pageDuplicate),
-                          _item(widget.onDelete, l.pageDelete),
-                          _item(widget.onBackground, l.pageChangeBackground),
-                          _item(
-                            widget.onOrientation,
-                            w > h ? l.pageToPortrait : l.pageToLandscape,
-                          ),
-                        ],
+                      child: Consumer(
+                        builder: (context, ref, _) {
+                          final hand = handedMenu(
+                            ref.watch(leftHandedProvider),
+                            KkjLight.componentsPageThumbnailMenuButton,
+                          );
+                          return PopupMenuButton<VoidCallback>(
+                            tooltip: l.pageMenu,
+                            iconSize: 18,
+                            padding: EdgeInsets.zero,
+                            offset: hand.offset,
+                            constraints:
+                                hand.constraints ??
+                                const BoxConstraints(
+                                  minWidth: KkjLight
+                                      .componentsPageThumbnailMenuButton,
+                                  minHeight: KkjLight
+                                      .componentsPageThumbnailMenuButton,
+                                ),
+                            icon: const Icon(Icons.more_horiz),
+                            onSelected: (f) => f(),
+                            itemBuilder: (_) => [
+                              _item(widget.onDuplicate, l.pageDuplicate),
+                              _item(widget.onDelete, l.pageDelete),
+                              _item(
+                                widget.onBackground,
+                                l.pageChangeBackground,
+                              ),
+                              _item(
+                                widget.onOrientation,
+                                w > h ? l.pageToPortrait : l.pageToLandscape,
+                              ),
+                            ],
+                          );
+                        },
                       ),
                     ),
                   if (widget.conflict || out > 0)
@@ -771,11 +790,7 @@ class _CellState extends State<_Cell> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.warning_amber,
-            size: 12,
-            color: Kk.colorStatusWarningText,
-          ),
+          Icon(Icons.warning_amber, size: 12, color: Kk.colorStatusWarningText),
           const SizedBox(width: 2),
           Flexible(child: Text(t, style: style)),
         ],

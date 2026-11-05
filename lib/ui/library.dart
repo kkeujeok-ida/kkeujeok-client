@@ -3,7 +3,9 @@ import 'dart:io' show File;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
 import 'kk.dart';
+
 import 'package:flutter/semantics.dart'
     show Assertiveness, CustomSemanticsAction, SemanticsService;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,6 +37,7 @@ import 'new_note_sheet.dart';
 import 'note_editor.dart';
 import 'note_order.dart' show NoteArrival;
 import 'pdf_import.dart';
+import 'handed_menu.dart';
 import 'providers.dart';
 import 'sync_banner.dart';
 import 'sync_display.dart';
@@ -925,12 +928,8 @@ class _Grid extends StatelessWidget {
 BoxDecoration _coverBox({Color? border}) => BoxDecoration(
   color: Kk.componentsCoverCardFallbackBackground,
   borderRadius: BorderRadius.circular(KkjLight.componentsCoverCardRounded),
-  border: Border.all(
-    color: border ?? Kk.componentsCoverCardFallbackBorder,
-  ),
-  boxShadow: border == null
-      ? kkjShadow(Kk.componentsCoverCardShadow)
-      : null,
+  border: Border.all(color: border ?? Kk.componentsCoverCardFallbackBorder),
+  boxShadow: border == null ? kkjShadow(Kk.componentsCoverCardShadow) : null,
 );
 
 /// The 3:4 thumbnail place: the first page, drawn by the same painter as the
@@ -997,9 +996,7 @@ class _Thumb extends StatelessWidget {
     return AspectRatio(
       aspectRatio: 3 / 4,
       child: DecoratedBox(
-        decoration: _coverBox(
-          border: disabled ? Kk.colorInkDisabled : null,
-        ),
+        decoration: _coverBox(border: disabled ? Kk.colorInkDisabled : null),
         child: child,
       ),
     );
@@ -1046,10 +1043,7 @@ class _SyncBadge extends StatelessWidget {
         Kk.componentsBadgeErrorBackground,
         Kk.componentsBadgeErrorText,
       ),
-      _ => (
-        Kk.componentsBadgeNeutralBackground,
-        Kk.componentsBadgeNeutralText,
-      ),
+      _ => (Kk.componentsBadgeNeutralBackground, Kk.componentsBadgeNeutralText),
     };
     final style = TextStyle(
       fontFamily: KkjLight.componentsBadgeTextFontFamily,
@@ -1293,6 +1287,11 @@ class _NoteCardState extends ConsumerState<_NoteCard> {
           end: 0,
           child: PopupMenuButton<_NoteAction>(
             key: _menu,
+            offset: handedMenu(ref.watch(leftHandedProvider), 48).offset,
+            constraints: handedMenu(
+              ref.watch(leftHandedProvider),
+              48,
+            ).constraints,
             tooltip: l.moreMenu,
             icon: const Icon(Icons.more_horiz),
             onSelected: widget.onAction,
@@ -1901,6 +1900,14 @@ class _FolderCard extends ConsumerWidget {
                   top: 0,
                   end: 0,
                   child: PopupMenuButton<_FolderAction>(
+                    offset: handedMenu(
+                      ref.watch(leftHandedProvider),
+                      48,
+                    ).offset,
+                    constraints: handedMenu(
+                      ref.watch(leftHandedProvider),
+                      48,
+                    ).constraints,
                     tooltip: l.folderMenu(folder.name),
                     icon: const Icon(Icons.more_horiz),
                     onSelected: (a) => switch (a) {

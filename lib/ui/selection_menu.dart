@@ -24,9 +24,9 @@ Size selectionMenuSize({required bool edit, required bool strokes}) {
 /// Colors the menu offers: the pen palette the client has (spec default pen).
 final selectionPalette = [defaultPen.color];
 
-/// Side of the selection box the menu prefers; one value so the left-handed
-/// setting (Epic 10) can flip it.
-const selectionMenuPrefersAbove = true;
+/// Side of the selection box the menu prefers: above, or below when
+/// left-handed (the opposite side).
+bool selectionMenuPrefersAbove({required bool leftHanded}) => !leftHanded;
 
 /// Floating menu over the selection: aspect lock and the step buttons.
 class SelectionMenu extends StatelessWidget {

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'storage/language_store.dart';
+import 'storage/left_handed_store.dart';
 import 'storage/theme_store.dart';
 import 'storage/new_note_defaults_store.dart';
 import 'model/text_metrics.dart';
@@ -38,6 +39,7 @@ Future<void> main() async {
     overrides: [
       languageStoreProvider.overrideWithValue(LanguageStore(prefs)),
       themeStoreProvider.overrideWithValue(ThemeStore(prefs)),
+      leftHandedStoreProvider.overrideWithValue(LeftHandedStore(prefs)),
       newNoteDefaultsStoreProvider.overrideWithValue(
         NewNoteDefaultsStore(prefs),
       ),

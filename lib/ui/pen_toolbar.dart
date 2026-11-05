@@ -951,6 +951,7 @@ class PenEditDialog extends ConsumerWidget {
       },
       child: _PenBubble(
         anchor: anchor,
+        leftHanded: ref.watch(leftHandedProvider),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 320),
           child: SingleChildScrollView(
@@ -1132,16 +1133,29 @@ const _tailLen = 8.0, _tailBase = 16.0;
 /// when the bar is in the lower half; vertical bar: beside it, on the side
 /// away from the window's nearer edge. The bubble is pulled inside the window,
 /// the tail keeps pointing at the tool.
-AxisDirection penBubbleSide(PenBubbleAnchor a, Size win) => a.vertical
-    ? (a.bar.center.dx < win.width / 2
-          ? AxisDirection.right
-          : AxisDirection.left)
-    : (a.bar.center.dy <= win.height / 2
-          ? AxisDirection.down
-          : AxisDirection.up);
+AxisDirection penBubbleSide(
+  PenBubbleAnchor a,
+  Size win, {
+  bool leftHanded = false,
+}) {
+  final s = a.vertical
+      ? (a.bar.center.dx < win.width / 2
+            ? AxisDirection.right
+            : AxisDirection.left)
+      : (a.bar.center.dy <= win.height / 2
+            ? AxisDirection.down
+            : AxisDirection.up);
+  // Left-handed: the opposite side of the bar (the fit below keeps it inside).
+  return leftHanded ? flipAxisDirection(s) : s;
+}
 
-PenBubblePlacement placePenBubble(PenBubbleAnchor a, Size bubble, Size win) {
-  final side = penBubbleSide(a, win);
+PenBubblePlacement placePenBubble(
+  PenBubbleAnchor a,
+  Size bubble,
+  Size win, {
+  bool leftHanded = false,
+}) {
+  final side = penBubbleSide(a, win, leftHanded: leftHanded);
   const m = penBubbleMargin, edge = _tailBase / 2 + 8;
   double fit(double v, double size, double max) =>
       v.clamp(m, math.max(m, max - m - size)).toDouble();
@@ -1193,8 +1207,13 @@ PenBubblePlacement placePenBubble(PenBubbleAnchor a, Size bubble, Size win) {
 /// The anchor is read after a frame (the toolbar is laid out by then), again
 /// whenever the window size changes; until then nothing shows.
 class _PenBubble extends StatefulWidget {
-  const _PenBubble({required this.anchor, required this.child});
+  const _PenBubble({
+    required this.anchor,
+    required this.child,
+    required this.leftHanded,
+  });
   final PenBubbleAnchor Function()? anchor;
+  final bool leftHanded;
   final Widget child;
 
   @override
@@ -1222,7 +1241,7 @@ class _PenBubbleState extends State<_PenBubble> {
   @override
   Widget build(BuildContext context) {
     if (widget.anchor != null && _a == null) return const SizedBox.shrink();
-    final layout = _BubbleLayout(_a);
+    final layout = _BubbleLayout(_a, widget.leftHanded);
     return CustomMultiChildLayout(
       delegate: layout,
       children: [
@@ -1253,8 +1272,9 @@ class _PenBubbleState extends State<_PenBubble> {
 }
 
 class _BubbleLayout extends MultiChildLayoutDelegate {
-  _BubbleLayout(this.anchor);
+  _BubbleLayout(this.anchor, this.leftHanded);
   final PenBubbleAnchor? anchor;
+  final bool leftHanded;
   AxisDirection side =
       AxisDirection.down; // set by performLayout, read by the tail painter
 
@@ -1275,7 +1295,7 @@ class _BubbleLayout extends MultiChildLayoutDelegate {
       );
       return;
     }
-    final p = placePenBubble(a, box, size);
+    final p = placePenBubble(a, box, size, leftHanded: leftHanded);
     side = p.side;
     positionChild(#bubble, p.topLeft);
     if (!hasChild(#tail)) return;

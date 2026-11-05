@@ -82,6 +82,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get themeAllDark => 'All Dark';
 
   @override
+  String get leftHanded => 'Left-handed';
+
+  @override
   String get privacyPolicy => 'Privacy policy';
 
   @override

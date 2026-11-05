@@ -24,6 +24,7 @@
   "themeLight": "Light",
   "themeDark": "Dark",
   "themeAllDark": "All Dark",
+  "leftHanded": "Left-handed",
   "privacyPolicy": "Privacy policy",
   "privacyUnavailable": "The privacy policy address is not set.",
   "privacyOpenFailed": "Couldn't open the privacy policy. Please try again.",
