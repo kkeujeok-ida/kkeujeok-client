@@ -2605,6 +2605,102 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'PDF page'**
   String get pdfPageSemantics;
+
+  /// No description provided for @helpTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Help and gestures'**
+  String get helpTitle;
+
+  /// No description provided for @helpGesturesHeader.
+  ///
+  /// In en, this message translates to:
+  /// **'Gestures'**
+  String get helpGesturesHeader;
+
+  /// No description provided for @helpOneFinger.
+  ///
+  /// In en, this message translates to:
+  /// **'One finger'**
+  String get helpOneFinger;
+
+  /// No description provided for @helpOneFingerBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Writes, unless writing with pen only applies. Then it only scrolls a note with several pages.'**
+  String get helpOneFingerBody;
+
+  /// No description provided for @helpTwoFingers.
+  ///
+  /// In en, this message translates to:
+  /// **'Two fingers'**
+  String get helpTwoFingers;
+
+  /// No description provided for @helpTwoFingersBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Pinch to zoom and drag to move the view.'**
+  String get helpTwoFingersBody;
+
+  /// No description provided for @helpThreeFingers.
+  ///
+  /// In en, this message translates to:
+  /// **'Three fingers'**
+  String get helpThreeFingers;
+
+  /// No description provided for @helpThreeFingersBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Swipe sideways to go to the previous or next note.'**
+  String get helpThreeFingersBody;
+
+  /// No description provided for @helpPenButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Pen button or pen end'**
+  String get helpPenButton;
+
+  /// No description provided for @helpPenButtonBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold the button while writing, or turn the pen around, to erase.'**
+  String get helpPenButtonBody;
+
+  /// No description provided for @helpPenOnlyHeader.
+  ///
+  /// In en, this message translates to:
+  /// **'Write with pen only'**
+  String get helpPenOnlyHeader;
+
+  /// No description provided for @helpPenOnlyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto: once the pen has been seen on this device, fingers no longer write. On: fingers never write. Off: fingers always write. Fingers still zoom and move the view. Change it in Settings.'**
+  String get helpPenOnlyBody;
+
+  /// No description provided for @helpKeysHeader.
+  ///
+  /// In en, this message translates to:
+  /// **'External keyboard'**
+  String get helpKeysHeader;
+
+  /// No description provided for @helpKeyTools.
+  ///
+  /// In en, this message translates to:
+  /// **'P, H, L, E, T: pen, highlighter, lasso, eraser, text. 1 to 9: pick that pen.'**
+  String get helpKeyTools;
+
+  /// No description provided for @helpKeyUndo.
+  ///
+  /// In en, this message translates to:
+  /// **'Ctrl+Z: undo. Ctrl+Shift+Z or Ctrl+Y: redo.'**
+  String get helpKeyUndo;
+
+  /// No description provided for @helpKeyArrows.
+  ///
+  /// In en, this message translates to:
+  /// **'Arrow keys: move the view.'**
+  String get helpKeyArrows;
 }
 
 class _AppLocalizationsDelegate

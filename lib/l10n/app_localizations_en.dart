@@ -1486,4 +1486,57 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pdfPageSemantics => 'PDF page';
+
+  @override
+  String get helpTitle => 'Help and gestures';
+
+  @override
+  String get helpGesturesHeader => 'Gestures';
+
+  @override
+  String get helpOneFinger => 'One finger';
+
+  @override
+  String get helpOneFingerBody =>
+      'Writes, unless writing with pen only applies. Then it only scrolls a note with several pages.';
+
+  @override
+  String get helpTwoFingers => 'Two fingers';
+
+  @override
+  String get helpTwoFingersBody => 'Pinch to zoom and drag to move the view.';
+
+  @override
+  String get helpThreeFingers => 'Three fingers';
+
+  @override
+  String get helpThreeFingersBody =>
+      'Swipe sideways to go to the previous or next note.';
+
+  @override
+  String get helpPenButton => 'Pen button or pen end';
+
+  @override
+  String get helpPenButtonBody =>
+      'Hold the button while writing, or turn the pen around, to erase.';
+
+  @override
+  String get helpPenOnlyHeader => 'Write with pen only';
+
+  @override
+  String get helpPenOnlyBody =>
+      'Auto: once the pen has been seen on this device, fingers no longer write. On: fingers never write. Off: fingers always write. Fingers still zoom and move the view. Change it in Settings.';
+
+  @override
+  String get helpKeysHeader => 'External keyboard';
+
+  @override
+  String get helpKeyTools =>
+      'P, H, L, E, T: pen, highlighter, lasso, eraser, text. 1 to 9: pick that pen.';
+
+  @override
+  String get helpKeyUndo => 'Ctrl+Z: undo. Ctrl+Shift+Z or Ctrl+Y: redo.';
+
+  @override
+  String get helpKeyArrows => 'Arrow keys: move the view.';
 }

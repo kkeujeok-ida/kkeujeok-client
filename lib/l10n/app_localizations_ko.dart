@@ -1408,4 +1408,55 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get pdfPageSemantics => 'PDF 페이지';
+
+  @override
+  String get helpTitle => '도움말·제스처';
+
+  @override
+  String get helpGesturesHeader => '제스처';
+
+  @override
+  String get helpOneFinger => '손가락 한 개';
+
+  @override
+  String get helpOneFingerBody =>
+      '펜으로만 필기가 꺼져 있으면 써요. 켜져 있으면 쪽이 여러 개인 노트를 스크롤하기만 해요.';
+
+  @override
+  String get helpTwoFingers => '손가락 두 개';
+
+  @override
+  String get helpTwoFingersBody => '모으거나 벌려서 확대·축소하고, 끌어서 화면을 옮겨요.';
+
+  @override
+  String get helpThreeFingers => '손가락 세 개';
+
+  @override
+  String get helpThreeFingersBody => '옆으로 쓸어서 이전·다음 노트로 가요.';
+
+  @override
+  String get helpPenButton => '펜 버튼·펜 뒤쪽';
+
+  @override
+  String get helpPenButtonBody => '버튼을 누른 채 쓰거나 펜을 뒤집으면 지워요.';
+
+  @override
+  String get helpPenOnlyHeader => '펜으로만 필기';
+
+  @override
+  String get helpPenOnlyBody =>
+      '자동: 이 기기에서 펜이 한 번 감지되면 손가락으로는 쓰지 않아요. 켜기: 손가락으로 쓰지 않아요. 끄기: 손가락으로도 써요. 손가락으로 확대·축소와 화면 이동은 언제나 돼요. 설정에서 바꿀 수 있어요.';
+
+  @override
+  String get helpKeysHeader => '외장 키보드';
+
+  @override
+  String get helpKeyTools =>
+      'P, H, L, E, T: 펜, 형광펜, 올가미, 지우개, 텍스트. 1~9: 그 번호의 펜.';
+
+  @override
+  String get helpKeyUndo => 'Ctrl+Z: 실행 취소. Ctrl+Shift+Z 또는 Ctrl+Y: 다시 실행.';
+
+  @override
+  String get helpKeyArrows => '방향키: 화면 이동.';
 }

@@ -12,6 +12,7 @@ import '../storage/pen_slots_store.dart';
 import '../storage/language_store.dart';
 import '../storage/theme_store.dart';
 import 'disconnect_dialog.dart';
+import 'help_screen.dart';
 import 'log_export.dart';
 import 'pen_input_diagnostic.dart';
 import 'pen_palette_editor.dart';
@@ -432,6 +433,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                 ],
               ),
+            ),
+          ),
+          action(
+            l10n.helpTitle,
+            () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const HelpScreen()),
             ),
           ),
           const _ExportLogRow(),

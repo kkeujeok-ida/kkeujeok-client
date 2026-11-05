@@ -593,5 +593,21 @@
   "pdfImportSaveFailed": "Could not save the PDF as a note.",
   "pdfDownloading": "Downloading PDF",
   "pdfDownloadFailed": "Couldn't download the PDF",
-  "pdfPageSemantics": "PDF page"
+  "pdfPageSemantics": "PDF page",
+  "helpTitle": "Help and gestures",
+  "helpGesturesHeader": "Gestures",
+  "helpOneFinger": "One finger",
+  "helpOneFingerBody": "Writes, unless writing with pen only applies. Then it only scrolls a note with several pages.",
+  "helpTwoFingers": "Two fingers",
+  "helpTwoFingersBody": "Pinch to zoom and drag to move the view.",
+  "helpThreeFingers": "Three fingers",
+  "helpThreeFingersBody": "Swipe sideways to go to the previous or next note.",
+  "helpPenButton": "Pen button or pen end",
+  "helpPenButtonBody": "Hold the button while writing, or turn the pen around, to erase.",
+  "helpPenOnlyHeader": "Write with pen only",
+  "helpPenOnlyBody": "Auto: once the pen has been seen on this device, fingers no longer write. On: fingers never write. Off: fingers always write. Fingers still zoom and move the view. Change it in Settings.",
+  "helpKeysHeader": "External keyboard",
+  "helpKeyTools": "P, H, L, E, T: pen, highlighter, lasso, eraser, text. 1 to 9: pick that pen.",
+  "helpKeyUndo": "Ctrl+Z: undo. Ctrl+Shift+Z or Ctrl+Y: redo.",
+  "helpKeyArrows": "Arrow keys: move the view."
 }
