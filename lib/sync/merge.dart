@@ -1,4 +1,5 @@
 import '../model/note.dart' show copyJsonValue;
+import '../model/pdf_rules.dart' show isPdfBackground;
 
 /// Spec `merge`: page by page, then page order, then note fields. Pure: no
 /// clock, no random number, no input mutated (every input is deep-copied, so
@@ -285,7 +286,8 @@ Map<String, Object?> _merge(
   final readOnly = [
     for (final id in u)
       if (result.containsKey(id) &&
-          !_backgrounds.contains(result[id]!['background']))
+          !(_backgrounds.contains(result[id]!['background']) ||
+              isPdfBackground(result[id]!['background'])))
         id,
   ];
   var seen = (ctx['lastSeenRemoteSeq'] as num);

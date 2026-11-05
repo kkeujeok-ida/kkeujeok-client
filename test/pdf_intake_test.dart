@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/model/image_rules.dart';
 import 'package:kkeujeok/model/note.dart';
 import 'package:kkeujeok/model/pdf_rules.dart';
+import 'package:kkeujeok/sync/merge.dart';
 import 'package:kkeujeok/storage/pdf_intake.dart';
 
 void main() {
@@ -78,4 +79,51 @@ void main() {
     expect(referencedAssets(r.note!), [h]);
     expect(isPdfBackground(r.note!.pages[0]['background']), isFalse);
   });
+
+  test(
+    'a PDF page stays editable after a merge; a malformed one is read-only',
+    () {
+      Map<String, dynamic> note(Object bg, String rev, int seq) => {
+        'formatVersion': 1,
+        'noteId': 'n',
+        'meta': {'title': 't'},
+        'metaRev': 'm',
+        'metaSeq': 1,
+        'orderRev': 'o',
+        'orderSeq': 1,
+        'pages': [
+          {
+            'id': 'p',
+            'width': 595,
+            'height': 842,
+            'background': bg,
+            'rev': rev,
+            'seq': seq,
+            'editedAt': 't',
+            'editedBy': 'd',
+            'elements': [],
+          },
+        ],
+      };
+      final ok = {
+        'type': 'pdf',
+        'asset': 'a' * 64,
+        'page': 0,
+        'box': [0, 0, 595, 842],
+        'rotate': 0,
+        'userUnit': 1,
+      };
+      List readOnly(Object bg) =>
+          mergeNotes(note(bg, 'r1', 1), note(bg, 'r1', 1), note(bg, 'r2', 2), {
+                'now': 't',
+                'orderRev': 'o2',
+                'rev': 'r3',
+                'editedBy': 'd',
+                'lastSeenRemoteSeq': 0,
+              })['readOnlyPages']
+              as List;
+      expect(readOnly(ok), isEmpty);
+      expect(readOnly({...ok, 'page': -1}), ['p']);
+    },
+  );
 }
