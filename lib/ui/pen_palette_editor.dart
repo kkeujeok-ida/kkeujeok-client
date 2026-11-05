@@ -252,7 +252,7 @@ class _PaletteSectionState extends State<_PaletteSection> {
                 ),
             ],
           ),
-          Row(
+          Wrap(
             children: [
               TextButton(
                 style: textBtn,
