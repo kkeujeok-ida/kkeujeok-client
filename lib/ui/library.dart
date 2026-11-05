@@ -37,6 +37,7 @@ import 'new_note_sheet.dart';
 import 'note_editor.dart';
 import 'note_order.dart' show NoteArrival;
 import 'pdf_import.dart';
+import '../storage/hint_store.dart';
 import 'handed_menu.dart';
 import 'providers.dart';
 import 'sync_banner.dart';
@@ -687,6 +688,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         remote.isEmpty &&
         subfolders.isEmpty &&
         !recv.scanning;
+    // The first-note hint is gone for good once a note exists.
+    if (async.hasValue &&
+        entries.isNotEmpty &&
+        ref.read(hintsProvider).contains(Hint.firstNote)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) ref.read(hintsProvider.notifier).done(Hint.firstNote);
+      });
+    }
     final cards = <Widget>[
       if (up != null)
         cap(
@@ -817,6 +826,22 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     child: Text(
                       l10n.folderEmpty,
                       style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ),
+                if (emptyFolder &&
+                    (folder == null || folder == 'root') &&
+                    ref.watch(hintsProvider).contains(Hint.firstNote))
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      widget.headerStartInset + KkjTokens.spacing3,
+                      KkjTokens.spacing2,
+                      KkjTokens.spacing3,
+                      0,
+                    ),
+                    child: Text(
+                      l10n.hintFirstNote,
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: Kk.colorInkSecondary),
                     ),
                   ),
                 Expanded(

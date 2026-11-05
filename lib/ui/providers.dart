@@ -47,6 +47,7 @@ import '../sync/note_uploader.dart';
 import '../sync/open_note.dart';
 import '../sync/sync_log.dart';
 import '../sync/unsent.dart';
+import '../storage/hint_store.dart';
 import '../storage/left_handed_store.dart';
 import '../storage/theme_store.dart';
 import '../sync/thumbnail.dart';
@@ -108,6 +109,31 @@ class LeftHandedNotifier extends Notifier<bool> {
 
 final leftHandedProvider = NotifierProvider<LeftHandedNotifier, bool>(
   LeftHandedNotifier.new,
+);
+
+/// Overridden in main() with the opened preferences.
+final hintStoreProvider = Provider<HintStore>((ref) => HintStore(null));
+
+/// The hints still to show: a hint leaves for good once marked done.
+class HintsNotifier extends Notifier<Set<Hint>> {
+  @override
+  Set<Hint> build() {
+    final s = ref.read(hintStoreProvider);
+    return {
+      for (final h in Hint.values)
+        if (!s.done(h)) h,
+    };
+  }
+
+  void done(Hint h) {
+    if (!state.contains(h)) return;
+    state = {...state}..remove(h);
+    ref.read(hintStoreProvider).markDone(h);
+  }
+}
+
+final hintsProvider = NotifierProvider<HintsNotifier, Set<Hint>>(
+  HintsNotifier.new,
 );
 
 /// Web `/privacy` address from `--dart-define-from-file` (PRIVACY_URL).

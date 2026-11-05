@@ -53,6 +53,7 @@ import 'eraser_dialog.dart';
 import 'note_order.dart';
 import 'page_layout.dart';
 import 'pen_toolbar.dart';
+import '../storage/hint_store.dart';
 import 'providers.dart';
 import 'selection_menu.dart';
 import 'sync_banner.dart';
@@ -1242,6 +1243,50 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     return Offset(left, top.clamp(min, max).toDouble());
   }
 
+  /// The one-line pen hint beside the toolbar: below a top bar, above a bottom
+  /// bar, beside a side bar. Never takes a touch.
+  Widget _penHint(Rect bar, Size win, EdgeInsets pad) {
+    const gap = KkjTokens.spacing2;
+    final dock = ref.read(toolbarPosProvider).dock;
+    final side = dock == ToolbarDock.left || dock == ToolbarDock.right;
+    final maxW = side
+        ? 160.0
+        : math.min(360.0, win.width - 2 * gap - pad.horizontal);
+    final text = IgnorePointer(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: math.max(0, maxW)),
+        child: Text(
+          AppLocalizations.of(context).hintPenEdit,
+          textAlign: side ? TextAlign.start : TextAlign.center,
+          style: Theme.of(context).textTheme.bodySmall
+              ?.copyWith(color: Kk.colorInkSecondary),
+        ),
+      ),
+    );
+    return switch (dock) {
+      ToolbarDock.left => Positioned(
+        left: bar.right + gap,
+        top: bar.top,
+        child: text,
+      ),
+      ToolbarDock.right => Positioned(
+        right: win.width - bar.left + gap,
+        top: bar.top,
+        child: text,
+      ),
+      ToolbarDock.bottom => Positioned(
+        left: bar.center.dx - maxW / 2,
+        bottom: win.height - bar.top + gap,
+        child: text,
+      ),
+      _ => Positioned(
+        left: bar.center.dx - maxW / 2,
+        top: bar.bottom + gap,
+        child: text,
+      ),
+    };
+  }
+
   Pen get _pen {
     final slots = ref.read(penSlotsProvider);
     return slots[ref.read(selectedPenSlotProvider).clamp(0, slots.length - 1)];
@@ -1291,6 +1336,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       return PenBubbleAnchor(tool, bar, vertical: pos.vertical);
     }
 
+    ref.read(hintsProvider.notifier).done(Hint.penEdit);
     final delete = await showDialog<bool>(
       context: context,
       useSafeArea: false, // the bubble is placed in window coordinates
@@ -4238,6 +4284,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                   },
                 ),
               ),
+              if (keyboard <= 0 &&
+                  !dragging &&
+                  ref.watch(hintsProvider).contains(Hint.penEdit))
+                _penHint(shown, win, pad),
               if (dragging)
                 for (final d in snapOrder)
                   Positioned.fromRect(

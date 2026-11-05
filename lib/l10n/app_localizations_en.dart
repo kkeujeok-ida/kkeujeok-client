@@ -1539,4 +1539,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get helpKeyArrows => 'Arrow keys: move the view.';
+
+  @override
+  String get hintFirstNote => 'Tap + to make your first note';
+
+  @override
+  String get hintPenEdit =>
+      'Tap the selected pen again to change its color and width.';
 }

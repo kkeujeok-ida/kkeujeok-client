@@ -1459,4 +1459,10 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get helpKeyArrows => '방향키: 화면 이동.';
+
+  @override
+  String get hintFirstNote => '+로 첫 노트를 만들어 보세요';
+
+  @override
+  String get hintPenEdit => '선택한 펜을 한 번 더 누르면 색과 두께를 바꿀 수 있어요';
 }

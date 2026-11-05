@@ -553,5 +553,7 @@
   "helpKeysHeader": "외장 키보드",
   "helpKeyTools": "P, H, L, E, T: 펜, 형광펜, 올가미, 지우개, 텍스트. 1~9: 그 번호의 펜.",
   "helpKeyUndo": "Ctrl+Z: 실행 취소. Ctrl+Shift+Z 또는 Ctrl+Y: 다시 실행.",
-  "helpKeyArrows": "방향키: 화면 이동."
+  "helpKeyArrows": "방향키: 화면 이동.",
+  "hintFirstNote": "+로 첫 노트를 만들어 보세요",
+  "hintPenEdit": "선택한 펜을 한 번 더 누르면 색과 두께를 바꿀 수 있어요"
 }

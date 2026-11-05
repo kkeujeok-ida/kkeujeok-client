@@ -2701,6 +2701,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Arrow keys: move the view.'**
   String get helpKeyArrows;
+
+  /// No description provided for @hintFirstNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap + to make your first note'**
+  String get hintFirstNote;
+
+  /// No description provided for @hintPenEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap the selected pen again to change its color and width.'**
+  String get hintPenEdit;
 }
 
 class _AppLocalizationsDelegate

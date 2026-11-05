@@ -609,5 +609,7 @@
   "helpKeysHeader": "External keyboard",
   "helpKeyTools": "P, H, L, E, T: pen, highlighter, lasso, eraser, text. 1 to 9: pick that pen.",
   "helpKeyUndo": "Ctrl+Z: undo. Ctrl+Shift+Z or Ctrl+Y: redo.",
-  "helpKeyArrows": "Arrow keys: move the view."
+  "helpKeyArrows": "Arrow keys: move the view.",
+  "hintFirstNote": "Tap + to make your first note",
+  "hintPenEdit": "Tap the selected pen again to change its color and width."
 }
