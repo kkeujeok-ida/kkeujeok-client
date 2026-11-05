@@ -25,6 +25,16 @@ class _Tree extends FolderTreeNotifier {
   Future<FolderView> build() async => _view;
 }
 
+class _MoveTree extends _Tree {
+  static final moved = <String>[];
+
+  @override
+  Future<FolderResult> moveNote(String noteId, String parentId) async {
+    moved.add('$noteId>$parentId');
+    return const FolderResult();
+  }
+}
+
 String _id(int n) =>
     '01926f3a-0000-7000-8000-${n.toRadixString(16).padLeft(12, '0')}';
 
@@ -139,5 +149,26 @@ void main() {
     await t.pumpAndSettle();
     expect(find.byKey(const Key('searchField')), findsNothing);
     expect(find.byKey(const Key('searchOpen')), findsOneWidget);
+  });
+
+  testWidgets('a note dragged onto a folder card moves', (
+    t,
+  ) async {
+    _MoveTree.moved.clear();
+    await pumpApp(
+      t,
+      noteData: data,
+      prefs: {'language': 'en'},
+      overrides: [folderTreeProvider.overrideWith(_MoveTree.new)],
+    );
+    await settle(t);
+    final g = await t.startGesture(t.getCenter(find.text('Lecture')));
+    await t.pump(const Duration(milliseconds: 700)); // long press: drag starts
+    await g.moveTo(t.getCenter(find.byKey(const ValueKey('folder-card-c'))));
+    await t.pump();
+    await g.up();
+    await settle(t);
+    expect(_MoveTree.moved, ['${_id(1)}>c']);
+    expect(find.text('1 selected'), findsNothing); // the drop ends selection
   });
 }

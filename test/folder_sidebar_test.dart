@@ -46,6 +46,11 @@ void main() {
     );
     await t.pumpAndSettle();
     expect(find.text('All notes'), findsOneWidget);
+    expect(find.text('Home'), findsOneWidget);
+    expect(find.text('Class'), findsNothing); // folded: only Home shows
+    await t.tap(find.text('Home'));
+    await t.pumpAndSettle();
+    expect(c.read(effectiveFolderProvider), 'root');
     expect(find.text('Class'), findsOneWidget);
     expect(find.text('Diary'), findsOneWidget);
     expect(find.text('Math'), findsNothing); // folded
@@ -87,6 +92,8 @@ void main() {
     await t.pumpAndSettle();
     expect(find.byTooltip('Class menu'), findsNothing); // no per-row button
     expect(find.text('New folder'), findsNothing);
+    await t.tap(find.text('Home'));
+    await t.pumpAndSettle();
     await t.longPress(find.text('Class'));
     await t.pumpAndSettle();
     expect(find.text('Rename'), findsOneWidget);

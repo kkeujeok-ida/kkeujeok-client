@@ -1276,7 +1276,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get folderDeleteConfirm => 'Delete';
 
   @override
-  String get folderTopLevel => 'Top level';
+  String get folderTopLevel => 'Home';
+
+  @override
+  String get folderColor => 'Color';
+
+  @override
+  String get folderColorDefault => 'Default';
+
+  @override
+  String folderColorOption(int n) {
+    return 'Color $n';
+  }
 
   @override
   String folderMoveTitle(String name) {

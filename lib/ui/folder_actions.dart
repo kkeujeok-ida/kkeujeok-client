@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'snack.dart';
+
 import '../l10n/app_localizations.dart';
 import '../library/folder_service.dart';
 import 'folder_picker_sheet.dart';
@@ -14,7 +16,7 @@ void _failed(BuildContext context) {
   final l10n = AppLocalizations.of(context);
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(l10n.folderFailed)));
+    ..showSnackBar(appSnackBar(content: Text(l10n.folderFailed)));
 }
 
 /// Asks for a name, creates the folder under [parent]; the new id's result.
@@ -57,7 +59,7 @@ Future<void> renameFolderDialog(
   if (context.mounted && !r.ok) _failed(context);
 }
 
-/// Moves [f] to [target] and offers [되돌리기]. False when refused.
+/// Moves [f] to [target]. False when refused.
 Future<bool> moveFolderTo(
   BuildContext context,
   WidgetRef ref,
@@ -73,19 +75,10 @@ Future<bool> moveFolderTo(
     _failed(context);
     return false;
   }
-  final inverse = r.inverse;
-  if (inverse == null) return true; // already there
+  if (r.inverse == null) return true; // already there
   messenger
     ..hideCurrentSnackBar()
-    ..showSnackBar(
-      SnackBar(
-        content: Text(l10n.folderMoved(f.name)),
-        action: SnackBarAction(
-          label: l10n.undo,
-          onPressed: () => tree.undo(inverse),
-        ),
-      ),
-    );
+    ..showSnackBar(appSnackBar(content: Text(l10n.folderMoved(f.name))));
   return true;
 }
 

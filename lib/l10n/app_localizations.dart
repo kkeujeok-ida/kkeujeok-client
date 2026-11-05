@@ -2261,8 +2261,26 @@ abstract class AppLocalizations {
   /// No description provided for @folderTopLevel.
   ///
   /// In en, this message translates to:
-  /// **'Top level'**
+  /// **'Home'**
   String get folderTopLevel;
+
+  /// No description provided for @folderColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Color'**
+  String get folderColor;
+
+  /// No description provided for @folderColorDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get folderColorDefault;
+
+  /// No description provided for @folderColorOption.
+  ///
+  /// In en, this message translates to:
+  /// **'Color {n}'**
+  String folderColorOption(int n);
 
   /// No description provided for @folderMoveTitle.
   ///

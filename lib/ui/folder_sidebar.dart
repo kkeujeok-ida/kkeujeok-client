@@ -75,6 +75,7 @@ class _SectionState extends ConsumerState<FolderSidebarSection> {
     final theme = Theme.of(context);
     final view = ref.watch(folderTreeProvider).value ?? const FolderView();
     final cur = ref.watch(effectiveFolderProvider);
+    final homeOpen = _expanded.contains('root');
     return ListView(
       children: [
         _RowFrame(
@@ -100,10 +101,23 @@ class _SectionState extends ConsumerState<FolderSidebarSection> {
           depth: 0,
           selected: cur == 'root',
           label: l10n.folderTopLevel,
-          onTap: () => _select('root'),
+          // Folders start folded: only Home shows; a tap opens it (again: folds).
+          onTap: () {
+            setState(
+              () => cur == 'root' && homeOpen
+                  ? _expanded.remove('root')
+                  : _expanded.add('root'),
+            );
+            _select('root');
+          },
           child: Row(
             children: [
-              const SizedBox(width: KkjTokens.spacingHitMinAndroid),
+              SizedBox(
+                width: KkjTokens.spacingHitMinAndroid,
+                child: view.childrenOf('root').isEmpty
+                    ? null
+                    : Icon(homeOpen ? Icons.expand_more : Icons.chevron_right),
+              ),
               Icon(
                 Icons.home_outlined,
                 color: theme.colorScheme.onSurfaceVariant,
@@ -118,7 +132,7 @@ class _SectionState extends ConsumerState<FolderSidebarSection> {
             ],
           ),
         ),
-        ..._rows(view, 'root', 0, cur),
+        if (homeOpen) ..._rows(view, 'root', 1, cur),
       ],
     );
   }

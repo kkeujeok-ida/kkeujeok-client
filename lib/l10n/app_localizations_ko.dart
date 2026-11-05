@@ -1209,7 +1209,18 @@ class AppLocalizationsKo extends AppLocalizations {
   String get folderDeleteConfirm => '지우기';
 
   @override
-  String get folderTopLevel => '최상위';
+  String get folderTopLevel => 'Home';
+
+  @override
+  String get folderColor => '색상';
+
+  @override
+  String get folderColorDefault => '기본';
+
+  @override
+  String folderColorOption(int n) {
+    return '색상 $n';
+  }
 
   @override
   String folderMoveTitle(String name) {

@@ -7,10 +7,13 @@ import 'package:flutter/semantics.dart'
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'snack.dart';
+
 import '../design_tokens/build/tokens.dart';
 import '../drive/root_folder.dart' show RootStatus;
 import '../library/folder_service.dart' show FolderView, LibraryFolder;
 import '../storage/note_store.dart' show NoteSaveException;
+import 'folder_colors.dart';
 import 'folder_picker_sheet.dart';
 import 'folder_actions.dart';
 import 'folder_sidebar.dart' show NameDialog, showConfirmDialog;
@@ -292,6 +295,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       selected: null,
     );
     if (target == null || !mounted) return;
+    await _moveNotesTo(ids, target);
+  });
+
+  /// Moves [ids] into [target] ('root' = Home); a snackbar offers [되돌리기].
+  Future<void> _moveNotesTo(List<String> ids, String target) async {
+    final l = AppLocalizations.of(context);
+    final tree = ref.read(folderTreeProvider).value ?? const FolderView();
     final notifier = ref.read(folderTreeProvider.notifier);
     final inverses = <Map<String, Object?>>[];
     var failed = false;
@@ -313,7 +323,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
+        appSnackBar(
           content: Text(l.notesMoved(ids.length, name)),
           action: SnackBarAction(
             label: l.undo,
@@ -325,6 +335,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           ),
         ),
       );
+  }
+
+  /// A note card was dropped on a folder card or `../`: the whole selection
+  /// moves when the dragged note is part of it.
+  Future<void> _dropNote(String id, String target) => _guarded(() async {
+    final ids = _selected.contains(id) ? _selectedNow() : [id];
+    await _moveNotesTo(ids, target);
   });
 
   // One sheet or editor route at a time: a second tap while one is opening
@@ -473,7 +490,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
+        appSnackBar(
           content: Text(l.noteMoved(name)),
           action: SnackBarAction(
             label: l.undo,
@@ -486,7 +503,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   void _snack(String text) => ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(text)));
+    ..showSnackBar(appSnackBar(content: Text(text)));
 
   /// Story 7.7: asks in place, then hides the card at once; the upload of
   /// unsent changes and the Drive trash follow (offline: when connected).
@@ -571,7 +588,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       if (next > (prev ?? 0)) {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text(l10n.revivedSnack)));
+          ..showSnackBar(appSnackBar(content: Text(l10n.revivedSnack)));
       }
     });
     ref.listen(revivedNoticeProvider, (prev, next) {
@@ -619,12 +636,22 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         ? sortFolders(tree.childrenOf(folder), sort)
         : const <LibraryFolder>[];
     final up = inFolder && folder != 'root' ? tree.folder(folder) : null;
+    final emptyFolder =
+        !failed &&
+        query.isEmpty &&
+        async.hasValue &&
+        entries.isEmpty &&
+        remote.isEmpty &&
+        subfolders.isEmpty &&
+        !recv.scanning;
     final cards = <Widget>[
       if (up != null)
         cap(
           _ParentCard(
             canDrop: (_) => true,
-            onDrop: (d) => moveFolderTo(context, ref, d, up.parentId),
+            onDrop: (d) => d is LibraryFolder
+                ? moveFolderTo(context, ref, d, up.parentId)
+                : _dropNote((d as _NoteDrag).id, up.parentId),
             onOpen: () =>
                 ref.read(currentFolderProvider.notifier).select(up.parentId),
           ),
@@ -635,8 +662,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             key: ValueKey('folder-card-${f.id}'),
             folder: f,
             onOpen: () => ref.read(currentFolderProvider.notifier).select(f.id),
-            canDrop: (d) => d.id != f.id && !tree.isInside(f.id, d.id),
-            onDrop: (d) => moveFolderTo(context, ref, d, f.id),
+            canDrop: (d) => d is LibraryFolder
+                ? d.id != f.id && !tree.isInside(f.id, d.id)
+                : d is _NoteDrag,
+            onDrop: (d) => d is LibraryFolder
+                ? moveFolderTo(context, ref, d, f.id)
+                : _dropNote((d as _NoteDrag).id, f.id),
             onRename: () => renameFolderDialog(context, ref, f),
             onMove: () => moveFolderDialog(context, ref, f),
             onDelete: () => deleteFolderDialog(context, ref, f),
@@ -668,21 +699,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         )
-      else if (async.hasValue &&
-          entries.isEmpty &&
-          remote.isEmpty &&
-          subfolders.isEmpty &&
-          !recv.scanning) ...[
-        if (folder != null && folder != 'root')
-          Padding(
-            padding: const EdgeInsets.all(KkjTokens.spacing3),
-            child: Text(
-              l10n.folderEmpty,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-          ),
+      else if (emptyFolder)
         cap(_NewNoteCard(onTap: _newNote)),
-      ],
       if (_showScan && recv.scanning) ...[
         cap(const _ScanPlaceholder()),
         cap(const _ScanPlaceholder()),
@@ -696,17 +714,24 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         ),
       for (final e in entries)
         e.readable
-            ? _NoteCard(
-                entry: e,
-                receiving: recv.receiving.contains(e.noteId),
-                selecting: _selecting,
-                selected: _selected.contains(e.noteId),
-                onTap: () =>
-                    _selecting ? _toggleSelect(e.noteId) : _open(e.note!),
-                onLongPress: () => _selected.contains(e.noteId)
-                    ? null
-                    : _toggleSelect(e.noteId),
-                onAction: (a) => _noteAction(a, e),
+            ? _DraggableNote(
+                noteId: e.noteId,
+                title: e.note!.title,
+                onStart: () {
+                  if (!_selected.contains(e.noteId)) _toggleSelect(e.noteId);
+                },
+                child: _NoteCard(
+                  entry: e,
+                  receiving: recv.receiving.contains(e.noteId),
+                  selecting: _selecting,
+                  selected: _selected.contains(e.noteId),
+                  onTap: () =>
+                      _selecting ? _toggleSelect(e.noteId) : _open(e.note!),
+                  onLongPress: () => _selected.contains(e.noteId)
+                      ? null
+                      : _toggleSelect(e.noteId),
+                  onAction: (a) => _noteAction(a, e),
+                ),
               )
             : cap(_UnreadableCard(noteId: e.noteId)),
     ];
@@ -738,6 +763,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     title: l10n.library,
                   ),
                 if (root.status == RootStatus.preparing) const _Preparing(),
+                if (emptyFolder && folder != null && folder != 'root')
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      widget.headerStartInset + KkjTokens.spacing3,
+                      KkjTokens.spacing2,
+                      KkjTokens.spacing3,
+                      0,
+                    ),
+                    child: Text(
+                      l10n.folderEmpty,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ),
                 Expanded(
                   child: GestureDetector(
                     // A tap on empty space ends the selection.
@@ -1170,7 +1208,9 @@ class _NoteCardState extends ConsumerState<_NoteCard> {
             top: KkjTokens.spacing2,
             start: KkjTokens.spacing2,
             child: Icon(
-              widget.selected ? Icons.check_circle : Icons.radio_button_unchecked,
+              widget.selected
+                  ? Icons.check_circle
+                  : Icons.radio_button_unchecked,
               color: widget.selected
                   ? theme.colorScheme.primary
                   : KkjLight.colorInkSecondary,
@@ -1256,7 +1296,6 @@ class _NoteCardState extends ConsumerState<_NoteCard> {
       },
       child: InkWell(
         onTap: onTap,
-        onLongPress: widget.onLongPress,
         borderRadius: BorderRadius.circular(
           KkjLight.componentsCoverCardRounded,
         ),
@@ -1701,12 +1740,12 @@ class _SelectBar extends StatelessWidget {
   }
 }
 
-enum _FolderAction { rename, move, delete }
+enum _FolderAction { rename, move, color, delete }
 
 /// A subfolder in the list (Story 18.3): tap enters; a long press drags it
 /// onto another folder card or the `../` card; the ⋯ menu is the accessible
 /// way to rename, move and delete.
-class _FolderCard extends StatelessWidget {
+class _FolderCard extends ConsumerWidget {
   const _FolderCard({
     super.key,
     required this.folder,
@@ -1720,17 +1759,64 @@ class _FolderCard extends StatelessWidget {
 
   final LibraryFolder folder;
   final VoidCallback onOpen;
-  final bool Function(LibraryFolder dragged) canDrop;
-  final void Function(LibraryFolder dragged) onDrop;
+  final bool Function(Object dragged) canDrop;
+  final void Function(Object dragged) onDrop;
   final VoidCallback onRename;
   final VoidCallback onMove;
   final VoidCallback onDelete;
 
+  Future<void> _pickColor(BuildContext context, WidgetRef ref) async {
+    final l = AppLocalizations.of(context);
+    final cur = ref.read(folderColorsProvider)[folder.id];
+    final pick = await showDialog<int>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text(l.folderColor),
+        children: [
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: KkjTokens.spacing2,
+            runSpacing: KkjTokens.spacing2,
+            children: [
+              for (var i = 0; i < folderPalette.length; i++)
+                Semantics(
+                  button: true,
+                  selected: cur == i,
+                  label: l.folderColorOption(i + 1),
+                  child: InkWell(
+                    onTap: () => Navigator.of(ctx).pop(i),
+                    customBorder: const CircleBorder(),
+                    child: Padding(
+                      padding: const EdgeInsets.all(KkjTokens.spacing2),
+                      child: Icon(
+                        cur == i ? Icons.check_circle : Icons.folder,
+                        size: 40,
+                        color: folderPalette[i],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(ctx).pop(-1),
+            child: Text(l.folderColorDefault),
+          ),
+        ],
+      ),
+    );
+    if (pick == null) return;
+    ref
+        .read(folderColorsProvider.notifier)
+        .set(folder.id, pick < 0 ? null : pick);
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final face = DragTarget<LibraryFolder>(
+    final colorIndex = ref.watch(folderColorsProvider)[folder.id];
+    final face = DragTarget<Object>(
       onWillAcceptWithDetails: (d) => canDrop(d.data),
       onAcceptWithDetails: (d) => onDrop(d.data),
       builder: (context, hover, _) => _DropFrame(
@@ -1740,7 +1826,8 @@ class _FolderCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(
             KkjLight.componentsCoverCardRounded,
           ),
-          child: _Thumb(
+          child: AspectRatio(
+            aspectRatio: 3 / 4,
             child: Stack(
               children: [
                 Center(
@@ -1749,10 +1836,13 @@ class _FolderCard extends StatelessWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          Icons.folder_outlined,
-                          size: 40,
-                          color: KkjLight.colorInkSecondary,
+                        Icon(
+                          Icons.folder,
+                          size: 64,
+                          color: colorIndex == null
+                              ? KkjLight.colorInkSecondary
+                              : folderPalette[colorIndex %
+                                    folderPalette.length],
                         ),
                         const SizedBox(height: KkjTokens.spacing2),
                         Text(
@@ -1776,6 +1866,7 @@ class _FolderCard extends StatelessWidget {
                       _FolderAction.rename => onRename(),
                       _FolderAction.move => onMove(),
                       _FolderAction.delete => onDelete(),
+                      _FolderAction.color => _pickColor(context, ref),
                     },
                     itemBuilder: (_) => [
                       PopupMenuItem(
@@ -1785,6 +1876,10 @@ class _FolderCard extends StatelessWidget {
                       PopupMenuItem(
                         value: _FolderAction.move,
                         child: Text(l.folderMove),
+                      ),
+                      PopupMenuItem(
+                        value: _FolderAction.color,
+                        child: Text(l.folderColor),
                       ),
                       PopupMenuItem(
                         value: _FolderAction.delete,
@@ -1808,9 +1903,11 @@ class _FolderCard extends StatelessWidget {
       customSemanticsActions: {
         CustomSemanticsAction(label: l.folderRename): onRename,
         CustomSemanticsAction(label: l.folderMove): onMove,
+        CustomSemanticsAction(label: l.folderColor): () =>
+            _pickColor(context, ref),
         CustomSemanticsAction(label: l.folderDelete): onDelete,
       },
-      child: LongPressDraggable<LibraryFolder>(
+      child: LongPressDraggable<Object>(
         data: folder,
         feedback: Material(
           color: Colors.transparent,
@@ -1836,8 +1933,8 @@ class _ParentCard extends StatelessWidget {
   });
 
   final VoidCallback onOpen;
-  final bool Function(LibraryFolder dragged) canDrop;
-  final void Function(LibraryFolder dragged) onDrop;
+  final bool Function(Object dragged) canDrop;
+  final void Function(Object dragged) onDrop;
 
   @override
   Widget build(BuildContext context) {
@@ -1847,7 +1944,7 @@ class _ParentCard extends StatelessWidget {
       label: l.folderParentCard,
       excludeSemantics: true,
       onTap: onOpen,
-      child: DragTarget<LibraryFolder>(
+      child: DragTarget<Object>(
         onWillAcceptWithDetails: (d) => canDrop(d.data),
         onAcceptWithDetails: (d) => onDrop(d.data),
         builder: (context, hover, _) => _DropFrame(
@@ -1857,14 +1954,15 @@ class _ParentCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(
               KkjLight.componentsCoverCardRounded,
             ),
-            child: _Thumb(
+            child: AspectRatio(
+              aspectRatio: 3 / 4,
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(
-                      Icons.folder_open_outlined,
-                      size: 40,
+                      Icons.folder_open,
+                      size: 64,
                       color: KkjLight.colorInkSecondary,
                     ),
                     const SizedBox(height: KkjTokens.spacing2),
@@ -1896,6 +1994,43 @@ class _DropFrame extends StatelessWidget {
           ? Border.all(color: Theme.of(context).colorScheme.primary, width: 3)
           : null,
     ),
+    child: child,
+  );
+}
+
+/// What a note card carries while dragged onto a folder card or `../`.
+class _NoteDrag {
+  const _NoteDrag(this.id);
+  final String id;
+}
+
+/// A long press that moves starts a drag (and selects the note, so a long
+/// press without a move is the selection gesture of Story 18.4).
+class _DraggableNote extends StatelessWidget {
+  const _DraggableNote({
+    required this.noteId,
+    required this.title,
+    required this.onStart,
+    required this.child,
+  });
+
+  final String noteId;
+  final String title;
+  final VoidCallback onStart;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => LongPressDraggable<Object>(
+    data: _NoteDrag(noteId),
+    onDragStarted: onStart,
+    feedback: Material(
+      color: Colors.transparent,
+      child: Chip(
+        avatar: const Icon(Icons.description_outlined),
+        label: Text(title),
+      ),
+    ),
+    childWhenDragging: Opacity(opacity: 0.4, child: child),
     child: child,
   );
 }

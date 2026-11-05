@@ -314,6 +314,36 @@ class PenSlotsStore {
     });
   }
 
+  static const _folderColorKey = 'folderColors';
+  Map<String, int>? _folderColorSession;
+
+  /// Folder id to palette index. shortcut: color local per device, sync via
+  /// folderOp/appProperties when needed.
+  Map<String, int> readFolderColors() {
+    if (_folderColorSession != null) return _folderColorSession!;
+    try {
+      final v = _prefs?.get(_folderColorKey);
+      if (v is String) {
+        return {
+          for (final e in (jsonDecode(v) as Map).entries)
+            if (e.value is int) e.key as String: e.value as int,
+        };
+      }
+    } catch (_) {}
+    return {};
+  }
+
+  Future<void> writeFolderColors(Map<String, int> m) {
+    _folderColorSession = m;
+    return _pending = _pending.then((_) async {
+      try {
+        await _prefs?.setString(_folderColorKey, jsonEncode(m));
+      } catch (_) {
+        // Save failed: the choice still applies for this session.
+      }
+    });
+  }
+
   static const paletteMax = 18; // 3 rows of 6
   static const _paletteKey = 'penPalette';
 
