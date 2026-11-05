@@ -111,9 +111,16 @@ class MainActivity : FlutterActivity() {
                     try {
                         val name = displayName(uri)
                         val dir = File(cacheDir, "shared_pdf").apply { mkdirs() }
-                        val out = File(dir, "shared.pdf")
-                        contentResolver.openInputStream(uri)!!.use { i ->
-                            out.outputStream().use { o -> i.copyTo(o) }
+                        // One file per share: a second share cannot overwrite it
+                        // while the first is imported; Dart deletes it after.
+                        val out = File.createTempFile("share", ".pdf", dir)
+                        try {
+                            contentResolver.openInputStream(uri)!!.use { i ->
+                                out.outputStream().use { o -> i.copyTo(o) }
+                            }
+                        } catch (e: Exception) {
+                            out.delete()
+                            throw e
                         }
                         runOnUiThread { result.success(mapOf("path" to out.path, "name" to name)) }
                     } catch (e: Exception) {

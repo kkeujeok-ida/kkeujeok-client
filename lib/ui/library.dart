@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show File;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -13,7 +14,7 @@ import '../design_tokens/build/tokens.dart';
 import '../drive/root_folder.dart' show RootStatus;
 import '../library/folder_service.dart' show FolderView, LibraryFolder;
 import '../storage/note_store.dart' show NoteSaveException;
-import '../storage/pdf_intake.dart' show takeSharedPdf;
+import '../storage/pdf_intake.dart' show PdfImportException, takeSharedPdf;
 import 'folder_colors.dart';
 import 'folder_picker_sheet.dart';
 import 'folder_actions.dart';
@@ -402,23 +403,36 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   /// Story 9.2: a PDF another app opened or shared waits until the library
   /// is here (so after sign-in), then is imported like a picked one.
   Future<void> _takeShared() async {
-    final s = await takeSharedPdf();
-    if (s != null && mounted) unawaited(_importPdf(s));
+    if (_busy) return; // taken again when the open import or sheet ends
+    try {
+      final s = await takeSharedPdf();
+      if (s != null && mounted) unawaited(_importPdf(s));
+    } on PdfImportException {
+      if (mounted) _snack(AppLocalizations.of(context).pdfErrUnreadable);
+    }
   }
 
-  Future<void> _importPdf([({String path, String name})? given]) => _guarded(
-    () async {
+  Future<void> _importPdf([({String path, String name})? given]) async {
+    await _guarded(() async {
       final file = given ?? await pickPdf();
       if (file == null || !mounted) return;
       final r = await showPdfImport(context, path: file.path, name: file.name);
+      // A shared copy is ours to remove; a picked file is the picker's cache.
+      if (given != null) {
+        try {
+          File(file.path).deleteSync();
+        } catch (_) {}
+      }
       if (!mounted) return;
       if (r is Note) {
         await _afterEditor(_push(r), r);
       } else if (r is String) {
         _snack(r);
       }
-    },
-  );
+    });
+    // A share that came in meanwhile was left waiting.
+    if (mounted) unawaited(_takeShared());
+  }
 
   Future<void> _newNote() => _guarded(() async {
     // A created note is already in the list; no reload needed.

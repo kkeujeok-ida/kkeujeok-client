@@ -55,7 +55,10 @@ class _PdfImportDialogState extends ConsumerState<_PdfImportDialog> {
   @override
   void initState() {
     super.initState();
-    _run();
+    // AppLocalizations needs the finished element: not before the first frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _run();
+    });
   }
 
   @override

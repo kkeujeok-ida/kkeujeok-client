@@ -1076,6 +1076,7 @@ class LibraryNotifier extends AsyncNotifier<List<LibraryEntry>> {
     final hash = plan['asset'] as String;
     final assets = ref.read(assetStoreProvider);
     final isNew = await assets.writeFile(File(path), hash, 'pdf');
+    var wrote = false; // once the note is saved the asset belongs to it
     try {
       if (cancel.cancelled) throw const PdfImportCancelled();
       final current = state.value ?? await _load();
@@ -1109,11 +1110,12 @@ class LibraryNotifier extends AsyncNotifier<List<LibraryEntry>> {
       final note = Note.trusted(json);
       if (cancel.cancelled) throw const PdfImportCancelled();
       await ref.read(noteStoreProvider).write(note);
+      wrote = true;
       ref.read(assetSyncProvider).markLocal(hash);
       await _place(note, current);
       return note;
     } catch (_) {
-      if (isNew) await assets.remove(hash, 'pdf');
+      if (isNew && !wrote) await assets.remove(hash, 'pdf');
       rethrow;
     }
   }

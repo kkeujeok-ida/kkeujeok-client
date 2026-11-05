@@ -119,10 +119,14 @@ Future<void> _probeMain((SendPort, String) a) async {
     parse = _parse(path, (d, t) => port.send((d, t)));
     final units = await _userUnits(file);
     // shortcut: PDFium does not give /UserUnit, so the file text is searched;
-    // one value for the whole file is applied to every page, several values or
-    // one inside a compressed object stream are not seen (1 is used).
-    if (units.length == 1 && parse['pages'] is List) {
-      for (final p in parse['pages'] as List) {
+    // it counts only when every page has one and they are all equal (several
+    // values, some pages only, or one inside a compressed object stream are
+    // not matched to pages: 1 is used).
+    final pages = parse['pages'];
+    if (pages is List &&
+        units.length == pages.length &&
+        units.toSet().length == 1) {
+      for (final p in pages) {
         (p as Map)['userUnit'] = units.first;
       }
     }
@@ -216,9 +220,9 @@ String _tail(String path) {
 
 final _unit = RegExp(r'^\s*([0-9]*\.?[0-9]+)');
 
-/// The distinct `/UserUnit` values written in plain text in [f].
-Future<Set<double>> _userUnits(File f) async {
-  final found = <double>{};
+/// Every `/UserUnit` value written in plain text in [f].
+Future<List<double>> _userUnits(File f) async {
+  final found = <double>[];
   var carry = '';
   await for (final chunk in f.openRead()) {
     final s = carry + latin1.decode(chunk);
@@ -227,6 +231,7 @@ Future<Set<double>> _userUnits(File f) async {
       i >= 0;
       i = s.indexOf('/UserUnit', i + 9)
     ) {
+      if (i + 40 <= carry.length) continue; // seen whole in the last chunk
       final m = _unit.firstMatch(
         s.substring(i + 9, (i + 40).clamp(0, s.length)),
       );
@@ -239,7 +244,8 @@ Future<Set<double>> _userUnits(File f) async {
 }
 
 /// A PDF another app opened or shared (Android intent): the copy in the cache
-/// folder and the name of the file, once; null when there is none.
+/// folder and the name of the file, once; null when there is none. Throws
+/// [PdfImportException] when the copy failed.
 Future<({String path, String name})?> takeSharedPdf() async {
   try {
     final m = await const MethodChannel('com.kkeujeok.app/pdf')
@@ -247,7 +253,7 @@ Future<({String path, String name})?> takeSharedPdf() async {
     if (m == null) return null;
     return (path: m['path']!, name: m['name']!);
   } on PlatformException {
-    return null;
+    throw const PdfImportException('failed'); // the copy failed: say so
   } on MissingPluginException {
     return null; // tests, other platforms
   }
