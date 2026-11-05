@@ -528,5 +528,8 @@
   "pdfErrTooManyPages": "500페이지보다 긴 PDF는 가져올 수 없어요.",
   "pdfErrEncrypted": "암호가 걸린 PDF는 가져올 수 없어요.",
   "pdfErrUnreadable": "이 파일을 읽을 수 없어요.",
-  "pdfImportSaveFailed": "PDF를 노트로 저장하지 못했어요."
+  "pdfImportSaveFailed": "PDF를 노트로 저장하지 못했어요.",
+  "pdfDownloading": "PDF 받는 중",
+  "pdfDownloadFailed": "PDF를 받지 못했어요",
+  "pdfPageSemantics": "PDF 페이지"
 }

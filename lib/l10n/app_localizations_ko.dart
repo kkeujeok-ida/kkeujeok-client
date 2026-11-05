@@ -1381,4 +1381,13 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get pdfImportSaveFailed => 'PDF를 노트로 저장하지 못했어요.';
+
+  @override
+  String get pdfDownloading => 'PDF 받는 중';
+
+  @override
+  String get pdfDownloadFailed => 'PDF를 받지 못했어요';
+
+  @override
+  String get pdfPageSemantics => 'PDF 페이지';
 }

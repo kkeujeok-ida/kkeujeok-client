@@ -36,6 +36,8 @@ import '../ops/history.dart';
 import '../ops/ops.dart';
 import '../ops/resolve_conflict.dart';
 import '../render/asset_images.dart';
+import '../render/pdf_pages.dart';
+import '../model/pdf_rules.dart' show isPdfBackground;
 import '../render/page_painter.dart';
 import '../render/selection_painter.dart';
 import '../render/zoom_snap.dart';
@@ -173,6 +175,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   late final _assetSync = ref.read(assetSyncProvider);
   late final _assetStore = ref.read(assetStoreProvider);
   late final _images = AssetImages(_assetStore, _assetSync);
+  late final _pdf = PdfPages(_assetStore, _assetSync);
 
   // Saves coalesce: at most one write runs, and only the newest snapshot
   // waits behind it. [_failed] is the snapshot the last write could not save.
@@ -390,6 +393,26 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     if (vp == null) return const [];
     final rects = _geometry().rects;
     return [
+      for (var i = 0; i < _pages.length; i++)
+        if (isPdfBackground(_pages[i]['background']) &&
+            _pdf.display(_pages[i])['state'] == 'failed')
+          Positioned(
+            left:
+                vp.offset.dx +
+                (rects[i].left + (_pages[i]['width'] as num) / 2) * vp.scale -
+                56,
+            top:
+                vp.offset.dy +
+                (rects[i].top + (_pages[i]['height'] as num) / 2) * vp.scale +
+                20,
+            width: 112,
+            height: KkjTokens.spacingHitMinAndroid,
+            child: TextButton(
+              onPressed: () =>
+                  _pdf.retry('${(_pages[i]['background'] as Map)['asset']}'),
+              child: Text(l10n.imageRetry),
+            ),
+          ),
       for (var i = 0; i < _pages.length; i++)
         for (final e in _pages[i]['elements'] as List)
           if (drawableImage(e) &&
@@ -1681,6 +1704,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     // A sync result for this note is merged into this queue and history.
     _hosts.register(widget.note.noteId, _host);
     _images.addListener(_onAssets);
+    _pdf.addListener(_onAssets);
     _syncAssets();
     _loadLastSeen();
     // A receive may have replaced the note before the mark was set.
@@ -2253,6 +2277,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _hosts.unregister(widget.note.noteId, _host);
     _images.removeListener(_onAssets);
     _images.dispose();
+    _pdf.removeListener(_onAssets);
+    _pdf.dispose();
     _openNote.clear(widget.note.noteId);
     _anim.dispose();
     _tick.dispose();
@@ -3780,13 +3806,16 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
           final landscape = (p['width'] as num) > (p['height'] as num);
           return [
             Semantics(
-              label: l10n.pageSemantics(
-                i + 1,
-                pages.length,
-                landscape
-                    ? l10n.orientationLandscape
-                    : l10n.orientationPortrait,
-              ),
+              label: [
+                l10n.pageSemantics(
+                  i + 1,
+                  pages.length,
+                  landscape
+                      ? l10n.orientationLandscape
+                      : l10n.orientationPortrait,
+                ),
+                if (isPdfBackground(p['background'])) l10n.pdfPageSemantics,
+              ].join(', '),
               value: _history.isLocked(id)
                   ? '${l10n.handwriting}, ${l10n.conflictPageSemantics}'
                   : l10n.handwriting,
@@ -3813,6 +3842,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                           : null;
                     },
                     images: _images,
+                    pdf: _pdf,
                     repaint: _tick,
                   ),
                 ),
@@ -3830,6 +3860,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       ..failedLabel = l10n.imageDownloadFailed
       ..imageLabel = l10n.imageSemantics
       ..pendingLabel = l10n.imagePendingSemantics;
+    _pdf
+      ..downloadingLabel = l10n.pdfDownloading
+      ..failedLabel = l10n.pdfDownloadFailed
+      ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
     final pad = MediaQuery.paddingOf(context);
     const gap = KkjTokens.spacing3;
     final page = _page;
@@ -4517,6 +4551,8 @@ class _OverviewHost implements PageOverviewHost {
   };
   @override
   Listenable get changes => s._tick;
+  @override
+  PdfPages? get pdf => s._pdf;
   @override
   int get undoDepth => s._history.undoDepth;
   @override

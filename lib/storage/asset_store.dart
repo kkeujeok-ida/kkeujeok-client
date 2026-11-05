@@ -65,6 +65,14 @@ class AssetStore {
     if (await f.exists()) await f.delete();
   }
 
+  /// The path of the stored PDF [hash], or null: read by path, never loaded
+  /// whole. The bytes were checked when they were stored.
+  Future<String?> pdfPath(String hash) async {
+    if (!isAssetHash(hash)) return null;
+    final f = await _file(hash, 'pdf');
+    return await f.exists() ? f.path : null;
+  }
+
   /// Stores [bytes] only when their SHA-256 is [hash]; false otherwise.
   Future<bool> writeVerified(String hash, String ext, List<int> bytes) async {
     if (sha256Hex(bytes) != hash) return false;

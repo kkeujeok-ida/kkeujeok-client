@@ -2551,6 +2551,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not save the PDF as a note.'**
   String get pdfImportSaveFailed;
+
+  /// No description provided for @pdfDownloading.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading PDF'**
+  String get pdfDownloading;
+
+  /// No description provided for @pdfDownloadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t download the PDF'**
+  String get pdfDownloadFailed;
+
+  /// No description provided for @pdfPageSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'PDF page'**
+  String get pdfPageSemantics;
 }
 
 class _AppLocalizationsDelegate

@@ -8,7 +8,9 @@ import 'package:flutter/semantics.dart';
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
 import '../model/page_bounds.dart';
+import '../model/pdf_rules.dart' show isPdfBackground;
 import '../render/page_painter.dart';
+import '../render/pdf_pages.dart';
 
 /// What the overview needs from the editor that owns the note: its pages, and
 /// page operations that go through the note's history and save queue.
@@ -23,6 +25,9 @@ abstract class PageOverviewHost {
 
   /// Fires when [pages] or [current] may have changed.
   Listenable get changes;
+
+  /// Draws the PDF ground in thumbnails; null shows plain paper.
+  PdfPages? get pdf => null;
 
   int get undoDepth;
   void undo();
@@ -421,8 +426,13 @@ class _PageOverviewState extends State<PageOverview> {
                       : () => Navigator.of(context).pop(PageOverviewResult(i)),
                   onOutTap: (ids) =>
                       Navigator.of(context).pop(PageOverviewResult(i, ids)),
-                  onBackground: () => _background([id]),
-                  onOrientation: _turn(pages[i], i),
+                  pdf: host.pdf,
+                  onBackground: isPdfBackground(pages[i]['background'])
+                      ? null
+                      : () => _background([id]),
+                  onOrientation: isPdfBackground(pages[i]['background'])
+                      ? null
+                      : _turn(pages[i], i),
                   onDuplicate: () => _duplicate([id]),
                   onDelete: pages.length > 1 ? () => _delete([id]) : null,
                   onEarlier: i > 0 ? () => _moveOne(i, i - 1) : null,
@@ -460,6 +470,7 @@ class _Cell extends StatefulWidget {
     required this.selected,
     required this.onTap,
     required this.onOutTap,
+    required this.pdf,
     required this.onBackground,
     required this.onOrientation,
     required this.onDuplicate,
@@ -484,7 +495,10 @@ class _Cell extends StatefulWidget {
   /// Null for the last page left: it cannot be deleted.
   final VoidCallback? onDelete;
 
-  final VoidCallback onBackground;
+  final PdfPages? pdf;
+
+  /// Null on a PDF page: its background and orientation are fixed.
+  final VoidCallback? onBackground;
 
   /// Null for a square page.
   final VoidCallback? onOrientation;
@@ -529,6 +543,7 @@ class _CellState extends State<_Cell> {
         widget.total,
         w > h ? l.pageLandscape : l.pagePortrait,
       ),
+      if (isPdfBackground(p['background'])) l.pdfPageSemantics,
       if (widget.isCurrent) l.pageCurrent,
       if (widget.conflict) l.pageConflictBadge,
     ].join(', ');
@@ -550,7 +565,12 @@ class _CellState extends State<_Cell> {
         borderRadius: BorderRadius.circular(radius),
         child: RepaintBoundary(
           child: CustomPaint(
-            painter: PagePainter(page: p, cache: _cache),
+            painter: PagePainter(
+              page: p,
+              cache: _cache,
+              pdf: widget.pdf,
+              repaint: widget.pdf,
+            ),
           ),
         ),
       ),

@@ -4,7 +4,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import 'asset_images.dart';
-import '../model/pdf_rules.dart' show patternOf;
+import 'pdf_pages.dart';
+import '../model/pdf_rules.dart' show isPdfBackground, patternOf;
 import 'page_background.dart';
 import 'stroke_outline.dart';
 import 'text_painter.dart';
@@ -213,6 +214,7 @@ class PagePainter extends CustomPainter {
     this.hidden,
     this.draft,
     this.images,
+    this.pdf,
     this.erasePreview,
     super.repaint,
   });
@@ -232,6 +234,9 @@ class PagePainter extends CustomPainter {
 
   /// Decoded assets for image elements; null draws grey placeholders.
   final PageImages? images;
+
+  /// Renders the PDF ground of a PDF page; null draws it as plain paper.
+  final PdfPages? pdf;
 
   /// While the eraser is down: the elements to draw instead of the page's, and
   /// the stroke ids drawn at [alpha] (the ones the erase would remove).
@@ -258,11 +263,7 @@ class PagePainter extends CustomPainter {
       ..scale(vp.scale)
       ..clipRect(Rect.fromLTWH(0, 0, w, h));
 
-    final bg = _bg ??= pageBackground(
-      patternOf(page['background']),
-      w,
-      h,
-    );
+    final bg = _bg ??= pageBackground(patternOf(page['background']), w, h);
     canvas.drawRect(
       Rect.fromLTWH(0, 0, w, h),
       Paint()..color = parseColor(bg['paper']),
@@ -286,6 +287,22 @@ class PagePainter extends CustomPainter {
       canvas.drawCircle(Offset(n[0].toDouble(), n[1].toDouble()), r, dot);
     }
 
+    final pdfPages = pdf;
+    if (pdfPages != null && isPdfBackground(page['background'])) {
+      final sc = vp.scale;
+      Rect? vis;
+      if (viewport != null) {
+        final r = (Offset.zero & size).shift(-vp.offset);
+        vis = Rect.fromLTRB(
+          r.left / sc,
+          r.top / sc,
+          r.right / sc,
+          r.bottom / sc,
+        ).intersect(Rect.fromLTWH(0, 0, w, h));
+      }
+      paintPdfBackground(canvas, page, pdfPages, vis, sc);
+    }
+
     final ids = <String>{};
     final skip = hidden?.call();
     final ep = erasePreview?.call();
@@ -298,9 +315,9 @@ class PagePainter extends CustomPainter {
         final id = (e as Map)['id'] as String;
         final i = id.lastIndexOf('~');
         if (i > 0 && ep.fade.contains(id.substring(0, i))) {
-          pieces.putIfAbsent(id.substring(0, i), () => []).add(
-            e as Map<String, dynamic>,
-          );
+          pieces
+              .putIfAbsent(id.substring(0, i), () => [])
+              .add(e as Map<String, dynamic>);
         }
       }
     }

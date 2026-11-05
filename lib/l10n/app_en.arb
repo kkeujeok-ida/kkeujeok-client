@@ -584,5 +584,8 @@
   "pdfErrTooManyPages": "PDFs longer than 500 pages cannot be imported.",
   "pdfErrEncrypted": "Password-protected PDFs cannot be imported.",
   "pdfErrUnreadable": "This file cannot be read.",
-  "pdfImportSaveFailed": "Could not save the PDF as a note."
+  "pdfImportSaveFailed": "Could not save the PDF as a note.",
+  "pdfDownloading": "Downloading PDF",
+  "pdfDownloadFailed": "Couldn't download the PDF",
+  "pdfPageSemantics": "PDF page"
 }

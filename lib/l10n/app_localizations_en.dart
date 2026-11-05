@@ -1458,4 +1458,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pdfImportSaveFailed => 'Could not save the PDF as a note.';
+
+  @override
+  String get pdfDownloading => 'Downloading PDF';
+
+  @override
+  String get pdfDownloadFailed => 'Couldn\'t download the PDF';
+
+  @override
+  String get pdfPageSemantics => 'PDF page';
 }
