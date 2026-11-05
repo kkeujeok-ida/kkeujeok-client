@@ -36,8 +36,11 @@ class LibraryFab extends StatefulWidget {
     super.key,
     required this.onNewNote,
     required this.onNewFolder,
+    this.onImportPdf,
   });
 
+  /// Story 9.2; null hides the item.
+  final VoidCallback? onImportPdf;
   final VoidCallback onNewNote;
   final VoidCallback onNewFolder;
 
@@ -70,6 +73,11 @@ class _LibraryFabState extends State<LibraryFab> {
   void _newNote() {
     _set(false);
     widget.onNewNote();
+  }
+
+  void _importPdf() {
+    _set(false);
+    widget.onImportPdf!();
   }
 
   void _newFolder() {
@@ -162,6 +170,14 @@ class _LibraryFabState extends State<LibraryFab> {
                       _newFolder,
                     ),
                     const SizedBox(height: KkjLight.componentsFabItemGap),
+                    if (widget.onImportPdf != null) ...[
+                      _item(
+                        l10n.pdfImport,
+                        Icons.picture_as_pdf_outlined,
+                        _importPdf,
+                      ),
+                      const SizedBox(height: KkjLight.componentsFabItemGap),
+                    ],
                     _item(
                       l10n.newNote,
                       Icons.note_add_outlined,

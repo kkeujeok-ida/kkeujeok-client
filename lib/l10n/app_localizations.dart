@@ -2509,6 +2509,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Search'**
   String get searchOpen;
+
+  /// No description provided for @pdfImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Import PDF'**
+  String get pdfImport;
+
+  /// No description provided for @pdfImportProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Importing PDF · {done}/{total} pages'**
+  String pdfImportProgress(int done, int total);
+
+  /// No description provided for @pdfErrTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'PDFs larger than 100 MB cannot be imported.'**
+  String get pdfErrTooLarge;
+
+  /// No description provided for @pdfErrTooManyPages.
+  ///
+  /// In en, this message translates to:
+  /// **'PDFs longer than 500 pages cannot be imported.'**
+  String get pdfErrTooManyPages;
+
+  /// No description provided for @pdfErrEncrypted.
+  ///
+  /// In en, this message translates to:
+  /// **'Password-protected PDFs cannot be imported.'**
+  String get pdfErrEncrypted;
+
+  /// No description provided for @pdfErrUnreadable.
+  ///
+  /// In en, this message translates to:
+  /// **'This file cannot be read.'**
+  String get pdfErrUnreadable;
+
+  /// No description provided for @pdfImportSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the PDF as a note.'**
+  String get pdfImportSaveFailed;
 }
 
 class _AppLocalizationsDelegate

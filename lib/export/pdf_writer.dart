@@ -5,6 +5,7 @@ import 'package:vector_math/vector_math_64.dart' show Matrix4;
 import 'package:pdf/pdf.dart';
 
 import '../model/note.dart';
+import '../model/pdf_rules.dart' show patternOf;
 import '../model/text_layout.dart';
 import '../model/text_metrics.dart';
 import '../render/page_background.dart';
@@ -104,7 +105,7 @@ Future<Uint8List> buildPdf({
 }
 
 void _background(PdfGraphics g, Map<String, dynamic> p, double w, double h) {
-  final bg = pageBackground(p['background'] as String, w, h);
+  final bg = pageBackground(patternOf(p['background']), w, h);
   final lines = bg['lines'] as List, dots = bg['dots'] as List;
   if (lines.isNotEmpty) {
     g.setStrokeColor(_color(bg['lineColor']));

@@ -9,6 +9,8 @@ import 'note_data.dart';
 /// Bytes of image assets on this device, `assets/<sha256>.<ext>` in the app
 /// documents directory. A file is written once (atomic) and kept after its
 /// upload as a cache. Every read checks the SHA-256 (spec `image.md`).
+const _exts = ['jpg', 'png', 'webp', 'pdf'];
+
 class AssetStore {
   AssetStore(this._data);
 
@@ -29,7 +31,7 @@ class AssetStore {
   /// written again. Throws [FileSystemException] when the write fails.
   Future<String> write(List<int> bytes, String ext) async {
     // The extension comes from a note file: never a path.
-    if (!const {'jpg', 'png', 'webp'}.contains(ext)) {
+    if (!_exts.contains(ext)) {
       throw ArgumentError.value(ext, 'ext');
     }
     final hash = sha256Hex(bytes);
@@ -38,6 +40,29 @@ class AssetStore {
       await writeFileAtomic(f, bytes);
     }
     return hash;
+  }
+
+  /// Copies [src], whose SHA-256 is [hash], into the store without reading it
+  /// into memory (a PDF may be 100 MB). True when it was new here.
+  Future<bool> writeFile(File src, String hash, String ext) async {
+    if (!_exts.contains(ext) || !isAssetHash(hash)) {
+      throw ArgumentError.value(ext, 'ext');
+    }
+    final f = await _file(hash, ext);
+    if (await f.exists() && await f.length() == await src.length()) {
+      return false;
+    }
+    await f.parent.create(recursive: true);
+    final part = File('${f.path}.part');
+    await src.copy(part.path);
+    await part.rename(f.path);
+    return true;
+  }
+
+  /// Removes the stored file of [hash] (an import that was cancelled).
+  Future<void> remove(String hash, String ext) async {
+    final f = await _file(hash, ext);
+    if (await f.exists()) await f.delete();
   }
 
   /// Stores [bytes] only when their SHA-256 is [hash]; false otherwise.
@@ -51,7 +76,7 @@ class AssetStore {
   /// file is removed so it is fetched again).
   Future<List<int>?> read(String hash) async {
     if (!isAssetHash(hash)) return null;
-    for (final ext in const ['jpg', 'png', 'webp']) {
+    for (final ext in _exts) {
       final f = await _file(hash, ext);
       try {
         if (!await f.exists()) continue;

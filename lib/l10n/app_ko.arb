@@ -520,5 +520,13 @@
   "@notesMoveTitle": {"placeholders": {"n": {"type": "int"}}},
   "notesMoved": "노트 {n}개를 \"{name}\" 폴더로 옮겼어요",
   "@notesMoved": {"placeholders": {"n": {"type": "int"}, "name": {"type": "String"}}},
-  "searchOpen": "검색"
+  "searchOpen": "검색",
+  "pdfImport": "PDF 가져오기",
+  "pdfImportProgress": "PDF 가져오는 중 · {done}/{total}페이지",
+  "@pdfImportProgress": {"placeholders": {"done": {"type": "int"}, "total": {"type": "int"}}},
+  "pdfErrTooLarge": "100MB보다 큰 PDF는 가져올 수 없어요.",
+  "pdfErrTooManyPages": "500페이지보다 긴 PDF는 가져올 수 없어요.",
+  "pdfErrEncrypted": "암호가 걸린 PDF는 가져올 수 없어요.",
+  "pdfErrUnreadable": "이 파일을 읽을 수 없어요.",
+  "pdfImportSaveFailed": "PDF를 노트로 저장하지 못했어요."
 }

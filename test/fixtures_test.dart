@@ -18,6 +18,7 @@ import 'package:kkeujeok/model/number.dart';
 import 'package:kkeujeok/l10n/app_localizations_en.dart';
 import 'package:kkeujeok/l10n/app_localizations_ko.dart';
 import 'package:kkeujeok/model/page_bounds.dart';
+import 'package:kkeujeok/model/pdf_rules.dart';
 import 'package:kkeujeok/model/pen.dart';
 import 'package:kkeujeok/model/pen_palette.dart';
 import 'package:kkeujeok/ui/pen_toolbar.dart'
@@ -91,6 +92,29 @@ final runners = <String, void Function(Case)>{
       out == expected.toDouble(),
       isTrue,
       reason: 'got $out, expected $expected',
+    );
+  },
+  'pdf.pageBox': (c) => _same(pdfPageBox(_json(c['input'])), c['expected']),
+  'pdf.import': (c) => _same(pdfImport(_json(c['input'])), c['expected']),
+  'pdf.pageDisplay': (c) =>
+      _same(pdfPageDisplay(_json(c['input'])), c['expected']),
+  'pdf.pageOps': _runOp,
+  'pdf.pageMatrix': (c) {
+    final i = _json(c['input']);
+    List p(Json m) => m['point'] as List;
+    _same(
+      {'point': pdfPageMatrix(i['box'], i['rotate'], i['userUnit'], p(i))},
+      c['expected'],
+    );
+    // and back: the expected point gives the input point again
+    _same(
+      pdfPagePoint(
+        i['box'],
+        i['rotate'],
+        i['userUnit'],
+        p(c['expected'] as Json),
+      ),
+      p(i),
     );
   },
   'note.roundTrip': (c) => _same(_roundTrip(c['input']), c['expected']),
@@ -662,12 +686,7 @@ void _runOp(Case c) {
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6. The erase rules have runners (Story 5.6): none pending.
 const pendingRules = <String>{
-  // PDF background rules (Story 9.1) arrive with the Android stories 9.2, 9.4, 9.6.
-  'pdf.pageBox',
-  'pdf.pageMatrix',
-  'pdf.import',
-  'pdf.pageDisplay',
-  'pdf.pageOps',
+  // PDF rules: pageBox/pageMatrix/import/pageDisplay/pageOps have runners (9.2); the export structure arrives with 9.6.
   'pdf.exportStructure',
   // Trash rules (Story 14.1): trashNote and trashFolder have runners (7.5); the rest arrive with 14.2, 7.7.
   'trash.restoreNote',

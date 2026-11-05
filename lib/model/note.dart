@@ -72,6 +72,11 @@ class Note {
       for (final k in const ['width', 'height', 'seq']) {
         p[k] = _round(p[k]);
       }
+      final bg = p['background'];
+      if (bg is Map<String, dynamic> && bg['type'] == 'pdf') {
+        if (bg['box'] is List) bg['box'] = [for (final n in bg['box']) _round(n)];
+        bg['userUnit'] = _round(bg['userUnit']);
+      }
       for (final e in p['elements'] as List) {
         if (e is Map<String, dynamic> && e['type'] == 'stroke') roundStroke(e);
       }
@@ -137,6 +142,11 @@ bool _validNote(Map<String, dynamic> m) {
       pages.every(_validPage);
 }
 
+/// A pattern name, or a `type: "pdf"` object of any shape (a malformed one is
+/// kept as it is and read as plain, spec/pdf.md).
+bool _validBackground(Object? b) =>
+    backgrounds.contains(b) || (b is Map && b['type'] == 'pdf');
+
 bool _validPage(Object? p) {
   if (p is! Map<String, dynamic>) return false;
   final w = p['width'], h = p['height'], els = p['elements'];
@@ -145,7 +155,7 @@ bool _validPage(Object? p) {
       w > 0 &&
       h is num &&
       h > 0 &&
-      backgrounds.contains(p['background']) &&
+      _validBackground(p['background']) &&
       _isStr(p['rev']) &&
       _isInt(p['seq']) &&
       _isStr(p['editedAt']) &&

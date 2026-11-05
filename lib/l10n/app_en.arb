@@ -576,5 +576,13 @@
   "@notesMoveTitle": {"placeholders": {"n": {"type": "int"}}},
   "notesMoved": "Moved {n} notes to \"{name}\"",
   "@notesMoved": {"placeholders": {"n": {"type": "int"}, "name": {"type": "String"}}},
-  "searchOpen": "Search"
+  "searchOpen": "Search",
+  "pdfImport": "Import PDF",
+  "pdfImportProgress": "Importing PDF · {done}/{total} pages",
+  "@pdfImportProgress": {"placeholders": {"done": {"type": "int"}, "total": {"type": "int"}}},
+  "pdfErrTooLarge": "PDFs larger than 100 MB cannot be imported.",
+  "pdfErrTooManyPages": "PDFs longer than 500 pages cannot be imported.",
+  "pdfErrEncrypted": "Password-protected PDFs cannot be imported.",
+  "pdfErrUnreadable": "This file cannot be read.",
+  "pdfImportSaveFailed": "Could not save the PDF as a note."
 }

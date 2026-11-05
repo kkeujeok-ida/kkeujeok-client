@@ -64,7 +64,8 @@ Map<String, num> imageInitialSize(
   };
 }
 
-/// `image.referencedAssets`: the `asset` of every image element, sorted,
+/// `image.referencedAssets`: the `asset` of every image element and PDF
+/// background, sorted,
 /// without duplicates; a malformed one is kept (as `""` when not a string).
 List<String> referencedAssets(Note note) {
   final out = <String>{};
@@ -74,6 +75,11 @@ List<String> referencedAssets(Note note) {
         final a = e['asset'];
         out.add(a is String ? a : '');
       }
+    }
+    final bg = p['background'];
+    if (bg is Map && bg['type'] == 'pdf') {
+      final a = bg['asset'];
+      out.add(a is String ? a : '');
     }
   }
   return out.toList()..sort();

@@ -264,6 +264,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
           m[e['asset'] as String] = '${e['ext']}';
         }
       }
+      final bg = p['background'];
+      if (bg is Map && bg['type'] == 'pdf' && bg['asset'] is String) {
+        m[bg['asset'] as String] = 'pdf';
+      }
     }
     if (m.isNotEmpty) unawaited(_assetSync.ensure(m));
   }

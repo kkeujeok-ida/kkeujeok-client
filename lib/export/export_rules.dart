@@ -4,6 +4,7 @@ import '../model/note_title.dart' show isTitleTrim;
 import '../model/number.dart';
 import '../model/select.dart' show selectionBounds;
 import '../model/text_layout.dart';
+import '../model/pdf_rules.dart' show patternOf;
 import '../render/page_background.dart';
 import '../render/stroke_outline.dart';
 
@@ -137,7 +138,7 @@ Map<String, dynamic> exportPlan(
   for (final n in r['pages'] as List) {
     final p = note.pages[(n as int) - 1];
     final w = p['width'] as num, h = p['height'] as num;
-    final bg = pageBackground(p['background'] as String, w, h);
+    final bg = pageBackground(patternOf(p['background']), w, h);
     final nLines = (bg['lines'] as List).length;
     final nDots = (bg['dots'] as List).length;
     final elements = <Map<String, dynamic>>[], omitted = <String>[];

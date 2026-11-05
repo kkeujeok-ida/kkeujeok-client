@@ -1434,4 +1434,28 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchOpen => 'Search';
+
+  @override
+  String get pdfImport => 'Import PDF';
+
+  @override
+  String pdfImportProgress(int done, int total) {
+    return 'Importing PDF · $done/$total pages';
+  }
+
+  @override
+  String get pdfErrTooLarge => 'PDFs larger than 100 MB cannot be imported.';
+
+  @override
+  String get pdfErrTooManyPages =>
+      'PDFs longer than 500 pages cannot be imported.';
+
+  @override
+  String get pdfErrEncrypted => 'Password-protected PDFs cannot be imported.';
+
+  @override
+  String get pdfErrUnreadable => 'This file cannot be read.';
+
+  @override
+  String get pdfImportSaveFailed => 'Could not save the PDF as a note.';
 }

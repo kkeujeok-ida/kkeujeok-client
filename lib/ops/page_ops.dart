@@ -1,4 +1,5 @@
 import '../model/note.dart';
+import '../model/pdf_rules.dart' show isPdfBackground;
 import 'ops.dart';
 
 /// Page operations (spec/ops.md "Page operations"); mirrors test/tools/pages.js.
@@ -237,6 +238,14 @@ OpResult _setPageBackground(Note note, Map<String, dynamic> op, Ctx ctx) {
   if (items.any((it) => !_backgrounds.contains(it['background']))) {
     return _err('invalidBackground');
   }
+  // A PDF page keeps its background: the whole list is refused.
+  final pdfIds = {
+    for (final p in note.pages)
+      if (isPdfBackground(p['background'])) p['id'],
+  };
+  if (items.any((it) => pdfIds.contains(it['pageId']))) {
+    return _err('pdfBackground');
+  }
   final want = {for (final it in items) it['pageId']: it['background']};
   final json = note.copyJson();
   final back = <Map<String, dynamic>>[];
@@ -265,6 +274,7 @@ OpResult _setPageOrientation(Note note, Map<String, dynamic> op, Ctx ctx) {
     return _err('invalidOrientation');
   }
   final p = pages[idx];
+  if (isPdfBackground(p['background'])) return _err('pdfOrientation');
   final w = p['width'] as num, h = p['height'] as num;
   final cur = w > h ? 'landscape' : 'portrait';
   if (cur == want || w == h) return _unchanged(note);

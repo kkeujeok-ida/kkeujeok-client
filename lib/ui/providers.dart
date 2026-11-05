@@ -20,6 +20,7 @@ import '../model/library_view.dart';
 import '../model/page_view_mode.dart';
 import '../model/ids.dart';
 import '../model/note.dart';
+import '../model/pdf_rules.dart' show pdfImport;
 import '../model/pen.dart';
 import '../model/pen_only.dart';
 import '../model/toolbar_pos.dart';
@@ -31,6 +32,7 @@ import '../storage/language_store.dart';
 import '../storage/new_note_defaults_store.dart';
 import '../storage/note_data.dart';
 import '../storage/note_store.dart';
+import '../storage/pdf_intake.dart';
 import '../storage/pen_slots_store.dart';
 import '../storage/session_hint.dart';
 import '../storage/sync_info.dart' show SyncState;
@@ -1054,6 +1056,69 @@ class LibraryNotifier extends AsyncNotifier<List<LibraryEntry>> {
     await ref
         .read(newNoteDefaultsStoreProvider)
         .write(background: background, orientation: orientation);
+    await _place(note, current);
+    return note;
+  }
+
+  /// Story 9.2: a new note from the PDF at [path] (spec `pdf.import`): one
+  /// page per PDF page, no cover, in the open folder. The PDF goes into the
+  /// asset store first, the note after it; [cancel] leaves nothing behind.
+  /// Throws [PdfImportException], [PdfImportCancelled] or [NoteSaveException].
+  Future<Note> createFromPdf({
+    required String path,
+    required String fileName,
+    required PdfCancel cancel,
+    required void Function(int done, int total) onProgress,
+  }) async {
+    final probe = await probePdf(path, cancel, onProgress);
+    final plan = pdfImport(probe.input(fileName));
+    if (plan['error'] != null) throw PdfImportException('${plan['error']}');
+    final hash = plan['asset'] as String;
+    final assets = ref.read(assetStoreProvider);
+    final isNew = await assets.writeFile(File(path), hash, 'pdf');
+    try {
+      if (cancel.cancelled) throw const PdfImportCancelled();
+      final current = state.value ?? await _load();
+      final made = createNote(
+        title: plan['title'] as String,
+        existingTitles: const [],
+        background: 'plain',
+        orientation: 'portrait',
+        noteId: newId(),
+        pageId: newId(),
+        pageRev: newId(),
+        metaRev: newId(),
+        orderRev: newId(),
+        now: canonicalNow(DateTime.now()),
+        editedBy: deviceEditedBy,
+      );
+      final json = made.note!.copyJson();
+      final tpl = (json['pages'] as List).first as Map<String, dynamic>;
+      json['pages'] = [
+        for (final p in plan['pages'] as List)
+          {
+            ...tpl,
+            'id': newId(),
+            'rev': newId(),
+            'width': (p as Map)['width'],
+            'height': p['height'],
+            'background': p['background'],
+            'elements': <Object?>[],
+          },
+      ];
+      final note = Note.trusted(json);
+      if (cancel.cancelled) throw const PdfImportCancelled();
+      await ref.read(noteStoreProvider).write(note);
+      ref.read(assetSyncProvider).markLocal(hash);
+      await _place(note, current);
+      return note;
+    } catch (_) {
+      if (isNew) await assets.remove(hash, 'pdf');
+      rethrow;
+    }
+  }
+
+  Future<void> _place(Note note, List<LibraryEntry> current) async {
     // A note made while a folder is open goes into it (its upload puts it
     // there); a folder that is gone means the top level.
     String? folder = ref.read(currentFolderProvider);
@@ -1080,7 +1145,6 @@ class LibraryNotifier extends AsyncNotifier<List<LibraryEntry>> {
         ]..sort(_compare),
       );
     }
-    return note;
   }
 }
 

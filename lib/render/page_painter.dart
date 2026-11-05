@@ -4,6 +4,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import 'asset_images.dart';
+import '../model/pdf_rules.dart' show patternOf;
 import 'page_background.dart';
 import 'stroke_outline.dart';
 import 'text_painter.dart';
@@ -258,7 +259,7 @@ class PagePainter extends CustomPainter {
       ..clipRect(Rect.fromLTWH(0, 0, w, h));
 
     final bg = _bg ??= pageBackground(
-      page['background'] as String? ?? 'plain',
+      patternOf(page['background']),
       w,
       h,
     );

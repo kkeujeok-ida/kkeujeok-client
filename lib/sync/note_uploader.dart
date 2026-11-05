@@ -1455,6 +1455,8 @@ class NoteUploader {
           for (final e in p['elements'] as List)
             if (e is Map && e['type'] == 'image')
               '${e['asset']}': '${e['ext']}',
+        for (final p in note.pages)
+          if (p['background'] case {'type': 'pdf', 'asset': final a}) '$a': 'pdf',
       };
       final bytes = <String, List<int>>{};
       for (final h in referenced) {
@@ -1520,7 +1522,11 @@ class NoteUploader {
   ) async {
     final meta = {
       'name': '$hash.$ext',
-      'mimeType': ext == 'jpg' ? 'image/jpeg' : 'image/$ext',
+      'mimeType': switch (ext) {
+        'jpg' => 'image/jpeg',
+        'pdf' => 'application/pdf',
+        _ => 'image/$ext',
+      },
       'parents': [folder],
       'appProperties': {'kkeujeokId': 'asset:$hash'},
     };
@@ -1531,7 +1537,8 @@ class NoteUploader {
         () => drive.uploadSimple(metadata: meta, bytes: bytes),
       );
     } else {
-      // At most 10 MB: one or two chunks; Drive says how far it got.
+      // Images are at most 10 MB, a PDF 100 MB (13 chunks of 8 MB, under the
+      // 20-round bound); Drive says how far it got.
       final uri = await _call(
         noteId,
         () => drive.startResumable(metadata: meta, size: bytes.length),

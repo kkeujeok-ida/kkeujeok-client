@@ -1358,4 +1358,27 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get searchOpen => '검색';
+
+  @override
+  String get pdfImport => 'PDF 가져오기';
+
+  @override
+  String pdfImportProgress(int done, int total) {
+    return 'PDF 가져오는 중 · $done/$total페이지';
+  }
+
+  @override
+  String get pdfErrTooLarge => '100MB보다 큰 PDF는 가져올 수 없어요.';
+
+  @override
+  String get pdfErrTooManyPages => '500페이지보다 긴 PDF는 가져올 수 없어요.';
+
+  @override
+  String get pdfErrEncrypted => '암호가 걸린 PDF는 가져올 수 없어요.';
+
+  @override
+  String get pdfErrUnreadable => '이 파일을 읽을 수 없어요.';
+
+  @override
+  String get pdfImportSaveFailed => 'PDF를 노트로 저장하지 못했어요.';
 }

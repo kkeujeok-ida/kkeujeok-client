@@ -13,6 +13,7 @@ import '../design_tokens/build/tokens.dart';
 import '../drive/root_folder.dart' show RootStatus;
 import '../library/folder_service.dart' show FolderView, LibraryFolder;
 import '../storage/note_store.dart' show NoteSaveException;
+import '../storage/pdf_intake.dart' show takeSharedPdf;
 import 'folder_colors.dart';
 import 'folder_picker_sheet.dart';
 import 'folder_actions.dart';
@@ -31,6 +32,7 @@ import 'library_sort.dart';
 import 'new_note_sheet.dart';
 import 'note_editor.dart';
 import 'note_order.dart' show NoteArrival;
+import 'pdf_import.dart';
 import 'providers.dart';
 import 'sync_banner.dart';
 import 'sync_display.dart';
@@ -97,6 +99,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      _takeShared();
       if (ref.read(syncProblemsProvider).conflict) _askNotifyPermission();
       // Already known to be missing (an earlier library): ask at once.
       final status = ref.read(rootFolderProvider).status;
@@ -157,6 +160,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     if (!mounted) return;
     final coordinator = ref.read(uploadCoordinatorProvider);
     if (s == AppLifecycleState.resumed) {
+      _takeShared();
       ref.read(rootFolderProvider.notifier).checkForeground();
       unawaited(ref.read(folderTreeProvider.notifier).refresh());
       unawaited(coordinator.foreground());
@@ -394,6 +398,27 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     );
     unawaited(_afterEditor(Navigator.of(context).pushReplacement(route), to));
   }
+
+  /// Story 9.2: a PDF another app opened or shared waits until the library
+  /// is here (so after sign-in), then is imported like a picked one.
+  Future<void> _takeShared() async {
+    final s = await takeSharedPdf();
+    if (s != null && mounted) unawaited(_importPdf(s));
+  }
+
+  Future<void> _importPdf([({String path, String name})? given]) => _guarded(
+    () async {
+      final file = given ?? await pickPdf();
+      if (file == null || !mounted) return;
+      final r = await showPdfImport(context, path: file.path, name: file.name);
+      if (!mounted) return;
+      if (r is Note) {
+        await _afterEditor(_push(r), r);
+      } else if (r is String) {
+        _snack(r);
+      }
+    },
+  );
 
   Future<void> _newNote() => _guarded(() async {
     // A created note is already in the list; no reload needed.
@@ -789,6 +814,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           ),
           Positioned.fill(
             child: LibraryFab(
+              onImportPdf: () => _importPdf(),
               onNewNote: _newNote,
               onNewFolder: () =>
                   createFolderDialog(context, ref, folder ?? 'root'),
