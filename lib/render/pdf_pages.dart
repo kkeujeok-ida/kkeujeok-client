@@ -86,6 +86,7 @@ class _Entry {
   _Entry(this.image, this.rect, this.scale)
     : bytes = image.width * image.height * 4;
   final ui.Image image;
+  DateTime touched = DateTime.now();
 
   /// Region of the page in pt; null for the whole page.
   final Rect? rect;
@@ -140,6 +141,7 @@ class PdfPages extends ChangeNotifier {
   final _lru = <String, _Entry>{};
   final _queue = <String, _Job>{};
   final _timers = <String, Timer>{};
+  final _inflight = <String>{};
   final _broken = <String>{};
   var _bytes = 0;
   var _running = false;
@@ -188,7 +190,9 @@ class PdfPages extends ChangeNotifier {
 
   _Entry? _touch(String key) {
     final e = _lru.remove(key);
-    if (e != null) _lru[key] = e;
+    if (e != null) {
+      _lru[key] = e..touched = DateTime.now();
+    }
     return e;
   }
 
@@ -222,6 +226,7 @@ class PdfPages extends ChangeNotifier {
       if (r.inflate(0.5).contains(visible.topLeft) &&
           r.inflate(0.5).contains(visible.bottomRight) &&
           e.scale >= want * 0.9) {
+        _timers.remove(key)?.cancel();
         return (image: e.image, rect: r);
       }
     }
@@ -251,7 +256,7 @@ class PdfPages extends ChangeNotifier {
 
   void _enqueue(_Job job) {
     if (_disposed || _broken.contains(job.hash)) return;
-    if (!sync.local.contains(job.hash)) return;
+    if (!sync.local.contains(job.hash) || _inflight.contains(job.key)) return;
     // Newest request last: what is on screen now is rendered first.
     _queue.remove(job.key);
     _queue[job.key] = job;
@@ -263,33 +268,53 @@ class PdfPages extends ChangeNotifier {
     try {
       while (!_disposed && _queue.isNotEmpty) {
         final job = _queue.remove(_queue.keys.last)!;
-        // A page that left the screen long ago is asked for again when it returns.
-        if (DateTime.now().difference(job.at) > _staleAfter) continue;
-        final path = await store.pdfPath(job.hash);
-        if (path == null) continue;
-        final size = pdfRenderSize(job.pageW, job.pageH, job.rect, job.scale);
-        Uint8List? px;
+        _inflight.add(job.key);
         try {
-          px = await Isolate.run(() => renderPdfPage(path, job.index, size));
+          await _run(job);
+        } finally {
+          _inflight.remove(job.key);
+        }
+      }
+    } finally {
+      _running = false;
+    }
+  }
+
+  Future<void> _run(_Job job) async {
+    {
+      {
+        // A page that left the screen long ago is asked for again when it returns.
+        if (DateTime.now().difference(job.at) > _staleAfter) return;
+        final path = await store.pdfPath(job.hash);
+        if (path == null) return;
+        final size = pdfRenderSize(job.pageW, job.pageH, job.rect, job.scale);
+        ui.Image? img;
+        try {
+          final px = await Isolate.run(
+            () => renderPdfPage(path, job.index, size),
+          );
+          if (px != null && !_disposed) {
+            img = await _decode(px, size.bw, size.bh);
+          }
         } catch (_) {
-          px = null;
+          img = null;
         }
-        if (_disposed) return;
-        if (px == null) {
-          _broken.add(job.hash);
-          notifyListeners();
-          continue;
-        }
-        final img = await _decode(px, size.bw, size.bh);
         if (_disposed) {
-          img.dispose();
+          img?.dispose();
+          return;
+        }
+        if (img == null) {
+          // Only a failed whole-page render says the PDF is unreadable; a
+          // failed sharp tile is dropped and the base stays.
+          if (job.rect == null) {
+            _broken.add(job.hash);
+            notifyListeners();
+          }
           return;
         }
         _put(job.key, _Entry(img, job.rect, job.scale));
         notifyListeners();
       }
-    } finally {
-      _running = false;
     }
   }
 
@@ -318,8 +343,14 @@ class PdfPages extends ChangeNotifier {
     _lru[key] = e;
     _bytes += e.bytes;
     // Off-screen pages go first; the newest entry stays.
+    // Entries drawn in the last moments are on screen: they stay.
+    final recent = DateTime.now().subtract(const Duration(milliseconds: 500));
     while (_bytes > budget && _lru.length > 1) {
-      final k = _lru.keys.first;
+      final k = _lru.keys.firstWhere(
+        (k) => _lru[k]!.touched.isBefore(recent),
+        orElse: () => '',
+      );
+      if (k.isEmpty) break;
       final v = _lru.remove(k)!;
       _bytes -= v.bytes;
       v.image.dispose();
