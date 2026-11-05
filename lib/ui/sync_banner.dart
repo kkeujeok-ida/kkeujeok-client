@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'snack.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -89,7 +91,7 @@ class SyncBanner extends ConsumerWidget {
     final text = AppLocalizations.of(context).syncQuotaBody;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: ExcludeSemantics(child: Text(text))));
+      ..showSnackBar(appSnackBar(content: ExcludeSemantics(child: Text(text))));
     unawaited(
       SemanticsService.sendAnnouncement(
         View.of(context),

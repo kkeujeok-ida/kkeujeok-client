@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'snack.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 
@@ -89,7 +91,7 @@ class _PageOverviewState extends State<PageOverview> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
+        appSnackBar(
           content: Text(text),
           action: undo
               ? SnackBarAction(
@@ -157,7 +159,7 @@ class _PageOverviewState extends State<PageOverview> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
+        appSnackBar(
           content: Text(text),
           action: SnackBarAction(label: l.pageUndo, onPressed: _undelete),
         ),

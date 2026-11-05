@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'snack.dart';
+
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
 import '../render/page_painter.dart';
@@ -217,7 +219,7 @@ class _ConflictBodyState extends State<_ConflictBody> {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          SnackBar(
+          appSnackBar(
             content: Text(AppLocalizations.of(context).conflictResolveFailed),
           ),
         );

@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'snack.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -178,7 +180,7 @@ class _SyncIndicatorState extends ConsumerState<SyncIndicator> {
     try {
       ok = await ref.read(urlOpenerProvider)(driveStorageUri);
     } catch (_) {}
-    if (!ok) messenger.showSnackBar(SnackBar(content: Text(failed)));
+    if (!ok) messenger.showSnackBar(appSnackBar(content: Text(failed)));
   }
 
   @override

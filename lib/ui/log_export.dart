@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'snack.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -30,7 +32,7 @@ Future<void> exportSyncLog(WidgetRef ref, BuildContext context) async {
     );
     await share(file);
   } catch (_) {
-    messenger.showSnackBar(SnackBar(content: Text(failed)));
+    messenger.showSnackBar(appSnackBar(content: Text(failed)));
   } finally {
     try {
       await file?.delete(); // the log's own file stays; this is a copy

@@ -16,6 +16,8 @@ import 'package:flutter/services.dart'
         PhysicalKeyboardKey;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'snack.dart';
+
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
 import '../model/element_clipboard.dart';
@@ -1273,14 +1275,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
+        appSnackBar(
           content: Text(l10n.penSlotDeleted),
-          // A SnackBar with an action persists by default; close it on a timer,
-          // longer for screen-reader users.
-          persist: false,
-          duration: Duration(
-            seconds: MediaQuery.accessibleNavigationOf(context) ? 15 : 5,
-          ),
           action: SnackBarAction(
             label: l10n.undo,
             onPressed: () =>
@@ -3634,7 +3630,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(text)));
+      ..showSnackBar(appSnackBar(content: Text(text)));
   }
 
   Future<void> _drain() async {

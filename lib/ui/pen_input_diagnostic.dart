@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'snack.dart';
+
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
 
@@ -10,12 +12,7 @@ const penDiagMaxEvents = 20;
 /// Bit 2 is the stylus barrel button on most pens, bit 4 the second one.
 String describeButtons(int b) {
   if (b == 0) return 'none';
-  const names = {
-    1: 'primary',
-    2: 'secondary',
-    4: 'tertiary',
-    32: 'eraser',
-  };
+  const names = {1: 'primary', 2: 'secondary', 4: 'tertiary', 32: 'eraser'};
   final out = <String>[];
   for (var bit = 1; bit <= b && bit > 0; bit <<= 1) {
     if (b & bit != 0) out.add(names[bit] ?? 'bit$bit');
@@ -64,9 +61,8 @@ class _State extends State<PenInputDiagnosticScreen> {
             constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
             onPressed: () {
               Clipboard.setData(ClipboardData(text: _events.join('\n')));
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text(l10n.penDiagCopied)));
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(appSnackBar(content: Text(l10n.penDiagCopied)));
             },
           ),
         ],

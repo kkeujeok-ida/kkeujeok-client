@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'snack.dart';
+
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
 import '../model/pen_only.dart';
@@ -205,7 +207,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ok = await ref.read(urlOpenerProvider)(uri!);
       } catch (_) {}
       if (!ok) {
-        messenger.showSnackBar(SnackBar(content: Text(l10n.privacyOpenFailed)));
+        messenger.showSnackBar(
+          appSnackBar(content: Text(l10n.privacyOpenFailed)),
+        );
       }
     }
 

@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'snack.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -69,7 +71,7 @@ class _CannotOpenSheetState extends ConsumerState<_CannotOpenSheet> {
     try {
       ok = await ref.read(urlOpenerProvider)(driveFileUri(_fileId!));
     } catch (_) {}
-    if (!ok) messenger.showSnackBar(SnackBar(content: Text(failed)));
+    if (!ok) messenger.showSnackBar(appSnackBar(content: Text(failed)));
   }
 
   /// The device copy as `<noteId>.kkj` through the share sheet.
@@ -89,7 +91,7 @@ class _CannotOpenSheetState extends ConsumerState<_CannotOpenSheet> {
           .writeAsBytes(bytes);
       await ref.read(noteFilesSharerProvider)([file]);
     } catch (_) {
-      messenger.showSnackBar(SnackBar(content: Text(failed)));
+      messenger.showSnackBar(appSnackBar(content: Text(failed)));
     } finally {
       try {
         await dir?.delete(recursive: true);

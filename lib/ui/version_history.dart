@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'snack.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -287,7 +289,7 @@ class _VersionHistoryState extends ConsumerState<VersionHistoryScreen> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
+        appSnackBar(
           content: Text(switch (failure) {
             RestoreFailure.unreadable => l.versionRestoreUnreadable,
             RestoreFailure.notSaved =>
