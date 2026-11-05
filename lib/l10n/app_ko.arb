@@ -1,7 +1,7 @@
 {
   "@@locale": "ko",
   "productName": "Kkeujeok",
-  "library": "Notes",
+  "library": "노트",
   "viewLabel": "보기 방식",
   "viewList": "리스트",
   "viewGrid": "그리드",
@@ -472,7 +472,7 @@
   "folderDeleteBody": "{n, plural, =0{이 폴더를 앱 휴지통으로 옮겨요.} other{이 폴더와 안의 노트 {n}개를 앱 휴지통으로 옮겨요.}}",
   "@folderDeleteBody": {"placeholders": {"n": {"type": "int"}}},
   "folderDeleteConfirm": "지우기",
-  "folderTopLevel": "Home",
+  "folderTopLevel": "홈",
   "folderColor": "색상",
   "folderColorDefault": "기본",
   "folderColorOption": "색상 {n}",

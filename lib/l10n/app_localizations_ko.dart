@@ -13,7 +13,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get productName => 'Kkeujeok';
 
   @override
-  String get library => 'Notes';
+  String get library => '노트';
 
   @override
   String get viewLabel => '보기 방식';
@@ -1224,7 +1224,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get folderDeleteConfirm => '지우기';
 
   @override
-  String get folderTopLevel => 'Home';
+  String get folderTopLevel => '홈';
 
   @override
   String get folderColor => '색상';

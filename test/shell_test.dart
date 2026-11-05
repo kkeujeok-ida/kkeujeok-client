@@ -41,7 +41,7 @@ Future<LanguageStore> pumpApp(
   bool settle = true, // false: a spinner animates and never settles
   bool stubUnsent = true, // false: the test overrides unsentIdsProvider
 }) async {
-  tester.view.physicalSize = Size(width, 700);
+  tester.view.physicalSize = Size(width, 2400);
   tester.view.devicePixelRatio = 1;
   tester.platformDispatcher.textScaleFactorTestValue = textScale;
   tester.platformDispatcher.localesTestValue = device;
@@ -368,7 +368,8 @@ void main() {
       await pumpApp(t);
       await t.tap(find.text('Settings'));
       await t.pumpAndSettle();
-      expect(find.byIcon(Icons.check), findsOneWidget);
+      // One check in the language list, one in the theme list.
+      expect(find.byIcon(Icons.check), findsNWidgets(2));
       expect(
         find.descendant(
           of: find.widgetWithText(InkWell, 'Follow system settings'),
@@ -378,7 +379,7 @@ void main() {
       );
       await t.tap(find.text('English'));
       await t.pumpAndSettle();
-      expect(find.byIcon(Icons.check), findsOneWidget);
+      expect(find.byIcon(Icons.check), findsNWidgets(2));
       expect(
         find.descendant(
           of: find.widgetWithText(InkWell, 'English'),
