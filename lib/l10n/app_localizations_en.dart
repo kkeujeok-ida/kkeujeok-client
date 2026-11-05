@@ -70,6 +70,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get languageEn => 'English';
 
   @override
+  String get theme => 'Theme';
+
+  @override
+  String get themeLight => 'Light';
+
+  @override
+  String get themeDark => 'Dark';
+
+  @override
+  String get themeAllDark => 'All Dark';
+
+  @override
   String get privacyPolicy => 'Privacy policy';
 
   @override

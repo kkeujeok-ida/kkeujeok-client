@@ -47,6 +47,7 @@ import '../sync/note_uploader.dart';
 import '../sync/open_note.dart';
 import '../sync/sync_log.dart';
 import '../sync/unsent.dart';
+import '../storage/theme_store.dart';
 import '../sync/thumbnail.dart';
 import '../sync/upload_coordinator.dart';
 import '../sync/version_history.dart';
@@ -69,6 +70,23 @@ class LanguageNotifier extends Notifier<LanguageChoice> {
 
 final languageProvider = NotifierProvider<LanguageNotifier, LanguageChoice>(
   LanguageNotifier.new,
+);
+
+/// Overridden in main() with the opened preferences.
+final themeStoreProvider = Provider<ThemeStore>((ref) => ThemeStore(null));
+
+class ThemeNotifier extends Notifier<ThemeChoice> {
+  @override
+  ThemeChoice build() => ref.read(themeStoreProvider).read();
+
+  Future<void> select(ThemeChoice choice) async {
+    state = choice;
+    await ref.read(themeStoreProvider).write(choice);
+  }
+}
+
+final themeProvider = NotifierProvider<ThemeNotifier, ThemeChoice>(
+  ThemeNotifier.new,
 );
 
 /// Web `/privacy` address from `--dart-define-from-file` (PRIVACY_URL).

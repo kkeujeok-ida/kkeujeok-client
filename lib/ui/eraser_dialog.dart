@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'kk.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -53,9 +54,9 @@ class EraserDialog extends ConsumerWidget {
               constraints: const BoxConstraints(minHeight: _cell),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: active ? KkjLight.colorAccentSoft : null,
+                  color: active ? Kk.colorAccentSoft : null,
                   borderRadius: BorderRadius.circular(KkjTokens.roundedSm),
-                  border: Border.all(color: KkjLight.colorBorderControl),
+                  border: Border.all(color: Kk.colorBorderControl),
                 ),
                 child: Center(child: Text(text)),
               ),
@@ -67,7 +68,7 @@ class EraserDialog extends ConsumerWidget {
 
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      backgroundColor: KkjLight.componentsPopoverBackground,
+      backgroundColor: Kk.componentsPopoverBackground,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(KkjLight.componentsPopoverRounded),
       ),

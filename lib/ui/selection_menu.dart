@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../design_tokens/build/tokens.dart';
+import 'kk.dart';
 import '../l10n/app_localizations.dart';
 import '../model/pen.dart';
 import '../render/page_painter.dart' show parseColor;
@@ -70,7 +71,7 @@ class SelectionMenu extends StatelessWidget {
           constraints: const BoxConstraints.tightFor(width: _hit, height: _hit),
           padding: EdgeInsets.zero,
           style: IconButton.styleFrom(
-            backgroundColor: toggled == true ? KkjLight.colorAccentSoft : null,
+            backgroundColor: toggled == true ? Kk.colorAccentSoft : null,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
           iconSize: 20,
@@ -80,9 +81,9 @@ class SelectionMenu extends StatelessWidget {
     );
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: KkjLight.componentsToolbarBackground,
+        color: Kk.componentsToolbarBackground,
         borderRadius: BorderRadius.circular(KkjLight.componentsToolbarRounded),
-        boxShadow: kkjShadow(KkjLight.componentsToolbarShadow),
+        boxShadow: kkjShadow(Kk.componentsToolbarShadow),
       ),
       child: Padding(
         padding: _barPad,
@@ -140,9 +141,9 @@ class BlankTapMenu extends StatelessWidget {
     );
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: KkjLight.componentsPopoverBackground,
+        color: Kk.componentsPopoverBackground,
         borderRadius: BorderRadius.circular(KkjLight.componentsPopoverRounded),
-        boxShadow: kkjShadow(KkjLight.componentsPopoverShadow),
+        boxShadow: kkjShadow(Kk.componentsPopoverShadow),
       ),
       child: Padding(
         padding: const EdgeInsets.all(_pad),
@@ -162,7 +163,7 @@ class BlankTapMenu extends StatelessWidget {
 Future<String?> pickStrokeColor(BuildContext context) => showDialog<String>(
   context: context,
   builder: (context) => Dialog(
-    backgroundColor: KkjLight.componentsPopoverBackground,
+    backgroundColor: Kk.componentsPopoverBackground,
     child: Padding(
       padding: const EdgeInsets.all(_pad),
       child: Wrap(
@@ -196,7 +197,7 @@ Future<double?> pickStrokeWidth(BuildContext context, double initial) =>
       builder: (context) {
         var v = initial.clamp(0.5, 10.0);
         return Dialog(
-          backgroundColor: KkjLight.componentsPopoverBackground,
+          backgroundColor: Kk.componentsPopoverBackground,
           child: StatefulBuilder(
             builder: (context, set) => Padding(
               padding: const EdgeInsets.all(_pad),

@@ -117,8 +117,9 @@ void paintImageElement(
   Canvas canvas,
   Map<String, dynamic> e,
   PageImages? source,
-  double zoom,
-) {
+  double zoom, {
+  bool underlay = false,
+}) {
   final x = (e['x'] as num).toDouble(), y = (e['y'] as num).toDouble();
   final w = (e['width'] as num).toDouble(), h = (e['height'] as num).toDouble();
   final rot = ((e['rotation'] as num?) ?? 0).toDouble();
@@ -133,6 +134,9 @@ void paintImageElement(
   }
   final img = source?.image(e);
   if (img != null) {
+    // All Dark: a transparent image sits on the original white paper.
+    if (underlay)
+      canvas.drawRect(box, Paint()..color = const Color(0xFFFFFFFF));
     canvas.drawImageRect(
       img,
       Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),

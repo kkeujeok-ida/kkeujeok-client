@@ -218,6 +218,30 @@ abstract class AppLocalizations {
   /// **'English'**
   String get languageEn;
 
+  /// No description provided for @theme.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme'**
+  String get theme;
+
+  /// No description provided for @themeLight.
+  ///
+  /// In en, this message translates to:
+  /// **'Light'**
+  String get themeLight;
+
+  /// No description provided for @themeDark.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark'**
+  String get themeDark;
+
+  /// No description provided for @themeAllDark.
+  ///
+  /// In en, this message translates to:
+  /// **'All Dark'**
+  String get themeAllDark;
+
   /// No description provided for @privacyPolicy.
   ///
   /// In en, this message translates to:

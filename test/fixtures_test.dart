@@ -11,6 +11,7 @@ import 'package:kkeujeok/drive/note_summary.dart';
 import 'package:kkeujeok/export/export_rules.dart';
 import 'package:kkeujeok/library/library_rules.dart';
 import 'package:kkeujeok/model/image_rules.dart';
+import 'package:kkeujeok/model/invert.dart';
 import 'package:kkeujeok/model/kkj_codec.dart';
 import 'package:kkeujeok/model/note.dart';
 import 'package:kkeujeok/model/note_title.dart';
@@ -86,6 +87,14 @@ void _exportPlanCase(Case c) {
   );
 }
 
+void _rgb(List<int> got, Case c) {
+  final want = (_json(c['expected'])['rgb'] as List).cast<num>();
+  final tol = (c['tolerance'] as num?) ?? 0;
+  for (var i = 0; i < 3; i++) {
+    expect((got[i] - want[i]).abs() <= tol, isTrue, reason: '$got vs $want');
+  }
+}
+
 final runners = <String, void Function(Case)>{
   'number.round2': (c) {
     final input = c['input'], expected = c['expected'];
@@ -107,6 +116,32 @@ final runners = <String, void Function(Case)>{
       reason: 'got $out, expected $expected',
     );
   },
+  'invert.color': (c) =>
+      _rgb(invertColor(_json(c['input'])['color'] as String), c),
+  'invert.ink': (c) {
+    final r = invertInk(_json(c['input'])['color'] as String);
+    _rgb(r.rgb, c);
+    expect(r.corrected, _json(c['expected'])['corrected']);
+  },
+  'invert.paper': (c) => _rgb(paperRgb, c),
+  'invert.highlighter': (c) => _rgb(
+    invertHighlighter([
+      ...(_json(c['input'])['colors'] as List).cast<String>(),
+    ]),
+    c,
+  ),
+  'invert.background': (c) {
+    final out = invertBackground(_json(c['input'])['background']);
+    final e = _json(c['expected']);
+    expect(out.keys.toSet(), e.keys.toSet());
+    for (final k in e.keys) {
+      _rgb(out[k] as List<int>, {
+        'expected': {'rgb': e[k]},
+        'tolerance': c['tolerance'],
+      });
+    }
+  },
+  'invert.layers': (c) => _same(invertLayers(_json(c['input'])), c['expected']),
   'pdf.pageBox': (c) => _same(pdfPageBox(_json(c['input'])), c['expected']),
   'pdf.import': (c) => _same(pdfImport(_json(c['input'])), c['expected']),
   'pdf.pageDisplay': (c) =>
@@ -687,13 +722,6 @@ void _runOp(Case c) {
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6. The erase rules have runners (Story 5.6): none pending.
 const pendingRules = <String>{
-  // All Dark rules (Story 10.1) arrive with 10.2.
-  'invert.color',
-  'invert.ink',
-  'invert.paper',
-  'invert.highlighter',
-  'invert.background',
-  'invert.layers',
   // Trash rules (Story 14.1): trashNote and trashFolder have runners (7.5); the rest arrive with 14.2, 7.7.
   'trash.restoreNote',
   'trash.restoreFolder',

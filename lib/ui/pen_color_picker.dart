@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
+import 'kk.dart';
 import 'package:flutter/material.dart';
 
 import '../design_tokens/build/tokens.dart';
@@ -148,7 +149,7 @@ class _PenColorPickerState extends State<_PenColorPicker> {
     final l10n = AppLocalizations.of(context);
     final hex = _typed ?? hsvToHex(_c);
     return AlertDialog(
-      backgroundColor: KkjLight.componentsPopoverBackground,
+      backgroundColor: Kk.componentsPopoverBackground,
       scrollable: true,
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -182,7 +183,7 @@ class _PenColorPickerState extends State<_PenColorPicker> {
                 decoration: BoxDecoration(
                   color: parseColor(hex),
                   borderRadius: BorderRadius.circular(KkjTokens.roundedSm),
-                  border: Border.all(color: KkjLight.colorBorderControl),
+                  border: Border.all(color: Kk.colorBorderControl),
                 ),
                 child: const SizedBox.square(dimension: 40),
               ),

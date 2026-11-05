@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'storage/language_store.dart';
+import 'storage/theme_store.dart';
 import 'storage/new_note_defaults_store.dart';
 import 'model/text_metrics.dart';
 import 'storage/pen_slots_store.dart';
@@ -36,6 +37,7 @@ Future<void> main() async {
   final container = ProviderContainer(
     overrides: [
       languageStoreProvider.overrideWithValue(LanguageStore(prefs)),
+      themeStoreProvider.overrideWithValue(ThemeStore(prefs)),
       newNoteDefaultsStoreProvider.overrideWithValue(
         NewNoteDefaultsStore(prefs),
       ),

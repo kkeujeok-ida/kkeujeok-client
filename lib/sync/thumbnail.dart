@@ -16,6 +16,7 @@ Future<List<int>?> renderThumbnail(
     PagePainter(
       page: page,
       cache: StrokePathCache(),
+      invert: false, // the uploaded thumbnail keeps the original colors
     ).paint(canvas, ui.Size(width.toDouble(), height.toDouble()));
     final image = await recorder.endRecording().toImage(width, height);
     try {

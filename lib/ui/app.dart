@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/app_localizations.dart';
 import '../storage/language_store.dart';
 import 'library.dart' show libraryRouteObserver;
+import 'kk.dart';
 import 'providers.dart';
 import 'account_gate.dart';
 import 'sign_in.dart';
@@ -26,28 +27,30 @@ TextStyle _text(
   color: color,
 );
 
-ThemeData lightTheme() {
-  final scheme = ColorScheme.light(
-    primary: KkjLight.colorAccent,
-    onPrimary: KkjLight.colorOnAccent,
-    primaryContainer: KkjLight.colorAccentSoft,
-    onPrimaryContainer: KkjLight.colorAccentText,
-    surface: KkjLight.colorSurfaceBase,
-    onSurface: KkjLight.colorInkPrimary,
-    onSurfaceVariant: KkjLight.colorInkSecondary,
-    surfaceContainerLowest: KkjLight.colorSurfaceRaised,
-    surfaceContainerHighest: KkjLight.colorSurfaceSunken,
-    outline: KkjLight.colorBorderControl,
-    outlineVariant: KkjLight.colorBorderHairline,
-    error: KkjLight.colorStatusError,
-    onError: KkjLight.colorOnError,
-    scrim: KkjLight.colorScrim,
-  );
+/// The Material theme for the Light or the Dark tokens ([Kk.dark]).
+ThemeData appTheme() {
+  final scheme =
+      (Kk.dark ? const ColorScheme.dark() : const ColorScheme.light()).copyWith(
+        primary: Kk.colorAccent,
+        onPrimary: Kk.colorOnAccent,
+        primaryContainer: Kk.colorAccentSoft,
+        onPrimaryContainer: Kk.colorAccentText,
+        surface: Kk.colorSurfaceBase,
+        onSurface: Kk.colorInkPrimary,
+        onSurfaceVariant: Kk.colorInkSecondary,
+        surfaceContainerLowest: Kk.colorSurfaceRaised,
+        surfaceContainerHighest: Kk.colorSurfaceSunken,
+        outline: Kk.colorBorderControl,
+        outlineVariant: Kk.colorBorderHairline,
+        error: Kk.colorStatusError,
+        onError: Kk.colorOnError,
+        scrim: Kk.colorScrim,
+      );
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
-    scaffoldBackgroundColor: KkjLight.colorSurfaceBase,
-    disabledColor: KkjLight.colorInkDisabled,
+    scaffoldBackgroundColor: Kk.colorSurfaceBase,
+    disabledColor: Kk.colorInkDisabled,
     fontFamily: KkjTokens.typographyBodyFontFamily,
     textTheme: TextTheme(
       titleLarge: _text(
@@ -55,28 +58,28 @@ ThemeData lightTheme() {
         KkjTokens.typographyTitleFontSize,
         KkjTokens.typographyTitleFontWeight,
         KkjTokens.typographyTitleLineHeight,
-        KkjLight.colorInkPrimary,
+        Kk.colorInkPrimary,
       ),
       bodyMedium: _text(
         KkjTokens.typographyBodyFontFamily,
         KkjTokens.typographyBodyFontSize,
         KkjTokens.typographyBodyFontWeight,
         KkjTokens.typographyBodyLineHeight,
-        KkjLight.colorInkPrimary,
+        Kk.colorInkPrimary,
       ),
       labelMedium: _text(
         KkjTokens.typographyLabelFontFamily,
         KkjTokens.typographyLabelFontSize,
         KkjTokens.typographyLabelFontWeight,
         KkjTokens.typographyLabelLineHeight,
-        KkjLight.colorInkPrimary,
+        Kk.colorInkPrimary,
       ),
       bodySmall: _text(
         KkjTokens.typographyCaptionFontFamily,
         KkjTokens.typographyCaptionFontSize,
         KkjTokens.typographyCaptionFontWeight,
         KkjTokens.typographyCaptionLineHeight,
-        KkjLight.colorInkSecondary,
+        Kk.colorInkSecondary,
       ),
     ),
   );
@@ -88,9 +91,10 @@ class App extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final choice = ref.watch(languageProvider);
+    Kk.applyTheme(ref.watch(themeProvider));
     return MaterialApp(
       onGenerateTitle: (c) => AppLocalizations.of(c).productName,
-      theme: lightTheme(),
+      theme: appTheme(),
       // An explicit choice wins; "system" is resolved from the device list.
       locale: choice == LanguageChoice.system
           ? null

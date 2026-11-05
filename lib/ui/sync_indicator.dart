@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'snack.dart';
+import 'kk.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -26,13 +27,13 @@ IconData syncIcon(SyncLabel l) => switch (l) {
 };
 
 Color syncIconColor(SyncLabel l) => switch (l) {
-  SyncLabel.saved => KkjLight.componentsSyncIndicatorSynced,
-  SyncLabel.pending => KkjLight.componentsSyncIndicatorPending,
-  SyncLabel.offline => KkjLight.componentsSyncIndicatorOffline,
-  SyncLabel.saving => KkjLight.componentsSyncIndicatorSyncing,
-  SyncLabel.receiving => KkjLight.componentsSyncIndicatorIncoming,
-  SyncLabel.twoVersions => KkjLight.componentsSyncIndicatorConflictIcon,
-  SyncLabel.notSaved => KkjLight.componentsSyncIndicatorError,
+  SyncLabel.saved => Kk.componentsSyncIndicatorSynced,
+  SyncLabel.pending => Kk.componentsSyncIndicatorPending,
+  SyncLabel.offline => Kk.componentsSyncIndicatorOffline,
+  SyncLabel.saving => Kk.componentsSyncIndicatorSyncing,
+  SyncLabel.receiving => Kk.componentsSyncIndicatorIncoming,
+  SyncLabel.twoVersions => Kk.componentsSyncIndicatorConflictIcon,
+  SyncLabel.notSaved => Kk.componentsSyncIndicatorError,
 };
 
 /// The state text of the table (UX-DR38).
@@ -205,8 +206,8 @@ class _SyncIndicatorState extends ConsumerState<SyncIndicator> {
     final coordinator = ref.read(uploadCoordinatorProvider);
     return MenuAnchor(
       style: MenuStyle(
-        backgroundColor: const WidgetStatePropertyAll(
-          KkjLight.componentsPopoverBackground,
+        backgroundColor: WidgetStatePropertyAll(
+          Kk.componentsPopoverBackground,
         ),
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../design_tokens/build/tokens.dart';
+import 'kk.dart';
 import '../l10n/app_localizations.dart';
 import '../model/text_layout.dart';
 import '../render/page_painter.dart' show parseColor;
@@ -71,7 +72,7 @@ class _TextFormatBarState extends State<TextFormatBar> {
                 width: _hit,
                 height: _hit,
                 decoration: BoxDecoration(
-                  color: toggled == true ? KkjLight.colorAccentSoft : null,
+                  color: toggled == true ? Kk.colorAccentSoft : null,
                   borderRadius: BorderRadius.circular(
                     KkjLight.componentsPopoverRounded,
                   ),
@@ -111,7 +112,7 @@ class _TextFormatBarState extends State<TextFormatBar> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: parseColor(color),
-                      border: Border.all(color: KkjLight.colorBorderHairline),
+                      border: Border.all(color: Kk.colorBorderHairline),
                     ),
                     child: const SizedBox.square(dimension: 20),
                   ),
@@ -195,9 +196,9 @@ class _TextFormatBarState extends State<TextFormatBar> {
 
   Widget _box(Widget child) => DecoratedBox(
     decoration: BoxDecoration(
-      color: KkjLight.componentsPopoverBackground,
+      color: Kk.componentsPopoverBackground,
       borderRadius: BorderRadius.circular(KkjLight.componentsPopoverRounded),
-      boxShadow: kkjShadow(KkjLight.componentsPopoverShadow),
+      boxShadow: kkjShadow(Kk.componentsPopoverShadow),
     ),
     child: Padding(padding: const EdgeInsets.all(_pad), child: child),
   );

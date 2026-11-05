@@ -3,6 +3,7 @@ import 'dart:io' show File;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'kk.dart';
 import 'package:flutter/semantics.dart'
     show Assertiveness, CustomSemanticsAction, SemanticsService;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -843,11 +844,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               child: DecoratedBox(
                 key: const Key('offlineNotice'),
                 decoration: BoxDecoration(
-                  color: KkjLight.componentsBannerBackground,
+                  color: Kk.componentsBannerBackground,
                   borderRadius: BorderRadius.circular(
                     KkjLight.componentsCoverCardRounded,
                   ),
-                  boxShadow: kkjShadow(KkjLight.componentsPopoverShadow),
+                  boxShadow: kkjShadow(Kk.componentsPopoverShadow),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(
@@ -922,13 +923,13 @@ class _Grid extends StatelessWidget {
 }
 
 BoxDecoration _coverBox({Color? border}) => BoxDecoration(
-  color: KkjLight.componentsCoverCardFallbackBackground,
+  color: Kk.componentsCoverCardFallbackBackground,
   borderRadius: BorderRadius.circular(KkjLight.componentsCoverCardRounded),
   border: Border.all(
-    color: border ?? KkjLight.componentsCoverCardFallbackBorder,
+    color: border ?? Kk.componentsCoverCardFallbackBorder,
   ),
   boxShadow: border == null
-      ? kkjShadow(KkjLight.componentsCoverCardShadow)
+      ? kkjShadow(Kk.componentsCoverCardShadow)
       : null,
 );
 
@@ -956,7 +957,7 @@ class _Thumb extends StatelessWidget {
             borderRadius: BorderRadius.circular(
               KkjLight.componentsCoverCardRounded,
             ),
-            boxShadow: kkjShadow(KkjLight.componentsCoverCardShadow),
+            boxShadow: kkjShadow(Kk.componentsCoverCardShadow),
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(
@@ -976,11 +977,11 @@ class _Thumb extends StatelessWidget {
             aspectRatio: w / h,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: KkjLight.componentsCoverCardFallbackBackground,
+                color: Kk.componentsCoverCardFallbackBackground,
                 borderRadius: BorderRadius.circular(
                   KkjLight.componentsCoverCardRounded,
                 ),
-                boxShadow: kkjShadow(KkjLight.componentsCoverCardShadow),
+                boxShadow: kkjShadow(Kk.componentsCoverCardShadow),
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(
@@ -997,7 +998,7 @@ class _Thumb extends StatelessWidget {
       aspectRatio: 3 / 4,
       child: DecoratedBox(
         decoration: _coverBox(
-          border: disabled ? KkjLight.colorInkDisabled : null,
+          border: disabled ? Kk.colorInkDisabled : null,
         ),
         child: child,
       ),
@@ -1038,16 +1039,16 @@ class _SyncBadge extends StatelessWidget {
     final l = AppLocalizations.of(context);
     final (bg, fg) = switch (label) {
       SyncLabel.twoVersions => (
-        KkjLight.componentsBadgeConflictBackground,
-        KkjLight.componentsBadgeConflictText,
+        Kk.componentsBadgeConflictBackground,
+        Kk.componentsBadgeConflictText,
       ),
       SyncLabel.notSaved => (
-        KkjLight.componentsBadgeErrorBackground,
-        KkjLight.componentsBadgeErrorText,
+        Kk.componentsBadgeErrorBackground,
+        Kk.componentsBadgeErrorText,
       ),
       _ => (
-        KkjLight.componentsBadgeNeutralBackground,
-        KkjLight.componentsBadgeNeutralText,
+        Kk.componentsBadgeNeutralBackground,
+        Kk.componentsBadgeNeutralText,
       ),
     };
     final style = TextStyle(
@@ -1253,7 +1254,7 @@ class _NoteCardState extends ConsumerState<_NoteCard> {
                   : Icons.radio_button_unchecked,
               color: widget.selected
                   ? theme.colorScheme.primary
-                  : KkjLight.colorInkSecondary,
+                  : Kk.colorInkSecondary,
             ),
           ),
       ],
@@ -1377,7 +1378,7 @@ class _UnreadableCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final style = Theme.of(context).textTheme.labelMedium
-        ?.copyWith(color: KkjLight.colorInkDisabled);
+        ?.copyWith(color: Kk.colorInkDisabled);
     void open() => showCannotOpenSheet(context, noteId);
     return Semantics(
       label: l10n.cannotOpen,
@@ -1426,7 +1427,7 @@ class _NewNoteCard extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.add, color: KkjLight.colorInkSecondary),
+              Icon(Icons.add, color: Kk.colorInkSecondary),
               const SizedBox(height: KkjTokens.spacing2),
               Text(l10n.newNote, style: label),
             ],
@@ -1880,7 +1881,7 @@ class _FolderCard extends ConsumerWidget {
                           Icons.folder,
                           size: 64,
                           color: colorIndex == null
-                              ? KkjLight.colorInkSecondary
+                              ? Kk.colorInkSecondary
                               : folderPalette[colorIndex %
                                     folderPalette.length],
                         ),
@@ -2000,10 +2001,10 @@ class _ParentCard extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.folder_open,
                       size: 64,
-                      color: KkjLight.colorInkSecondary,
+                      color: Kk.colorInkSecondary,
                     ),
                     const SizedBox(height: KkjTokens.spacing2),
                     Text('../', style: Theme.of(context).textTheme.labelMedium),

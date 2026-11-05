@@ -30,6 +30,10 @@ void main() {
     Future<void> Function(File) sharer, {
     String locale = 'en',
   }) async {
+    // Tall enough for the whole list (language and theme come first).
+    t.view.devicePixelRatio = 1;
+    t.view.physicalSize = const Size(800, 2400);
+    addTearDown(t.view.reset);
     await t.pumpWidget(
       ProviderScope(
         overrides: [

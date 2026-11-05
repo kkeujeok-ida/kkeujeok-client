@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'snack.dart';
+import 'kk.dart';
 
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
@@ -73,9 +74,9 @@ Future<bool> showConflictSheet(
   final r = MediaQuery.sizeOf(context).width >= expandedMinWidth
       ? await showDialog<bool>(
           context: context,
-          barrierColor: KkjLight.componentsConflictSheetScrim,
+          barrierColor: Kk.componentsConflictSheetScrim,
           builder: (_) => Dialog(
-            backgroundColor: KkjLight.componentsConflictSheetBackground,
+            backgroundColor: Kk.componentsConflictSheetBackground,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(
                 KkjLight.componentsConflictSheetRounded,
@@ -91,8 +92,8 @@ Future<bool> showConflictSheet(
           context: context,
           isScrollControlled: true,
           useSafeArea: true,
-          backgroundColor: KkjLight.componentsConflictSheetBackground,
-          barrierColor: KkjLight.componentsConflictSheetScrim,
+          backgroundColor: Kk.componentsConflictSheetBackground,
+          barrierColor: Kk.componentsConflictSheetScrim,
           shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.vertical(
               top: Radius.circular(KkjLight.componentsConflictSheetRounded),
@@ -146,7 +147,7 @@ class _OutlinePainter extends CustomPainter {
       ..drawRect(
         range.inflate(4),
         Paint()
-          ..color = KkjLight.componentsConflictSheetChangeOutline
+          ..color = Kk.componentsConflictSheetChangeOutline
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.5 / vp.scale,
       )
@@ -267,8 +268,8 @@ class _ConflictBodyState extends State<_ConflictBody> {
   }
 
   ButtonStyle get _primaryStyle => FilledButton.styleFrom(
-    backgroundColor: KkjLight.componentsConflictSheetPrimaryBackground,
-    foregroundColor: KkjLight.componentsConflictSheetPrimaryText,
+    backgroundColor: Kk.componentsConflictSheetPrimaryBackground,
+    foregroundColor: Kk.componentsConflictSheetPrimaryText,
     minimumSize: const Size(0, KkjTokens.spacingHitMinAndroid),
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(
@@ -283,11 +284,11 @@ class _ConflictBodyState extends State<_ConflictBody> {
       KkjTokens.spacingHitMinAndroid + KkjTokens.spacing4;
 
   ButtonStyle get _versionStyle => OutlinedButton.styleFrom(
-    backgroundColor: KkjLight.componentsConflictSheetVersionButtonBackground,
-    foregroundColor: KkjLight.componentsConflictSheetVersionButtonText,
+    backgroundColor: Kk.componentsConflictSheetVersionButtonBackground,
+    foregroundColor: Kk.componentsConflictSheetVersionButtonText,
     minimumSize: const Size(0, _versionHeight),
-    side: const BorderSide(
-      color: KkjLight.componentsConflictSheetVersionButtonBorder,
+    side: BorderSide(
+      color: Kk.componentsConflictSheetVersionButtonBorder,
     ),
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(
@@ -346,7 +347,7 @@ class _ConflictBodyState extends State<_ConflictBody> {
         child: DecoratedBox(
           decoration: BoxDecoration(
             border: Border.all(
-              color: KkjLight.componentsConflictSheetPreviewBorder,
+              color: Kk.componentsConflictSheetPreviewBorder,
             ),
             borderRadius: BorderRadius.circular(KkjTokens.roundedSm),
           ),
@@ -375,7 +376,7 @@ class _ConflictBodyState extends State<_ConflictBody> {
               position: DecorationPosition.foreground,
               decoration: BoxDecoration(
                 border: Border.all(
-                  color: KkjLight.componentsConflictSheetPreviewBorder,
+                  color: Kk.componentsConflictSheetPreviewBorder,
                 ),
                 borderRadius: BorderRadius.circular(KkjTokens.roundedSm),
               ),
@@ -411,7 +412,7 @@ class _ConflictBodyState extends State<_ConflictBody> {
                 alignment: AlignmentDirectional.centerStart,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: KkjLight.componentsConflictSheetTagBackground,
+                    color: Kk.componentsConflictSheetTagBackground,
                     borderRadius: BorderRadius.circular(KkjTokens.roundedSm),
                   ),
                   child: Padding(
@@ -422,7 +423,7 @@ class _ConflictBodyState extends State<_ConflictBody> {
                     child: Text(
                       tag,
                       style: style.labelMedium?.copyWith(
-                        color: KkjLight.componentsConflictSheetTagText,
+                        color: Kk.componentsConflictSheetTagText,
                       ),
                     ),
                   ),
@@ -442,7 +443,7 @@ class _ConflictBodyState extends State<_ConflictBody> {
               Text(
                 newer ? l.conflictMoreRecent : ' ',
                 style: style.labelMedium?.copyWith(
-                  color: KkjLight.colorStatusWarningText,
+                  color: Kk.colorStatusWarningText,
                 ),
               ),
             ],

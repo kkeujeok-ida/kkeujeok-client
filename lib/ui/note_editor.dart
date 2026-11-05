@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/gestures.dart';
+import 'kk.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart'
@@ -662,7 +663,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
             height: 28,
             margin: const EdgeInsets.symmetric(horizontal: 2),
             decoration: BoxDecoration(
-              color: KkjLight.componentsSelectionOutline,
+              color: Kk.componentsSelectionOutline,
               borderRadius: BorderRadius.circular(3),
             ),
           ),
@@ -717,7 +718,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
           child: DecoratedBox(
             position: DecorationPosition.foreground,
             decoration: BoxDecoration(
-              border: Border.all(color: KkjLight.componentsSelectionOutline),
+              border: Border.all(color: Kk.componentsSelectionOutline),
             ),
             child: Stack(
               children: [
@@ -1544,7 +1545,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                             value: t,
                             strokeWidth: 6,
                             backgroundColor:
-                                KkjLight.componentsPageThumbnailBorder,
+                                Kk.componentsPageThumbnailBorder,
                           ),
                         ),
                         const SizedBox(height: KkjTokens.spacing2),
@@ -3783,7 +3784,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
         child: Scaffold(
           // The keyboard is handled here: the page scrolls to the caret.
           resizeToAvoidBottomInset: false,
-          backgroundColor: KkjLight.colorSurfaceSunken,
+          backgroundColor: Kk.colorSurfaceSunken,
           body: Builder(builder: _body),
         ),
       ),
@@ -3983,7 +3984,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                     child: Center(
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: KkjLight.componentsBadgeNeutralBackground,
+                          color: Kk.componentsBadgeNeutralBackground,
                           borderRadius: BorderRadius.circular(
                             KkjLight.componentsBadgeRounded,
                           ),
@@ -4018,7 +4019,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                             child: DecoratedBox(
                               decoration: BoxDecoration(
                                 color:
-                                    KkjLight.componentsBadgeNeutralBackground,
+                                    Kk.componentsBadgeNeutralBackground,
                                 borderRadius: BorderRadius.circular(
                                   KkjLight.componentsBadgeRounded,
                                 ),
@@ -4050,7 +4051,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                         container: true,
                         child: DecoratedBox(
                           decoration: BoxDecoration(
-                            color: KkjLight.componentsBadgeNeutralBackground,
+                            color: Kk.componentsBadgeNeutralBackground,
                             borderRadius: BorderRadius.circular(
                               KkjLight.componentsBadgeRounded,
                             ),
@@ -4103,8 +4104,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                     onTap: () => _goBack(_back!),
                     child: FilledButton.tonal(
                       style: FilledButton.styleFrom(
-                        backgroundColor: KkjLight.colorSurfaceSunken,
-                        foregroundColor: KkjLight.colorInkPrimary,
+                        backgroundColor: Kk.colorSurfaceSunken,
+                        foregroundColor: Kk.colorInkPrimary,
                         minimumSize: const Size(
                           KkjTokens.spacingHitMinAndroid,
                           KkjTokens.spacingHitMinAndroid,
@@ -4359,10 +4360,10 @@ class _Corner extends StatelessWidget {
   );
 }
 
-const _cornerDecoration = ShapeDecoration(
-  color: KkjLight.componentsEditorCornerBackground,
+ShapeDecoration get _cornerDecoration => ShapeDecoration(
+  color: Kk.componentsEditorCornerBackground,
   shape: StadiumBorder(
-    side: BorderSide(color: KkjLight.componentsEditorCornerBorder),
+    side: BorderSide(color: Kk.componentsEditorCornerBorder),
   ),
 );
 
@@ -4435,8 +4436,8 @@ class _MoreMenu extends StatelessWidget {
           MenuAnchor(
             controller: menu,
             style: MenuStyle(
-              backgroundColor: const WidgetStatePropertyAll(
-                KkjLight.componentsPopoverBackground,
+              backgroundColor: WidgetStatePropertyAll(
+                Kk.componentsPopoverBackground,
               ),
               shape: WidgetStatePropertyAll(
                 RoundedRectangleBorder(
@@ -4454,7 +4455,7 @@ class _MoreMenu extends StatelessWidget {
                     tooltip: l10n.zoomOut,
                     constraints: _hit,
                     icon: const Icon(Icons.remove),
-                    disabledColor: KkjLight.colorInkDisabled,
+                    disabledColor: Kk.colorInkDisabled,
                     onPressed: canZoomOut ? onZoomOut : null,
                   ),
                   Semantics(
@@ -4471,7 +4472,7 @@ class _MoreMenu extends StatelessWidget {
                     tooltip: l10n.zoomIn,
                     constraints: _hit,
                     icon: const Icon(Icons.add),
-                    disabledColor: KkjLight.colorInkDisabled,
+                    disabledColor: Kk.colorInkDisabled,
                     onPressed: canZoomIn ? onZoomIn : null,
                   ),
                 ],

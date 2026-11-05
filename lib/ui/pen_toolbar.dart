@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'kk.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -328,9 +329,9 @@ class _PenToolbarState extends State<PenToolbar> {
     return DecoratedBox(
       key: _bar,
       decoration: BoxDecoration(
-        color: KkjLight.componentsToolbarBackground,
+        color: Kk.componentsToolbarBackground,
         borderRadius: BorderRadius.circular(KkjLight.componentsToolbarRounded),
-        boxShadow: kkjShadow(KkjLight.componentsToolbarShadow),
+        boxShadow: kkjShadow(Kk.componentsToolbarShadow),
       ),
       child: Padding(
         padding: EdgeInsets.symmetric(
@@ -355,7 +356,7 @@ class _PenToolbarState extends State<PenToolbar> {
                   Size(v ? _hit : KkjLight.componentsPenSlotAddSize, _hit),
                 ),
               ),
-              color: KkjLight.componentsPenSlotAddIcon,
+              color: Kk.componentsPenSlotAddIcon,
               icon: const Icon(Icons.add),
               onPressed: widget.onAdd,
             ),
@@ -367,7 +368,7 @@ class _PenToolbarState extends State<PenToolbar> {
               child: SizedBox(
                 width: v ? 18 : 1,
                 height: v ? 1 : 18,
-                child: const ColoredBox(color: KkjLight.colorBorderHairline),
+                child: ColoredBox(color: Kk.colorBorderHairline),
               ),
             ),
             _HistoryButton(
@@ -397,7 +398,7 @@ class _PenToolbarState extends State<PenToolbar> {
                     ),
                     style: _compact.copyWith(
                       backgroundColor: WidgetStatePropertyAll(
-                        widget.eraserSelected ? KkjLight.colorAccentSoft : null,
+                        widget.eraserSelected ? Kk.colorAccentSoft : null,
                       ),
                     ),
                     iconSize: _icon,
@@ -416,7 +417,7 @@ class _PenToolbarState extends State<PenToolbar> {
               ),
               style: _compact.copyWith(
                 backgroundColor: WidgetStatePropertyAll(
-                  widget.lassoSelected ? KkjLight.colorAccentSoft : null,
+                  widget.lassoSelected ? Kk.colorAccentSoft : null,
                 ),
               ),
               iconSize: _icon,
@@ -432,7 +433,7 @@ class _PenToolbarState extends State<PenToolbar> {
               ),
               style: _compact.copyWith(
                 backgroundColor: WidgetStatePropertyAll(
-                  widget.textSelected ? KkjLight.colorAccentSoft : null,
+                  widget.textSelected ? Kk.colorAccentSoft : null,
                 ),
               ),
               iconSize: _icon,
@@ -445,7 +446,7 @@ class _PenToolbarState extends State<PenToolbar> {
                 minWidth: _hit,
                 minHeight: _hit,
               ),
-              disabledColor: KkjLight.colorInkDisabled,
+              disabledColor: Kk.colorInkDisabled,
               iconSize: _icon,
               style: _compact,
               icon: const Icon(Icons.image_outlined),
@@ -507,7 +508,7 @@ class _ScrollArrow extends StatelessWidget {
         child: SizedBox(
           width: vertical ? _PenToolbarState._slotW : _PenToolbarState._arrowW,
           height: vertical ? _PenToolbarState._arrowW : _hit,
-          child: Icon(icon, size: 18, color: KkjLight.componentsPenSlotAddIcon),
+          child: Icon(icon, size: 18, color: Kk.componentsPenSlotAddIcon),
         ),
       ),
     ),
@@ -532,7 +533,7 @@ class _HistoryButton extends StatelessWidget {
     iconSize: _icon,
     style: _compact,
     icon: Icon(icon),
-    disabledColor: KkjLight.colorInkDisabled,
+    disabledColor: Kk.colorInkDisabled,
     onPressed: onPressed,
   );
 }
@@ -572,7 +573,7 @@ class _Handle extends StatelessWidget {
           dimension: _hit,
           child: Icon(
             vertical ? Icons.more_horiz : Icons.more_vert,
-            color: KkjLight.componentsToolbarGripGlyph,
+            color: Kk.componentsToolbarGripGlyph,
           ),
         ),
       ),
@@ -609,10 +610,10 @@ class _DashPainter extends CustomPainter {
       const Radius.circular(KkjLight.componentsToolbarRounded),
     );
     if (on) {
-      canvas.drawRRect(rr, Paint()..color = KkjLight.colorAccentSoft);
+      canvas.drawRRect(rr, Paint()..color = Kk.colorAccentSoft);
     }
     final paint = Paint()
-      ..color = on ? KkjLight.colorAccent : KkjLight.colorBorderControl
+      ..color = on ? Kk.colorAccent : Kk.colorBorderControl
       ..style = PaintingStyle.stroke
       ..strokeWidth = on ? 2 : 1.5;
     for (final m in (Path()..addRRect(rr)).computeMetrics()) {
@@ -669,7 +670,7 @@ class _PenSlot extends StatelessWidget {
     final lift = selected ? KkjLight.componentsPenSlotSelectedOffset : 0.0;
     final indicator = DecoratedBox(
       decoration: BoxDecoration(
-        color: KkjLight.componentsPenSlotSelectedIndicator,
+        color: Kk.componentsPenSlotSelectedIndicator,
         borderRadius: BorderRadius.circular(
           KkjLight.componentsPenSlotSelectedRounded,
         ),
@@ -911,9 +912,9 @@ class PenEditDialog extends ConsumerWidget {
               constraints: const BoxConstraints(minHeight: _cell),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: active ? KkjLight.colorAccentSoft : null,
+                  color: active ? Kk.colorAccentSoft : null,
                   borderRadius: BorderRadius.circular(KkjTokens.roundedSm),
-                  border: Border.all(color: KkjLight.colorBorderControl),
+                  border: Border.all(color: Kk.colorBorderControl),
                 ),
                 child: Center(
                   child: CustomPaint(
@@ -938,7 +939,7 @@ class PenEditDialog extends ConsumerWidget {
           tooltip: tip,
           constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
           icon: Icon(icon),
-          disabledColor: KkjLight.colorInkDisabled,
+          disabledColor: Kk.colorInkDisabled,
           onPressed: enabled ? () => step(d) : null,
         );
 
@@ -1058,7 +1059,7 @@ class PenEditDialog extends ConsumerWidget {
                     child: CustomPaint(painter: PenPreviewPainter(pen)),
                   ),
                 ),
-                const Divider(color: KkjLight.colorBorderHairline),
+                Divider(color: Kk.colorBorderHairline),
                 // Closes the popover; the editor removes the slot and offers
                 // to undo. The last slot cannot go.
                 Align(
@@ -1080,7 +1081,7 @@ class PenEditDialog extends ConsumerWidget {
                               Icons.delete_outline,
                               color: canDelete
                                   ? theme.colorScheme.error
-                                  : KkjLight.colorInkDisabled,
+                                  : Kk.colorInkDisabled,
                             ),
                             const SizedBox(width: KkjTokens.spacing1),
                             Text(
@@ -1088,7 +1089,7 @@ class PenEditDialog extends ConsumerWidget {
                               style: TextStyle(
                                 color: canDelete
                                     ? theme.colorScheme.error
-                                    : KkjLight.colorInkDisabled,
+                                    : Kk.colorInkDisabled,
                               ),
                             ),
                           ],
@@ -1228,7 +1229,7 @@ class _PenBubbleState extends State<_PenBubble> {
         LayoutId(
           id: #bubble,
           child: Material(
-            color: KkjLight.componentsPopoverBackground,
+            color: Kk.componentsPopoverBackground,
             elevation: 6,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(
@@ -1353,7 +1354,7 @@ class _TailPainter extends CustomPainter {
     }
     canvas.drawPath(
       path,
-      Paint()..color = KkjLight.componentsPopoverBackground,
+      Paint()..color = Kk.componentsPopoverBackground,
     );
   }
 
@@ -1427,14 +1428,14 @@ class _ColorCell extends StatelessWidget {
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       border: Border.all(
-                        color: KkjLight.componentsPopoverBackground,
+                        color: Kk.componentsPopoverBackground,
                         width: 2,
                       ),
                     ),
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         border: Border.all(
-                          color: KkjLight.colorAccent,
+                          color: Kk.colorAccent,
                           width: 2,
                         ),
                       ),

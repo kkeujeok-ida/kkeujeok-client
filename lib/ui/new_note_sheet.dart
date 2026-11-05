@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'kk.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../design_tokens/build/tokens.dart';
@@ -19,8 +20,8 @@ Future<Note?> showNewNoteSheet(BuildContext context) =>
       // Dragging closes without asking PopScope, so it would cut a save.
       enableDrag: false,
       useSafeArea: true,
-      backgroundColor: KkjLight.colorSurfaceRaised,
-      barrierColor: KkjLight.colorScrim,
+      backgroundColor: Kk.colorSurfaceRaised,
+      barrierColor: Kk.colorScrim,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(KkjTokens.roundedLg),
@@ -113,7 +114,7 @@ class _NewNoteSheetState extends ConsumerState<_NewNoteSheet> {
     final theme = Theme.of(context);
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(KkjLight.componentsInputRounded),
-      borderSide: const BorderSide(color: KkjLight.componentsInputBorder),
+      borderSide: BorderSide(color: Kk.componentsInputBorder),
     );
     final backgrounds = {
       'plain': l10n.backgroundPlain,
@@ -167,15 +168,15 @@ class _NewNoteSheetState extends ConsumerState<_NewNoteSheet> {
                     style: theme.textTheme.bodyMedium,
                     decoration: InputDecoration(
                       labelText: l10n.noteTitle,
-                      labelStyle: const TextStyle(
-                        color: KkjLight.componentsInputPlaceholder,
+                      labelStyle: TextStyle(
+                        color: Kk.componentsInputPlaceholder,
                       ),
                       counterText: '',
                       border: border,
                       enabledBorder: border,
                       focusedBorder: border.copyWith(
-                        borderSide: const BorderSide(
-                          color: KkjLight.colorAccent,
+                        borderSide: BorderSide(
+                          color: Kk.colorAccent,
                           width: 2,
                         ),
                       ),
@@ -213,7 +214,7 @@ class _NewNoteSheetState extends ConsumerState<_NewNoteSheet> {
                       child: Text(
                         l10n.noteSaveFailed,
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: KkjLight.colorStatusError,
+                          color: Kk.colorStatusError,
                         ),
                       ),
                     ),
@@ -230,11 +231,11 @@ class _NewNoteSheetState extends ConsumerState<_NewNoteSheet> {
                             : () => Navigator.of(context).pop(),
                         style: OutlinedButton.styleFrom(
                           foregroundColor:
-                              KkjLight.componentsButtonSecondaryText,
+                              Kk.componentsButtonSecondaryText,
                           backgroundColor:
-                              KkjLight.componentsButtonSecondaryBackground,
-                          side: const BorderSide(
-                            color: KkjLight.componentsButtonSecondaryBorder,
+                              Kk.componentsButtonSecondaryBackground,
+                          side: BorderSide(
+                            color: Kk.componentsButtonSecondaryBorder,
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(
@@ -251,10 +252,10 @@ class _NewNoteSheetState extends ConsumerState<_NewNoteSheet> {
                       FilledButton(
                         onPressed: _saving ? null : _create,
                         style: FilledButton.styleFrom(
-                          foregroundColor: KkjLight.componentsButtonPrimaryText,
+                          foregroundColor: Kk.componentsButtonPrimaryText,
                           backgroundColor:
-                              KkjLight.componentsButtonPrimaryBackground,
-                          disabledBackgroundColor: KkjLight.colorInkDisabled,
+                              Kk.componentsButtonPrimaryBackground,
+                          disabledBackgroundColor: Kk.colorInkDisabled,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(
                               KkjLight.componentsButtonPrimaryRounded,
@@ -332,8 +333,8 @@ class _Group extends StatelessWidget {
                               ? Icons.radio_button_checked
                               : Icons.radio_button_unchecked,
                           color: e.key == value
-                              ? KkjLight.colorAccent
-                              : KkjLight.componentsInputBorder,
+                              ? Kk.colorAccent
+                              : Kk.componentsInputBorder,
                         ),
                         const SizedBox(width: KkjTokens.spacing2),
                         Text(e.value, style: theme.textTheme.bodyMedium),
@@ -415,8 +416,8 @@ class _BackgroundGroup extends StatelessWidget {
                           decoration: BoxDecoration(
                             border: Border.all(
                               color: e.key == value
-                                  ? KkjLight.colorAccent
-                                  : KkjLight.componentsInputBorder,
+                                  ? Kk.colorAccent
+                                  : Kk.componentsInputBorder,
                               width: e.key == value ? 2 : 1,
                             ),
                             borderRadius: BorderRadius.circular(

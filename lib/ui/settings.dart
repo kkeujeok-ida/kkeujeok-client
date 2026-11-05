@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'kk.dart';
+
 import 'snack.dart';
 
 import '../design_tokens/build/tokens.dart';
@@ -8,6 +10,7 @@ import '../l10n/app_localizations.dart';
 import '../model/pen_only.dart';
 import '../storage/pen_slots_store.dart';
 import '../storage/language_store.dart';
+import '../storage/theme_store.dart';
 import 'disconnect_dialog.dart';
 import 'log_export.dart';
 import 'pen_input_diagnostic.dart';
@@ -197,6 +200,56 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       LanguageChoice.en: l10n.languageEn,
     };
 
+    final themes = {
+      ThemeChoice.light: l10n.themeLight,
+      ThemeChoice.dark: l10n.themeDark,
+      ThemeChoice.allDark: l10n.themeAllDark,
+    };
+
+    // A titled single-choice list (language, theme).
+    Widget group<T>(
+      String title,
+      Map<T, String> opts,
+      T current,
+      void Function(T) pick,
+    ) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            KkjTokens.spacing4,
+            KkjTokens.spacing3,
+            KkjTokens.spacing4,
+            KkjTokens.spacing1,
+          ),
+          child: Semantics(
+            header: true,
+            child: Text(title, style: theme.textTheme.labelMedium),
+          ),
+        ),
+        for (final e in opts.entries)
+          Semantics(
+            inMutuallyExclusiveGroup: true,
+            checked: current == e.key,
+            label: e.value,
+            excludeSemantics: true,
+            onTap: () => pick(e.key),
+            child: _Row(
+              onTap: () => pick(e.key),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(e.value, style: theme.textTheme.bodyMedium),
+                  ),
+                  if (current == e.key)
+                    Icon(Icons.check, color: theme.colorScheme.primary),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+
     final uri = privacyUri(privacyUrl);
     final hasPrivacy = uri != null;
 
@@ -239,38 +292,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
       body: ListView(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              KkjTokens.spacing4,
-              KkjTokens.spacing3,
-              KkjTokens.spacing4,
-              KkjTokens.spacing1,
-            ),
-            child: Semantics(
-              header: true,
-              child: Text(l10n.language, style: theme.textTheme.labelMedium),
-            ),
-          ),
-          for (final e in options.entries)
-            Semantics(
-              inMutuallyExclusiveGroup: true,
-              checked: choice == e.key,
-              label: e.value,
-              excludeSemantics: true,
-              onTap: () => ref.read(languageProvider.notifier).select(e.key),
-              child: _Row(
-                onTap: () => ref.read(languageProvider.notifier).select(e.key),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(e.value, style: theme.textTheme.bodyMedium),
-                    ),
-                    if (choice == e.key)
-                      Icon(Icons.check, color: theme.colorScheme.primary),
-                  ],
-                ),
-              ),
-            ),
+          group(l10n.language, options, choice, (v) {
+            ref.read(languageProvider.notifier).select(v);
+          }),
+          Divider(color: theme.colorScheme.outlineVariant),
+          group(l10n.theme, themes, ref.watch(themeProvider), (v) {
+            ref.read(themeProvider.notifier).select(v);
+          }),
           Divider(color: theme.colorScheme.outlineVariant),
           Builder(
             builder: (_) {
@@ -357,16 +385,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       : kThemeChangeDuration,
                   backgroundColor: WidgetStateProperty.resolveWith(
                     (st) => st.contains(WidgetState.selected)
-                        ? KkjLight.colorAccentSoft
-                        : KkjLight.colorSurfaceRaised,
+                        ? Kk.colorAccentSoft
+                        : Kk.colorSurfaceRaised,
                   ),
                   foregroundColor: WidgetStateProperty.resolveWith(
                     (st) => st.contains(WidgetState.selected)
-                        ? KkjLight.colorAccentText
-                        : KkjLight.colorInkPrimary,
+                        ? Kk.colorAccentText
+                        : Kk.colorInkPrimary,
                   ),
-                  side: const WidgetStatePropertyAll(
-                    BorderSide(color: KkjLight.colorBorderControl),
+                  side: WidgetStatePropertyAll(
+                    BorderSide(color: Kk.colorBorderControl),
                   ),
                 ),
               ),

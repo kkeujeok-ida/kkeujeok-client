@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 
+import '../model/invert.dart' show inkHex;
 import '../model/text_layout.dart';
 import '../model/text_metrics.dart';
 import 'page_painter.dart' show parseColor;
@@ -52,7 +53,12 @@ TextPainter _painter(String text, double size, bool bold, String color) {
 
 /// Paints [e] with its top-left (before rotation) at the canvas origin of
 /// the page; rotation is about the box center.
-void paintTextBox(Canvas canvas, Map<String, dynamic> e) {
+/// [invert]: All Dark, letter colors as `invert.ink` (display only).
+void paintTextBox(
+  Canvas canvas,
+  Map<String, dynamic> e, {
+  bool invert = false,
+}) {
   final lay = cachedLayout(e);
   final text = e['text'] as String;
   final cps = text.runes.toList();
@@ -86,7 +92,13 @@ void paintTextBox(Canvas canvas, Map<String, dynamic> e) {
       }
       final group = String.fromCharCodes(cps.sublist(i, j));
       if (group.trim().isNotEmpty) {
-        final p = _painter(group, size[i], bold[i], styles[i].split('|').last);
+        final color = styles[i].split('|').last;
+        final p = _painter(
+          group,
+          size[i],
+          bold[i],
+          invert ? inkHex(color) : color,
+        );
         final by = y + line.baseline;
         canvas.save();
         canvas.translate(gx, by);

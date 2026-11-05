@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 
-import '../design_tokens/build/tokens.dart';
+import '../ui/kk.dart';
 import 'page_painter.dart' show PageViewport;
 
 const selectionHandleRadius = 6.0;
@@ -45,7 +45,7 @@ class SelectionPainter extends CustomPainter {
       canvas.drawPath(
         Path()..addPolygon([for (final p in pts) _s(p)], false),
         Paint()
-          ..color = KkjLight.componentsSelectionOutline
+          ..color = Kk.componentsSelectionOutline
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.5,
       );
@@ -54,7 +54,7 @@ class SelectionPainter extends CustomPainter {
     if (b == null) return;
     final r = Rect.fromPoints(_s(b.topLeft), _s(b.bottomRight));
     final line = Paint()
-      ..color = KkjLight.componentsSelectionOutline
+      ..color = Kk.componentsSelectionOutline
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
     final pv = preview();
@@ -86,7 +86,7 @@ class SelectionPainter extends CustomPainter {
     }
     final top = Offset(r.center.dx, r.top - selectionRotateGap);
     canvas.drawLine(Offset(r.center.dx, r.top), top, line);
-    final fill = Paint()..color = KkjLight.componentsSelectionHandleFill;
+    final fill = Paint()..color = Kk.componentsSelectionHandleFill;
     void handle(Offset c) {
       canvas
         ..drawCircle(c, selectionHandleRadius, fill)
@@ -94,7 +94,7 @@ class SelectionPainter extends CustomPainter {
           c,
           selectionHandleRadius,
           Paint()
-            ..color = KkjLight.componentsSelectionHandleBorder
+            ..color = Kk.componentsSelectionHandleBorder
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.5,
         );

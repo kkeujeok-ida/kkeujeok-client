@@ -116,6 +116,6 @@ void main() {
     final style = tester.widget<Text>(find.text('Kkeujeok')).style!;
     expect(style.fontFamily, 'Pretendard');
     expect(style.color, KkjLight.colorInkPrimary);
-    expect(lightTheme().scaffoldBackgroundColor, KkjLight.colorSurfaceBase);
+    expect(appTheme().scaffoldBackgroundColor, KkjLight.colorSurfaceBase);
   });
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'snack.dart';
+import 'kk.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -133,8 +134,8 @@ class SyncBanner extends ConsumerWidget {
       sortKey: const OrdinalSortKey(0),
       child: ColoredBox(
         color: emphasis
-            ? KkjLight.colorAccentSoft
-            : KkjLight.componentsBannerBackground,
+            ? Kk.colorAccentSoft
+            : Kk.componentsBannerBackground,
         child: Padding(
           padding: EdgeInsets.only(
             top: MediaQuery.paddingOf(context).top,
@@ -149,7 +150,7 @@ class SyncBanner extends ConsumerWidget {
                   child: Text(
                     text,
                     style: Theme.of(context).textTheme.bodyMedium
-                        ?.copyWith(color: KkjLight.componentsBannerText),
+                        ?.copyWith(color: Kk.componentsBannerText),
                   ),
                 ),
                 if (kind == _Kind.conflict)

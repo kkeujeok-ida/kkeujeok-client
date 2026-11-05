@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'kk.dart';
 
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
@@ -92,7 +93,7 @@ class _LibraryFabState extends State<LibraryFab> {
     FocusNode? focus,
   }) {
     final label = Theme.of(context).textTheme.labelMedium!
-        .copyWith(color: KkjLight.componentsFabLabelColor);
+        .copyWith(color: Kk.componentsFabLabelColor);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -105,9 +106,9 @@ class _LibraryFabState extends State<LibraryFab> {
           onTap: onTap,
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: KkjLight.componentsFabItemBackground,
+              color: Kk.componentsFabItemBackground,
               shape: BoxShape.circle,
-              boxShadow: kkjShadow(KkjLight.componentsFabShadow),
+              boxShadow: kkjShadow(Kk.componentsFabShadow),
             ),
             child: Material(
               type: MaterialType.transparency,
@@ -117,7 +118,7 @@ class _LibraryFabState extends State<LibraryFab> {
                 onTap: onTap,
                 child: SizedBox.square(
                   dimension: KkjLight.componentsFabItemSize,
-                  child: Icon(icon, color: KkjLight.componentsFabItemIcon),
+                  child: Icon(icon, color: Kk.componentsFabItemIcon),
                 ),
               ),
             ),
@@ -130,7 +131,7 @@ class _LibraryFabState extends State<LibraryFab> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final shadow = kkjShadow(KkjLight.componentsFabShadow);
+    final shadow = kkjShadow(Kk.componentsFabShadow);
     final still = MediaQuery.disableAnimationsOf(context);
 
     return PopScope(
@@ -150,7 +151,7 @@ class _LibraryFabState extends State<LibraryFab> {
                   behavior: HitTestBehavior.opaque,
                   onTap: () => _set(false),
                   child: ColoredBox(
-                    color: KkjLight.componentsFabVeil.withValues(
+                    color: Kk.componentsFabVeil.withValues(
                       alpha: KkjLight.componentsFabVeilOpacity,
                     ),
                   ),
@@ -193,7 +194,7 @@ class _LibraryFabState extends State<LibraryFab> {
                     onTap: () => _set(!_open),
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: KkjLight.componentsFabBackground,
+                        color: Kk.componentsFabBackground,
                         shape: BoxShape.circle,
                         boxShadow: shadow,
                       ),
@@ -210,9 +211,9 @@ class _LibraryFabState extends State<LibraryFab> {
                               duration: still
                                   ? Duration.zero
                                   : const Duration(milliseconds: 150),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.add,
-                                color: KkjLight.componentsFabIcon,
+                                color: Kk.componentsFabIcon,
                               ),
                             ),
                           ),

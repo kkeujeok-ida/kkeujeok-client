@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'kk.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -83,8 +84,8 @@ class CoverChoice extends ConsumerWidget {
                   decoration: BoxDecoration(
                     border: Border.all(
                       color: on
-                          ? KkjLight.colorAccent
-                          : KkjLight.componentsInputBorder,
+                          ? Kk.colorAccent
+                          : Kk.componentsInputBorder,
                       width: on ? 2 : 1,
                     ),
                     borderRadius: BorderRadius.circular(KkjTokens.roundedSm),

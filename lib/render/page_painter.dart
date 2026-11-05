@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
+import '../model/invert.dart';
+import '../ui/kk.dart';
 import 'asset_images.dart';
 import 'pdf_pages.dart';
 import '../model/pdf_rules.dart' show isPdfBackground, patternOf;
@@ -128,15 +130,20 @@ Path strokePath(Map<String, dynamic> s) => s['tool'] == 'highlighter'
 
 /// Fills [p] with [color]. A highlighter is one layer in the opaque color,
 /// composited once at 0.4 with multiply, so it never darkens on itself.
+/// [invert] (All Dark): a pen color is shown as `invert.ink`; a highlighter
+/// keeps its color and composites source-over at 0.4 (spec/invert.md).
 void fillStroke(
   Canvas c,
   Path p,
   Object? color, {
   bool highlighter = false,
   double alpha = 1,
+  bool invert = false,
 }) {
   p.fillType = PathFillType.nonZero;
-  final base = parseColor(color);
+  final base = parseColor(
+    invert && !highlighter && color is String ? inkHex(color) : color,
+  );
   final fill = Paint()
     ..color = alpha == 1 || highlighter
         ? base
@@ -147,7 +154,7 @@ void fillStroke(
   c.saveLayer(
     p.getBounds().inflate(1),
     Paint()
-      ..blendMode = BlendMode.multiply
+      ..blendMode = invert ? BlendMode.srcOver : BlendMode.multiply
       ..color = Color.fromRGBO(255, 255, 255, 0.4 * alpha),
   );
   c.drawPath(p, fill);
@@ -216,8 +223,13 @@ class PagePainter extends CustomPainter {
     this.images,
     this.pdf,
     this.erasePreview,
+    bool? invert,
     super.repaint,
-  });
+  }) : invert = invert ?? Kk.allDark;
+
+  /// All Dark: paper, pattern, pen, highlighter and text are drawn inverted
+  /// (display only). Defaults to the current theme; a PDF page never inverts.
+  final bool invert;
 
   final Map<String, dynamic> page;
   final StrokePathCache cache;
@@ -263,13 +275,25 @@ class PagePainter extends CustomPainter {
       ..scale(vp.scale)
       ..clipRect(Rect.fromLTWH(0, 0, w, h));
 
+    final inv = invert && !isPdfBackground(page['background']);
+    Color shown(Object? hex) => inv
+        ? Color.fromARGB(
+            255,
+            invertColor('$hex')[0],
+            invertColor('$hex')[1],
+            invertColor('$hex')[2],
+          )
+        : parseColor(hex);
     final bg = _bg ??= pageBackground(patternOf(page['background']), w, h);
     canvas.drawRect(
       Rect.fromLTWH(0, 0, w, h),
-      Paint()..color = parseColor(bg['paper']),
+      Paint()
+        ..color = inv
+            ? Color.fromARGB(255, paperRgb[0], paperRgb[1], paperRgb[2])
+            : parseColor(bg['paper']),
     );
     final line = Paint()
-      ..color = parseColor(bg['lineColor'])
+      ..color = shown(bg['lineColor'])
       ..strokeWidth = (bg['lineWidth'] as num).toDouble()
       ..style = PaintingStyle.stroke;
     for (final l in bg['lines'] as List) {
@@ -280,7 +304,7 @@ class PagePainter extends CustomPainter {
         line,
       );
     }
-    final dot = Paint()..color = parseColor(bg['dotColor']);
+    final dot = Paint()..color = shown(bg['dotColor']);
     final r = (bg['dotRadius'] as num).toDouble();
     for (final d in bg['dots'] as List) {
       final n = (d as List).cast<num>();
@@ -323,12 +347,18 @@ class PagePainter extends CustomPainter {
     }
     for (final e in els) {
       if (drawableImage(e)) {
-        paintImageElement(canvas, e as Map<String, dynamic>, images, vp.scale);
+        paintImageElement(
+          canvas,
+          e as Map<String, dynamic>,
+          images,
+          vp.scale,
+          underlay: inv,
+        );
         continue;
       }
       if (drawableText(e)) {
         final t = e as Map<String, dynamic>;
-        if (t['id'] != skip) paintTextBox(canvas, t);
+        if (t['id'] != skip) paintTextBox(canvas, t, invert: inv);
         continue;
       }
       if (!drawableStroke(e)) continue;
@@ -352,11 +382,12 @@ class PagePainter extends CustomPainter {
         s['color'],
         highlighter: s['tool'] == 'highlighter',
         alpha: ep != null && ep.fade.contains(s['id']) ? ep.alpha : 1,
+        invert: inv,
       );
       if (pcs != null) canvas.restore();
     }
     final d = draft?.call();
-    if (d != null && drawableText(d)) paintTextBox(canvas, d);
+    if (d != null && drawableText(d)) paintTextBox(canvas, d, invert: inv);
     cache.keepOnly(ids);
     final s = live?.call();
     if (s != null && drawableStroke(s)) {
@@ -365,6 +396,7 @@ class PagePainter extends CustomPainter {
         strokePath(s),
         s['color'],
         highlighter: s['tool'] == 'highlighter',
+        invert: inv,
       );
     }
     canvas.restore();
@@ -447,6 +479,7 @@ class PagePainter extends CustomPainter {
   @override
   bool shouldRepaint(PagePainter old) =>
       !identical(old.page, page) ||
+      old.invert != invert ||
       old.viewport?.scale != viewport?.scale ||
       old.viewport?.offset != viewport?.offset;
 }

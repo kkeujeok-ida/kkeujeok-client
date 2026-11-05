@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'snack.dart';
+import 'kk.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,8 +17,8 @@ Future<void> showCannotOpenSheet(BuildContext context, String noteId) =>
     showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
-      backgroundColor: KkjLight.colorSurfaceRaised,
-      barrierColor: KkjLight.colorScrim,
+      backgroundColor: Kk.colorSurfaceRaised,
+      barrierColor: Kk.colorScrim,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(KkjTokens.roundedLg),

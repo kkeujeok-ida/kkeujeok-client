@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'snack.dart';
+import 'kk.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -311,7 +312,7 @@ class _PageOverviewState extends State<PageOverview> {
       final none = _sel.isEmpty;
       return AppBar(
         automaticallyImplyLeading: false,
-        backgroundColor: KkjLight.colorSurfaceBase,
+        backgroundColor: Kk.colorSurfaceBase,
         titleSpacing: KkjTokens.spacing3,
         title: Semantics(
           header: true,
@@ -350,7 +351,7 @@ class _PageOverviewState extends State<PageOverview> {
     }
     return AppBar(
       automaticallyImplyLeading: false,
-      backgroundColor: KkjLight.colorSurfaceBase,
+      backgroundColor: Kk.colorSurfaceBase,
       title: Semantics(header: true, child: Text(l.pageOverviewTitle)),
       actions: [
         if (host.deletedDepth > 0)
@@ -388,7 +389,7 @@ class _PageOverviewState extends State<PageOverview> {
         // A merge or undo may have taken a chosen page away.
         _sel.removeWhere((id) => !pages.any((p) => p['id'] == id));
         return Scaffold(
-          backgroundColor: KkjLight.colorSurfaceBase,
+          backgroundColor: Kk.colorSurfaceBase,
           appBar: _header(l, pages.length),
           // Built lazily: only the thumbnails in view are drawn (NFR2).
           body: GestureDetector(
@@ -549,14 +550,14 @@ class _CellState extends State<_Cell> {
     ].join(', ');
     const radius = KkjLight.componentsPageThumbnailRounded;
     final badge = Theme.of(context).textTheme.labelSmall
-        ?.copyWith(color: KkjLight.colorStatusWarningText);
+        ?.copyWith(color: Kk.colorStatusWarningText);
     final thumb = DecoratedBox(
       position: DecorationPosition.foreground,
       decoration: BoxDecoration(
         border: Border.all(
           color: widget.isCurrent
-              ? KkjLight.componentsPageThumbnailCurrentRing
-              : KkjLight.componentsPageThumbnailBorder,
+              ? Kk.componentsPageThumbnailCurrentRing
+              : Kk.componentsPageThumbnailBorder,
           width: widget.isCurrent ? 3 : 1,
         ),
         borderRadius: BorderRadius.circular(radius),
@@ -689,7 +690,7 @@ class _CellState extends State<_Cell> {
                           widget.selected
                               ? Icons.check_box
                               : Icons.check_box_outline_blank,
-                          color: KkjLight.componentsPageThumbnailCurrentRing,
+                          color: Kk.componentsPageThumbnailCurrentRing,
                         ),
                       ),
                     )
@@ -762,7 +763,7 @@ class _CellState extends State<_Cell> {
 
   Widget _badge(String t, TextStyle? style) => DecoratedBox(
     decoration: BoxDecoration(
-      color: KkjLight.colorSurfaceRaised,
+      color: Kk.colorSurfaceRaised,
       borderRadius: BorderRadius.circular(4),
     ),
     child: Padding(
@@ -770,10 +771,10 @@ class _CellState extends State<_Cell> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
+          Icon(
             Icons.warning_amber,
             size: 12,
-            color: KkjLight.colorStatusWarningText,
+            color: Kk.colorStatusWarningText,
           ),
           const SizedBox(width: 2),
           Flexible(child: Text(t, style: style)),
