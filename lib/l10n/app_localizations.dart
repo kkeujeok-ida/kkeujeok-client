@@ -2444,6 +2444,12 @@ abstract class AppLocalizations {
   /// **'Could not make the PDF.'**
   String get exportFailed;
 
+  /// No description provided for @exportPdfMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'The original PDF has not been downloaded yet, so it cannot be exported.'**
+  String get exportPdfMissing;
+
   /// No description provided for @exportAssetMissing.
   ///
   /// In en, this message translates to:

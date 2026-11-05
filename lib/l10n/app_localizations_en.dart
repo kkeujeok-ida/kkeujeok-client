@@ -1388,6 +1388,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get exportFailed => 'Could not make the PDF.';
 
   @override
+  String get exportPdfMissing =>
+      'The original PDF has not been downloaded yet, so it cannot be exported.';
+
+  @override
   String get exportAssetMissing =>
       'Some images are not on this device yet. Connect to the internet to download them, then try again.';
 

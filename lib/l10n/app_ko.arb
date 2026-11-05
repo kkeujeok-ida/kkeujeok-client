@@ -505,6 +505,7 @@
   "exportStart": "내보내기",
   "exportProgress": "PDF 만드는 중 · {done}/{total}페이지",
   "exportFailed": "PDF를 만들지 못했어요.",
+  "exportPdfMissing": "PDF 원본을 아직 받지 못해 내보낼 수 없어요.",
   "exportAssetMissing": "아직 이 기기에 없는 이미지가 있어요. 인터넷에 연결해 이미지를 받은 뒤 다시 시도해 주세요.",
   "folderParentCard": "상위 폴더로",
   "folderOpenHint": "폴더를 열어요",

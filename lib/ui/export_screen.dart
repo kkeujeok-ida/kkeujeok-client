@@ -238,7 +238,10 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
       ),
       if (_failure?.code == 'assetMissing') ...[
         const SizedBox(height: KkjTokens.spacing2),
-        Text(l10n.exportAssetMissing, textAlign: TextAlign.center),
+        if (_failure!.pdfAssets.isNotEmpty)
+          Text(l10n.exportPdfMissing, textAlign: TextAlign.center),
+        if (_failure!.assets.length > _failure!.pdfAssets.length)
+          Text(l10n.exportAssetMissing, textAlign: TextAlign.center),
       ],
       const SizedBox(height: KkjTokens.spacing5),
       FilledButton(onPressed: _run, child: Text(l10n.retry)),

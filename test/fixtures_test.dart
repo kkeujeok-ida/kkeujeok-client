@@ -73,6 +73,19 @@ List<(double, double)> _poly(Object? v) => [
 ];
 
 // Rule id -> how to judge one case. A new spec rule adds one line here.
+void _exportPlanCase(Case c) {
+  final i = c['input'] as Map<String, dynamic>;
+  _same(
+    exportPlan(
+      // trusted: the plan reads an unknown page background as plain.
+      Note.trusted(copyJsonValue(i['note']) as Map<String, dynamic>),
+      (i['range'] as Map).cast<String, dynamic>(),
+      (i['localAssets'] as List).cast<String>(),
+    ),
+    c['expected'],
+  );
+}
+
 final runners = <String, void Function(Case)>{
   'number.round2': (c) {
     final input = c['input'], expected = c['expected'];
@@ -102,10 +115,9 @@ final runners = <String, void Function(Case)>{
   'pdf.pageMatrix': (c) {
     final i = _json(c['input']);
     List p(Json m) => m['point'] as List;
-    _same(
-      {'point': pdfPageMatrix(i['box'], i['rotate'], i['userUnit'], p(i))},
-      c['expected'],
-    );
+    _same({
+      'point': pdfPageMatrix(i['box'], i['rotate'], i['userUnit'], p(i)),
+    }, c['expected']);
     // and back: the expected point gives the input point again
     _same(
       pdfPagePoint(
@@ -367,22 +379,11 @@ final runners = <String, void Function(Case)>{
       ]),
     }, c['expected']);
   },
-  'export.range': (c) =>
-      _same(exportRange(_json(c['input'])), c['expected']),
+  'export.range': (c) => _same(exportRange(_json(c['input'])), c['expected']),
+  'pdf.exportStructure': _exportPlanCase,
   'export.fileName': (c) =>
       _same(exportFileName(_json(c['input'])), c['expected']),
-  'export.plan': (c) {
-    final i = c['input'] as Map<String, dynamic>;
-    _same(
-      exportPlan(
-        // trusted: the plan reads an unknown page background as plain.
-        Note.trusted(copyJsonValue(i['note']) as Map<String, dynamic>),
-        (i['range'] as Map).cast<String, dynamic>(),
-        (i['localAssets'] as List).cast<String>(),
-      ),
-      c['expected'],
-    );
-  },
+  'export.plan': _exportPlanCase,
   'page.background': (c) {
     final i = c['input'] as Map<String, dynamic>;
     _same(
@@ -686,8 +687,6 @@ void _runOp(Case c) {
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6. The erase rules have runners (Story 5.6): none pending.
 const pendingRules = <String>{
-  // PDF rules: pageBox/pageMatrix/import/pageDisplay/pageOps have runners (9.2); the export structure arrives with 9.6.
-  'pdf.exportStructure',
   // Trash rules (Story 14.1): trashNote and trashFolder have runners (7.5); the rest arrive with 14.2, 7.7.
   'trash.restoreNote',
   'trash.restoreFolder',

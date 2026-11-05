@@ -5,15 +5,17 @@ import 'package:flutter/services.dart' show rootBundle;
 
 import '../model/note.dart';
 import '../storage/asset_store.dart';
+import '../model/pdf_rules.dart' show isPdfBackground;
 import 'export_rules.dart';
+import 'pdf_compose.dart';
 import 'pdf_writer.dart';
 
 /// Why an export did not produce a file: [code] is a range error, or
 /// `assetMissing` (then [assets] lists the hashes), or `failed`.
 class ExportFailure implements Exception {
-  ExportFailure(this.code, [this.assets = const []]);
+  ExportFailure(this.code, [this.assets = const [], this.pdfAssets = const []]);
   final String code;
-  final List<String> assets;
+  final List<String> assets, pdfAssets;
 }
 
 /// Writes the PDF of [note] for [range] (the input of `export.range` without
@@ -35,9 +37,25 @@ Future<File> exportNotePdf({
           if (e is Map && e['type'] == 'image' && e['asset'] is String)
             e['asset'] as String,
     };
-    final plan = exportPlan(note, range, await store.local(hashes));
+    // A PDF is checked by its file (it may be 100 MB: never read whole).
+    final pdfPaths = <String, String>{};
+    for (final p in note.pages) {
+      final bg = p['background'];
+      if (!isPdfBackground(bg)) continue;
+      final h = (bg as Map)['asset'] as String;
+      final path = await store.pdfPath(h);
+      if (path != null) pdfPaths[h] = path;
+    }
+    final plan = exportPlan(note, range, [
+      ...await store.local(hashes),
+      ...pdfPaths.keys,
+    ]);
     if (plan['error'] == 'assetMissing') {
-      throw ExportFailure('assetMissing', (plan['assets'] as List).cast());
+      throw ExportFailure(
+        'assetMissing',
+        (plan['assets'] as List).cast(),
+        ((plan['pdfAssets'] as List?) ?? const []).cast(),
+      );
     }
     if (plan['error'] != null) throw ExportFailure(plan['error'] as String);
     Future<Uint8List> font(String name) async =>
@@ -59,7 +77,25 @@ Future<File> exportNotePdf({
     final file = File(
       '${dir.path}${Platform.pathSeparator}${plan['fileName']}',
     );
-    await file.writeAsBytes(pdf, flush: true);
+    if (pdfPaths.isEmpty) {
+      await file.writeAsBytes(pdf, flush: true);
+      return file;
+    }
+    // PDF pages: the overlay is joined with the original pages by PDFium.
+    final tmp = File('${file.path}.overlay');
+    final part = File('${file.path}.part');
+    try {
+      await tmp.writeAsBytes(pdf, flush: true);
+      await composePdf(tmp.path, part.path, [
+        for (final pp in (plan['pages'] as List).cast<Map>())
+          _composePage(pp, note, pdfPaths),
+      ]);
+      if (cancelled?.call() ?? false) throw ExportCancelled();
+      await part.rename(file.path);
+    } finally {
+      if (await tmp.exists()) await tmp.delete();
+      if (await part.exists()) await part.delete();
+    }
     return file;
   } on ExportAssetMissing catch (e) {
     throw ExportFailure('assetMissing', e.assets);
@@ -70,4 +106,30 @@ Future<File> exportNotePdf({
   } catch (_) {
     throw ExportFailure('failed');
   }
+}
+
+ComposePage _composePage(Map pp, Note note, Map<String, String> paths) {
+  final w = (pp['width'] as num).toDouble(),
+      h = (pp['height'] as num).toDouble();
+  final pdf = pp['pdf'] as Map?;
+  if (pdf == null) {
+    return (
+      src: null,
+      page: 0,
+      userUnit: 1,
+      width: w,
+      height: h,
+      overlay: false,
+    );
+  }
+  final bg =
+      note.pages.firstWhere((p) => p['id'] == pp['id'])['background'] as Map;
+  return (
+    src: paths[pdf['asset']],
+    page: pdf['page'] as int,
+    userUnit: (bg['userUnit'] as num).toDouble(),
+    width: w,
+    height: h,
+    overlay: (pp['elements'] as List).isNotEmpty,
+  );
 }

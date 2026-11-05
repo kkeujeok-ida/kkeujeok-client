@@ -69,10 +69,13 @@ Future<Uint8List> buildPdf({
     g.setTransform(Matrix4(1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, h, 0, 1));
     g.drawRect(0, 0, w, h);
     g.clipPath();
-    g.setFillColor(_color(pp['paper']));
-    g.drawRect(0, 0, w, h);
-    g.fillPath();
-    _background(g, src, w, h);
+    // A PDF page is a transparent overlay: the original page goes under it.
+    if (pp['background'] != 'pdf') {
+      g.setFillColor(_color(pp['paper']));
+      g.drawRect(0, 0, w, h);
+      g.fillPath();
+      _background(g, src, w, h);
+    }
     final byId = {
       for (final e in (src['elements'] as List).cast<Map<String, dynamic>>())
         e['id'] as String: e,

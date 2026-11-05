@@ -561,6 +561,7 @@
   "exportProgress": "Making PDF · {done}/{total} pages",
   "@exportProgress": {"placeholders": {"done": {"type": "int"}, "total": {"type": "int"}}},
   "exportFailed": "Could not make the PDF.",
+  "exportPdfMissing": "The original PDF has not been downloaded yet, so it cannot be exported.",
   "exportAssetMissing": "Some images are not on this device yet. Connect to the internet to download them, then try again.",
   "folderParentCard": "Up one folder",
   "folderOpenHint": "Opens the folder",

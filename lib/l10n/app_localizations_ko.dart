@@ -1320,6 +1320,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get exportFailed => 'PDF를 만들지 못했어요.';
 
   @override
+  String get exportPdfMissing => 'PDF 원본을 아직 받지 못해 내보낼 수 없어요.';
+
+  @override
   String get exportAssetMissing =>
       '아직 이 기기에 없는 이미지가 있어요. 인터넷에 연결해 이미지를 받은 뒤 다시 시도해 주세요.';
 

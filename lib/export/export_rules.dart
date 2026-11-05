@@ -4,7 +4,7 @@ import '../model/note_title.dart' show isTitleTrim;
 import '../model/number.dart';
 import '../model/select.dart' show selectionBounds;
 import '../model/text_layout.dart';
-import '../model/pdf_rules.dart' show patternOf;
+import '../model/pdf_rules.dart' show isPdfBackground, patternOf;
 import '../render/page_background.dart';
 import '../render/stroke_outline.dart';
 
@@ -133,17 +133,21 @@ Map<String, dynamic> exportPlan(
 ) {
   final r = exportRange({...range, 'pageCount': note.pages.length});
   if (r['error'] != null) return r;
-  final fonts = <String>{}, assets = <String>{};
+  final fonts = <String>{}, assets = <String>{}, pdfAssets = <String>{};
   final pages = <Map<String, dynamic>>[];
   for (final n in r['pages'] as List) {
     final p = note.pages[(n as int) - 1];
     final w = p['width'] as num, h = p['height'] as num;
+    final isPdf = isPdfBackground(p['background']);
+    final ref = isPdf ? p['background'] as Map : null;
+    if (ref != null) pdfAssets.add(ref['asset'] as String);
     final bg = pageBackground(patternOf(p['background']), w, h);
-    final nLines = (bg['lines'] as List).length;
-    final nDots = (bg['dots'] as List).length;
+    // A PDF page has no paper, no pattern: the original page is the ground.
+    final nLines = isPdf ? 0 : (bg['lines'] as List).length;
+    final nDots = isPdf ? 0 : (bg['dots'] as List).length;
     final elements = <Map<String, dynamic>>[], omitted = <String>[];
-    var min = 1 + (nLines + nDots > 0 ? 1 : 0);
-    var max = 1 + nLines + nDots, images = 0;
+    var min = isPdf ? 0 : 1 + (nLines + nDots > 0 ? 1 : 0);
+    var max = isPdf ? 0 : 1 + nLines + nDots, images = 0;
     for (final e in (p['elements'] as List).cast<Map<String, dynamic>>()) {
       if (!_visible(e, w, h)) {
         omitted.add(e['id'] as String);
@@ -201,8 +205,10 @@ Map<String, dynamic> exportPlan(
       'width': w,
       'height': h,
       'orientation': w > h ? 'landscape' : 'portrait',
-      'paper': bg['paper'],
-      'background': const {'lined', 'grid', 'dot'}.contains(p['background'])
+      'paper': ?(isPdf ? null : bg['paper']),
+      'background': isPdf
+          ? 'pdf'
+          : const {'lined', 'grid', 'dot'}.contains(p['background'])
           ? p['background']
           : 'plain',
       'lines': nLines,
@@ -211,14 +217,20 @@ Map<String, dynamic> exportPlan(
       'images': images,
       'omitted': omitted,
       'elements': elements,
+      if (ref != null) 'pdf': {'asset': ref['asset'], 'page': ref['page']},
     });
   }
   final local = localAssets.toSet();
-  final missing = [
-    for (final h in assets)
-      if (!isAssetHash(h) || !local.contains(h)) h,
-  ]..sort();
-  if (missing.isNotEmpty) return {'error': 'assetMissing', 'assets': missing};
+  bool gone(String h) => !isAssetHash(h) || !local.contains(h);
+  final missing = [...assets.where(gone), ...pdfAssets.where(gone)]..sort();
+  if (missing.isNotEmpty) {
+    final pdfMissing = pdfAssets.where(gone).toList()..sort();
+    return {
+      'error': 'assetMissing',
+      'assets': missing,
+      if (pdfMissing.isNotEmpty) 'pdfAssets': pdfMissing,
+    };
+  }
   return {
     'fileName': exportFileName({'title': note.title})['name'],
     'fonts': [
@@ -226,6 +238,7 @@ Map<String, dynamic> exportPlan(
         if (fonts.contains(f)) f,
     ],
     'assets': assets.toList()..sort(),
+    if (pdfAssets.isNotEmpty) 'pdfAssets': pdfAssets.toList()..sort(),
     'pages': pages,
   };
 }
