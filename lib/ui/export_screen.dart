@@ -17,10 +17,10 @@ Future<void> showExportScreen(
   BuildContext context, {
   required Note note,
   required int currentIndex,
-}) => Navigator.of(context).push<void>(
-  MaterialPageRoute(
-    builder: (_) => ExportScreen(note: note, currentIndex: currentIndex),
-  ),
+}) => showDialog<void>(
+  context: context,
+  barrierDismissible: false,
+  builder: (_) => ExportScreen(note: note, currentIndex: currentIndex),
 );
 
 enum _Phase { choose, running, failed }
@@ -132,10 +132,9 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) setState(() => _cancel = true); // back = cancel
       },
-      child: Scaffold(
-        appBar: AppBar(title: Text(l10n.exportTitle)),
-        body: Padding(
-          padding: const EdgeInsets.all(KkjTokens.spacing4),
+      child: AlertDialog(
+        title: Text(l10n.exportTitle),
+        content: SingleChildScrollView(
           child: switch (_phase) {
             _Phase.choose => _choose(l10n),
             _Phase.running => _running(l10n),
@@ -150,7 +149,8 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
     final error = _error(l10n);
     Widget option(String mode, String label) =>
         RadioListTile<String>(value: mode, title: Text(label));
-    return ListView(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         RadioGroup<String>(
           groupValue: _mode,
@@ -181,9 +181,19 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
             ),
           ),
         const SizedBox(height: KkjTokens.spacing4),
-        FilledButton(
-          onPressed: error == null ? _run : null,
-          child: Text(l10n.exportStart),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(l10n.cancel),
+            ),
+            const SizedBox(width: KkjTokens.spacing2),
+            FilledButton(
+              onPressed: error == null ? _run : null,
+              child: Text(l10n.exportStart),
+            ),
+          ],
         ),
       ],
     );
@@ -192,7 +202,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
   Widget _running(AppLocalizations l10n) {
     final label = l10n.exportProgress(_done, _total);
     return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
       children: [
         // A live region: TalkBack reads the change politely.
         Semantics(
@@ -220,7 +230,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
   }
 
   Widget _failed(AppLocalizations l10n) => Column(
-    mainAxisAlignment: MainAxisAlignment.center,
+    mainAxisSize: MainAxisSize.min,
     children: [
       Semantics(
         liveRegion: true,
