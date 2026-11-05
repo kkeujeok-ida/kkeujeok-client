@@ -662,6 +662,13 @@ void _runOp(Case c) {
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6. The erase rules have runners (Story 5.6): none pending.
 const pendingRules = <String>{
+  // PDF background rules (Story 9.1) arrive with the Android stories 9.2, 9.4, 9.6.
+  'pdf.pageBox',
+  'pdf.pageMatrix',
+  'pdf.import',
+  'pdf.pageDisplay',
+  'pdf.pageOps',
+  'pdf.exportStructure',
   // Trash rules (Story 14.1): trashNote and trashFolder have runners (7.5); the rest arrive with 14.2, 7.7.
   'trash.restoreNote',
   'trash.restoreFolder',
@@ -701,6 +708,8 @@ Map<String, List<Case>> loadFixtures(
   ];
   // test/tools holds the committed generator scripts, not fixtures.
   if (Directory('$dir${_sep}tools').existsSync()) files.remove('tools');
+  // test/pdf holds the sample PDF files and their manifest.
+  if (Directory('$dir${_sep}pdf').existsSync()) files.remove('pdf');
   files.sort();
   for (final file in files) {
     if (file == 'README.md') continue;
