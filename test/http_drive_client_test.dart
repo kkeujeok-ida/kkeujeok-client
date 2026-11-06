@@ -126,6 +126,14 @@ void main() {
     });
   });
 
+  test('update sends JSON null for a null appProperties value', () async {
+    reply = '{"id":"c"}';
+    await client().update('c', appProperties: {'trashedFrom': null, 'k': 'v'});
+    expect(jsonDecode(seen.last.body), {
+      'appProperties': {'trashedFrom': null, 'k': 'v'},
+    });
+  });
+
   test('a Drive error carries status and the first reason', () async {
     status = 403;
     reply = jsonEncode({

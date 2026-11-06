@@ -22,20 +22,17 @@ String _date(BuildContext context, String iso) {
             .format(at.toLocal());
 }
 
-/// Tells the library the trash changed: folders and the receive pick up a
-/// restored item.
-void _refreshLibrary(WidgetRef ref) {
-  unawaited(ref.read(folderTreeProvider.notifier).refresh());
-  unawaited(ref.read(noteReceiverProvider).check().catchError((_) {}));
-}
-
 /// Restores [e] and shows the snackbar; true when the item is back (or gone).
 Future<bool> _restore(BuildContext context, WidgetRef ref, TrashEntry e) async {
   final l = AppLocalizations.of(context);
   final messenger = ScaffoldMessenger.of(context);
+  // Read before the await: the screen may be gone when the restore ends.
+  final service = ref.read(trashServiceProvider);
+  final tree = ref.read(folderTreeProvider.notifier);
+  final receiver = ref.read(noteReceiverProvider);
   TrashOutcome r;
   try {
-    r = await ref.read(trashServiceProvider).restore(e);
+    r = await service.restore(e);
   } catch (_) {
     r = TrashOutcome.failed;
   }
@@ -49,7 +46,9 @@ Future<bool> _restore(BuildContext context, WidgetRef ref, TrashEntry e) async {
     ..hideCurrentSnackBar()
     ..showSnackBar(appSnackBar(content: Text(text)));
   if (r == TrashOutcome.failed) return false;
-  _refreshLibrary(ref);
+  // Folders and the receive pick up a restored item.
+  unawaited(tree.refresh());
+  unawaited(receiver.check().catchError((_) {}));
   return true;
 }
 
@@ -83,7 +82,12 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _failed = true);
+      if (mounted) {
+        setState(() {
+          _entries = null;
+          _failed = true;
+        });
+      }
     }
   }
 
@@ -352,6 +356,12 @@ class _TrashRow extends StatelessWidget {
 
 /// A trashed note, read-only and from memory: downloaded by file id, never
 /// stored (spec `trash` "No device copy"). No tools, no editing.
+/// A page with a usable size; AspectRatio asserts on anything else.
+bool _sized(Map<String, dynamic> p) {
+  final w = p['width'], h = p['height'];
+  return w is num && h is num && w > 0 && h > 0;
+}
+
 class TrashedNoteScreen extends ConsumerStatefulWidget {
   const TrashedNoteScreen({super.key, required this.entry});
 
@@ -434,27 +444,28 @@ class _TrashedNoteScreenState extends ConsumerState<TrashedNoteScreen> {
                     padding: const EdgeInsets.all(KkjTokens.spacing4),
                     children: [
                       for (final page in note.pages)
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            bottom: KkjTokens.spacing4,
-                          ),
-                          child: AspectRatio(
-                            aspectRatio:
-                                (page['width'] as num).toDouble() /
-                                (page['height'] as num).toDouble(),
-                            child: ClipRect(
-                              child: CustomPaint(
-                                painter: PagePainter(
-                                  page: page,
-                                  cache: _caches.putIfAbsent(
-                                    '${page['id']}',
-                                    StrokePathCache.new,
+                        if (_sized(page))
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: KkjTokens.spacing4,
+                            ),
+                            child: AspectRatio(
+                              aspectRatio:
+                                  (page['width'] as num).toDouble() /
+                                  (page['height'] as num).toDouble(),
+                              child: ClipRect(
+                                child: CustomPaint(
+                                  painter: PagePainter(
+                                    page: page,
+                                    cache: _caches.putIfAbsent(
+                                      '${page['id']}',
+                                      StrokePathCache.new,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
                     ],
                   );
                 },

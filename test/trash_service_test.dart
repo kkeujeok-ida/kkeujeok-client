@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/library/folder_service.dart';
 import 'package:kkeujeok/library/trash_service.dart';
 
+import 'fake_drive.dart' show folderMimeType;
 import 'upload_env.dart';
 
 const _a = '01926f3a-0000-7000-8000-000000001793';
@@ -58,6 +59,32 @@ void main() {
     final e = (await trash.list()).single;
     expect(await trash.restore(e), TrashOutcome.rootFallback);
     expect(item.parents, [env.root.id]);
+  });
+
+  test('origin in the trash restores to the top level with a notice', () async {
+    final (env, _, trash) = await _setup();
+    final item = env.drive.byKkeujeokId(_a)!;
+    // The origin is a live folder that sits in .trashbin itself.
+    final bin = env.drive.byKkeujeokId('trashbin')!;
+    final origin = env.drive.seed(
+      name: 'o',
+      kkeujeokId: 'origin-1',
+      parents: [bin.id],
+      mimeType: folderMimeType,
+    );
+    origin.appProperties['trashedAt'] = '2026-10-01T00:00:00.000Z';
+    item.appProperties['trashedFrom'] = 'origin-1';
+    final e = (await trash.list()).firstWhere((x) => x.id == _a);
+    expect(await trash.restore(e), TrashOutcome.rootFallback);
+    expect(item.parents, [env.root.id]);
+    expect(origin.parents, [bin.id]);
+  });
+
+  test('restore of an item already out of the trash is gone', () async {
+    final (env, _, trash) = await _setup();
+    final e = (await trash.list()).single;
+    env.drive.byKkeujeokId(_a)!.parents = [env.root.id];
+    expect(await trash.restore(e), TrashOutcome.gone);
   });
 
   test('purge and empty set trashed=true, never delete', () async {

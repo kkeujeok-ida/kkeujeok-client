@@ -182,7 +182,8 @@ class TrashService {
       'origin': origin,
     });
     if (r['gone'] == true) return TrashOutcome.gone;
-    if (r['already'] == true) return TrashOutcome.done;
+    // Another device restored it: nothing to do here.
+    if (r['already'] == true) return TrashOutcome.gone;
     final q = (r['request'] as Map).cast<String, Object?>();
     await drive.update(
       e.fileId,
