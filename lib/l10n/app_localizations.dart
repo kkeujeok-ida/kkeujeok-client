@@ -2713,6 +2713,114 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Tap the selected pen again to change its color and width.'**
   String get hintPenEdit;
+
+  /// No description provided for @trash.
+  ///
+  /// In en, this message translates to:
+  /// **'Trash'**
+  String get trash;
+
+  /// No description provided for @trashEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'The trash is empty.'**
+  String get trashEmpty;
+
+  /// No description provided for @trashNoteBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'This note is in the trash. Restore it to write in it again.'**
+  String get trashNoteBanner;
+
+  /// No description provided for @trashRestore.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore'**
+  String get trashRestore;
+
+  /// No description provided for @trashPurge.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete forever'**
+  String get trashPurge;
+
+  /// No description provided for @trashPurgeConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap again to delete forever'**
+  String get trashPurgeConfirm;
+
+  /// No description provided for @trashEmptyAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Empty trash'**
+  String get trashEmptyAction;
+
+  /// No description provided for @trashEmptyConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap again to delete everything forever'**
+  String get trashEmptyConfirm;
+
+  /// No description provided for @trashRestored.
+  ///
+  /// In en, this message translates to:
+  /// **'Restored'**
+  String get trashRestored;
+
+  /// No description provided for @trashRestoredRoot.
+  ///
+  /// In en, this message translates to:
+  /// **'The original folder is gone, so it was restored to the top level'**
+  String get trashRestoredRoot;
+
+  /// No description provided for @trashGone.
+  ///
+  /// In en, this message translates to:
+  /// **'This item is already gone.'**
+  String get trashGone;
+
+  /// No description provided for @trashFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not finish. Please try again.'**
+  String get trashFailed;
+
+  /// No description provided for @trashNotes.
+  ///
+  /// In en, this message translates to:
+  /// **'{n} notes'**
+  String trashNotes(int n);
+
+  /// No description provided for @trashKindNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Note'**
+  String get trashKindNote;
+
+  /// No description provided for @trashKindFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Folder'**
+  String get trashKindFolder;
+
+  /// No description provided for @trashItemSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'{name}, {kind}, deleted {date}'**
+  String trashItemSemantics(String name, String kind, String date);
+
+  /// No description provided for @trashItemMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} menu'**
+  String trashItemMenu(String name);
+
+  /// No description provided for @trashCannotOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot open'**
+  String get trashCannotOpen;
 }
 
 class _AppLocalizationsDelegate

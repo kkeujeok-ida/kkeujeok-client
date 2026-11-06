@@ -22,3 +22,8 @@ Map<String, Object?> driveDuplicatesRule(Map<String, Object?> input) {
 /// Spec `drive.assetsFolder`: `drive.duplicates` with `kkeujeokId` `assets`.
 Map<String, Object?> driveAssetsFolderRule(Map<String, Object?> input) =>
     driveDuplicatesRule({...input, 'kkeujeokId': 'assets'});
+
+/// Spec `drive.trashbinFolder`: `drive.duplicates` with `kkeujeokId`
+/// `trashbin`.
+Map<String, Object?> driveTrashbinFolderRule(Map<String, Object?> input) =>
+    driveDuplicatesRule({...input, 'kkeujeokId': 'trashbin'});

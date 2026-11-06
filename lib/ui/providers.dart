@@ -14,6 +14,7 @@ import '../drive/google_auth_gateway.dart';
 import '../drive/http_drive_client.dart';
 import '../drive/root_folder.dart';
 import '../library/folder_service.dart';
+import '../library/trash_service.dart';
 import '../library/library_rules.dart' show libraryRenameNote, librarySetCover;
 import '../model/eraser.dart';
 import '../model/library_view.dart';
@@ -416,6 +417,15 @@ final Provider<FolderService> folderServiceProvider = Provider<FolderService>(
           s.info.pendingVerify != null ||
           s.info.state == SyncState.conflict);
     },
+  ),
+);
+
+/// The app trash (Story 14.2): Drive-only list, restore and purge.
+final trashServiceProvider = Provider<TrashService>(
+  (ref) => TrashService(
+    drive: ref.read(driveClientProvider),
+    device: ref.read(syncDeviceStoreProvider),
+    folders: ref.read(folderServiceProvider),
   ),
 );
 

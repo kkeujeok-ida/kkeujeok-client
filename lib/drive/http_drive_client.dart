@@ -209,7 +209,7 @@ class HttpDriveClient implements DriveClient {
     String? addParents,
     String? removeParents,
     bool? trashed,
-    Map<String, String>? appProperties,
+    Map<String, String?>? appProperties,
   }) async => _file(
     await _send(
       'PATCH',

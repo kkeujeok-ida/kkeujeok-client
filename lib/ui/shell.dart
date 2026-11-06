@@ -5,6 +5,7 @@ import '../l10n/app_localizations.dart';
 import 'folder_sidebar.dart';
 import 'library.dart';
 import 'settings.dart';
+import 'trash_screen.dart';
 
 const double expandedMinWidth = 840; // dp: sidebar expanded at or above
 const double collapsedMinWidth = 600; // dp: collapsed rail at or above
@@ -40,6 +41,12 @@ class _ShellState extends State<Shell> {
     nav.push(MaterialPageRoute<void>(builder: (_) => const SettingsScreen()));
   }
 
+  void _openTrash() {
+    final nav = Navigator.of(context);
+    if (_scaffoldKey.currentState?.isDrawerOpen ?? false) nav.pop();
+    nav.push(MaterialPageRoute<void>(builder: (_) => const TrashScreen()));
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -53,6 +60,7 @@ class _ShellState extends State<Shell> {
       width: _sidebarWidth,
       color: sidebarColor,
       onSettings: _openSettings,
+      onTrash: _openTrash,
       onFolderSelected: _closeDrawer,
     );
 
@@ -86,6 +94,12 @@ class _ShellState extends State<Shell> {
                   onPressed: _openDrawer,
                 ),
                 const Spacer(),
+                IconButton(
+                  tooltip: l10n.trash,
+                  constraints: _hitBox,
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: _openTrash,
+                ),
                 IconButton(
                   tooltip: l10n.settings,
                   constraints: _hitBox,
@@ -135,12 +149,14 @@ class _Sidebar extends StatelessWidget {
     required this.width,
     required this.color,
     required this.onSettings,
+    required this.onTrash,
     required this.onFolderSelected,
   });
 
   final double width;
   final Color color;
   final VoidCallback onSettings;
+  final VoidCallback onTrash;
   final VoidCallback onFolderSelected;
 
   @override
@@ -165,6 +181,35 @@ class _Sidebar extends StatelessWidget {
               ),
             ),
             Expanded(child: FolderSidebarSection(onSelected: onFolderSelected)),
+            Semantics(
+              button: true,
+              label: l10n.trash,
+              excludeSemantics: true,
+              onTap: onTrash,
+              child: InkWell(
+                onTap: onTrash,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    minHeight: KkjTokens.spacingHitMinAndroid,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: KkjTokens.spacing4,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.delete_outline,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: KkjTokens.spacing3),
+                        Text(l10n.trash, style: theme.textTheme.bodyMedium),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
             Semantics(
               button: true,
               label: l10n.settings,

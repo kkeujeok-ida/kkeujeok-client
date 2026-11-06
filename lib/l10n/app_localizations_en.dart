@@ -1546,4 +1546,66 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get hintPenEdit =>
       'Tap the selected pen again to change its color and width.';
+
+  @override
+  String get trash => 'Trash';
+
+  @override
+  String get trashEmpty => 'The trash is empty.';
+
+  @override
+  String get trashNoteBanner =>
+      'This note is in the trash. Restore it to write in it again.';
+
+  @override
+  String get trashRestore => 'Restore';
+
+  @override
+  String get trashPurge => 'Delete forever';
+
+  @override
+  String get trashPurgeConfirm => 'Tap again to delete forever';
+
+  @override
+  String get trashEmptyAction => 'Empty trash';
+
+  @override
+  String get trashEmptyConfirm => 'Tap again to delete everything forever';
+
+  @override
+  String get trashRestored => 'Restored';
+
+  @override
+  String get trashRestoredRoot =>
+      'The original folder is gone, so it was restored to the top level';
+
+  @override
+  String get trashGone => 'This item is already gone.';
+
+  @override
+  String get trashFailed => 'Could not finish. Please try again.';
+
+  @override
+  String trashNotes(int n) {
+    return '$n notes';
+  }
+
+  @override
+  String get trashKindNote => 'Note';
+
+  @override
+  String get trashKindFolder => 'Folder';
+
+  @override
+  String trashItemSemantics(String name, String kind, String date) {
+    return '$name, $kind, deleted $date';
+  }
+
+  @override
+  String trashItemMenu(String name) {
+    return '$name menu';
+  }
+
+  @override
+  String get trashCannotOpen => 'Cannot open';
 }

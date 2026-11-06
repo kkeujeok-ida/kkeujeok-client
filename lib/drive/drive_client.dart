@@ -119,7 +119,7 @@ abstract interface class DriveClient {
     String? addParents,
     String? removeParents,
     bool? trashed,
-    Map<String, String>? appProperties,
+    Map<String, String?>? appProperties,
   });
 
   /// One `multipart` upload (`fields=id,headRevisionId`). Creates when

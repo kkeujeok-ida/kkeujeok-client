@@ -289,6 +289,22 @@ class FolderService {
     return _ensureItem('trashbin', name: '.trashbin', parentFile: root);
   }
 
+  /// True when folder [id] or one above it waits for its move to `.trashbin`
+  /// (`trash.restoreNote`: such an origin counts as in the trash).
+  Future<bool> trashPending(String id) async {
+    final s = await _load();
+    final trashing = {
+      for (final o in s.ops)
+        if (o['kind'] == 'trashFolder') o['id'],
+    };
+    String? p = id;
+    for (var n = 0; p != null && p != 'root' && n <= s.folders.length; n++) {
+      if (trashing.contains(p)) return true;
+      p = s.folder(p)?['parentId'] as String?;
+    }
+    return false;
+  }
+
   /// How many notes another device deleted although this one had unsent
   /// changes, and that were revived since the last call (the snackbar).
   Future<int> takeRevived() async {
@@ -637,7 +653,7 @@ class FolderService {
 
   /// Finds or creates the folder with `kkeujeokId` [kid]; the oldest one
   /// stays when there are several (ponytail: the others are not cleaned up
-  /// here; `.trashbin` duplicates are cleaned by Story 14.2).
+  /// here; `.trashbin` duplicates stay unmerged).
   Future<String> _ensureItem(
     String kid, {
     required String name,

@@ -10,6 +10,7 @@ import 'package:kkeujeok/drive/duplicates.dart';
 import 'package:kkeujeok/drive/note_summary.dart';
 import 'package:kkeujeok/export/export_rules.dart';
 import 'package:kkeujeok/library/library_rules.dart';
+import 'package:kkeujeok/library/trash_rules.dart';
 import 'package:kkeujeok/model/image_rules.dart';
 import 'package:kkeujeok/model/invert.dart';
 import 'package:kkeujeok/model/kkj_codec.dart';
@@ -209,6 +210,21 @@ final runners = <String, void Function(Case)>{
       _same(trashNoteRule(_json(c['input'])), c['expected']),
   'trash.trashFolder': (c) =>
       _same(trashFolderRule(_json(c['input'])), c['expected']),
+  'trash.restoreNote': (c) =>
+      _same(trashRestoreRule(_json(c['input'])), c['expected']),
+  'trash.restoreFolder': (c) =>
+      _same(trashRestoreRule(_json(c['input'])), c['expected']),
+  'trash.purgeItem': (c) =>
+      _same(trashPurgeRule(_json(c['input'])), c['expected']),
+  'trash.emptyTrash': (c) =>
+      _same(trashEmptyRule(_json(c['input'])), c['expected']),
+  'trash.list': (c) => _same(trashListRule(_json(c['input'])), c['expected']),
+  'trash.access': (c) =>
+      _same(trashAccessRule(_json(c['input'])), c['expected']),
+  'trash.remoteTrashed': (c) =>
+      _same(trashRemoteTrashedRule(_json(c['input'])), c['expected']),
+  'drive.trashbinFolder': (c) =>
+      _same(driveTrashbinFolderRule(_json(c['input'])), c['expected']),
   'note.title': (c) {
     final input = c['input'] as Map<String, dynamic>;
     final t = normalizeTitle(
@@ -722,15 +738,6 @@ void _runOp(Case c) {
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6. The erase rules have runners (Story 5.6): none pending.
 const pendingRules = <String>{
-  // Trash rules (Story 14.1): trashNote and trashFolder have runners (7.5); the rest arrive with 14.2, 7.7.
-  'trash.restoreNote',
-  'trash.restoreFolder',
-  'trash.purgeItem',
-  'trash.emptyTrash',
-  'trash.list',
-  'trash.access',
-  'trash.remoteTrashed',
-  'drive.trashbinFolder',
 };
 
 final _sep = Platform.pathSeparator;

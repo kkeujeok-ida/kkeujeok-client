@@ -1465,4 +1465,64 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get hintPenEdit => '선택한 펜을 한 번 더 누르면 색과 두께를 바꿀 수 있어요';
+
+  @override
+  String get trash => '휴지통';
+
+  @override
+  String get trashEmpty => '휴지통이 비어 있어요.';
+
+  @override
+  String get trashNoteBanner => '휴지통의 노트예요. 복구하면 다시 쓸 수 있어요.';
+
+  @override
+  String get trashRestore => '복구';
+
+  @override
+  String get trashPurge => '영구 삭제';
+
+  @override
+  String get trashPurgeConfirm => '한 번 더 누르면 영구 삭제돼요';
+
+  @override
+  String get trashEmptyAction => '휴지통 비우기';
+
+  @override
+  String get trashEmptyConfirm => '한 번 더 누르면 모두 영구 삭제돼요';
+
+  @override
+  String get trashRestored => '복구했어요';
+
+  @override
+  String get trashRestoredRoot => '원래 폴더가 없어서 최상위로 복구했어요';
+
+  @override
+  String get trashGone => '이미 없어진 항목이에요.';
+
+  @override
+  String get trashFailed => '처리하지 못했어요. 다시 시도해 주세요.';
+
+  @override
+  String trashNotes(int n) {
+    return '노트 $n개';
+  }
+
+  @override
+  String get trashKindNote => '노트';
+
+  @override
+  String get trashKindFolder => '폴더';
+
+  @override
+  String trashItemSemantics(String name, String kind, String date) {
+    return '$name, $kind, $date에 지움';
+  }
+
+  @override
+  String trashItemMenu(String name) {
+    return '$name 메뉴';
+  }
+
+  @override
+  String get trashCannotOpen => '열 수 없음';
 }
