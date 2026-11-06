@@ -110,6 +110,27 @@ void main() {
     expect(find.text('Lecture'), findsOneWidget);
   });
 
+  // Story 20.1: folder and `../` cards follow every view size.
+  for (final layout in ['grid', 'list'])
+    for (final size in ['small', 'standard', 'large'])
+      testWidgets('folder cards fit in $size $layout', (t) async {
+        await pumpApp(
+          t,
+          noteData: data,
+          prefs: {
+            'language': 'en',
+            'libraryView': '{"layout":"$layout","size":"$size"}',
+          },
+          overrides: [folderTreeProvider.overrideWith(_Tree.new)],
+        );
+        await settle(t);
+        await t.tap(find.byKey(const ValueKey('folder-card-a')));
+        await settle(t);
+        expect(find.text('../'), findsOneWidget);
+        expect(find.byKey(const ValueKey('folder-card-b')), findsOneWidget);
+        expect(t.takeException(), isNull);
+      });
+
   testWidgets('the + has New folder; no sidebar new-folder row', (t) async {
     await start(t);
     await t.tap(find.byIcon(Icons.add).last);
@@ -151,9 +172,7 @@ void main() {
     expect(find.byKey(const Key('searchOpen')), findsOneWidget);
   });
 
-  testWidgets('a note dragged onto a folder card moves', (
-    t,
-  ) async {
+  testWidgets('a note dragged onto a folder card moves', (t) async {
     _MoveTree.moved.clear();
     await pumpApp(
       t,

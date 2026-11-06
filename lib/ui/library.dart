@@ -662,8 +662,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         ? Align(
             alignment: AlignmentDirectional.centerStart,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: KkjTokens.spacingCoverColumnMin,
+              constraints: BoxConstraints(
+                maxWidth:
+                    KkjTokens.spacingCoverColumnMin *
+                    _rowThumbFactor[view.size]!,
               ),
               child: w,
             ),
@@ -1879,7 +1881,6 @@ class _FolderCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
-    final theme = Theme.of(context);
     final colorIndex = ref.watch(folderColorsProvider)[folder.id];
     final face = DragTarget<Object>(
       onWillAcceptWithDetails: (d) => canDrop(d.data),
@@ -1893,75 +1894,72 @@ class _FolderCard extends ConsumerWidget {
           ),
           child: AspectRatio(
             aspectRatio: 3 / 4,
-            child: Stack(
-              children: [
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(KkjTokens.spacing2),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.folder,
-                          size: 64,
-                          color: colorIndex == null
-                              ? Kk.colorInkSecondary
-                              : folderPalette[colorIndex %
-                                    folderPalette.length],
-                        ),
-                        const SizedBox(height: KkjTokens.spacing2),
-                        Text(
-                          folder.name,
-                          maxLines: 2,
-                          textAlign: TextAlign.center,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelMedium,
-                        ),
-                      ],
+            child: LayoutBuilder(
+              builder: (context, box) {
+                final narrow = box.maxWidth < 120;
+                return Stack(
+                  children: [
+                    _FolderFace(
+                      icon: Icons.folder,
+                      color: colorIndex == null
+                          ? Kk.colorInkSecondary
+                          : folderPalette[colorIndex % folderPalette.length],
+                      label: folder.name,
+                      maxLines: 2,
                     ),
-                  ),
-                ),
-                PositionedDirectional(
-                  top: 0,
-                  end: 0,
-                  child: PopupMenuButton<_FolderAction>(
-                    offset: handedMenu(
-                      ref.watch(leftHandedProvider),
-                      48,
-                    ).offset,
-                    constraints: handedMenu(
-                      ref.watch(leftHandedProvider),
-                      48,
-                    ).constraints,
-                    tooltip: l.folderMenu(folder.name),
-                    icon: const Icon(Icons.more_horiz),
-                    onSelected: (a) => switch (a) {
-                      _FolderAction.rename => onRename(),
-                      _FolderAction.move => onMove(),
-                      _FolderAction.delete => onDelete(),
-                      _FolderAction.color => _pickColor(context, ref),
-                    },
-                    itemBuilder: (_) => [
-                      PopupMenuItem(
-                        value: _FolderAction.rename,
-                        child: Text(l.folderRename),
+                    PositionedDirectional(
+                      top: 0,
+                      end: 0,
+                      // A small card keeps most of its face tappable: its button
+                      // shrinks below 48dp (the actions are also semantic actions).
+                      child: PopupMenuButton<_FolderAction>(
+                        // `child` instead of `icon`: an icon button keeps a 48dp target.
+                        // ignore: sort_child_properties_last
+                        child: narrow
+                            ? const SizedBox.square(
+                                dimension: 28,
+                                child: Icon(Icons.more_horiz, size: 16),
+                              )
+                            : null,
+                        offset: handedMenu(
+                          ref.watch(leftHandedProvider),
+                          48,
+                        ).offset,
+                        constraints: handedMenu(
+                          ref.watch(leftHandedProvider),
+                          48,
+                        ).constraints,
+                        tooltip: l.folderMenu(folder.name),
+                        icon: narrow ? null : const Icon(Icons.more_horiz),
+                        onSelected: (a) => switch (a) {
+                          _FolderAction.rename => onRename(),
+                          _FolderAction.move => onMove(),
+                          _FolderAction.delete => onDelete(),
+                          _FolderAction.color => _pickColor(context, ref),
+                        },
+                        itemBuilder: (_) => [
+                          PopupMenuItem(
+                            value: _FolderAction.rename,
+                            child: Text(l.folderRename),
+                          ),
+                          PopupMenuItem(
+                            value: _FolderAction.move,
+                            child: Text(l.folderMove),
+                          ),
+                          PopupMenuItem(
+                            value: _FolderAction.color,
+                            child: Text(l.folderColor),
+                          ),
+                          PopupMenuItem(
+                            value: _FolderAction.delete,
+                            child: Text(l.folderDelete),
+                          ),
+                        ],
                       ),
-                      PopupMenuItem(
-                        value: _FolderAction.move,
-                        child: Text(l.folderMove),
-                      ),
-                      PopupMenuItem(
-                        value: _FolderAction.color,
-                        child: Text(l.folderColor),
-                      ),
-                      PopupMenuItem(
-                        value: _FolderAction.delete,
-                        child: Text(l.folderDelete),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -1994,6 +1992,55 @@ class _FolderCard extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Icon over a name, scaled to the card so it never overflows (small grids
+/// are about 64 wide).
+class _FolderFace extends StatelessWidget {
+  const _FolderFace({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.maxLines,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String label;
+  final int maxLines;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, c) {
+      final w = c.maxWidth.isFinite ? c.maxWidth : 64.0;
+      final inner = math.max(0.0, w - 2 * KkjTokens.spacing2);
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(KkjTokens.spacing2),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: SizedBox(
+              width: inner,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: math.min(64.0, inner * 0.6), color: color),
+                  const SizedBox(height: KkjTokens.spacing1),
+                  Text(
+                    label,
+                    maxLines: maxLines,
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelMedium,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
 }
 
 /// The `../` card: note-thumbnail sized, first slot of a folder below the top
@@ -2029,19 +2076,15 @@ class _ParentCard extends StatelessWidget {
             ),
             child: AspectRatio(
               aspectRatio: 3 / 4,
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.folder_open,
-                      size: 64,
-                      color: Kk.colorInkSecondary,
-                    ),
-                    const SizedBox(height: KkjTokens.spacing2),
-                    Text('../', style: Theme.of(context).textTheme.labelMedium),
-                  ],
-                ),
+              child: Stack(
+                children: [
+                  _FolderFace(
+                    icon: Icons.folder_open,
+                    color: Kk.colorInkSecondary,
+                    label: '../',
+                    maxLines: 1,
+                  ),
+                ],
               ),
             ),
           ),
