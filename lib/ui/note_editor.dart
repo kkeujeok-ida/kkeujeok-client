@@ -32,6 +32,7 @@ import '../model/page_view_mode.dart';
 import '../model/pen.dart';
 import '../model/pen_only.dart';
 import '../model/select.dart';
+import '../model/straighten.dart';
 import '../model/text_layout.dart';
 import '../model/toolbar_pos.dart';
 import '../platform/gesture_exclusion.dart';
@@ -215,6 +216,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   DateTime? _announcedAt;
   Duration _t0 = Duration.zero;
   final _points = <List<num>>[];
+  // Line straightening of the stroke in progress (spec/pen-feel.md):
+  // [_holdAnchor] is the still-detection anchor, [_holdDead] once a second
+  // pointer or a palm came.
+  bool _holdOn = false, _straight = false, _holdDead = false;
+  List<num>? _holdAnchor;
+  Timer? _holdTimer;
   PageViewport? _vp;
   // The scale badge at the top right: whole percent, null when hidden.
   final _zoomBadge = ValueNotifier<int?>(null);
@@ -2355,7 +2362,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   // While erasing nothing is drawn live: the struck strokes show translucent
   // (see [_erasePreview]) and go away on up.
   Map<String, dynamic>? _live() =>
-      _pointer == null || _erasing ? null : _stroke(List.of(_points));
+      _pointer == null || _erasing ? null : _stroke(_shownPoints());
 
   // Memo of the last preview, keyed on (point count, first point, page, mode):
   // a repaint without a new pointer point reuses it.
@@ -2569,6 +2576,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   void _down(PointerDownEvent e) {
     if (_leaving || _vp == null || _page == null) return;
     _dragCancel();
+    if (_pointer != null && e.pointer != _pointer) _holdCancel();
     if (e.kind == PointerDeviceKind.touch && _palmTouch(e)) return;
     if (kThreeFingerSwipe) {
       if (e.kind == PointerDeviceKind.touch) {
@@ -3194,7 +3202,72 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _points
       ..clear()
       ..add(_point(e, doc - _origin));
+    _holdReset();
+    _holdOn = !_erasing && _tool == _Tool.pen && ref.read(straightenProvider);
+    _holdPoint(_points.first);
     _tick.value++;
+  }
+
+  /// The points to show and store: the first and last raw point once
+  /// straightened.
+  List<List<num>> _shownPoints() =>
+      _straight ? [_points.first, _points.last] : List.of(_points);
+
+  void _holdReset() {
+    _holdTimer?.cancel();
+    _holdTimer = null;
+    _holdOn = _straight = _holdDead = false;
+    _holdAnchor = null;
+  }
+
+  /// Still detection: a point farther than [holdDistance] (dp) from the
+  /// anchor becomes the anchor and restarts the timer.
+  void _holdPoint(List<num> p) {
+    if (!_holdOn || _holdDead || _straight) return;
+    final a = _holdAnchor, k = _vp?.scale ?? 1;
+    if (a != null &&
+        math.sqrt(
+              math.pow((p[0] - a[0]) * k, 2) + math.pow((p[1] - a[1]) * k, 2),
+            ) <=
+            holdDistance) {
+      return;
+    }
+    _holdAnchor = p;
+    _holdTimer?.cancel();
+    _holdTimer = Timer(const Duration(milliseconds: holdMs), _holdFire);
+  }
+
+  void _holdFire() {
+    final a = _holdAnchor;
+    if (!mounted || _pointer == null || a == null || !_holdOn) return;
+    if (_holdDead || _straight) return;
+    final k = _vp?.scale ?? 1;
+    final on = straightenActive(
+      enabled: true,
+      tool: _pen.tool,
+      palm: false,
+      secondPointer: false,
+      at: a[3] + holdMs,
+      samples: [
+        for (final p in _points) [p[3], p[0] * k, p[1] * k],
+      ],
+    );
+    if (!on) return;
+    _straight = true;
+    _tick.value++;
+    _announce(AppLocalizations.of(context).straightened, polite: true);
+  }
+
+  /// A second pointer or a palm: no straightening for the rest of the stroke,
+  /// and the raw points show again.
+  void _holdCancel() {
+    if (!_holdOn || _holdDead) return;
+    _holdTimer?.cancel();
+    _holdDead = true;
+    if (_straight) {
+      _straight = false;
+      _tick.value++;
+    }
   }
 
   /// Drops the stroke in progress: no op, no save.
@@ -3202,6 +3275,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     if (_pointer == null) return;
     _pointer = null;
     _points.clear();
+    _holdReset();
     _erasing = false;
     _lassoing = false;
     _lassoPts.clear();
@@ -3428,6 +3502,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     }
     // Not clipped here: points outside the page are kept.
     _points.add(_point(e, _vp!.toPage(e.localPosition) - _origin));
+    _holdPoint(_points.last);
     _tick.value++;
   }
 
@@ -3563,9 +3638,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _finishErase(pageId);
       return;
     }
-    final stroke = _stroke(List.of(_points));
+    final stroke = _stroke(_shownPoints());
     _pointer = null;
     _points.clear();
+    _holdReset();
     if (_mode == _Mode.pen || _mode == _Mode.touchStroke) _mode = _Mode.none;
     final err = _history.doOp({
       'op': 'addStroke',

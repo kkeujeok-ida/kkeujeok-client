@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'storage/language_store.dart';
 import 'storage/hint_store.dart';
 import 'storage/left_handed_store.dart';
+import 'storage/straighten_store.dart';
 import 'storage/theme_store.dart';
 import 'storage/new_note_defaults_store.dart';
 import 'model/text_metrics.dart';
@@ -43,6 +44,7 @@ Future<void> main() async {
       themeStoreProvider.overrideWithValue(ThemeStore(prefs)),
       hintStoreProvider.overrideWithValue(HintStore(prefs)),
       leftHandedStoreProvider.overrideWithValue(LeftHandedStore(prefs)),
+      straightenStoreProvider.overrideWithValue(StraightenStore(prefs)),
       pressureCurveStoreProvider.overrideWithValue(PressureCurveStore(prefs)),
       newNoteDefaultsStoreProvider.overrideWithValue(
         NewNoteDefaultsStore(prefs),

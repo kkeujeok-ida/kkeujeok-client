@@ -248,6 +248,24 @@ abstract class AppLocalizations {
   /// **'Left-handed'**
   String get leftHanded;
 
+  /// No description provided for @straighten.
+  ///
+  /// In en, this message translates to:
+  /// **'Straighten lines'**
+  String get straighten;
+
+  /// No description provided for @straightenHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold the pen still to turn the stroke into a straight line'**
+  String get straightenHint;
+
+  /// No description provided for @straightened.
+  ///
+  /// In en, this message translates to:
+  /// **'Stroke straightened.'**
+  String get straightened;
+
   /// No description provided for @pressureCurve.
   ///
   /// In en, this message translates to:

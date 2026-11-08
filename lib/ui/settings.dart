@@ -353,6 +353,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onChanged: ref.read(leftHandedProvider.notifier).set,
           ),
           Divider(color: theme.colorScheme.outlineVariant),
+          SwitchListTile(
+            title: Text(l10n.straighten),
+            subtitle: Text(l10n.straightenHint),
+            value: ref.watch(straightenProvider),
+            onChanged: ref.read(straightenProvider.notifier).set,
+          ),
+          Divider(color: theme.colorScheme.outlineVariant),
           const PressureCurveSection(),
           Divider(color: theme.colorScheme.outlineVariant),
           Builder(

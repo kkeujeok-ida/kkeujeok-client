@@ -85,6 +85,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get leftHanded => 'Left-handed';
 
   @override
+  String get straighten => 'Straighten lines';
+
+  @override
+  String get straightenHint =>
+      'Hold the pen still to turn the stroke into a straight line';
+
+  @override
+  String get straightened => 'Stroke straightened.';
+
+  @override
   String get pressureCurve => 'Pressure curve';
 
   @override

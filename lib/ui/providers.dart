@@ -52,6 +52,7 @@ import '../sync/sync_log.dart';
 import '../sync/unsent.dart';
 import '../storage/hint_store.dart';
 import '../storage/left_handed_store.dart';
+import '../storage/straighten_store.dart';
 import '../storage/theme_store.dart';
 import '../sync/thumbnail.dart';
 import '../sync/upload_coordinator.dart';
@@ -134,6 +135,26 @@ class LeftHandedNotifier extends Notifier<bool> {
 
 final leftHandedProvider = NotifierProvider<LeftHandedNotifier, bool>(
   LeftHandedNotifier.new,
+);
+
+/// Overridden in main() with the opened preferences.
+final straightenStoreProvider = Provider<StraightenStore>(
+  (ref) => StraightenStore(null),
+);
+
+/// Line straightening (spec/pen-feel.md pen.straighten), default off.
+class StraightenNotifier extends Notifier<bool> {
+  @override
+  bool build() => ref.read(straightenStoreProvider).read();
+
+  Future<void> set(bool v) async {
+    state = v;
+    await ref.read(straightenStoreProvider).write(v);
+  }
+}
+
+final straightenProvider = NotifierProvider<StraightenNotifier, bool>(
+  StraightenNotifier.new,
 );
 
 /// Overridden in main() with the opened preferences.

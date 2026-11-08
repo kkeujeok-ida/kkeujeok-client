@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/drive/duplicates.dart';
 import 'package:kkeujeok/drive/note_summary.dart';
 import 'package:kkeujeok/export/export_rules.dart';
+import 'package:kkeujeok/model/straighten.dart';
 import 'package:kkeujeok/library/library_rules.dart';
 import 'package:kkeujeok/library/trash_rules.dart';
 import 'package:kkeujeok/model/image_rules.dart';
@@ -398,6 +399,20 @@ final runners = <String, void Function(Case)>{
       }
     }
   },
+  'pen.straighten': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final on = straightenActive(
+      enabled: i['enabled'] as bool,
+      tool: i['tool'] as String,
+      palm: i['palm'] as bool,
+      secondPointer: i['secondPointer'] as bool,
+      at: i['at'] as num,
+      samples: [
+        for (final s in i['samples'] as List) List<num>.from(s as List),
+      ],
+    );
+    expect({'active': on}, c['expected']);
+  },
   'pen.pressureCurve': (c) {
     final i = c['input'] as Map<String, dynamic>;
     final tol = (c['tolerance'] as num).toDouble();
@@ -755,7 +770,6 @@ void _runOp(Case c) {
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6. The erase rules have runners (Story 5.6): none pending.
 const pendingRules = <String>{
-  'pen.straighten', // Story 16.3
   'stroke.smooth', // Story 16.4
 };
 

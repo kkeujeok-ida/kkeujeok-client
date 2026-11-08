@@ -85,6 +85,15 @@ class AppLocalizationsKo extends AppLocalizations {
   String get leftHanded => '왼손잡이';
 
   @override
+  String get straighten => '직선 보정';
+
+  @override
+  String get straightenHint => '멈추면 획을 일직선으로 바꿔요';
+
+  @override
+  String get straightened => '직선으로 바꿨어요.';
+
+  @override
   String get pressureCurve => '필압 커브';
 
   @override
