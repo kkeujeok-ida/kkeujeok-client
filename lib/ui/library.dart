@@ -58,6 +58,10 @@ const _rowThumbFactor = {
   LibrarySize.large: 1.0,
 };
 
+/// The width factor of a row's thumbnail for the current size.
+double _rowThumbWidth(WidgetRef ref) =>
+    _rowThumbFactor[ref.watch(libraryViewProvider).size]!;
+
 /// Every list is one note per row, thumbnail on the left.
 bool _isRows(LibraryView v) => v.layout == LibraryLayout.list;
 
@@ -702,32 +706,29 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
     final cards = <Widget>[
       if (up != null)
-        cap(
-          _ParentCard(
-            canDrop: (_) => true,
-            onDrop: (d) => d is LibraryFolder
-                ? moveFolderTo(context, ref, d, up.parentId)
-                : _dropNote((d as _NoteDrag).id, up.parentId),
-            onOpen: () =>
-                ref.read(currentFolderProvider.notifier).select(up.parentId),
-          ),
+        _ParentCard(
+          canDrop: (_) => true,
+          onDrop: (d) => d is LibraryFolder
+              ? moveFolderTo(context, ref, d, up.parentId)
+              : _dropNote((d as _NoteDrag).id, up.parentId),
+          onOpen: () =>
+              ref.read(currentFolderProvider.notifier).select(up.parentId),
         ),
       for (final f in subfolders)
-        cap(
-          _FolderCard(
-            key: ValueKey('folder-card-${f.id}'),
-            folder: f,
-            onOpen: () => ref.read(currentFolderProvider.notifier).select(f.id),
-            canDrop: (d) => d is LibraryFolder
-                ? d.id != f.id && !tree.isInside(f.id, d.id)
-                : d is _NoteDrag,
-            onDrop: (d) => d is LibraryFolder
-                ? moveFolderTo(context, ref, d, f.id)
-                : _dropNote((d as _NoteDrag).id, f.id),
-            onRename: () => renameFolderDialog(context, ref, f),
-            onMove: () => moveFolderDialog(context, ref, f),
-            onDelete: () => deleteFolderDialog(context, ref, f),
-          ),
+        // A list row runs the full width, like a note row.
+        _FolderCard(
+          key: ValueKey('folder-card-${f.id}'),
+          folder: f,
+          onOpen: () => ref.read(currentFolderProvider.notifier).select(f.id),
+          canDrop: (d) => d is LibraryFolder
+              ? d.id != f.id && !tree.isInside(f.id, d.id)
+              : d is _NoteDrag,
+          onDrop: (d) => d is LibraryFolder
+              ? moveFolderTo(context, ref, d, f.id)
+              : _dropNote((d as _NoteDrag).id, f.id),
+          onRename: () => renameFolderDialog(context, ref, f),
+          onMove: () => moveFolderDialog(context, ref, f),
+          onDelete: () => deleteFolderDialog(context, ref, f),
         ),
       if (root.status == RootStatus.failed)
         ?switch (root.errorClass) {
@@ -1915,6 +1916,106 @@ class _FolderCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final colorIndex = ref.watch(folderColorsProvider)[folder.id];
+    final rows = _isRows(ref.watch(libraryViewProvider));
+    final iconColor = colorIndex == null
+        ? Kk.colorInkSecondary
+        : folderPalette[colorIndex % folderPalette.length];
+    // [small]: a button below 48dp keeps most of a small card tappable (the
+    // actions are also semantic actions).
+    Widget menuButton({required bool small}) => PopupMenuButton<_FolderAction>(
+      // `child` instead of `icon`: an icon button keeps a 48dp target.
+      // ignore: sort_child_properties_last
+      child: small
+          ? const SizedBox.square(
+              dimension: 28,
+              child: Icon(Icons.more_horiz, size: 16),
+            )
+          : null,
+      offset: handedMenu(ref.watch(leftHandedProvider), 48).offset,
+      constraints: handedMenu(ref.watch(leftHandedProvider), 48).constraints,
+      tooltip: l.folderMenu(folder.name),
+      icon: small ? null : const Icon(Icons.more_horiz),
+      onSelected: (a) => switch (a) {
+        _FolderAction.rename => onRename(),
+        _FolderAction.move => onMove(),
+        _FolderAction.delete => onDelete(),
+        _FolderAction.color => _pickColor(context, ref),
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem(value: _FolderAction.rename, child: Text(l.folderRename)),
+        PopupMenuItem(value: _FolderAction.move, child: Text(l.folderMove)),
+        PopupMenuItem(value: _FolderAction.color, child: Text(l.folderColor)),
+        PopupMenuItem(value: _FolderAction.delete, child: Text(l.folderDelete)),
+      ],
+    );
+    // A list row is built like a note row: the folder icon where the
+    // thumbnail is, the name beside it, the ⋯ button at the end.
+    final Widget body = rows
+        ? Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: KkjTokens.spacingCoverColumnMin * _rowThumbWidth(ref),
+                child: AspectRatio(
+                  aspectRatio: 3 / 4,
+                  child: _FolderFace(
+                    icon: Icons.folder,
+                    color: iconColor,
+                    label: folder.name,
+                    maxLines: 2,
+                    showLabel: false,
+                  ),
+                ),
+              ),
+              const SizedBox(width: KkjTokens.spacing3),
+              Expanded(
+                child: Stack(
+                  children: [
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 48),
+                      child: Padding(
+                        padding: const EdgeInsetsDirectional.only(end: 48),
+                        child: Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: Text(
+                            folder.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelMedium,
+                          ),
+                        ),
+                      ),
+                    ),
+                    PositionedDirectional(
+                      top: 0,
+                      end: 0,
+                      child: menuButton(small: false),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          )
+        : AspectRatio(
+            aspectRatio: 3 / 4,
+            child: LayoutBuilder(
+              builder: (context, box) => Stack(
+                children: [
+                  _FolderFace(
+                    icon: Icons.folder,
+                    color: iconColor,
+                    label: folder.name,
+                    maxLines: 2,
+                  ),
+                  PositionedDirectional(
+                    top: 0,
+                    end: 0,
+                    child: menuButton(small: box.maxWidth < 120),
+                  ),
+                ],
+              ),
+            ),
+          );
     final face = DragTarget<Object>(
       onWillAcceptWithDetails: (d) => canDrop(d.data),
       onAcceptWithDetails: (d) => onDrop(d.data),
@@ -1925,76 +2026,7 @@ class _FolderCard extends ConsumerWidget {
           borderRadius: BorderRadius.circular(
             KkjLight.componentsCoverCardRounded,
           ),
-          child: AspectRatio(
-            aspectRatio: 3 / 4,
-            child: LayoutBuilder(
-              builder: (context, box) {
-                final narrow = box.maxWidth < 120;
-                return Stack(
-                  children: [
-                    _FolderFace(
-                      icon: Icons.folder,
-                      color: colorIndex == null
-                          ? Kk.colorInkSecondary
-                          : folderPalette[colorIndex % folderPalette.length],
-                      label: folder.name,
-                      maxLines: 2,
-                    ),
-                    PositionedDirectional(
-                      top: 0,
-                      end: 0,
-                      // A small card keeps most of its face tappable: its button
-                      // shrinks below 48dp (the actions are also semantic actions).
-                      child: PopupMenuButton<_FolderAction>(
-                        // `child` instead of `icon`: an icon button keeps a 48dp target.
-                        // ignore: sort_child_properties_last
-                        child: narrow
-                            ? const SizedBox.square(
-                                dimension: 28,
-                                child: Icon(Icons.more_horiz, size: 16),
-                              )
-                            : null,
-                        offset: handedMenu(
-                          ref.watch(leftHandedProvider),
-                          48,
-                        ).offset,
-                        constraints: handedMenu(
-                          ref.watch(leftHandedProvider),
-                          48,
-                        ).constraints,
-                        tooltip: l.folderMenu(folder.name),
-                        icon: narrow ? null : const Icon(Icons.more_horiz),
-                        onSelected: (a) => switch (a) {
-                          _FolderAction.rename => onRename(),
-                          _FolderAction.move => onMove(),
-                          _FolderAction.delete => onDelete(),
-                          _FolderAction.color => _pickColor(context, ref),
-                        },
-                        itemBuilder: (_) => [
-                          PopupMenuItem(
-                            value: _FolderAction.rename,
-                            child: Text(l.folderRename),
-                          ),
-                          PopupMenuItem(
-                            value: _FolderAction.move,
-                            child: Text(l.folderMove),
-                          ),
-                          PopupMenuItem(
-                            value: _FolderAction.color,
-                            child: Text(l.folderColor),
-                          ),
-                          PopupMenuItem(
-                            value: _FolderAction.delete,
-                            child: Text(l.folderDelete),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
+          child: body,
         ),
       ),
     );
@@ -2035,12 +2067,14 @@ class _FolderFace extends StatelessWidget {
     required this.color,
     required this.label,
     required this.maxLines,
+    this.showLabel = true,
   });
 
   final IconData icon;
   final Color color;
   final String label;
   final int maxLines;
+  final bool showLabel;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -2058,14 +2092,16 @@ class _FolderFace extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(icon, size: math.min(64.0, inner * 0.6), color: color),
-                  const SizedBox(height: KkjTokens.spacing1),
-                  Text(
-                    label,
-                    maxLines: maxLines,
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelMedium,
-                  ),
+                  if (showLabel) ...[
+                    const SizedBox(height: KkjTokens.spacing1),
+                    Text(
+                      label,
+                      maxLines: maxLines,
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -2078,7 +2114,7 @@ class _FolderFace extends StatelessWidget {
 
 /// The `../` card: note-thumbnail sized, first slot of a folder below the top
 /// level. A tap goes up; a folder dropped on it moves up one level.
-class _ParentCard extends StatelessWidget {
+class _ParentCard extends ConsumerWidget {
   const _ParentCard({
     required this.onOpen,
     required this.canDrop,
@@ -2090,8 +2126,9 @@ class _ParentCard extends StatelessWidget {
   final void Function(Object dragged) onDrop;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
+    final rows = _isRows(ref.watch(libraryViewProvider));
     return Semantics(
       button: true,
       label: l.folderParentCard,
@@ -2107,19 +2144,44 @@ class _ParentCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(
               KkjLight.componentsCoverCardRounded,
             ),
-            child: AspectRatio(
-              aspectRatio: 3 / 4,
-              child: Stack(
-                children: [
-                  _FolderFace(
-                    icon: Icons.folder_open,
-                    color: Kk.colorInkSecondary,
-                    label: '../',
-                    maxLines: 1,
+            child: rows
+                ? Row(
+                    children: [
+                      SizedBox(
+                        width:
+                            KkjTokens.spacingCoverColumnMin *
+                            _rowThumbWidth(ref),
+                        child: AspectRatio(
+                          aspectRatio: 3 / 4,
+                          child: _FolderFace(
+                            icon: Icons.folder_open,
+                            color: Kk.colorInkSecondary,
+                            label: '../',
+                            maxLines: 1,
+                            showLabel: false,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: KkjTokens.spacing3),
+                      Text(
+                        '../',
+                        style: Theme.of(context).textTheme.labelMedium,
+                      ),
+                    ],
+                  )
+                : AspectRatio(
+                    aspectRatio: 3 / 4,
+                    child: Stack(
+                      children: [
+                        _FolderFace(
+                          icon: Icons.folder_open,
+                          color: Kk.colorInkSecondary,
+                          label: '../',
+                          maxLines: 1,
+                        ),
+                      ],
+                    ),
                   ),
-                ],
-              ),
-            ),
           ),
         ),
       ),
