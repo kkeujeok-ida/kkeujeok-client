@@ -796,6 +796,16 @@ const pendingRules = <String>{
   'note.penKinds',
   'pen.kinds',
   'pen.switchKind',
+  // Epic 25/26 (Stories 25.1, 26.1): runners arrive with 25.x and 26.x Android stories.
+  'note.brush',
+  'note.shape',
+  'brush.resolve',
+  'shape.points',
+  'shape.fromDrag',
+  'shape.resize',
+  'shape.rotate',
+  'shape.lineSnap',
+  'shape.recognize',
 };
 
 final _sep = Platform.pathSeparator;
