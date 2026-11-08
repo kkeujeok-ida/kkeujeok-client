@@ -2617,8 +2617,16 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     }
     _snap();
     if (_consumedByText(e)) return;
-    // A press on a tape may become its toggle (not in select mode).
-    final tid = _tool == _Tool.lasso ? null : _tapeUnder(e.localPosition);
+    // A press on a tape may become its toggle (not in select or eraser mode,
+    // and not from the eraser end of a stylus or an ignored pointer kind).
+    final tid =
+        _tool == _Tool.lasso ||
+            _tool == _Tool.eraser ||
+            !(e.kind == PointerDeviceKind.touch ||
+                e.kind == PointerDeviceKind.stylus ||
+                e.kind == PointerDeviceKind.mouse)
+        ? null
+        : _tapeUnder(e.localPosition);
     _tapeTap =
         tid == null ||
             (e.kind == PointerDeviceKind.touch && _touches.isNotEmpty)
