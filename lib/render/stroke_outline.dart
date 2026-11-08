@@ -17,16 +17,18 @@ const _taperMin = 0.25;
 /// Steps 1-4 of spec/stroke-geometry.md: the resampled `(x, y, q)` of a pen
 /// stroke. One kept point gives one sample; no points give empty lists. The
 /// pencil texture reads the same samples (spec/pen-kinds.md).
-({List<double> x, List<double> y, List<double> q, double length}) strokeSamples(
+({List<double> x, List<double> y, List<double> q, List<double> m, double length})
+strokeSamples(
   bool usePressure,
   List points, [
   PressureCurve? curve,
+  double Function(List p)? sizeOf,
 ]) {
   final useCurve = usePressure && points.any((p) => p.length > 2 && p[2] != 0.5)
       ? (curve ?? pressureCurveInUse)
       : null;
   // 1. Prepare: dedupe against the last kept point.
-  final xs = <double>[], ys = <double>[], qs = <double>[];
+  final xs = <double>[], ys = <double>[], qs = <double>[], ms = <double>[];
   for (final p in points) {
     final x = (p[0] as num).toDouble(), y = (p[1] as num).toDouble();
     if (xs.isNotEmpty) {
@@ -36,12 +38,13 @@ const _taperMin = 0.25;
     xs.add(x);
     ys.add(y);
     qs.add(_pressure(usePressure, p, useCurve));
+    ms.add(sizeOf == null ? 1.0 : sizeOf(p));
   }
-  if (xs.length < 2) return (x: xs, y: ys, q: qs, length: 0.0);
+  if (xs.length < 2) return (x: xs, y: ys, q: qs, m: ms, length: 0.0);
 
   // 3. Smooth x, y and q; ends stay.
   for (var pass = 0; pass < _smoothingPasses; pass++) {
-    for (final a in [xs, ys, qs]) {
+    for (final a in [xs, ys, qs, if (sizeOf != null) ms]) {
       final old = List<double>.of(a);
       for (var i = 1; i < a.length - 1; i++) {
         a[i] =
@@ -63,13 +66,14 @@ const _taperMin = 0.25;
   }
   final total = cum.last;
   final n = math.max(1, (total / _spacing + 0.5).floor());
-  final sx = <double>[], sy = <double>[], sq = <double>[];
+  final sx = <double>[], sy = <double>[], sq = <double>[], sm = <double>[];
   var seg = 1;
   for (var i = 0; i <= n; i++) {
     if (i == n) {
       sx.add(xs.last);
       sy.add(ys.last);
       sq.add(qs.last);
+      sm.add(ms.last);
       break;
     }
     final target = total * i / n;
@@ -81,8 +85,9 @@ const _taperMin = 0.25;
     sx.add(xs[seg - 1] + (xs[seg] - xs[seg - 1]) * t);
     sy.add(ys[seg - 1] + (ys[seg] - ys[seg - 1]) * t);
     sq.add(qs[seg - 1] + (qs[seg] - qs[seg - 1]) * t);
+    sm.add(ms[seg - 1] + (ms[seg] - ms[seg - 1]) * t);
   }
-  return (x: sx, y: sy, q: sq, length: total);
+  return (x: sx, y: sy, q: sq, m: sm, length: total);
 }
 
 /// Mean drawing pressure of [points]; the flat alpha of a polygon fallback.
@@ -113,10 +118,11 @@ List<List<double>> strokeOutline(
   double maxRatio = _maxRatio,
   bool taper = false,
   bool flat = false,
+  double Function(List p)? sizeOf,
 ]) {
-  final smp = strokeSamples(usePressure, points, curve);
+  final smp = strokeSamples(usePressure, points, curve, sizeOf);
   if (smp.x.isEmpty) return [];
-  final sx = smp.x, sy = smp.y, sq = smp.q, total = smp.length;
+  final sx = smp.x, sy = smp.y, sq = smp.q, sm = smp.m, total = smp.length;
 
   double radius(double q) {
     if (flat) return width / 2;
@@ -128,7 +134,7 @@ List<List<double>> strokeOutline(
 
   // 2. One point: a 16-point circle (tape: the square).
   if (sx.length == 1) {
-    final r = radius(sq[0]);
+    final r = radius(sq[0]) * sm[0];
     if (flat) {
       return [
         for (final d in [
@@ -189,11 +195,12 @@ List<List<double>> strokeOutline(
   // 6-8. Sides, caps, polygon. Normal N = (-Ty, Tx).
   final left = <List<double>>[], right = <List<double>>[];
   for (var i = 0; i <= n; i++) {
-    final r = radius(sq[i]) * g[i];
+    final r = radius(sq[i]) * g[i] * sm[i];
     left.add([sx[i] - r * ty[i], sy[i] + r * tx[i]]);
     right.add([sx[i] + r * ty[i], sy[i] - r * tx[i]]);
   }
-  final rEnd = radius(sq[n]) * g[n], rStart = radius(sq[0]) * g[0];
+  final rEnd = radius(sq[n]) * g[n] * sm[n],
+      rStart = radius(sq[0]) * g[0] * sm[0];
   final endCap = <List<double>>[], startCap = <List<double>>[];
   for (var k = 1; k < (flat ? 0 : _capSegments); k++) {
     final phi = math.pi * k / _capSegments;
@@ -220,6 +227,7 @@ List<List<double>> strokeOutlineFor(
   bool usePressure,
   List points, [
   PressureCurve? curve,
+  double Function(List p)? sizeOf,
 ]) => switch (tool) {
   'fountain' => strokeOutline(
     width,
@@ -229,8 +237,20 @@ List<List<double>> strokeOutlineFor(
     0.2,
     1.6,
     true,
+    false,
+    sizeOf,
   ),
-  'pencil' => strokeOutline(width, usePressure, points, curve, 0.6, 1.3),
+  'pencil' => strokeOutline(
+    width,
+    usePressure,
+    points,
+    curve,
+    0.6,
+    1.3,
+    false,
+    false,
+    sizeOf,
+  ),
   'tape' => strokeOutline(
     width,
     usePressure,
@@ -241,7 +261,17 @@ List<List<double>> strokeOutlineFor(
     false,
     true,
   ),
-  _ => strokeOutline(width, usePressure, points, curve),
+  _ => strokeOutline(
+    width,
+    usePressure,
+    points,
+    curve,
+    _minRatio,
+    _maxRatio,
+    false,
+    false,
+    sizeOf,
+  ),
 };
 
 /// spec rule `stroke.outline.highlighter`: the chisel-nib rectangles of a

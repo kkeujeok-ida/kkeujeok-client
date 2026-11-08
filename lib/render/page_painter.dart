@@ -1,9 +1,11 @@
+import 'dart:convert' show jsonEncode;
 import 'dart:math' as math;
 import 'dart:ui' as ui show Image;
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
+import '../model/brush.dart';
 import '../model/invert.dart';
 import '../model/pressure_curve.dart';
 import '../model/smooth.dart';
@@ -122,16 +124,38 @@ bool drawableStroke(Object? e) =>
 Path strokePath(Map<String, dynamic> s) {
   final pts = smoothPoints(s['points'] as List, smoothInUse);
   final w = (s['width'] as num).toDouble();
-  return s['tool'] == 'highlighter'
-      ? highlighterPath(highlighterPolygons(w, pts))
-      : outlinePath(
-          strokeOutlineFor(
-            s['tool'] as String?,
-            w,
-            s['usePressure'] as bool,
-            pts,
-          ),
-        );
+  if (s['tool'] == 'highlighter') return highlighterPath(highlighterPolygons(w, pts));
+  final tool = s['tool'] as String?, up = s['usePressure'] as bool;
+  if (s['brush'] == null) {
+    return outlinePath(strokeOutlineFor(tool, w, up, pts));
+  }
+  final b = brushResolve(tool, s['brush']);
+  return outlinePath(
+    strokeOutlineFor(
+      tool,
+      w,
+      up,
+      pts,
+      b.pressureCurve == null
+          ? null
+          : PressureCurve.fromValues(b.pressureCurve!),
+      b.tiltTarget == 'size' ? (p) => tiltSizeFactor(p, b.tiltCurve) : null,
+    ),
+  );
+}
+
+/// Layer alpha of a stroke from its brush, and whether it is drawn through
+/// the pencil grain (spec/brush.md).
+({double alpha, bool grain}) brushDraw(Map<String, dynamic> s) {
+  final tool = s['tool'];
+  return (
+    alpha: brushAlphaFactor(tool, s['brush'], s['points'] as List),
+    grain: tool == 'highlighter' || tool == 'tape'
+        ? false
+        : s['brush'] == null
+        ? tool == 'pencil'
+        : brushResolve(tool, s['brush']).texture == 'pencil',
+  );
 }
 
 /// Fills [p] with [color]. A highlighter is one layer in the opaque color,
@@ -233,6 +257,7 @@ class StrokePathCache {
       (s['width'] as num),
       (s['usePressure'] as bool) ? 1 : 0,
       ...pressureCurveInUse.values,
+      jsonEncode(s['brush']),
       smoothInUse,
       ...xy(0),
       ...xy(pts.length - 1),
@@ -470,15 +495,16 @@ class PagePainter extends CustomPainter {
         canvas.clipPath(hole);
       }
       final fade = ep != null && ep.fade.contains(s['id']) ? ep.alpha : 1.0;
-      if (s['tool'] == 'pencil') {
+      final bd = brushDraw(s);
+      if (s['tool'] == 'pencil' || bd.grain) {
         fillPencil(
           canvas,
           cache.pathOf(s),
           s['color'],
-          cache.textures.image,
+          bd.grain ? cache.textures.image : null,
           _anchorOf(s),
           pencilAlpha(s),
-          alpha: fade,
+          alpha: fade * bd.alpha,
           invert: inv,
         );
       } else if (s['tool'] == 'tape' && openTapes.contains(s['id'])) {
@@ -495,7 +521,7 @@ class PagePainter extends CustomPainter {
           cache.pathOf(s),
           s['color'],
           highlighter: s['tool'] == 'highlighter',
-          alpha: fade,
+          alpha: fade * bd.alpha,
           invert: inv && s['tool'] != 'tape',
         );
       }
@@ -506,14 +532,16 @@ class PagePainter extends CustomPainter {
     cache.keepOnly(ids);
     final s = live?.call();
     if (s != null && drawableStroke(s)) {
-      if (s['tool'] == 'pencil') {
+      final bd = brushDraw(s);
+      if (s['tool'] == 'pencil' || bd.grain) {
         fillPencil(
           canvas,
           strokePath(s),
           s['color'],
-          cache.textures.image,
+          bd.grain ? cache.textures.image : null,
           _anchorOf(s),
           pencilAlpha(s),
+          alpha: bd.alpha,
           invert: inv,
         );
       } else {
@@ -522,6 +550,7 @@ class PagePainter extends CustomPainter {
           strokePath(s),
           s['color'],
           highlighter: s['tool'] == 'highlighter',
+          alpha: bd.alpha,
           invert: inv && s['tool'] != 'tape',
         );
       }

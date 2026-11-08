@@ -24,6 +24,7 @@ import 'package:kkeujeok/model/page_bounds.dart';
 import 'package:kkeujeok/model/pdf_rules.dart';
 import 'package:kkeujeok/model/pen.dart';
 import 'package:kkeujeok/model/pen_palette.dart';
+import 'package:kkeujeok/model/brush.dart';
 import 'package:kkeujeok/model/pressure_curve.dart';
 import 'package:kkeujeok/ui/pen_toolbar.dart'
     show PenBubbleAnchor, penColorName, placePenBubble;
@@ -512,6 +513,19 @@ final Map<String, void Function(Case)> runners = {
   },
   'note.penKinds': (c) => runners['note.formatVersion']!(c),
   'note.brush': (c) => runners['note.formatVersion']!(c),
+  'brush.resolve': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final p = brushResolve(i['tool'], i['brush']);
+    _same({
+      'params': {
+        'pressureCurve': p.pressureCurve,
+        'tiltCurve': p.tiltCurve,
+        'tiltTarget': p.tiltTarget,
+        'opacity': p.opacity,
+        'texture': p.texture,
+      },
+    }, c['expected']);
+  },
   'pen.defaultSlots': (c) => _same({
     'slots': [for (final p in defaultPenSlots) p.toJson()],
   }, c['expected']),
@@ -834,7 +848,6 @@ void _runOp(Case c) {
 const pendingRules = <String>{
   // Epic 25/26 (Stories 25.1, 26.1): runners arrive with 25.x and 26.x Android stories.
   'note.shape',
-  'brush.resolve',
   'shape.points',
   'shape.fromDrag',
   'shape.resize',
