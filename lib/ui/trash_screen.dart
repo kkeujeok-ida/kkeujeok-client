@@ -79,6 +79,14 @@ class _TrashedNoteScreenState extends ConsumerState<TrashedNoteScreen> {
   bool _busy = false;
 
   @override
+  void dispose() {
+    for (final c in _caches.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
   void initState() {
     super.initState();
     _note = ref.read(trashServiceProvider).open(widget.entry);

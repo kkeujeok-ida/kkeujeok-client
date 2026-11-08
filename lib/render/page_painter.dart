@@ -253,6 +253,9 @@ class StrokePathCache {
     return true;
   }
 
+  /// Releases the texture images; call when the owner is done with the cache.
+  void dispose() => textures.dispose();
+
   /// Forgets strokes that are no longer on the page.
   void keepOnly(Set<String> ids) {
     _byId.removeWhere((k, _) => !ids.contains(k));
@@ -390,6 +393,12 @@ class PagePainter extends CustomPainter {
       paintPdfBackground(canvas, page, pdfPages, vis, sc);
     }
 
+    final clip = Rect.fromLTWH(
+      -vp.offset.dx / vp.scale,
+      -vp.offset.dy / vp.scale,
+      size.width / vp.scale,
+      size.height / vp.scale,
+    );
     final ids = <String>{};
     final skip = hidden?.call();
     final ep = erasePreview?.call();
@@ -440,7 +449,10 @@ class PagePainter extends CustomPainter {
         canvas.clipPath(hole);
       }
       final fade = ep != null && ep.fade.contains(s['id']) ? ep.alpha : 1.0;
-      final tex = s['tool'] == 'pencil' ? cache.textures.lookup(s) : null;
+      // Off-screen strokes build no texture; they show the alpha polygon.
+      final tex = s['tool'] == 'pencil' && PencilTextures.touches(s, clip)
+          ? cache.textures.lookup(s)
+          : null;
       if (tex != null) {
         fillPencil(
           canvas,

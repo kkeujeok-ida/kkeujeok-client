@@ -161,6 +161,16 @@ PencilCells? buildPencilCells(
         }
       }
     }
+    if (best.isFinite) return smp.q[bestIdx];
+    // The grid search ran out (a cell far from every sample): scan them all.
+    for (var q = 0; q < n; q++) {
+      final dx = smp.x[q] - cx, dy = smp.y[q] - cy;
+      final d = dx * dx + dy * dy;
+      if (d < best) {
+        best = d;
+        bestIdx = q;
+      }
+    }
     return smp.q[bestIdx];
   }
 
@@ -210,6 +220,7 @@ class _Entry {
   ui.Rect dst = ui.Rect.zero;
   int cells = 0, used = 0;
   List<double>? m, curKey;
+  bool queued = false, failed = false, evicted = false;
   bool lost = false; // moved in a way a rigid change cannot describe
 
   static Float64List _xy(List pts) {
@@ -230,7 +241,7 @@ class PencilTextures extends ChangeNotifier {
   static const maxTotalCells = 16000000;
   final _byId = <String, _Entry>{};
   final _queue = <_Entry>[];
-  var _running = false, _clock = 0, _total = 0;
+  var _running = false, _disposed = false, _clock = 0, _total = 0;
 
   /// Completes when every queued build is done (tests).
   Future<void> settled() async {
@@ -242,7 +253,7 @@ class PencilTextures extends ChangeNotifier {
   PencilDraw? lookup(Map<String, dynamic> s) {
     final id = s['id'] as String;
     final pts = s['points'] as List;
-    if (pts.isEmpty) return null;
+    if (_disposed || pts.isEmpty) return null;
     final sig = <Object?>[
       pts.length,
       s['width'],
@@ -264,6 +275,9 @@ class PencilTextures extends ChangeNotifier {
         s['usePressure'] as bool,
       );
       _byId[id] = e;
+    }
+    if (e.image == null && !e.queued && !e.failed && !e.evicted) {
+      e.queued = true;
       _queue.add(e);
       _pump();
     }
@@ -289,6 +303,21 @@ class PencilTextures extends ChangeNotifier {
     return (image: img, dst: e.dst, m: e.m);
   }
 
+  /// True when stroke [s] (with its widest radius) can touch [clip].
+  static bool touches(Map<String, dynamic> s, ui.Rect clip) {
+    var l = double.infinity, t = double.infinity;
+    var r = -double.infinity, b = -double.infinity;
+    for (final p in s['points'] as List) {
+      final x = (p[0] as num).toDouble(), y = (p[1] as num).toDouble();
+      l = math.min(l, x);
+      r = math.max(r, x);
+      t = math.min(t, y);
+      b = math.max(b, y);
+    }
+    final m = (s['width'] as num).toDouble() + 1;
+    return ui.Rect.fromLTRB(l - m, t - m, r + m, b + m).overlaps(clip);
+  }
+
   /// Forgets strokes that are no longer on the page.
   void keepOnly(Set<String> ids) {
     for (final e in [..._byId.values]) {
@@ -303,6 +332,20 @@ class PencilTextures extends ChangeNotifier {
     e.image?.dispose();
     e.image = null;
     e.lost = true;
+    // Room was freed: strokes evicted for lack of it may build again.
+    for (final o in _byId.values) {
+      o.evicted = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _queue.clear();
+    for (final e in [..._byId.values]) {
+      _drop(e);
+    }
+    super.dispose();
   }
 
   // The similarity taking the build frame to [pts]: solved from the first two
@@ -351,38 +394,46 @@ class PencilTextures extends ChangeNotifier {
       while (_queue.isNotEmpty) {
         await Future<void>.delayed(Duration.zero); // let frames run between
         final e = _queue.removeAt(0);
+        e.queued = false;
         if (!identical(_byId[e.id], e)) continue;
-        final pts = smoothPoints(e.points, smoothInUse);
-        final cells = buildPencilCells(
-          strokeOutlineFor('pencil', e.width, e.usePressure, pts),
-          strokeSamples(e.usePressure, pts),
-          pencilSeed(e.id),
-        );
-        if (cells == null) continue; // too big or empty: alpha polygon
-        final done = Completer<ui.Image>();
-        ui.decodeImageFromPixels(
-          cells.pixels,
-          cells.w,
-          cells.h,
-          ui.PixelFormat.rgba8888,
-          done.complete,
-        );
-        final img = await done.future;
-        if (!identical(_byId[e.id], e)) {
-          img.dispose();
-          continue;
+        try {
+          final pts = smoothPoints(e.points, smoothInUse);
+          final cells = buildPencilCells(
+            strokeOutlineFor('pencil', e.width, e.usePressure, pts),
+            strokeSamples(e.usePressure, pts),
+            pencilSeed(e.id),
+          );
+          if (cells == null) {
+            e.failed = true; // too big or empty: alpha polygon
+            continue;
+          }
+          final done = Completer<ui.Image>();
+          ui.decodeImageFromPixels(
+            cells.pixels,
+            cells.w,
+            cells.h,
+            ui.PixelFormat.rgba8888,
+            done.complete,
+          );
+          final img = await done.future;
+          if (!identical(_byId[e.id], e)) {
+            img.dispose();
+            continue;
+          }
+          e.image = img;
+          e.cells = cells.w * cells.h;
+          e.dst = ui.Rect.fromLTWH(
+            cells.i0 * pencilCell,
+            cells.j0 * pencilCell,
+            cells.w * pencilCell,
+            cells.h * pencilCell,
+          );
+          _total += e.cells;
+          _evict(e);
+          if (!_disposed) notifyListeners();
+        } catch (_) {
+          e.failed = true; // falls back to the alpha polygon, never rebuilt
         }
-        e.image = img;
-        e.cells = cells.w * cells.h;
-        e.dst = ui.Rect.fromLTWH(
-          cells.i0 * pencilCell,
-          cells.j0 * pencilCell,
-          cells.w * pencilCell,
-          cells.h * pencilCell,
-        );
-        _total += e.cells;
-        _evict(e);
-        notifyListeners();
       }
     } finally {
       _running = false;
@@ -396,7 +447,12 @@ class PencilTextures extends ChangeNotifier {
       ..sort((a, b) => a.used.compareTo(b.used));
     for (final e in old) {
       if (_total <= maxTotalCells) break;
-      _drop(e);
+      // Keep the entry (marked) so it is not rebuilt, and evicted again, in a loop.
+      _total -= e.cells;
+      e.cells = 0;
+      e.image?.dispose();
+      e.image = null;
+      e.evicted = true;
     }
   }
 }

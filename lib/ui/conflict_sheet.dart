@@ -184,6 +184,10 @@ class _ConflictBodyState extends State<_ConflictBody> {
 
   @override
   void dispose() {
+    for (final c in _caches.values) {
+      c.$1.dispose();
+      c.$2.dispose();
+    }
     _primary.dispose();
     super.dispose();
   }

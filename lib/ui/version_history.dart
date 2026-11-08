@@ -521,6 +521,12 @@ class _VersionTileState extends State<_VersionTile> {
   final _cache = StrokePathCache();
 
   @override
+  void dispose() {
+    _cache.dispose();
+    super.dispose();
+  }
+
+  @override
   void initState() {
     super.initState();
     widget.onVisible(); // the download starts when the row is built

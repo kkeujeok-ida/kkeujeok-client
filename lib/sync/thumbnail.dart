@@ -13,11 +13,13 @@ Future<List<int>?> renderThumbnail(
   try {
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(recorder);
+    final cache = StrokePathCache();
     PagePainter(
       page: page,
-      cache: StrokePathCache(),
+      cache: cache,
       invert: false, // the uploaded thumbnail keeps the original colors
     ).paint(canvas, ui.Size(width.toDouble(), height.toDouble()));
+    cache.dispose(); // no texture is ready in one paint: drop the queued builds
     final image = await recorder.endRecording().toImage(width, height);
     try {
       final data = await image.toByteData(format: ui.ImageByteFormat.png);

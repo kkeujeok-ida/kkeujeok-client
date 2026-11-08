@@ -1242,6 +1242,7 @@ class _PageThumbState extends ConsumerState<_PageThumb> {
 
   @override
   void dispose() {
+    _cache.dispose();
     _pdf?.dispose();
     super.dispose();
   }

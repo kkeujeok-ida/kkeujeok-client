@@ -527,6 +527,12 @@ class _CellState extends State<_Cell> {
   final _cache = StrokePathCache();
 
   @override
+  void dispose() {
+    _cache.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final p = widget.page;

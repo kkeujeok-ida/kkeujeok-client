@@ -148,43 +148,95 @@ void main() {
     });
   });
 
-  testWidgets('painter shows the ink once the texture is ready', (t) async {
+  test('each cell takes the pressure of its nearest sample', () {
+    final s = {
+      ..._stroke('v', [
+        for (var i = 0; i <= 18; i++) [10 + i * 10, 20],
+      ]),
+      'points': [
+        for (var i = 0; i <= 18; i++) [10 + i * 10, 20, i / 18, i * 10],
+      ],
+    };
+    final pts = s['points'] as List;
+    final smp = strokeSamples(true, pts);
+    final c = buildPencilCells(
+      strokeOutlineFor('pencil', 6, true, pts),
+      smp,
+      pencilSeed('v'),
+    )!;
+    var checked = 0;
+    for (var i = c.i0; i < c.i0 + c.w; i++) {
+      for (var j = c.j0; j < c.j0 + c.h; j++) {
+        final cx = (i + 0.5) * pencilCell, cy = (j + 0.5) * pencilCell;
+        var best = double.infinity;
+        var bi = 0;
+        for (var k = 0; k < smp.x.length; k++) {
+          final d =
+              (smp.x[k] - cx) * (smp.x[k] - cx) +
+              (smp.y[k] - cy) * (smp.y[k] - cy);
+          if (d < best) {
+            best = d;
+            bi = k;
+          }
+        }
+        if (best > 1.0)
+          continue; // inside the polygon for sure only near a sample
+        checked++;
+        expect(
+          c.inked(i, j),
+          pencilGrain(pencilSeed('v'), i, j) <
+              pencilDensity(smp.q[bi]).threshold,
+          reason: 'cell $i,$j',
+        );
+      }
+    }
+    expect(checked, greaterThan(1000));
+  });
+
+  testWidgets('painter draws the cells, with gaps, once the texture is ready', (
+    t,
+  ) async {
+    final stroke = _stroke('p', [
+      [10, 30],
+      [80, 30],
+    ], pressure: 0);
     final page = {
       'width': 100,
       'height': 60,
       'background': 'plain',
-      'elements': [
-        _stroke('p', [
-          [10, 30],
-          [80, 30],
-        ], pressure: 1),
-      ],
+      'elements': [stroke],
     };
     final cache = StrokePathCache();
-    Future<int> darkPixels() async {
-      final img = await () async {
-        final rec = ui.PictureRecorder();
-        PagePainter(
-          page: page,
-          cache: cache,
-          invert: false,
-        ).paint(ui.Canvas(rec), const Size(100, 60));
-        return rec.endRecording().toImage(100, 60);
-      }();
-      final data = (await img.toByteData())!.buffer.asUint8List();
-      var n = 0;
-      for (var k = 0; k < data.length; k += 4) {
-        if (data[k] < 128) n++;
-      }
-      return n;
+    // Zoom 4: a cell is 2 px, so single cells show.
+    Future<List<int>> paint() async {
+      final rec = ui.PictureRecorder();
+      PagePainter(
+        page: page,
+        cache: cache,
+        invert: false,
+        viewport: const PageViewport(4, Offset.zero),
+      ).paint(ui.Canvas(rec), const Size(400, 240));
+      final img = await rec.endRecording().toImage(400, 240);
+      return (await img.toByteData())!.buffer.asUint8List().toList();
     }
 
     await t.runAsync(() async {
-      final before = await darkPixels(); // alpha polygon, ~95%
+      await paint(); // queues the build
       await cache.textures.settled();
-      final after = await darkPixels();
-      expect(before, greaterThan(0));
-      expect(after, greaterThan(0));
+      expect(cache.textures.lookup(stroke), isNotNull);
+      final px = await paint();
+      var black = 0, white = 0;
+      for (var y = 116; y < 124; y++) {
+        for (var x = 80; x < 280; x++) {
+          final v = px[(y * 400 + x) * 4];
+          if (v < 10) black++;
+          if (v > 245) white++;
+        }
+      }
+      final ratio = black / (8 * 200);
+      expect(white, greaterThan(0)); // gaps show the paper
+      expect(ratio, closeTo(0.35, 0.1));
     });
+    cache.dispose();
   });
 }

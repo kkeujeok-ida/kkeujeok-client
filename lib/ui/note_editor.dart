@@ -2318,6 +2318,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   @override
   void dispose() {
+    for (final c in _caches.values) {
+      c.dispose();
+    }
     WidgetsBinding.instance.removeObserver(this);
     _latestTimer?.cancel();
     _lpTimer?.cancel();
