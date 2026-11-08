@@ -155,7 +155,14 @@ class SyncBanner extends ConsumerWidget {
                 ),
                 if (kind == _Kind.conflict)
                   TextButton(
-                    style: small,
+                    style: small.copyWith(
+                      backgroundColor: WidgetStatePropertyAll(
+                        Kk.componentsButtonPrimaryBackground,
+                      ),
+                      foregroundColor: WidgetStatePropertyAll(
+                        Kk.componentsButtonPrimaryText,
+                      ),
+                    ),
                     onPressed: onResolve,
                     child: Text(l.conflictResolveAction),
                   ),
