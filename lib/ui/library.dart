@@ -862,6 +862,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           Positioned.fill(
             child: LibraryFab(
               onImportPdf: () => _importPdf(),
+              leftHanded: ref.watch(leftHandedProvider),
               onNewNote: _newNote,
               onNewFolder: () =>
                   createFolderDialog(context, ref, folder ?? 'root'),

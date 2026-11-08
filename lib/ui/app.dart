@@ -35,6 +35,8 @@ ThemeData appTheme() {
         onPrimary: Kk.colorOnAccent,
         primaryContainer: Kk.colorAccentSoft,
         onPrimaryContainer: Kk.colorAccentText,
+        secondaryContainer: Kk.colorAccentSoft, // selected rows: the brand color, not Material's tint
+        onSecondaryContainer: Kk.colorAccentText,
         surface: Kk.colorSurfaceBase,
         onSurface: Kk.colorInkPrimary,
         onSurfaceVariant: Kk.colorInkSecondary,

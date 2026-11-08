@@ -4277,9 +4277,13 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                           : _openHistory,
                       onExport: _openExport,
                     );
+                    // Left-handed: the corner bundles swap sides.
+                    final lefty = ref.watch(leftHandedProvider);
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [left, const Spacer(), right],
+                      children: lefty
+                          ? [right, const Spacer(), left]
+                          : [left, const Spacer(), right],
                     );
                   },
                 ),

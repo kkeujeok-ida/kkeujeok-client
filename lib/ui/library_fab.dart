@@ -38,7 +38,11 @@ class LibraryFab extends StatefulWidget {
     required this.onNewNote,
     required this.onNewFolder,
     this.onImportPdf,
+    this.leftHanded = false,
   });
+
+  /// Left-handed: the `+` sits at the bottom left and its items open to the right.
+  final bool leftHanded;
 
   /// Story 9.2; null hides the item.
   final VoidCallback? onImportPdf;
@@ -94,11 +98,12 @@ class _LibraryFabState extends State<LibraryFab> {
   }) {
     final label = Theme.of(context).textTheme.labelMedium!
         .copyWith(color: Kk.componentsFabLabelColor);
+    final caption = ExcludeSemantics(child: Text(text, style: label));
+    const gap = SizedBox(width: KkjLight.componentsFabItemGap);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        ExcludeSemantics(child: Text(text, style: label)),
-        const SizedBox(width: KkjLight.componentsFabItemGap),
+        if (!widget.leftHanded) ...[caption, gap],
         Semantics(
           button: true,
           label: text,
@@ -124,6 +129,7 @@ class _LibraryFabState extends State<LibraryFab> {
             ),
           ),
         ),
+        if (widget.leftHanded) ...[gap, caption],
       ],
     );
   }
@@ -158,11 +164,14 @@ class _LibraryFabState extends State<LibraryFab> {
                 ),
               ),
             PositionedDirectional(
-              end: KkjLight.componentsFabInset,
+              start: widget.leftHanded ? KkjLight.componentsFabInset : null,
+              end: widget.leftHanded ? null : KkjLight.componentsFabInset,
               bottom: KkjLight.componentsFabInset,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
+                crossAxisAlignment: widget.leftHanded
+                    ? CrossAxisAlignment.start
+                    : CrossAxisAlignment.end,
                 children: [
                   if (_open) ...[
                     _item(

@@ -297,9 +297,54 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ref.read(languageProvider.notifier).select(v);
           }),
           Divider(color: theme.colorScheme.outlineVariant),
-          group(l10n.theme, themes, ref.watch(themeProvider), (v) {
-            ref.read(themeProvider.notifier).select(v);
-          }),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              KkjTokens.spacing4,
+              KkjTokens.spacing3,
+              KkjTokens.spacing4,
+              KkjTokens.spacing1,
+            ),
+            child: Semantics(
+              header: true,
+              child: Text(l10n.theme, style: theme.textTheme.labelMedium),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: KkjTokens.spacing4),
+            child: SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<ThemeChoice>(
+                showSelectedIcon: false,
+                segments: [
+                  for (final e in themes.entries)
+                    ButtonSegment(value: e.key, label: Text(e.value)),
+                ],
+                selected: {ref.watch(themeProvider)},
+                onSelectionChanged: (v) =>
+                    ref.read(themeProvider.notifier).select(v.first),
+                style: ButtonStyle(
+                  minimumSize: const WidgetStatePropertyAll(Size(48, 48)),
+                  // Reduce-motion: no slide animation on the selection change.
+                  animationDuration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : kThemeChangeDuration,
+                  backgroundColor: WidgetStateProperty.resolveWith(
+                    (st) => st.contains(WidgetState.selected)
+                        ? Kk.colorAccentSoft
+                        : Kk.colorSurfaceRaised,
+                  ),
+                  foregroundColor: WidgetStateProperty.resolveWith(
+                    (st) => st.contains(WidgetState.selected)
+                        ? Kk.colorAccentText
+                        : Kk.colorInkPrimary,
+                  ),
+                  side: WidgetStatePropertyAll(
+                    BorderSide(color: Kk.colorBorderControl),
+                  ),
+                ),
+              ),
+            ),
+          ),
           Divider(color: theme.colorScheme.outlineVariant),
           SwitchListTile(
             title: Text(l10n.leftHanded),
