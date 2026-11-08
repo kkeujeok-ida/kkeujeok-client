@@ -14,20 +14,13 @@ const _maxRatio = 1.75;
 const _capSegments = 8;
 const _taperMin = 0.25;
 
-/// spec rule `stroke.outline.pen`: the closed polygon of a pen stroke, built
-/// from the stored [points] (`[x, y, pressure, t]`) only; never stored.
-/// [curve] defaults to the device setting (spec/pen-feel.md). A mouse stores
-/// 0.5 for every point: a stroke with no other pressure gets no curve.
-/// [minRatio]/[maxRatio] and [taper] are the kind changes of spec/pen-kinds.md
-/// (fountain: 0.2, 1.6, taper); the defaults are the pen.
-List<List<double>> strokeOutline(
-  double width,
+/// Steps 1-4 of spec/stroke-geometry.md: the resampled `(x, y, q)` of a pen
+/// stroke. One kept point gives one sample; no points give empty lists. The
+/// pencil texture reads the same samples (spec/pen-kinds.md).
+({List<double> x, List<double> y, List<double> q, double length}) strokeSamples(
   bool usePressure,
   List points, [
   PressureCurve? curve,
-  double minRatio = _minRatio,
-  double maxRatio = _maxRatio,
-  bool taper = false,
 ]) {
   final useCurve = usePressure && points.any((p) => p.length > 2 && p[2] != 0.5)
       ? (curve ?? pressureCurveInUse)
@@ -44,26 +37,7 @@ List<List<double>> strokeOutline(
     ys.add(y);
     qs.add(_pressure(usePressure, p, useCurve));
   }
-  if (xs.isEmpty) return [];
-
-  double radius(double q) {
-    final f = q < 0.5
-        ? minRatio + (1 - minRatio) * (q / 0.5)
-        : 1 + (maxRatio - 1) * ((q - 0.5) / 0.5);
-    return width / 2 * f;
-  }
-
-  // 2. One point: a 16-point circle.
-  if (xs.length == 1) {
-    final r = radius(qs[0]);
-    return [
-      for (var k = 0; k < 16; k++)
-        [
-          round2(xs[0] + r * math.cos(2 * math.pi * k / 16)),
-          round2(ys[0] + r * math.sin(2 * math.pi * k / 16)),
-        ],
-    ];
-  }
+  if (xs.length < 2) return (x: xs, y: ys, q: qs, length: 0.0);
 
   // 3. Smooth x, y and q; ends stay.
   for (var pass = 0; pass < _smoothingPasses; pass++) {
@@ -108,6 +82,61 @@ List<List<double>> strokeOutline(
     sy.add(ys[seg - 1] + (ys[seg] - ys[seg - 1]) * t);
     sq.add(qs[seg - 1] + (qs[seg] - qs[seg - 1]) * t);
   }
+  return (x: sx, y: sy, q: sq, length: total);
+}
+
+/// Mean drawing pressure of [points]; the flat alpha of a polygon fallback.
+double meanPressure(bool usePressure, List points, [PressureCurve? curve]) {
+  if (points.isEmpty) return 0.5;
+  final useCurve = usePressure && points.any((p) => p.length > 2 && p[2] != 0.5)
+      ? (curve ?? pressureCurveInUse)
+      : null;
+  var sum = 0.0;
+  for (final p in points) {
+    sum += _pressure(usePressure, p, useCurve);
+  }
+  return sum / points.length;
+}
+
+/// spec rule `stroke.outline.pen`: the closed polygon of a pen stroke, built
+/// from the stored [points] (`[x, y, pressure, t]`) only; never stored.
+/// [curve] defaults to the device setting (spec/pen-feel.md). A mouse stores
+/// 0.5 for every point: a stroke with no other pressure gets no curve.
+/// [minRatio]/[maxRatio] and [taper] are the kind changes of spec/pen-kinds.md
+/// (fountain: 0.2, 1.6, taper); the defaults are the pen.
+List<List<double>> strokeOutline(
+  double width,
+  bool usePressure,
+  List points, [
+  PressureCurve? curve,
+  double minRatio = _minRatio,
+  double maxRatio = _maxRatio,
+  bool taper = false,
+]) {
+  final smp = strokeSamples(usePressure, points, curve);
+  if (smp.x.isEmpty) return [];
+  final sx = smp.x, sy = smp.y, sq = smp.q, total = smp.length;
+
+  double radius(double q) {
+    final f = q < 0.5
+        ? minRatio + (1 - minRatio) * (q / 0.5)
+        : 1 + (maxRatio - 1) * ((q - 0.5) / 0.5);
+    return width / 2 * f;
+  }
+
+  // 2. One point: a 16-point circle.
+  if (sx.length == 1) {
+    final r = radius(sq[0]);
+    return [
+      for (var k = 0; k < 16; k++)
+        [
+          round2(sx[0] + r * math.cos(2 * math.pi * k / 16)),
+          round2(sy[0] + r * math.sin(2 * math.pi * k / 16)),
+        ],
+    ];
+  }
+
+  final n = sx.length - 1;
 
   // Fountain taper: the radius narrows toward both ends (pen-kinds.md).
   final g = List<double>.filled(n + 1, 1);
@@ -171,17 +200,26 @@ List<List<double>> strokeOutline(
   ];
 }
 
-/// The outline of a stroke by its `tool`. Pencil and tape are pen-shaped until
-/// Stories 24.4 and 24.6 give them their own.
+/// The outline of a stroke by its `tool`. Tape is pen-shaped until Story 24.6 gives it its own.
 List<List<double>> strokeOutlineFor(
   String? tool,
   double width,
   bool usePressure,
   List points, [
   PressureCurve? curve,
-]) => tool == 'fountain'
-    ? strokeOutline(width, usePressure, points, curve, 0.2, 1.6, true)
-    : strokeOutline(width, usePressure, points, curve);
+]) => switch (tool) {
+  'fountain' => strokeOutline(
+    width,
+    usePressure,
+    points,
+    curve,
+    0.2,
+    1.6,
+    true,
+  ),
+  'pencil' => strokeOutline(width, usePressure, points, curve, 0.6, 1.3),
+  _ => strokeOutline(width, usePressure, points, curve),
+};
 
 /// spec rule `stroke.outline.highlighter`: the chisel-nib rectangles of a
 /// highlighter stroke, in point order; their union is the stroke.

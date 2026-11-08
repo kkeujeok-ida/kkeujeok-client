@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
@@ -11,6 +12,7 @@ import 'asset_images.dart';
 import 'pdf_pages.dart';
 import '../model/pdf_rules.dart' show isPdfBackground, patternOf;
 import 'page_background.dart';
+import 'pencil_texture.dart';
 import 'stroke_outline.dart';
 import 'text_painter.dart';
 
@@ -165,9 +167,57 @@ void fillStroke(
   c.restore();
 }
 
+/// Draws a ready pencil texture in the stroke color (All Dark: inverted like a
+/// pen). The cells are opaque in the image; the color filter paints them.
+void fillPencil(
+  Canvas c,
+  PencilDraw d,
+  Object? color, {
+  double alpha = 1,
+  bool invert = false,
+  bool minified = false,
+}) {
+  final base = parseColor(invert && color is String ? inkHex(color) : color);
+  final paint = Paint()
+    ..colorFilter = ColorFilter.mode(
+      alpha == 1 ? base : base.withValues(alpha: base.a * alpha),
+      BlendMode.srcIn,
+    )
+    // Cells smaller than a pixel are averaged, larger ones stay crisp.
+    ..filterQuality = minified ? FilterQuality.medium : FilterQuality.none;
+  final m = d.m;
+  c.save();
+  if (m != null) {
+    c.transform(
+      Float64List.fromList([
+        m[0], m[1], 0, 0, //
+        -m[1], m[0], 0, 0,
+        0, 0, 1, 0,
+        m[2], m[3], 0, 1,
+      ]),
+    );
+  }
+  c.drawImageRect(
+    d.image,
+    Rect.fromLTWH(0, 0, d.image.width.toDouble(), d.image.height.toDouble()),
+    d.dst,
+    paint,
+  );
+  c.restore();
+}
+
+/// Alpha of the plain pencil polygon: while the pen is down, while the cells
+/// build, and for a stroke too big for a texture.
+double pencilAlpha(Map<String, dynamic> s) =>
+    pencilDensity(meanPressure(s['usePressure'] as bool, s['points'] as List))
+        .density;
+
 /// Finished-stroke outlines by stroke id, so a repaint does not rebuild them.
 /// The key holds what an edit could change: count, ends, width, pressure.
 class StrokePathCache {
+  /// Cell images of pencil strokes (spec/pen-kinds.md); they build off the
+  /// paint path and notify the painter when one is ready.
+  final textures = PencilTextures();
   final _byId = <String, (List<Object?>, Path)>{};
 
   static List<Object?> _key(Map<String, dynamic> s) {
@@ -204,8 +254,10 @@ class StrokePathCache {
   }
 
   /// Forgets strokes that are no longer on the page.
-  void keepOnly(Set<String> ids) =>
-      _byId.removeWhere((k, _) => !ids.contains(k));
+  void keepOnly(Set<String> ids) {
+    _byId.removeWhere((k, _) => !ids.contains(k));
+    textures.keepOnly(ids);
+  }
 }
 
 Color parseColor(Object? hex) {
@@ -230,8 +282,13 @@ class PagePainter extends CustomPainter {
     this.pdf,
     this.erasePreview,
     bool? invert,
-    super.repaint,
-  }) : invert = invert ?? Kk.allDark;
+    Listenable? repaint,
+  }) : invert = invert ?? Kk.allDark,
+       super(
+         repaint: repaint == null
+             ? cache.textures
+             : Listenable.merge([repaint, cache.textures]),
+       );
 
   /// All Dark: paper, pattern, pen, highlighter and text are drawn inverted
   /// (display only). Defaults to the current theme; a PDF page never inverts.
@@ -382,14 +439,27 @@ class PagePainter extends CustomPainter {
         canvas.save();
         canvas.clipPath(hole);
       }
-      fillStroke(
-        canvas,
-        cache.pathOf(s),
-        s['color'],
-        highlighter: s['tool'] == 'highlighter',
-        alpha: ep != null && ep.fade.contains(s['id']) ? ep.alpha : 1,
-        invert: inv && s['tool'] != 'tape',
-      );
+      final fade = ep != null && ep.fade.contains(s['id']) ? ep.alpha : 1.0;
+      final tex = s['tool'] == 'pencil' ? cache.textures.lookup(s) : null;
+      if (tex != null) {
+        fillPencil(
+          canvas,
+          tex,
+          s['color'],
+          alpha: fade,
+          invert: inv,
+          minified: vp.scale * pencilCell < 1,
+        );
+      } else {
+        fillStroke(
+          canvas,
+          cache.pathOf(s),
+          s['color'],
+          highlighter: s['tool'] == 'highlighter',
+          alpha: s['tool'] == 'pencil' ? fade * pencilAlpha(s) : fade,
+          invert: inv && s['tool'] != 'tape',
+        );
+      }
       if (pcs != null) canvas.restore();
     }
     final d = draft?.call();
@@ -402,6 +472,7 @@ class PagePainter extends CustomPainter {
         strokePath(s),
         s['color'],
         highlighter: s['tool'] == 'highlighter',
+        alpha: s['tool'] == 'pencil' ? pencilAlpha(s) : 1,
         invert: inv && s['tool'] != 'tape',
       );
     }

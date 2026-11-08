@@ -36,6 +36,7 @@ import 'package:kkeujeok/ops/ops.dart';
 import 'package:kkeujeok/ops/resolve_conflict.dart';
 import 'package:kkeujeok/ops/restore.dart';
 import 'package:kkeujeok/render/page_background.dart';
+import 'package:kkeujeok/render/pencil_texture.dart';
 import 'package:kkeujeok/render/stroke_outline.dart';
 import 'package:kkeujeok/render/zoom_snap.dart';
 import 'package:kkeujeok/sync/error_class.dart';
@@ -402,6 +403,40 @@ final Map<String, void Function(Case)> runners = {
   'select.textBox': (c) => _selectRunners[(c['input'] as Map)['fn']]!(c),
   'stroke.outline.pen': (c) => _outlineCase(c, 'pen'),
   'stroke.outline.fountain': (c) => _outlineCase(c, 'fountain'),
+  'stroke.outline.pencil': (c) => _outlineCase(c, 'pencil'),
+  'stroke.texture.pencil': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final tol = (c['tolerance'] as num).toDouble();
+    final want = c['expected'] as Map<String, dynamic>;
+    switch (i['fn']) {
+      case 'seed':
+        expect(pencilSeed(i['id'] as String), want['seed']);
+      case 'grain':
+        expect(
+          pencilGrain(i['seed'] as int, i['i'] as int, i['j'] as int),
+          want['grain'],
+        );
+      case 'density':
+        final d = pencilDensity((i['q'] as num).toDouble());
+        expect((d.density - (want['density'] as num)).abs() <= tol, isTrue);
+        expect(d.threshold, want['threshold']);
+      case 'cell':
+        final cell = pencilCellOf(
+          (i['x'] as num).toDouble(),
+          (i['y'] as num).toDouble(),
+        );
+        final g = pencilGrain(i['seed'] as int, cell.i, cell.j);
+        expect(cell.i, want['i']);
+        expect(cell.j, want['j']);
+        expect(g, want['grain']);
+        expect(
+          g < pencilDensity((i['q'] as num).toDouble()).threshold,
+          want['inked'],
+        );
+      default:
+        fail('unknown fn ${i['fn']}');
+    }
+  },
   'stroke.outline.highlighter': (c) {
     final i = c['input'] as Map<String, dynamic>;
     final tol = (c['tolerance'] as num).toDouble();
@@ -806,11 +841,8 @@ void _runOp(Case c) {
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6. The erase rules have runners (Story 5.6): none pending.
 const pendingRules = <String>{
-  // Epic 24 pen kinds (Story 24.1): the runners arrive with Story 24.4
-  // (pencil), 24.6 (tape).
-  'stroke.outline.pencil',
+  // Epic 24 pen kinds (Story 24.1): the tape runner arrives with Story 24.6.
   'stroke.outline.tape',
-  'stroke.texture.pencil',
   // Epic 25/26 (Stories 25.1, 26.1): runners arrive with 25.x and 26.x Android stories.
   'note.brush',
   'note.shape',
