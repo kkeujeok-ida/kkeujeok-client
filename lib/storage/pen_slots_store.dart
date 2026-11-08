@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../model/brush_preset.dart';
 import '../model/eraser.dart';
 import '../model/library_view.dart';
 import '../model/page_view_mode.dart';
@@ -84,6 +85,25 @@ class PenSlotsStore {
       usePressure: up,
       brush: b is Map && b.isNotEmpty ? b.cast<String, Object?>() : null,
     );
+  }
+
+  static const _presetsKey = 'brushPresets';
+  List<BrushPreset>? _presetsSession;
+
+  /// The user brush presets (a device setting). This run's choice wins.
+  List<BrushPreset> readPresets() =>
+      _presetsSession ?? parsePresets(_prefs?.getString(_presetsKey));
+
+  Future<void> writePresets(List<BrushPreset> list) {
+    _presetsSession = List.unmodifiable(list);
+    final data = jsonEncode([for (final p in list) p.toJson()]);
+    return _pending = _pending.then((_) async {
+      try {
+        await _prefs?.setString(_presetsKey, data);
+      } catch (_) {
+        // Save failed: the list still applies for this session.
+      }
+    });
   }
 
   static const _recentKey = 'penRecentColors';

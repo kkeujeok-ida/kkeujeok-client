@@ -17,7 +17,13 @@ const _taperMin = 0.25;
 /// Steps 1-4 of spec/stroke-geometry.md: the resampled `(x, y, q)` of a pen
 /// stroke. One kept point gives one sample; no points give empty lists. The
 /// pencil texture reads the same samples (spec/pen-kinds.md).
-({List<double> x, List<double> y, List<double> q, List<double> m, double length})
+({
+  List<double> x,
+  List<double> y,
+  List<double> q,
+  List<double> m,
+  double length,
+})
 strokeSamples(
   bool usePressure,
   List points, [

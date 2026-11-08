@@ -1755,4 +1755,19 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get tiltCurvePad =>
       'Tilt test pad. Draw with a pen held at different angles';
+
+  @override
+  String get brushPresets => 'Brush presets';
+
+  @override
+  String get brushPresetUse => 'Use';
+
+  @override
+  String get brushPresetDelete => 'Delete preset';
+
+  @override
+  String get brushPresetName => 'Preset name';
+
+  @override
+  String get brushPresetSave => 'Save current pen as preset';
 }

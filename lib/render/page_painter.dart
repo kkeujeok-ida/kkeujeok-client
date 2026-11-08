@@ -124,7 +124,8 @@ bool drawableStroke(Object? e) =>
 Path strokePath(Map<String, dynamic> s) {
   final pts = smoothPoints(s['points'] as List, smoothInUse);
   final w = (s['width'] as num).toDouble();
-  if (s['tool'] == 'highlighter') return highlighterPath(highlighterPolygons(w, pts));
+  if (s['tool'] == 'highlighter')
+    return highlighterPath(highlighterPolygons(w, pts));
   final tool = s['tool'] as String?, up = s['usePressure'] as bool;
   if (s['brush'] == null) {
     return outlinePath(strokeOutlineFor(tool, w, up, pts));

@@ -1083,5 +1083,10 @@
   "tiltCurveGraph": "Tilt curve graph. Move a point with the arrow keys or drag it",
   "tiltCurveIn": "Tilt",
   "tiltCurveOut": "Effect",
-  "tiltCurvePad": "Tilt test pad. Draw with a pen held at different angles"
+  "tiltCurvePad": "Tilt test pad. Draw with a pen held at different angles",
+  "brushPresets": "Brush presets",
+  "brushPresetUse": "Use",
+  "brushPresetDelete": "Delete preset",
+  "brushPresetName": "Preset name",
+  "brushPresetSave": "Save current pen as preset"
 }

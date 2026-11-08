@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
 import '../model/brush.dart';
+import '../model/brush_preset.dart';
+import '../model/ids.dart';
+import '../model/pen.dart';
 import '../model/pressure_curve.dart';
 import 'curve_editor.dart';
 import 'providers.dart';
@@ -24,6 +27,28 @@ class PenAdvanced extends ConsumerStatefulWidget {
 
 class _PenAdvancedState extends ConsumerState<PenAdvanced> {
   bool _open = false;
+  final _name = TextEditingController();
+  late List<BrushPreset> _presets = ref
+      .read(penSlotsStoreProvider)
+      .readPresets();
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  void _savePreset(Pen pen) {
+    final p = presetOf(newId(), _name.text, pen);
+    if (p == null || _presets.length >= maxPresets) return;
+    _setPresets([..._presets, p]);
+    _name.clear();
+  }
+
+  void _setPresets(List<BrushPreset> l) {
+    setState(() => _presets = l);
+    ref.read(penSlotsStoreProvider).writePresets(l);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,6 +91,49 @@ class _PenAdvancedState extends ConsumerState<PenAdvanced> {
           ),
         ),
         if (_open) ...[
+          Semantics(
+            container: true,
+            label: l10n.brushPresets,
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                for (final p in _presets) ...[
+                  TextButton(
+                    onPressed: () =>
+                        ref.read(penSlotsProvider.notifier).applyPreset(i, p),
+                    child: Text('${l10n.brushPresetUse} ${p.name}'),
+                  ),
+                  IconButton(
+                    tooltip: '${l10n.brushPresetDelete} ${p.name}',
+                    icon: const Icon(Icons.close),
+                    onPressed: () => _setPresets([
+                      for (final q in _presets)
+                        if (q.id != p.id) q,
+                    ]),
+                  ),
+                ],
+                SizedBox(
+                  width: 160,
+                  child: TextField(
+                    controller: _name,
+                    maxLength: maxPresetName,
+                    decoration: InputDecoration(
+                      hintText: l10n.brushPresetName,
+                      counterText: '',
+                    ),
+                    onChanged: (_) => setState(() {}),
+                    onSubmitted: (_) => _savePreset(pen),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _name.text.trim().isEmpty
+                      ? null
+                      : () => _savePreset(pen),
+                  child: Text(l10n.brushPresetSave),
+                ),
+              ],
+            ),
+          ),
           if (!flat && pen.usePressure) ...[
             SwitchListTile(
               contentPadding: EdgeInsets.zero,

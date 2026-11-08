@@ -3073,6 +3073,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Tilt test pad. Draw with a pen held at different angles'**
   String get tiltCurvePad;
+
+  /// No description provided for @brushPresets.
+  ///
+  /// In en, this message translates to:
+  /// **'Brush presets'**
+  String get brushPresets;
+
+  /// No description provided for @brushPresetUse.
+  ///
+  /// In en, this message translates to:
+  /// **'Use'**
+  String get brushPresetUse;
+
+  /// No description provided for @brushPresetDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete preset'**
+  String get brushPresetDelete;
+
+  /// No description provided for @brushPresetName.
+  ///
+  /// In en, this message translates to:
+  /// **'Preset name'**
+  String get brushPresetName;
+
+  /// No description provided for @brushPresetSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save current pen as preset'**
+  String get brushPresetSave;
 }
 
 class _AppLocalizationsDelegate

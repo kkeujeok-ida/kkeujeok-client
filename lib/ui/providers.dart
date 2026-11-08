@@ -22,6 +22,7 @@ import '../model/page_view_mode.dart';
 import '../model/ids.dart';
 import '../model/note.dart';
 import '../model/pdf_rules.dart' show pdfImport;
+import '../model/brush_preset.dart';
 import '../model/pen.dart';
 import '../model/pen_only.dart';
 import '../model/pressure_curve.dart';
@@ -825,6 +826,9 @@ class PenSlotsNotifier extends Notifier<List<Pen>> {
 
   Future<void> setWidth(int index, double v) =>
       _edit(index, (p) => p.withWidth(v));
+
+  Future<void> applyPreset(int index, BrushPreset p) =>
+      _edit(index, (pen) => applyBrushPreset(pen, p));
 
   Future<void> setBrush(int index, Map<String, Object?>? brush) =>
       _edit(index, (p) => p.withBrush(brush));

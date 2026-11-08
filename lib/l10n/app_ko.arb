@@ -1012,5 +1012,10 @@
   "tiltCurveGraph": "기울기 곡선 그래프. 방향키로 점을 옮기거나 끌어서 옮겨요",
   "tiltCurveIn": "기울기",
   "tiltCurveOut": "효과",
-  "tiltCurvePad": "기울기 시험판. 펜을 여러 각도로 세워 그어 보세요"
+  "tiltCurvePad": "기울기 시험판. 펜을 여러 각도로 세워 그어 보세요",
+  "brushPresets": "브러시 프리셋",
+  "brushPresetUse": "쓰기:",
+  "brushPresetDelete": "프리셋 지우기",
+  "brushPresetName": "프리셋 이름",
+  "brushPresetSave": "현재 펜을 프리셋으로 저장"
 }

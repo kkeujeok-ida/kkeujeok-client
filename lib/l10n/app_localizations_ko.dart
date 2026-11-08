@@ -1668,4 +1668,19 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get tiltCurvePad => '기울기 시험판. 펜을 여러 각도로 세워 그어 보세요';
+
+  @override
+  String get brushPresets => '브러시 프리셋';
+
+  @override
+  String get brushPresetUse => '쓰기:';
+
+  @override
+  String get brushPresetDelete => '프리셋 지우기';
+
+  @override
+  String get brushPresetName => '프리셋 이름';
+
+  @override
+  String get brushPresetSave => '현재 펜을 프리셋으로 저장';
 }
