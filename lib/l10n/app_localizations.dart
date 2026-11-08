@@ -1868,6 +1868,18 @@ abstract class AppLocalizations {
   /// **'Answer tape'**
   String get toolTape;
 
+  /// No description provided for @tapeClosedSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'Hidden answer, press to show'**
+  String get tapeClosedSemantics;
+
+  /// No description provided for @tapeOpenSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'Answer shown, press to hide'**
+  String get tapeOpenSemantics;
+
   /// No description provided for @kindSlotLabel.
   ///
   /// In en, this message translates to:

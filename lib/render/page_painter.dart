@@ -284,6 +284,9 @@ class PagePainter extends CustomPainter {
     this.images,
     this.pdf,
     this.erasePreview,
+    this.openTapes = const {},
+    this.tapeLabels,
+    this.onTapeTap,
     bool? invert,
     Listenable? repaint,
   }) : invert = invert ?? Kk.allDark,
@@ -320,6 +323,15 @@ class PagePainter extends CustomPainter {
   /// the stroke ids drawn at [alpha] (the ones the erase would remove).
   final ({List<Object?> elements, Set<String> fade, double alpha})? Function()?
   erasePreview;
+
+  /// Ids of the answer tapes that are open (screen state, spec/pen-kinds.md):
+  /// drawn as an outline only. Replace the set to change it.
+  final Set<String> openTapes;
+
+  /// Semantics labels `(closed, open)` of a tape and its toggle; null gives
+  /// tapes no node (thumbnails, history).
+  final ({String closed, String open})? tapeLabels;
+  final void Function(String id)? onTapeTap;
 
   Map<String, dynamic>? _bg; // page is fixed for this painter
 
@@ -462,6 +474,14 @@ class PagePainter extends CustomPainter {
           invert: inv,
           minified: vp.scale * pencilCell < 1,
         );
+      } else if (s['tool'] == 'tape' && openTapes.contains(s['id'])) {
+        canvas.drawPath(
+          cache.pathOf(s),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.5 / vp.scale
+            ..color = parseColor(s['color']).withValues(alpha: 0.6 * fade),
+        );
       } else {
         fillStroke(
           canvas,
@@ -542,6 +562,29 @@ class PagePainter extends CustomPainter {
                 textDirection: TextDirection.ltr,
               ),
             );
+          }()
+        else if (tapeLabels != null &&
+            drawableStroke(e) &&
+            (e as Map)['tool'] == 'tape')
+          () {
+            final t = e as Map<String, dynamic>;
+            final id = t['id'] as String;
+            final r = cache.pathOf(t).getBounds();
+            return CustomPainterSemantics(
+              key: ValueKey(id),
+              rect: Rect.fromPoints(
+                vp.offset + r.topLeft * vp.scale,
+                vp.offset + r.bottomRight * vp.scale,
+              ),
+              properties: SemanticsProperties(
+                button: true,
+                label: openTapes.contains(id)
+                    ? tapeLabels!.open
+                    : tapeLabels!.closed,
+                textDirection: TextDirection.ltr,
+                onTap: onTapeTap == null ? null : () => onTapeTap!(id),
+              ),
+            );
           }(),
     ];
   };
@@ -568,6 +611,7 @@ class PagePainter extends CustomPainter {
   @override
   bool shouldRepaint(PagePainter old) =>
       !identical(old.page, page) ||
+      !identical(old.openTapes, openTapes) ||
       old.invert != invert ||
       old.viewport?.scale != viewport?.scale ||
       old.viewport?.offset != viewport?.offset;

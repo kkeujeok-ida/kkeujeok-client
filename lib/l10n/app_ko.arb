@@ -374,6 +374,8 @@
   "toolFountain": "만년필",
   "toolPencil": "연필",
   "toolTape": "정답지 테이프",
+  "tapeClosedSemantics": "가려진 정답, 누르면 보임",
+  "tapeOpenSemantics": "정답이 보임, 누르면 가림",
   "kindSlotLabel": "{kind}, {color}, 두께 {width}",
   "recentColors": "최근",
   "widthDecrease": "두께 줄이기",

@@ -112,21 +112,34 @@ List<List<double>> strokeOutline(
   double minRatio = _minRatio,
   double maxRatio = _maxRatio,
   bool taper = false,
+  bool flat = false,
 ]) {
   final smp = strokeSamples(usePressure, points, curve);
   if (smp.x.isEmpty) return [];
   final sx = smp.x, sy = smp.y, sq = smp.q, total = smp.length;
 
   double radius(double q) {
+    if (flat) return width / 2;
     final f = q < 0.5
         ? minRatio + (1 - minRatio) * (q / 0.5)
         : 1 + (maxRatio - 1) * ((q - 0.5) / 0.5);
     return width / 2 * f;
   }
 
-  // 2. One point: a 16-point circle.
+  // 2. One point: a 16-point circle (tape: the square).
   if (sx.length == 1) {
     final r = radius(sq[0]);
+    if (flat) {
+      return [
+        for (final d in [
+          [-1, -1],
+          [1, -1],
+          [1, 1],
+          [-1, 1],
+        ])
+          [round2(sx[0] + d[0] * r), round2(sy[0] + d[1] * r)],
+      ];
+    }
     return [
       for (var k = 0; k < 16; k++)
         [
@@ -182,7 +195,7 @@ List<List<double>> strokeOutline(
   }
   final rEnd = radius(sq[n]) * g[n], rStart = radius(sq[0]) * g[0];
   final endCap = <List<double>>[], startCap = <List<double>>[];
-  for (var k = 1; k < _capSegments; k++) {
+  for (var k = 1; k < (flat ? 0 : _capSegments); k++) {
     final phi = math.pi * k / _capSegments;
     final c = math.cos(phi), s = math.sin(phi);
     endCap.add([
@@ -200,7 +213,7 @@ List<List<double>> strokeOutline(
   ];
 }
 
-/// The outline of a stroke by its `tool`. Tape is pen-shaped until Story 24.6 gives it its own.
+/// The outline of a stroke by its `tool`.
 List<List<double>> strokeOutlineFor(
   String? tool,
   double width,
@@ -218,6 +231,16 @@ List<List<double>> strokeOutlineFor(
     true,
   ),
   'pencil' => strokeOutline(width, usePressure, points, curve, 0.6, 1.3),
+  'tape' => strokeOutline(
+    width,
+    usePressure,
+    points,
+    curve,
+    0.5,
+    1,
+    false,
+    true,
+  ),
   _ => strokeOutline(width, usePressure, points, curve),
 };
 

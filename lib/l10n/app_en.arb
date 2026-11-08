@@ -428,6 +428,8 @@
   "toolFountain": "Fountain pen",
   "toolPencil": "Pencil",
   "toolTape": "Answer tape",
+  "tapeClosedSemantics": "Hidden answer, press to show",
+  "tapeOpenSemantics": "Answer shown, press to hide",
   "kindSlotLabel": "{kind}, {color}, width {width}",
   "@kindSlotLabel": {
     "placeholders": {

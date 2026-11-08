@@ -413,6 +413,7 @@ final Map<String, void Function(Case)> runners = {
   'stroke.outline.pen': (c) => _outlineCase(c, 'pen'),
   'stroke.outline.fountain': (c) => _outlineCase(c, 'fountain'),
   'stroke.outline.pencil': (c) => _outlineCase(c, 'pencil'),
+  'stroke.outline.tape': (c) => _outlineCase(c, 'tape'),
   'stroke.texture.pencil': (c) {
     final i = c['input'] as Map<String, dynamic>;
     final tol = (c['tolerance'] as num).toDouble();
@@ -850,8 +851,6 @@ void _runOp(Case c) {
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6. The erase rules have runners (Story 5.6): none pending.
 const pendingRules = <String>{
-  // Epic 24 pen kinds (Story 24.1): the tape runner arrives with Story 24.6.
-  'stroke.outline.tape',
   // Epic 25/26 (Stories 25.1, 26.1): runners arrive with 25.x and 26.x Android stories.
   'note.brush',
   'note.shape',

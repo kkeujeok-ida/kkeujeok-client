@@ -549,16 +549,19 @@ OpResult _erase(
   for (var i = 0; i < els.length; i++) {
     final e = els[i] as Map<String, dynamic>;
     final pts = _isStroke(e) ? _strokePoints(e) : null;
-    final tp = pts == null ? null : touchedPoints(pts, path, r);
+    final tape = e['tool'] == 'tape';
+    // A tape is touched by its whole band (center line + width / 2) and never split.
+    final er = tape ? r + (_d(e['width']) / 2) : r;
+    final tp = pts == null ? null : touchedPoints(pts, path, er);
     final touched =
         pts != null &&
-        (tp!.any((t) => t) || touchedSegments(pts, path, r).any((t) => t));
+        (tp!.any((t) => t) || touchedSegments(pts, path, er).any((t) => t));
     if (!touched) {
       out.add(e);
       continue;
     }
     items.add({'index': i, 'element': e});
-    if (!partial) continue;
+    if (!partial || tape) continue;
     final entries = e['points'] as List;
     for (final piece in splitPieces(pts, path, r)) {
       final id = ctx.ids[newIds.length];

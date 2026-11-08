@@ -152,19 +152,29 @@ List<List<int>> splitPieces(List<Pt> pts, List<Pt> path, double r) {
   y1 += r;
   for (final e in elements) {
     // A stroke whose box is farther than r from the path's box cannot be touched.
-    final pts = e is Map && e['type'] == 'stroke' && _boxNear(e, x0, x1, y0, y1)
+    final tw = e is Map && e['tool'] == 'tape'
+        ? ((e['width'] as num?)?.toDouble() ?? 0) / 2
+        : 0.0;
+    final pts =
+        e is Map &&
+            e['type'] == 'stroke' &&
+            _boxNear(e, x0 - tw, x1 + tw, y0 - tw, y1 + tw)
         ? _strokePts(e)
         : null;
+    // A tape is touched by its whole band (center line + width / 2).
+    final er = pts != null && e is Map && e['tool'] == 'tape'
+        ? r + ((e['width'] as num?)?.toDouble() ?? 0) / 2
+        : r;
     if (pts == null ||
-        !(touchedPoints(pts, path, r).any((t) => t) ||
-            touchedSegments(pts, path, r).any((t) => t))) {
+        !(touchedPoints(pts, path, er).any((t) => t) ||
+            touchedSegments(pts, path, er).any((t) => t))) {
       out.add(e);
       continue;
     }
     final m = e as Map;
     fade.add(m['id'] as String);
     out.add(e);
-    if (!partial) continue;
+    if (!partial || m['tool'] == 'tape') continue;
     final entries = m['points'] as List;
     var j = 0;
     for (final piece in splitPieces(pts, path, r)) {

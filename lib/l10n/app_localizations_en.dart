@@ -1017,6 +1017,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get toolTape => 'Answer tape';
 
   @override
+  String get tapeClosedSemantics => 'Hidden answer, press to show';
+
+  @override
+  String get tapeOpenSemantics => 'Answer shown, press to hide';
+
+  @override
   String kindSlotLabel(String kind, String color, String width) {
     return '$kind, $color, width $width';
   }

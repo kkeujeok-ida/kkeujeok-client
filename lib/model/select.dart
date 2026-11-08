@@ -68,6 +68,9 @@ double _area(List<P> poly) {
   return s.abs() / 2;
 }
 
+/// Point in polygon, boundary included.
+bool pointInPolygon(P p, List<P> poly) => _inPolygon(p, poly);
+
 bool _inPolygon(P p, List<P> poly) {
   final (px, py) = p;
   var inside = false;

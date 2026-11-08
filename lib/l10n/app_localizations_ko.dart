@@ -957,6 +957,12 @@ class AppLocalizationsKo extends AppLocalizations {
   String get toolTape => '정답지 테이프';
 
   @override
+  String get tapeClosedSemantics => '가려진 정답, 누르면 보임';
+
+  @override
+  String get tapeOpenSemantics => '정답이 보임, 누르면 가림';
+
+  @override
   String kindSlotLabel(String kind, String color, String width) {
     return '$kind, $color, 두께 $width';
   }

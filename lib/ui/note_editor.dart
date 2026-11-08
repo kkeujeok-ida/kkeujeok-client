@@ -32,6 +32,7 @@ import '../model/page_view_mode.dart';
 import '../model/pen.dart';
 import '../model/pen_only.dart';
 import '../model/select.dart';
+import '../model/tape_hit.dart';
 import '../model/straighten.dart';
 import '../model/text_layout.dart';
 import '../model/toolbar_pos.dart';
@@ -474,6 +475,29 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   Duration _tapTime = Duration.zero;
 
   static const _tapSlop = 10.0;
+
+  // Answer tapes that are open: screen state only (spec/pen-kinds.md), never
+  // saved. The set is replaced, not edited, so the painter sees the change.
+  Set<String> _openTapes = const {};
+  // A press that began on a tape and may end as its toggle.
+  ({int pointer, String id, Offset at, Duration t})? _tapeTap;
+
+  void _toggleTape(String id) => setState(
+    () => _openTapes = _openTapes.contains(id)
+        ? ({..._openTapes}..remove(id))
+        : {..._openTapes, id},
+  );
+
+  /// The topmost tape under a screen point, or null.
+  String? _tapeUnder(Offset local) {
+    final doc = _vp!.toPage(local);
+    final at = _pageAt(doc);
+    if (at < 0) return null;
+    final o = _geometry().rects[at].topLeft;
+    final p = doc - o;
+    return tapeAt(_pages[at]['elements'] as List, (p.dx, p.dy));
+  }
+
   static const _caretGap = 24.0;
 
   bool _canEditPage(String pageId) =>
@@ -2593,6 +2617,13 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     }
     _snap();
     if (_consumedByText(e)) return;
+    // A press on a tape may become its toggle (not in select mode).
+    final tid = _tool == _Tool.lasso ? null : _tapeUnder(e.localPosition);
+    _tapeTap =
+        tid == null ||
+            (e.kind == PointerDeviceKind.touch && _touches.isNotEmpty)
+        ? null
+        : (pointer: e.pointer, id: tid, at: e.localPosition, t: e.timeStamp);
     switch (e.kind) {
       case PointerDeviceKind.touch:
         _touchDown(e);
@@ -3471,6 +3502,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _lpTimer?.cancel();
       _lpTimer = null;
     }
+    if (e.pointer == _tapeTap?.pointer &&
+        (e.localPosition - _tapeTap!.at).distance >= tapeTapSlop) {
+      _tapeTap = null;
+    }
     if ((e.pointer == _tapPointer || _textTap?.pointer == e.pointer) &&
         (e.localPosition - _tapAt).distance > _tapSlop) {
       _tapPointer = -1;
@@ -3516,6 +3551,24 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     if (e.pointer == _lpPointer) {
       _lpTimer?.cancel();
       _lpTimer = null;
+    }
+    final tp = _tapeTap;
+    if (tp != null && tp.pointer == e.pointer) {
+      _tapeTap = null;
+      if (!_leaving &&
+          _mode != _Mode.gesture &&
+          isTapeTap(
+            (e.timeStamp - tp.t).inMilliseconds,
+            (e.localPosition - tp.at).distance,
+          )) {
+        // The tape consumes the tap: no stroke, no text box, no selection.
+        _textTap = null;
+        _tapPointer = -1;
+        _discardStroke();
+        _toggleTape(tp.id);
+        _release(e.pointer);
+        return;
+      }
     }
     final tapped =
         e.pointer == _tapPointer &&
@@ -3589,6 +3642,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _lpFired = false;
     }
     if (e.pointer == _tapPointer) _tapPointer = -1;
+    if (e.pointer == _tapeTap?.pointer) _tapeTap = null;
     if (_textTap?.pointer == e.pointer) _textTap = null;
     if (_spA >= 0 && (e.pointer == _spA || e.pointer == _spB)) {
       _spA = -1; // a cancelled gesture changes nothing
@@ -3922,6 +3976,17 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   /// itself at its place in the document.
   List<Widget> _pageViews(AppLocalizations l10n) {
     final pages = _pages;
+    if (_openTapes.isNotEmpty) {
+      // A tape that is gone (deleted, undone away) forgets that it was open.
+      final live = {
+        for (final p in pages)
+          for (final e in p['elements'] as List)
+            if (e is Map && e['tool'] == 'tape') e['id'] as String,
+      };
+      if (!live.containsAll(_openTapes)) {
+        _openTapes = _openTapes.intersection(live);
+      }
+    }
     final rects = _geometry().rects;
     final vp = _vp!;
     return [
@@ -3971,6 +4036,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                     },
                     images: _images,
                     pdf: _pdf,
+                    openTapes: _openTapes,
+                    tapeLabels: (
+                      closed: l10n.tapeClosedSemantics,
+                      open: l10n.tapeOpenSemantics,
+                    ),
+                    onTapeTap: _toggleTape,
                     repaint: _tick,
                   ),
                 ),
