@@ -24,6 +24,8 @@ import '../model/note.dart';
 import '../model/pdf_rules.dart' show pdfImport;
 import '../model/pen.dart';
 import '../model/pen_only.dart';
+import '../model/pressure_curve.dart';
+import '../storage/pressure_curve_store.dart';
 import '../model/toolbar_pos.dart';
 import '../ops/history.dart';
 import '../ops/ops.dart';
@@ -91,6 +93,28 @@ class ThemeNotifier extends Notifier<ThemeChoice> {
 final themeProvider = NotifierProvider<ThemeNotifier, ThemeChoice>(
   ThemeNotifier.new,
 );
+
+/// Overridden in main() with the opened preferences.
+final pressureCurveStoreProvider = Provider<PressureCurveStore>(
+  (ref) => PressureCurveStore(null),
+);
+
+/// The pressure curve (spec/pen-feel.md); drawing reads [pressureCurveInUse].
+class PressureCurveNotifier extends Notifier<PressureCurve> {
+  @override
+  PressureCurve build() =>
+      pressureCurveInUse = ref.read(pressureCurveStoreProvider).read();
+
+  Future<void> set(PressureCurve c) async {
+    state = pressureCurveInUse = c;
+    await ref.read(pressureCurveStoreProvider).write(c);
+  }
+}
+
+final pressureCurveProvider =
+    NotifierProvider<PressureCurveNotifier, PressureCurve>(
+      PressureCurveNotifier.new,
+    );
 
 /// Overridden in main() with the opened preferences.
 final leftHandedStoreProvider = Provider<LeftHandedStore>(

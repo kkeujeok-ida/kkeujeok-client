@@ -4,6 +4,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import '../model/invert.dart';
+import '../model/pressure_curve.dart';
 import '../ui/kk.dart';
 import 'asset_images.dart';
 import 'pdf_pages.dart';
@@ -175,6 +176,7 @@ class StrokePathCache {
       pts.length,
       (s['width'] as num),
       (s['usePressure'] as bool) ? 1 : 0,
+      ...pressureCurveInUse.values,
       ...xy(0),
       ...xy(pts.length - 1),
     ];

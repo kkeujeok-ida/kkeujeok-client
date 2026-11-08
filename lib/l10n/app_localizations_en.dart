@@ -85,6 +85,34 @@ class AppLocalizationsEn extends AppLocalizations {
   String get leftHanded => 'Left-handed';
 
   @override
+  String get pressureCurve => 'Pressure curve';
+
+  @override
+  String get pressureCurveSoft => 'Soft';
+
+  @override
+  String get pressureCurveNormal => 'Normal';
+
+  @override
+  String get pressureCurveFirm => 'Firm';
+
+  @override
+  String get pressureCurveX1 => 'Control point 1 horizontal (x1)';
+
+  @override
+  String get pressureCurveY1 => 'Control point 1 vertical (y1)';
+
+  @override
+  String get pressureCurveX2 => 'Control point 2 horizontal (x2)';
+
+  @override
+  String get pressureCurveY2 => 'Control point 2 vertical (y2)';
+
+  @override
+  String get pressureCurvePad =>
+      'Test stroke area. Draw with a pen to try the pressure curve';
+
+  @override
   String get privacyPolicy => 'Privacy policy';
 
   @override

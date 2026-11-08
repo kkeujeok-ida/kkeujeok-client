@@ -248,6 +248,60 @@ abstract class AppLocalizations {
   /// **'Left-handed'**
   String get leftHanded;
 
+  /// No description provided for @pressureCurve.
+  ///
+  /// In en, this message translates to:
+  /// **'Pressure curve'**
+  String get pressureCurve;
+
+  /// No description provided for @pressureCurveSoft.
+  ///
+  /// In en, this message translates to:
+  /// **'Soft'**
+  String get pressureCurveSoft;
+
+  /// No description provided for @pressureCurveNormal.
+  ///
+  /// In en, this message translates to:
+  /// **'Normal'**
+  String get pressureCurveNormal;
+
+  /// No description provided for @pressureCurveFirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Firm'**
+  String get pressureCurveFirm;
+
+  /// No description provided for @pressureCurveX1.
+  ///
+  /// In en, this message translates to:
+  /// **'Control point 1 horizontal (x1)'**
+  String get pressureCurveX1;
+
+  /// No description provided for @pressureCurveY1.
+  ///
+  /// In en, this message translates to:
+  /// **'Control point 1 vertical (y1)'**
+  String get pressureCurveY1;
+
+  /// No description provided for @pressureCurveX2.
+  ///
+  /// In en, this message translates to:
+  /// **'Control point 2 horizontal (x2)'**
+  String get pressureCurveX2;
+
+  /// No description provided for @pressureCurveY2.
+  ///
+  /// In en, this message translates to:
+  /// **'Control point 2 vertical (y2)'**
+  String get pressureCurveY2;
+
+  /// No description provided for @pressureCurvePad.
+  ///
+  /// In en, this message translates to:
+  /// **'Test stroke area. Draw with a pen to try the pressure curve'**
+  String get pressureCurvePad;
+
   /// No description provided for @privacyPolicy.
   ///
   /// In en, this message translates to:

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import '../model/number.dart';
+import '../model/pressure_curve.dart';
 
 // spec/stroke-geometry.md parameters.
 const _dedupeDistance = 0.01;
@@ -14,7 +15,18 @@ const _capSegments = 8;
 
 /// spec rule `stroke.outline.pen`: the closed polygon of a pen stroke, built
 /// from the stored [points] (`[x, y, pressure, t]`) only; never stored.
-List<List<double>> strokeOutline(double width, bool usePressure, List points) {
+/// [curve] defaults to the device setting (spec/pen-feel.md). A mouse stores
+/// 0.5 for every point: a stroke with no other pressure gets no curve.
+List<List<double>> strokeOutline(
+  double width,
+  bool usePressure,
+  List points, [
+  PressureCurve? curve,
+]) {
+  final useCurve =
+      usePressure && points.any((p) => p.length > 2 && p[2] != 0.5)
+      ? (curve ?? pressureCurveInUse)
+      : null;
   // 1. Prepare: dedupe against the last kept point.
   final xs = <double>[], ys = <double>[], qs = <double>[];
   for (final p in points) {
@@ -25,7 +37,7 @@ List<List<double>> strokeOutline(double width, bool usePressure, List points) {
     }
     xs.add(x);
     ys.add(y);
-    qs.add(_pressure(usePressure, p));
+    qs.add(_pressure(usePressure, p, useCurve));
   }
   if (xs.isEmpty) return [];
 
@@ -197,11 +209,11 @@ Path highlighterPath(List<List<List<double>>> polygons) {
   return path;
 }
 
-double _pressure(bool usePressure, List p) {
+double _pressure(bool usePressure, List p, PressureCurve? curve) {
   if (!usePressure || p.length < 3) return 0.5;
   final v = p[2];
   if (v is! num || !v.isFinite) return 0.5;
-  return v.toDouble().clamp(0.0, 1.0);
+  return curve?.q(v.toDouble()) ?? v.toDouble().clamp(0.0, 1.0);
 }
 
 /// The polygon as a path; fill it non-zero (the default fill type).

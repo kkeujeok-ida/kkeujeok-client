@@ -12,6 +12,7 @@ import 'storage/theme_store.dart';
 import 'storage/new_note_defaults_store.dart';
 import 'model/text_metrics.dart';
 import 'storage/pen_slots_store.dart';
+import 'storage/pressure_curve_store.dart';
 import 'storage/session_hint.dart';
 import 'sync/background_upload.dart';
 import 'ui/account_gate.dart' show cleanStaleExports;
@@ -42,6 +43,7 @@ Future<void> main() async {
       themeStoreProvider.overrideWithValue(ThemeStore(prefs)),
       hintStoreProvider.overrideWithValue(HintStore(prefs)),
       leftHandedStoreProvider.overrideWithValue(LeftHandedStore(prefs)),
+      pressureCurveStoreProvider.overrideWithValue(PressureCurveStore(prefs)),
       newNoteDefaultsStoreProvider.overrideWithValue(
         NewNoteDefaultsStore(prefs),
       ),
@@ -49,6 +51,7 @@ Future<void> main() async {
       sessionHintProvider.overrideWithValue(SessionHint(prefs)),
     ],
   );
+  container.read(pressureCurveProvider); // sets the curve drawing uses
   // Nothing is open when the process starts: the mark of a dead process goes
   // here, once, never at a later upload trigger.
   try {

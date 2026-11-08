@@ -5,6 +5,7 @@ import 'package:vector_math/vector_math_64.dart' show Matrix4;
 import 'package:pdf/pdf.dart';
 
 import '../model/note.dart';
+import '../model/pressure_curve.dart';
 import '../model/pdf_rules.dart' show patternOf;
 import '../model/text_layout.dart';
 import '../model/text_metrics.dart';
@@ -142,6 +143,7 @@ void _pen(PdfGraphics g, Map<String, dynamic> s) {
     (s['width'] as num).toDouble(),
     s['usePressure'] as bool,
     s['points'] as List,
+    PressureCurve.normal, // a file does not depend on a device setting
   );
   if (pts.isEmpty) return;
   g.setFillColor(_color(s['color']));

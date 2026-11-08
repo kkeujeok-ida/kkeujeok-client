@@ -16,6 +16,7 @@ import 'help_screen.dart';
 import 'log_export.dart';
 import 'pen_input_diagnostic.dart';
 import 'pen_palette_editor.dart';
+import 'pressure_curve_section.dart';
 import 'providers.dart';
 import 'unsent_widgets.dart';
 
@@ -351,6 +352,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             value: ref.watch(leftHandedProvider),
             onChanged: ref.read(leftHandedProvider.notifier).set,
           ),
+          Divider(color: theme.colorScheme.outlineVariant),
+          const PressureCurveSection(),
           Divider(color: theme.colorScheme.outlineVariant),
           Builder(
             builder: (_) {

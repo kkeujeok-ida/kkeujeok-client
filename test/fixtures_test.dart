@@ -23,6 +23,7 @@ import 'package:kkeujeok/model/page_bounds.dart';
 import 'package:kkeujeok/model/pdf_rules.dart';
 import 'package:kkeujeok/model/pen.dart';
 import 'package:kkeujeok/model/pen_palette.dart';
+import 'package:kkeujeok/model/pressure_curve.dart';
 import 'package:kkeujeok/ui/pen_toolbar.dart'
     show PenBubbleAnchor, penColorName, placePenBubble;
 import 'package:kkeujeok/model/select.dart';
@@ -397,6 +398,22 @@ final runners = <String, void Function(Case)>{
       }
     }
   },
+  'pen.pressureCurve': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final tol = (c['tolerance'] as num).toDouble();
+    final q = drawPressure(
+      PressureCurve.fromJson(i['curve']),
+      i['usePressure'] as bool,
+      i['pressure'] as num?,
+    );
+    final want = c['expected'] as Map;
+    expect((q - (want['q'] as num)).abs() <= tol, isTrue, reason: 'q: $q');
+    expect(
+      (radiusFactor(q) - (want['factor'] as num)).abs() <= tol,
+      isTrue,
+      reason: 'factor of $q',
+    );
+  },
   'pen.palette': (c) {
     final tool = (c['input'] as Map)['tool'] as String;
     final colors = paletteFor(tool);
@@ -738,6 +755,8 @@ void _runOp(Case c) {
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6. The erase rules have runners (Story 5.6): none pending.
 const pendingRules = <String>{
+  'pen.straighten', // Story 16.3
+  'stroke.smooth', // Story 16.4
 };
 
 final _sep = Platform.pathSeparator;

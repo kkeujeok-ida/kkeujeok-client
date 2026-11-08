@@ -85,6 +85,33 @@ class AppLocalizationsKo extends AppLocalizations {
   String get leftHanded => '왼손잡이';
 
   @override
+  String get pressureCurve => '필압 커브';
+
+  @override
+  String get pressureCurveSoft => '부드럽게';
+
+  @override
+  String get pressureCurveNormal => '보통';
+
+  @override
+  String get pressureCurveFirm => '단단하게';
+
+  @override
+  String get pressureCurveX1 => '제어점 1 가로 (x1)';
+
+  @override
+  String get pressureCurveY1 => '제어점 1 세로 (y1)';
+
+  @override
+  String get pressureCurveX2 => '제어점 2 가로 (x2)';
+
+  @override
+  String get pressureCurveY2 => '제어점 2 세로 (y2)';
+
+  @override
+  String get pressureCurvePad => '시험 획 영역. 펜으로 그어 필압 커브를 확인해요';
+
+  @override
   String get privacyPolicy => '개인정보처리방침';
 
   @override
