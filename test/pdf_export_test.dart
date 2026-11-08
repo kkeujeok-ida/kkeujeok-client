@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/l10n/app_localizations.dart';
 import 'package:kkeujeok/ui/export_screen.dart';
 import 'package:kkeujeok/export/export_rules.dart';
+import 'package:kkeujeok/export/page_raster.dart';
 import 'package:kkeujeok/export/pdf_writer.dart';
 import 'package:kkeujeok/model/note.dart';
 import 'package:kkeujeok/model/text_metrics.dart';
@@ -110,6 +111,7 @@ Future<Uint8List> _pdf(
   Set<String>? local,
   void Function(int, int)? onProgress,
   bool Function()? cancelled,
+  Future<Uint8List?> Function(Map<String, dynamic>, int, int)? raster,
 }) {
   final plan = exportPlan(note, range, local ?? {_hash});
   if (plan['error'] != null) throw StateError('${plan['error']}');
@@ -122,6 +124,7 @@ Future<Uint8List> _pdf(
         .readAsBytesSync(),
     onProgress: onProgress,
     cancelled: cancelled,
+    renderRaster: raster,
     compress: false,
   );
 }
@@ -159,6 +162,178 @@ void main() {
     for (final cp in ['0048', 'C548', 'B155']) {
       expect(cmap.toUpperCase(), contains('<$cp>'));
     }
+  });
+
+  Note tapeNote() => Note.parse({
+    'formatVersion': 1,
+    'noteId': 'n',
+    'meta': {'title': 't'},
+    'metaRev': 'm',
+    'metaSeq': 1,
+    'orderRev': 'o',
+    'orderSeq': 1,
+    'pages': [
+      _page('t1', 595.28, 841.89, 'lined', [
+        {
+          'id': 'tx',
+          'type': 'text',
+          'x': 40,
+          'y': 60,
+          'width': 300,
+          'text': 'SECRET',
+          'size': 20,
+        },
+        {
+          'id': 'im',
+          'type': 'image',
+          'x': 50,
+          'y': 300,
+          'width': 100,
+          'height': 80,
+          'asset': _hash,
+          'ext': 'png',
+        },
+        {
+          'id': 'tp',
+          'type': 'stroke',
+          'tool': 'tape',
+          'color': '#fdd55d',
+          'width': 20,
+          'usePressure': false,
+          'points': [
+            [30, 70, 0.5, 0],
+            [200, 70, 0.5, 10],
+          ],
+        },
+      ]),
+      _page('t2', 595, 842, 'plain', [
+        {
+          'id': 'pc',
+          'type': 'stroke',
+          'tool': 'pencil',
+          'color': '#222222',
+          'width': 3,
+          'usePressure': true,
+          'points': [
+            [10, 10, 0.5, 0],
+            [100, 80, 0.5, 10],
+          ],
+        },
+        {
+          'id': 'fo',
+          'type': 'stroke',
+          'tool': 'fountain',
+          'color': '#222222',
+          'width': 3,
+          'usePressure': true,
+          'points': [
+            [10, 110, 0.5, 0],
+            [100, 180, 0.5, 10],
+          ],
+        },
+      ]),
+    ],
+  }).note!;
+
+  test('a tape page is one raster image; other pages stay vector', () async {
+    final asked = <List<int>>[];
+    final s = _text(
+      await _pdf(
+        tapeNote(),
+        {'mode': 'all', 'current': 1},
+        local: <String>{},
+        raster: (p, w, h) async {
+          asked.add([w, h]);
+          return Uint8List(w * h * 4);
+        },
+      ),
+    );
+    expect(asked, [
+      [1489, 2105], // ceil(2.5 * 595.28), ceil(2.5 * 841.89)
+    ]);
+    expect(RegExp(r'/Type/Page\b').allMatches(s).length, 2);
+    expect(RegExp(r'/Subtype/Image').allMatches(s).length, 1);
+    expect(s, contains('/Width 1489'));
+    expect(s, contains('/Height 2105'));
+    expect(s, isNot(contains('/SMask')));
+    expect(s, isNot(contains('/BaseFont'))); // no text on either page
+    // Page 2: pencil is one alpha fill, the fountain a plain fill.
+    expect(RegExp(r'/ca 0\.\d+').allMatches(s).length, 1);
+  });
+
+  test('a failed raster or a cancel after it stops the export', () async {
+    await expectLater(
+      _pdf(
+        tapeNote(),
+        {'mode': 'current', 'current': 1},
+        local: <String>{},
+        raster: (p, w, h) async => null,
+      ),
+      throwsA(isA<StateError>()),
+    );
+    var made = false;
+    await expectLater(
+      _pdf(
+        tapeNote(),
+        {'mode': 'current', 'current': 1},
+        local: <String>{},
+        raster: (p, w, h) async {
+          made = true;
+          return Uint8List(w * h * 4);
+        },
+        cancelled: () => made,
+      ),
+      throwsA(isA<ExportCancelled>()),
+    );
+  });
+
+  testWidgets('the real raster hides what the tape covers, texture drawn', (
+    t,
+  ) async {
+    final note = tapeNote();
+    final page = Map<String, dynamic>.from(note.pages[0]);
+    (page['elements'] as List).add({
+      'id': 'pc',
+      'type': 'stroke',
+      'tool': 'pencil',
+      'color': '#000000',
+      'width': 6,
+      'usePressure': false,
+      'points': [
+        [300, 500, 0.5, 0],
+        [500, 500, 0.5, 10],
+      ],
+    });
+    final px = await t.runAsync(
+      () => renderPageRaster(
+        page,
+        1489,
+        2105,
+        readAsset: (h) async => Uint8List.fromList(_png),
+      ),
+    );
+    expect(px!.length, 1489 * 2105 * 4);
+    List<int> at(double x, double y) {
+      final i = ((y * 2.5).round() * 1489 + (x * 2.5).round()) * 4;
+      return px.sublist(i, i + 4);
+    }
+
+    expect(at(100, 70), [0xfd, 0xd5, 0x5d, 255]); // tape, closed, opaque
+    // The covered text left no dark pixel inside the band.
+    var dark = 0;
+    for (var y = 62; y < 78; y++) {
+      for (var x = 40; x < 190; x++) {
+        if (at(x.toDouble(), y.toDouble())[0] < 0x80) dark++;
+      }
+    }
+    expect(dark, 0);
+    // Pencil grain: a mix of inked and paper pixels along the stroke.
+    var ink = 0, paper = 0;
+    for (var x = 320; x < 480; x++) {
+      at(x.toDouble(), 500)[0] < 0x80 ? ink++ : paper++;
+    }
+    expect(ink, greaterThan(20));
+    expect(paper, greaterThan(0));
   });
 
   test('a range makes only those pages; dark theme changes nothing', () async {

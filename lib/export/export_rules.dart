@@ -140,7 +140,12 @@ Map<String, dynamic> exportPlan(
     final w = p['width'] as num, h = p['height'] as num;
     final isPdf = isPdfBackground(p['background']);
     final ref = isPdf ? p['background'] as Map : null;
-    if (ref != null) pdfAssets.add(ref['asset'] as String);
+    // A page with a tape is one raster (spec/export.md "Answer tape"): its
+    // elements, fonts, assets and PDF are not exported as objects.
+    final raster = (p['elements'] as List).any(
+      (e) => e is Map && e['type'] == 'stroke' && e['tool'] == 'tape',
+    );
+    if (ref != null && !raster) pdfAssets.add(ref['asset'] as String);
     final bg = pageBackground(patternOf(p['background']), w, h);
     // A PDF page has no paper, no pattern: the original page is the ground.
     final nLines = isPdf ? 0 : (bg['lines'] as List).length;
@@ -153,9 +158,16 @@ Map<String, dynamic> exportPlan(
         omitted.add(e['id'] as String);
         continue;
       }
+      if (raster) continue;
       switch (e['type']) {
         case 'stroke':
           final hl = e['tool'] == 'highlighter';
+          final kind = switch (e['tool']) {
+            'highlighter' => 'highlighter',
+            'fountain' => 'fountain',
+            'pencil' => 'pencil',
+            _ => 'pen',
+          };
           final polys = hl
               ? highlighterPolygons(
                   (e['width'] as num).toDouble(),
@@ -176,9 +188,10 @@ Map<String, dynamic> exportPlan(
                   }
                 : {
                     'id': e['id'],
-                    'kind': 'pen',
+                    'kind': kind,
                     'color': e['color'],
                     'polygons': 1,
+                    if (kind == 'pencil') 'texture': 'alpha',
                   },
           );
         case 'text':
@@ -199,6 +212,17 @@ Map<String, dynamic> exportPlan(
           });
       }
     }
+    if (raster) {
+      min = max = 0;
+      images = 1;
+      elements
+        ..clear()
+        ..add({
+          'kind': 'raster',
+          'width_px': (w * 2.5).ceil(),
+          'height_px': (h * 2.5).ceil(),
+        });
+    }
     pages.add({
       'number': n,
       'id': p['id'],
@@ -217,7 +241,8 @@ Map<String, dynamic> exportPlan(
       'images': images,
       'omitted': omitted,
       'elements': elements,
-      if (ref != null) 'pdf': {'asset': ref['asset'], 'page': ref['page']},
+      if (ref != null && !raster)
+        'pdf': {'asset': ref['asset'], 'page': ref['page']},
     });
   }
   final local = localAssets.toSet();

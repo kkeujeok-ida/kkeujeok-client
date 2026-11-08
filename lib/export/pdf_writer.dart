@@ -11,6 +11,7 @@ import '../model/text_layout.dart';
 import '../model/text_metrics.dart';
 import '../render/page_background.dart';
 import '../render/page_painter.dart' show parseColor;
+import '../render/pencil_texture.dart' show pencilDensity;
 import '../render/stroke_outline.dart';
 import '../render/text_painter.dart' show textStyleKeys;
 
@@ -34,6 +35,8 @@ PdfColor _color(Object? hex) {
 
 /// Builds the PDF of [plan] (the success output of `exportPlan`) for [note].
 /// [readAsset] returns the verified bytes of an image asset or null.
+/// [renderRaster] draws a page with a tape as RGBA pixels of the given size
+/// (`raster` entries of the plan); null makes the export fail.
 /// [onProgress] gets (done, total) pages; [cancelled] is checked per page and
 /// the event loop is released between pages. [compress] false keeps the
 /// streams readable (tests).
@@ -43,6 +46,8 @@ Future<Uint8List> buildPdf({
   required Future<Uint8List?> Function(String hash) readAsset,
   required Uint8List regularFont,
   required Uint8List semiBoldFont,
+  Future<Uint8List?> Function(Map<String, dynamic> page, int w, int h)?
+  renderRaster,
   void Function(int done, int total)? onProgress,
   bool Function()? cancelled,
   bool compress = true,
@@ -68,6 +73,38 @@ Future<Uint8List> buildPdf({
     final g = page.getGraphics();
     g.saveContext();
     g.setTransform(Matrix4(1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, h, 0, 1));
+    final els = (pp['elements'] as List).cast<Map<String, dynamic>>();
+    if (els.length == 1 && els.first['kind'] == 'raster') {
+      // A tape page is one flat picture: nothing else (spec "Answer tape").
+      final pw = els.first['width_px'] as int,
+          ph = els.first['height_px'] as int;
+      final rgba = await renderRaster?.call(src, pw, ph);
+      if (rgba == null || rgba.length != pw * ph * 4) {
+        throw StateError('raster of page $n failed');
+      }
+      if (cancelled?.call() ?? false) throw ExportCancelled();
+      final rgb = Uint8List(pw * ph * 3);
+      for (var i = 0, o = 0; i < rgba.length; i += 4, o += 3) {
+        rgb[o] = rgba[i];
+        rgb[o + 1] = rgba[i + 1];
+        rgb[o + 2] = rgba[i + 2];
+      }
+      final img = PdfImage(
+        doc,
+        image: rgb,
+        width: pw,
+        height: ph,
+        alpha: false,
+      );
+      g.setTransform(
+        Matrix4.translationValues(0, h, 0) * Matrix4.diagonal3Values(1, -1, 1),
+      );
+      g.drawImage(img, 0, 0, w, h);
+      g.restoreContext();
+      onProgress?.call(n + 1, pages.length);
+      await Future<void>.delayed(Duration.zero);
+      continue;
+    }
     g.drawRect(0, 0, w, h);
     g.clipPath();
     // A PDF page is a transparent overlay: the original page goes under it.
@@ -84,8 +121,20 @@ Future<Uint8List> buildPdf({
     for (final entry in (pp['elements'] as List).cast<Map<String, dynamic>>()) {
       final e = byId[entry['id']]!;
       switch (entry['kind']) {
-        case 'pen':
+        case 'pen' || 'fountain':
           _pen(g, e);
+        case 'pencil':
+          _pen(
+            g,
+            e,
+            alpha: pencilDensity(
+              meanPressure(
+                e['usePressure'] as bool,
+                e['points'] as List,
+                PressureCurve.normal, // as the outline: no device setting
+              ),
+            ).density,
+          );
         case 'highlighter':
           _highlighter(g, e);
         case 'text':
@@ -138,7 +187,7 @@ void _poly(PdfGraphics g, List<List<double>> pts) {
   g.closePath();
 }
 
-void _pen(PdfGraphics g, Map<String, dynamic> s) {
+void _pen(PdfGraphics g, Map<String, dynamic> s, {double? alpha}) {
   final pts = strokeOutlineFor(
     s['tool'] as String?,
     (s['width'] as num).toDouble(),
@@ -147,9 +196,14 @@ void _pen(PdfGraphics g, Map<String, dynamic> s) {
     PressureCurve.normal, // a file does not depend on a device setting
   );
   if (pts.isEmpty) return;
+  if (alpha != null) {
+    g.saveContext();
+    g.setGraphicState(PdfGraphicState(opacity: alpha));
+  }
   g.setFillColor(_color(s['color']));
   _poly(g, pts);
   g.fillPath();
+  if (alpha != null) g.restoreContext();
 }
 
 void _highlighter(PdfGraphics g, Map<String, dynamic> s) {

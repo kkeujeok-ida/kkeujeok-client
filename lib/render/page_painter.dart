@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui show Image;
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
@@ -283,6 +284,7 @@ class PagePainter extends CustomPainter {
     this.draft,
     this.images,
     this.pdf,
+    this.pdfImage,
     this.erasePreview,
     this.openTapes = const {},
     this.tapeLabels,
@@ -318,6 +320,10 @@ class PagePainter extends CustomPainter {
 
   /// Renders the PDF ground of a PDF page; null draws it as plain paper.
   final PdfPages? pdf;
+
+  /// A ready picture of the PDF ground, drawn over the whole page (export
+  /// raster); wins over [pdf].
+  final ui.Image? pdfImage;
 
   /// While the eraser is down: the elements to draw instead of the page's, and
   /// the stroke ids drawn at [alpha] (the ones the erase would remove).
@@ -390,7 +396,15 @@ class PagePainter extends CustomPainter {
     }
 
     final pdfPages = pdf;
-    if (pdfPages != null && isPdfBackground(page['background'])) {
+    final pi = pdfImage;
+    if (pi != null && isPdfBackground(page['background'])) {
+      canvas.drawImageRect(
+        pi,
+        Rect.fromLTWH(0, 0, pi.width.toDouble(), pi.height.toDouble()),
+        Rect.fromLTWH(0, 0, w, h),
+        Paint()..filterQuality = FilterQuality.medium,
+      );
+    } else if (pdfPages != null && isPdfBackground(page['background'])) {
       final sc = vp.scale;
       Rect? vis;
       if (viewport != null) {

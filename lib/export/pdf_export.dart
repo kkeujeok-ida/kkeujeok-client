@@ -7,6 +7,7 @@ import '../model/note.dart';
 import '../storage/asset_store.dart';
 import '../model/pdf_rules.dart' show isPdfBackground;
 import 'export_rules.dart';
+import 'page_raster.dart';
 import 'pdf_compose.dart';
 import 'pdf_writer.dart';
 
@@ -69,6 +70,16 @@ Future<File> exportNotePdf({
       },
       regularFont: await font('Pretendard-Regular'),
       semiBoldFont: await font('Pretendard-SemiBold'),
+      renderRaster: (page, w, h) => renderPageRaster(
+        page,
+        w,
+        h,
+        readAsset: (hash) async {
+          final b = await store.read(hash);
+          return b == null ? null : Uint8List.fromList(b);
+        },
+        pdfPath: (bg) => pdfPaths[bg['asset']],
+      ),
       onProgress: onProgress,
       cancelled: cancelled,
     );
