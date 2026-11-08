@@ -94,6 +94,21 @@ class AppLocalizationsKo extends AppLocalizations {
   String get straightened => '직선으로 바꿨어요.';
 
   @override
+  String get smooth => '스트로크 부드럽게';
+
+  @override
+  String get smoothOff => '끔';
+
+  @override
+  String get smoothLight => '약';
+
+  @override
+  String get smoothNormal => '보통';
+
+  @override
+  String get smoothStrong => '강';
+
+  @override
   String get pressureCurve => '필압 커브';
 
   @override

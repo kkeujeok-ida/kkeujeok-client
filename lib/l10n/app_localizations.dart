@@ -266,6 +266,36 @@ abstract class AppLocalizations {
   /// **'Stroke straightened.'**
   String get straightened;
 
+  /// No description provided for @smooth.
+  ///
+  /// In en, this message translates to:
+  /// **'Smooth strokes'**
+  String get smooth;
+
+  /// No description provided for @smoothOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get smoothOff;
+
+  /// No description provided for @smoothLight.
+  ///
+  /// In en, this message translates to:
+  /// **'Light'**
+  String get smoothLight;
+
+  /// No description provided for @smoothNormal.
+  ///
+  /// In en, this message translates to:
+  /// **'Normal'**
+  String get smoothNormal;
+
+  /// No description provided for @smoothStrong.
+  ///
+  /// In en, this message translates to:
+  /// **'Strong'**
+  String get smoothStrong;
+
   /// No description provided for @pressureCurve.
   ///
   /// In en, this message translates to:

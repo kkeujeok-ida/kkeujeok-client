@@ -7,6 +7,7 @@ import 'snack.dart';
 
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
+import '../model/smooth.dart';
 import '../model/pen_only.dart';
 import '../storage/pen_slots_store.dart';
 import '../storage/language_store.dart';
@@ -358,6 +359,70 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             subtitle: Text(l10n.straightenHint),
             value: ref.watch(straightenProvider),
             onChanged: ref.read(straightenProvider.notifier).set,
+          ),
+          Divider(color: theme.colorScheme.outlineVariant),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: KkjTokens.spacing4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: KkjTokens.spacing2,
+                  ),
+                  child: Semantics(
+                    header: true,
+                    child: Text(
+                      l10n.smooth,
+                      style: theme.textTheme.labelMedium,
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<SmoothLevel>(
+                    showSelectedIcon: false,
+                    segments: [
+                      ButtonSegment(
+                        value: SmoothLevel.off,
+                        label: Text(l10n.smoothOff),
+                      ),
+                      ButtonSegment(
+                        value: SmoothLevel.light,
+                        label: Text(l10n.smoothLight),
+                      ),
+                      ButtonSegment(
+                        value: SmoothLevel.normal,
+                        label: Text(l10n.smoothNormal),
+                      ),
+                      ButtonSegment(
+                        value: SmoothLevel.strong,
+                        label: Text(l10n.smoothStrong),
+                      ),
+                    ],
+                    selected: {ref.watch(smoothProvider)},
+                    onSelectionChanged: (s) =>
+                        ref.read(smoothProvider.notifier).set(s.first),
+                    style: ButtonStyle(
+                      minimumSize: const WidgetStatePropertyAll(Size(48, 48)),
+                      backgroundColor: WidgetStateProperty.resolveWith(
+                        (st) => st.contains(WidgetState.selected)
+                            ? Kk.colorAccentSoft
+                            : Kk.colorSurfaceRaised,
+                      ),
+                      foregroundColor: WidgetStateProperty.resolveWith(
+                        (st) => st.contains(WidgetState.selected)
+                            ? Kk.colorAccentText
+                            : Kk.colorInkPrimary,
+                      ),
+                      side: WidgetStatePropertyAll(
+                        BorderSide(color: Kk.colorBorderControl),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           Divider(color: theme.colorScheme.outlineVariant),
           const PressureCurveSection(),

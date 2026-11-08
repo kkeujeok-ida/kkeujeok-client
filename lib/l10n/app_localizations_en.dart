@@ -95,6 +95,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get straightened => 'Stroke straightened.';
 
   @override
+  String get smooth => 'Smooth strokes';
+
+  @override
+  String get smoothOff => 'Off';
+
+  @override
+  String get smoothLight => 'Light';
+
+  @override
+  String get smoothNormal => 'Normal';
+
+  @override
+  String get smoothStrong => 'Strong';
+
+  @override
   String get pressureCurve => 'Pressure curve';
 
   @override

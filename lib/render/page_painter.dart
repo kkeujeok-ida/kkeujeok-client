@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 
 import '../model/invert.dart';
 import '../model/pressure_curve.dart';
+import '../model/smooth.dart';
 import '../ui/kk.dart';
 import 'asset_images.dart';
 import 'pdf_pages.dart';
@@ -114,20 +115,15 @@ bool drawableStroke(Object? e) =>
     e['usePressure'] is bool;
 
 /// The fill path of a stroke: pen outline, or the highlighter's rectangles.
-Path strokePath(Map<String, dynamic> s) => s['tool'] == 'highlighter'
-    ? highlighterPath(
-        highlighterPolygons(
-          (s['width'] as num).toDouble(),
-          s['points'] as List,
-        ),
-      )
-    : outlinePath(
-        strokeOutline(
-          (s['width'] as num).toDouble(),
-          s['usePressure'] as bool,
-          s['points'] as List,
-        ),
-      );
+/// The smoothing level is applied here, on screen only (export calls
+/// [strokeOutline] directly).
+Path strokePath(Map<String, dynamic> s) {
+  final pts = smoothPoints(s['points'] as List, smoothInUse);
+  final w = (s['width'] as num).toDouble();
+  return s['tool'] == 'highlighter'
+      ? highlighterPath(highlighterPolygons(w, pts))
+      : outlinePath(strokeOutline(w, s['usePressure'] as bool, pts));
+}
 
 /// Fills [p] with [color]. A highlighter is one layer in the opaque color,
 /// composited once at 0.4 with multiply, so it never darkens on itself.
@@ -177,6 +173,7 @@ class StrokePathCache {
       (s['width'] as num),
       (s['usePressure'] as bool) ? 1 : 0,
       ...pressureCurveInUse.values,
+      smoothInUse.index,
       ...xy(0),
       ...xy(pts.length - 1),
     ];

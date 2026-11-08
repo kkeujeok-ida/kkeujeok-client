@@ -52,6 +52,8 @@ import '../sync/sync_log.dart';
 import '../sync/unsent.dart';
 import '../storage/hint_store.dart';
 import '../storage/left_handed_store.dart';
+import '../model/smooth.dart';
+import '../storage/smooth_store.dart';
 import '../storage/straighten_store.dart';
 import '../storage/theme_store.dart';
 import '../sync/thumbnail.dart';
@@ -116,6 +118,24 @@ final pressureCurveProvider =
     NotifierProvider<PressureCurveNotifier, PressureCurve>(
       PressureCurveNotifier.new,
     );
+
+/// Overridden in main() with the opened preferences.
+final smoothStoreProvider = Provider<SmoothStore>((ref) => SmoothStore(null));
+
+/// Stroke smoothing level (spec/pen-feel.md stroke.smooth); painting reads [smoothInUse].
+class SmoothNotifier extends Notifier<SmoothLevel> {
+  @override
+  SmoothLevel build() => smoothInUse = ref.read(smoothStoreProvider).read();
+
+  Future<void> set(SmoothLevel v) async {
+    state = smoothInUse = v;
+    await ref.read(smoothStoreProvider).write(v);
+  }
+}
+
+final smoothProvider = NotifierProvider<SmoothNotifier, SmoothLevel>(
+  SmoothNotifier.new,
+);
 
 /// Overridden in main() with the opened preferences.
 final leftHandedStoreProvider = Provider<LeftHandedStore>(

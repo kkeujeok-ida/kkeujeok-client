@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'storage/language_store.dart';
 import 'storage/hint_store.dart';
 import 'storage/left_handed_store.dart';
+import 'storage/smooth_store.dart';
 import 'storage/straighten_store.dart';
 import 'storage/theme_store.dart';
 import 'storage/new_note_defaults_store.dart';
@@ -46,6 +47,7 @@ Future<void> main() async {
       leftHandedStoreProvider.overrideWithValue(LeftHandedStore(prefs)),
       straightenStoreProvider.overrideWithValue(StraightenStore(prefs)),
       pressureCurveStoreProvider.overrideWithValue(PressureCurveStore(prefs)),
+      smoothStoreProvider.overrideWithValue(SmoothStore(prefs)),
       newNoteDefaultsStoreProvider.overrideWithValue(
         NewNoteDefaultsStore(prefs),
       ),
@@ -54,6 +56,7 @@ Future<void> main() async {
     ],
   );
   container.read(pressureCurveProvider); // sets the curve drawing uses
+  container.read(smoothProvider); // sets the smoothing drawing uses
   // Nothing is open when the process starts: the mark of a dead process goes
   // here, once, never at a later upload trigger.
   try {

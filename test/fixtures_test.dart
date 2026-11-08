@@ -28,6 +28,7 @@ import 'package:kkeujeok/model/pressure_curve.dart';
 import 'package:kkeujeok/ui/pen_toolbar.dart'
     show PenBubbleAnchor, penColorName, placePenBubble;
 import 'package:kkeujeok/model/select.dart';
+import 'package:kkeujeok/model/smooth.dart';
 import 'package:kkeujeok/model/text_layout.dart';
 import 'package:kkeujeok/model/text_metrics.dart';
 import 'package:kkeujeok/ops/history.dart';
@@ -396,6 +397,25 @@ final runners = <String, void Function(Case)>{
             reason: 'polygon $k point $j[$d]: got ${got[k][j][d]}, want $e',
           );
         }
+      }
+    }
+  },
+  'stroke.smooth': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final got = smoothPoints(
+      i['points'] as List,
+      SmoothLevel.values.byName(i['level'] as String),
+    );
+    final want = c['expected'] as List;
+    expect(got.length, want.length);
+    for (var k = 0; k < want.length; k++) {
+      for (var j = 0; j < 4; j++) {
+        expect(
+          ((got[k][j] as num) - (want[k][j] as num)).abs() <=
+              (c['tolerance'] as num) + 1e-12,
+          isTrue,
+          reason: 'point $k[$j]: got ${got[k][j]}, want ${want[k][j]}',
+        );
       }
     }
   },
@@ -770,7 +790,6 @@ void _runOp(Case c) {
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6. The erase rules have runners (Story 5.6): none pending.
 const pendingRules = <String>{
-  'stroke.smooth', // Story 16.4
 };
 
 final _sep = Platform.pathSeparator;
