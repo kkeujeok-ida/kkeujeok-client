@@ -55,6 +55,7 @@ class PressureCurve {
   double q(double p) {
     p = p.clamp(0.0, 1.0);
     if (p == 0 || p == 1) return p;
+    if (x1 == y1 && x2 == y2) return p; // y = x exactly (normal preset)
     var lo = 0.0, hi = 1.0, mid = 0.5;
     while (hi - lo >= 1e-6) {
       mid = (lo + hi) / 2;
