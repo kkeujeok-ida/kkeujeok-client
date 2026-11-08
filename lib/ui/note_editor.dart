@@ -2355,7 +2355,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     'tool': _pen.tool,
     'color': _pen.color,
     'width': _pen.width,
-    'usePressure': _pen.usePressure,
+    // A straightened line has the tool's width, no pressure.
+    'usePressure': _pen.usePressure && !_straight,
     'points': points,
   };
 
@@ -3255,7 +3256,6 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     if (!on) return;
     _straight = true;
     _tick.value++;
-    _announce(AppLocalizations.of(context).straightened, polite: true);
   }
 
   /// A second pointer or a palm: no straightening for the rest of the stroke,

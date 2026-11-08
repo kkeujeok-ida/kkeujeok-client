@@ -3,7 +3,7 @@ import 'dart:math' as math;
 // spec rule `pen.straighten` (spec/pen-feel.md): holding the pen still turns
 // the stroke into a straight line.
 const holdMs = 500;
-const holdDistance = 4.0; // dp on Android
+const holdDistance = 8.0; // dp on Android
 
 /// The still-detection anchor `(t, x, y)`: the first sample, then every
 /// sample farther than [holdDistance] from it. Samples are `[t, x, y]`.

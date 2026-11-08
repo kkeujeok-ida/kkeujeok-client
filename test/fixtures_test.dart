@@ -402,10 +402,7 @@ final runners = <String, void Function(Case)>{
   },
   'stroke.smooth': (c) {
     final i = c['input'] as Map<String, dynamic>;
-    final got = smoothPoints(
-      i['points'] as List,
-      SmoothLevel.values.byName(i['level'] as String),
-    );
+    final got = smoothPoints(i['points'] as List, i['level'] as int);
     final want = c['expected'] as List;
     expect(got.length, want.length);
     for (var k = 0; k < want.length; k++) {
@@ -789,8 +786,7 @@ void _runOp(Case c) {
 // needs a valid fixture file and must not have a runner yet: when its story
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6. The erase rules have runners (Story 5.6): none pending.
-const pendingRules = <String>{
-};
+const pendingRules = <String>{};
 
 final _sep = Platform.pathSeparator;
 

@@ -8,6 +8,7 @@ void main() {
   test('invalid values count as normal', () {
     expect(PressureCurve.fromJson([0.8, 0.1, 0.2, 0.5]), PressureCurve.normal);
     expect(PressureCurve.fromJson([2, 0, 0, 0]), PressureCurve.normal);
+    expect(PressureCurve.fromJson([0.3, 0.6, 0.6]), PressureCurve.normal);
     expect(PressureCurve.fromJson('bogus'), PressureCurve.normal);
     expect(PressureCurve.fromJson([0.2, 0.4, 0.5, 0.8]), PressureCurve.soft);
     expect(PressureCurve.soft.q(0), 0);
@@ -20,8 +21,8 @@ void main() {
     expect(store.read(), PressureCurve.normal);
     await store.write(PressureCurve.firm);
     expect(PressureCurveStore(prefs).read(), PressureCurve.firm);
-    await store.write(PressureCurve.fromValues([0.1, 0.2, 0.3, 0.4]));
-    expect(store.read().values, [0.1, 0.2, 0.3, 0.4]);
+    await store.write(PressureCurve.fromValues([0.1, 0.2, 0.3, 0.4, 0.9, 0.9]));
+    expect(store.read().values, [0.1, 0.2, 0.3, 0.4, 0.9, 0.9]);
     await prefs.setString('pressureCurve', '[0.9,0,0.1,0]');
     expect(store.read(), PressureCurve.normal);
     await prefs.setString('pressureCurve', 'not json');

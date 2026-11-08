@@ -313,8 +313,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: KkjTokens.spacing4),
-            child: SizedBox(
-              width: double.infinity,
+            child: Align(
+              alignment: Alignment.centerRight,
               child: SegmentedButton<ThemeChoice>(
                 showSelectedIcon: false,
                 segments: [
@@ -378,46 +378,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                   ),
                 ),
-                SizedBox(
-                  width: double.infinity,
-                  child: SegmentedButton<SmoothLevel>(
-                    showSelectedIcon: false,
-                    segments: [
-                      ButtonSegment(
-                        value: SmoothLevel.off,
-                        label: Text(l10n.smoothOff),
-                      ),
-                      ButtonSegment(
-                        value: SmoothLevel.light,
-                        label: Text(l10n.smoothLight),
-                      ),
-                      ButtonSegment(
-                        value: SmoothLevel.normal,
-                        label: Text(l10n.smoothNormal),
-                      ),
-                      ButtonSegment(
-                        value: SmoothLevel.strong,
-                        label: Text(l10n.smoothStrong),
-                      ),
-                    ],
-                    selected: {ref.watch(smoothProvider)},
-                    onSelectionChanged: (s) =>
-                        ref.read(smoothProvider.notifier).set(s.first),
-                    style: ButtonStyle(
-                      minimumSize: const WidgetStatePropertyAll(Size(48, 48)),
-                      backgroundColor: WidgetStateProperty.resolveWith(
-                        (st) => st.contains(WidgetState.selected)
-                            ? Kk.colorAccentSoft
-                            : Kk.colorSurfaceRaised,
-                      ),
-                      foregroundColor: WidgetStateProperty.resolveWith(
-                        (st) => st.contains(WidgetState.selected)
-                            ? Kk.colorAccentText
-                            : Kk.colorInkPrimary,
-                      ),
-                      side: WidgetStatePropertyAll(
-                        BorderSide(color: Kk.colorBorderControl),
-                      ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: SizedBox(
+                    width: 280,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Semantics(
+                            label: l10n.smooth,
+                            child: Slider(
+                              min: 0,
+                              max: smoothMax.toDouble(),
+                              divisions: smoothMax,
+                              value: ref.watch(smoothProvider).toDouble(),
+                              onChanged: (v) => ref
+                                  .read(smoothProvider.notifier)
+                                  .set(v.round()),
+                              semanticFormatterCallback: (v) =>
+                                  v == 0 ? l10n.smoothOff : '${v.round()}',
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 32,
+                          child: ExcludeSemantics(
+                            child: Text(
+                              '${ref.watch(smoothProvider)}',
+                              textAlign: TextAlign.end,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -557,9 +549,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           action(
             l10n.helpTitle,
-            () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const HelpScreen()),
-            ),
+            () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute<void>(builder: (_) => const HelpScreen())),
           ),
           const _ExportLogRow(),
           action(

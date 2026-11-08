@@ -91,22 +91,10 @@ class AppLocalizationsKo extends AppLocalizations {
   String get straightenHint => '멈추면 획을 일직선으로 바꿔요';
 
   @override
-  String get straightened => '직선으로 바꿨어요.';
-
-  @override
   String get smooth => '스트로크 부드럽게';
 
   @override
   String get smoothOff => '끔';
-
-  @override
-  String get smoothLight => '약';
-
-  @override
-  String get smoothNormal => '보통';
-
-  @override
-  String get smoothStrong => '강';
 
   @override
   String get pressureCurve => '필압 커브';
@@ -121,16 +109,23 @@ class AppLocalizationsKo extends AppLocalizations {
   String get pressureCurveFirm => '단단하게';
 
   @override
-  String get pressureCurveX1 => '제어점 1 가로 (x1)';
+  String get pressureCurveGraph =>
+      '필압 커브 그래프. 빈 곳을 눌러 점을 더하고, 점을 끌어 옮기고, 두 번 눌러 지워요';
 
   @override
-  String get pressureCurveY1 => '제어점 1 세로 (y1)';
+  String get pressureCurveIn => '선택한 점 가로 (누르는 힘)';
 
   @override
-  String get pressureCurveX2 => '제어점 2 가로 (x2)';
+  String get pressureCurveOut => '선택한 점 세로 (굵기 반영)';
 
   @override
-  String get pressureCurveY2 => '제어점 2 세로 (y2)';
+  String get pressureCurveAdd => '점 추가';
+
+  @override
+  String get pressureCurveRemove => '점 삭제';
+
+  @override
+  String get pressureCurveReset => '초기화';
 
   @override
   String get pressureCurvePad => '시험 획 영역. 펜으로 그어 필압 커브를 확인해요';

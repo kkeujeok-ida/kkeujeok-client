@@ -13,19 +13,20 @@ class SmoothStore {
 
   static const _key = 'smooth';
 
-  SmoothLevel read() {
+  /// 0..[smoothMax]. An old build stored a name: it maps to a level.
+  int read() {
     try {
-      final v = _prefs?.getString(_key);
-      return SmoothLevel.values.where((l) => l.name == v).firstOrNull ??
-          SmoothLevel.off;
+      final v = _prefs?.get(_key);
+      if (v is int) return v.clamp(0, smoothMax);
+      return const {'light': 3, 'normal': 5, 'strong': 8}[v] ?? 0;
     } catch (_) {
-      return SmoothLevel.off; // a value of the wrong type is treated as unset
+      return 0; // a value of the wrong type is treated as unset
     }
   }
 
-  Future<void> write(SmoothLevel v) async {
+  Future<void> write(int v) async {
     try {
-      await _prefs?.setString(_key, v.name);
+      await _prefs?.setInt(_key, v);
     } catch (_) {
       // Save failed: the level still applies for this session.
     }

@@ -173,7 +173,7 @@ class StrokePathCache {
       (s['width'] as num),
       (s['usePressure'] as bool) ? 1 : 0,
       ...pressureCurveInUse.values,
-      smoothInUse.index,
+      smoothInUse,
       ...xy(0),
       ...xy(pts.length - 1),
     ];

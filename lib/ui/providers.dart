@@ -123,17 +123,17 @@ final pressureCurveProvider =
 final smoothStoreProvider = Provider<SmoothStore>((ref) => SmoothStore(null));
 
 /// Stroke smoothing level (spec/pen-feel.md stroke.smooth); painting reads [smoothInUse].
-class SmoothNotifier extends Notifier<SmoothLevel> {
+class SmoothNotifier extends Notifier<int> {
   @override
-  SmoothLevel build() => smoothInUse = ref.read(smoothStoreProvider).read();
+  int build() => smoothInUse = ref.read(smoothStoreProvider).read();
 
-  Future<void> set(SmoothLevel v) async {
+  Future<void> set(int v) async {
     state = smoothInUse = v;
     await ref.read(smoothStoreProvider).write(v);
   }
 }
 
-final smoothProvider = NotifierProvider<SmoothNotifier, SmoothLevel>(
+final smoothProvider = NotifierProvider<SmoothNotifier, int>(
   SmoothNotifier.new,
 );
 

@@ -260,12 +260,6 @@ abstract class AppLocalizations {
   /// **'Hold the pen still to turn the stroke into a straight line'**
   String get straightenHint;
 
-  /// No description provided for @straightened.
-  ///
-  /// In en, this message translates to:
-  /// **'Stroke straightened.'**
-  String get straightened;
-
   /// No description provided for @smooth.
   ///
   /// In en, this message translates to:
@@ -277,24 +271,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Off'**
   String get smoothOff;
-
-  /// No description provided for @smoothLight.
-  ///
-  /// In en, this message translates to:
-  /// **'Light'**
-  String get smoothLight;
-
-  /// No description provided for @smoothNormal.
-  ///
-  /// In en, this message translates to:
-  /// **'Normal'**
-  String get smoothNormal;
-
-  /// No description provided for @smoothStrong.
-  ///
-  /// In en, this message translates to:
-  /// **'Strong'**
-  String get smoothStrong;
 
   /// No description provided for @pressureCurve.
   ///
@@ -320,29 +296,41 @@ abstract class AppLocalizations {
   /// **'Firm'**
   String get pressureCurveFirm;
 
-  /// No description provided for @pressureCurveX1.
+  /// No description provided for @pressureCurveGraph.
   ///
   /// In en, this message translates to:
-  /// **'Control point 1 horizontal (x1)'**
-  String get pressureCurveX1;
+  /// **'Pressure curve graph. Tap an empty spot to add a point, drag a point to move it, double-tap to delete it'**
+  String get pressureCurveGraph;
 
-  /// No description provided for @pressureCurveY1.
+  /// No description provided for @pressureCurveIn.
   ///
   /// In en, this message translates to:
-  /// **'Control point 1 vertical (y1)'**
-  String get pressureCurveY1;
+  /// **'Selected point horizontal (pressure in)'**
+  String get pressureCurveIn;
 
-  /// No description provided for @pressureCurveX2.
+  /// No description provided for @pressureCurveOut.
   ///
   /// In en, this message translates to:
-  /// **'Control point 2 horizontal (x2)'**
-  String get pressureCurveX2;
+  /// **'Selected point vertical (pressure out)'**
+  String get pressureCurveOut;
 
-  /// No description provided for @pressureCurveY2.
+  /// No description provided for @pressureCurveAdd.
   ///
   /// In en, this message translates to:
-  /// **'Control point 2 vertical (y2)'**
-  String get pressureCurveY2;
+  /// **'Add point'**
+  String get pressureCurveAdd;
+
+  /// No description provided for @pressureCurveRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete point'**
+  String get pressureCurveRemove;
+
+  /// No description provided for @pressureCurveReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset'**
+  String get pressureCurveReset;
 
   /// No description provided for @pressureCurvePad.
   ///

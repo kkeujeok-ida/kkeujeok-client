@@ -92,22 +92,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Hold the pen still to turn the stroke into a straight line';
 
   @override
-  String get straightened => 'Stroke straightened.';
-
-  @override
   String get smooth => 'Smooth strokes';
 
   @override
   String get smoothOff => 'Off';
-
-  @override
-  String get smoothLight => 'Light';
-
-  @override
-  String get smoothNormal => 'Normal';
-
-  @override
-  String get smoothStrong => 'Strong';
 
   @override
   String get pressureCurve => 'Pressure curve';
@@ -122,16 +110,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get pressureCurveFirm => 'Firm';
 
   @override
-  String get pressureCurveX1 => 'Control point 1 horizontal (x1)';
+  String get pressureCurveGraph =>
+      'Pressure curve graph. Tap an empty spot to add a point, drag a point to move it, double-tap to delete it';
 
   @override
-  String get pressureCurveY1 => 'Control point 1 vertical (y1)';
+  String get pressureCurveIn => 'Selected point horizontal (pressure in)';
 
   @override
-  String get pressureCurveX2 => 'Control point 2 horizontal (x2)';
+  String get pressureCurveOut => 'Selected point vertical (pressure out)';
 
   @override
-  String get pressureCurveY2 => 'Control point 2 vertical (y2)';
+  String get pressureCurveAdd => 'Add point';
+
+  @override
+  String get pressureCurveRemove => 'Delete point';
+
+  @override
+  String get pressureCurveReset => 'Reset';
 
   @override
   String get pressureCurvePad =>
