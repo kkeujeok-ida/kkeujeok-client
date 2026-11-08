@@ -62,6 +62,14 @@ Map<String, dynamic> _roundTrip(Object? input) {
   return {'note': r.note!.copyJson()};
 }
 
+// A client always writes the supported formatVersion (note-format.md), so a
+// version 1 fixture reads back as 2.
+Map<String, dynamic> _written(Object? expected) {
+  final m = jsonDecode(jsonEncode(expected)) as Map<String, dynamic>;
+  (m['note'] as Map<String, dynamic>)['formatVersion'] = supportedFormatVersion;
+  return m;
+}
+
 Map<String, dynamic> _opOutput(OpResult r) => r.error != null
     ? {'error': r.error}
     : {'note': r.note!.copyJson(), 'inverse': r.inverse};
@@ -220,8 +228,9 @@ final Map<String, void Function(Case)> runners = {
       p(i),
     );
   },
-  'note.roundTrip': (c) => _same(_roundTrip(c['input']), c['expected']),
-  'note.unknownFields': (c) => _same(_roundTrip(c['input']), c['expected']),
+  'note.roundTrip': (c) => _same(_roundTrip(c['input']), _written(c['expected'])),
+  'note.unknownFields': (c) =>
+      _same(_roundTrip(c['input']), _written(c['expected'])),
   'note.formatVersion': (c) {
     final input = c['input'] as Map<String, dynamic>;
     final List<int> bytes;
@@ -736,7 +745,7 @@ void _runHistory(Case c) {
 
 void _unknownFields(Case c) {
   final i = c['input'] as Map<String, dynamic>;
-  if (i['op'] == null) return _same(_roundTrip(i), c['expected']);
+  if (i['op'] == null) return _same(_roundTrip(i), _written(c['expected']));
   final r = applyOp(
     _note(i['note']),
     i['op'] as Map<String, dynamic>,
