@@ -1,13 +1,13 @@
 // spec rule `brush.resolve` (spec/brush.md): the drawing parameters of a
 // stroke from its `tool` and optional `brush`.
+import 'dart:convert' show jsonEncode;
+
 import 'pressure_curve.dart';
 
 const _linear = [1 / 3, 1 / 3, 2 / 3, 2 / 3];
 
 List<double>? _curve4(Object? v) =>
-    v is List &&
-        v.length == 4 &&
-        v.every((n) => n is num && n >= 0 && n <= 1)
+    v is List && v.length == 4 && v.every((n) => n is num && n >= 0 && n <= 1)
     ? [for (final n in v) (n as num).toDouble()]
     : null;
 
@@ -66,10 +66,39 @@ double brushAlphaFactor(Object? tool, Object? brush, List points) {
   final b = brushResolve(tool, brush);
   var a = b.opacity / toolOpacity(tool);
   if (b.tiltTarget == 'opacity' && tool != 'tape') {
-    final qs = [
-      for (final p in points) ?tiltQ(p as List, b.tiltCurve),
-    ];
+    final qs = [for (final p in points) ?tiltQ(p as List, b.tiltCurve)];
     if (qs.isNotEmpty) a *= qs.reduce((x, y) => x + y) / qs.length;
   }
   return a;
+}
+
+/// `brush` with [patch] applied, keeping only what differs from the tool
+/// default (spec/brush.md). A null value clears a parameter. Unknown
+/// parameters stay. Null when nothing is left.
+Map<String, Object?>? patchBrush(
+  Object? tool,
+  Object? brush,
+  Map<String, Object?> patch,
+) {
+  final out = <String, Object?>{
+    if (brush is Map) ...brush.cast<String, Object?>(),
+  };
+  final d = brushResolve(tool, null);
+  final defaults = <String, Object?>{
+    'tiltCurve': d.tiltCurve,
+    'tiltTarget': d.tiltTarget,
+    'opacity': d.opacity,
+    'texture': d.texture,
+  };
+  for (final e in patch.entries) {
+    final v = e.value;
+    if (v == null ||
+        (e.key != 'pressureCurve' &&
+            jsonEncode(v) == jsonEncode(defaults[e.key]))) {
+      out.remove(e.key);
+    } else {
+      out[e.key] = v;
+    }
+  }
+  return out.isEmpty ? null : out;
 }

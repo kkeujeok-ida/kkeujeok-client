@@ -826,6 +826,9 @@ class PenSlotsNotifier extends Notifier<List<Pen>> {
   Future<void> setWidth(int index, double v) =>
       _edit(index, (p) => p.withWidth(v));
 
+  Future<void> setBrush(int index, Map<String, Object?>? brush) =>
+      _edit(index, (p) => p.withBrush(brush));
+
   Future<void> setTool(int index, String tool) =>
       _edit(index, (p) => p.withTool(tool));
 

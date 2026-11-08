@@ -75,11 +75,14 @@ class PenSlotsStore {
       throw const FormatException();
     }
     if (up is! bool) throw const FormatException();
+    // A bad brush is dropped, never the whole list.
+    final b = m['brush'];
     return Pen(
       tool: tool,
       color: color,
       width: width.toDouble(),
       usePressure: up,
+      brush: b is Map && b.isNotEmpty ? b.cast<String, Object?>() : null,
     );
   }
 

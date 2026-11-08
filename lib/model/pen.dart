@@ -34,6 +34,7 @@ class Pen {
     required this.color,
     required this.width,
     required this.usePressure,
+    this.brush,
   });
 
   final String tool; // one of [penTools]
@@ -41,16 +42,33 @@ class Pen {
   final double width; // pt
   final bool usePressure;
 
+  /// Optional brush settings (spec/brush.md), only what differs from the
+  /// tool default; copied into each new stroke.
+  final Map<String, Object?>? brush;
+
   bool get isHighlighter => tool == 'highlighter';
 
   /// Key of the ko/en color name in the UI.
   String get colorNameKey => colorNameKeyFor(color);
 
   Pen withUsePressure(bool v) =>
-      Pen(tool: tool, color: color, width: width, usePressure: v);
+      Pen(tool: tool, color: color, width: width, usePressure: v, brush: brush);
 
-  Pen withColor(String hex) =>
-      Pen(tool: tool, color: hex, width: width, usePressure: usePressure);
+  Pen withBrush(Map<String, Object?>? b) => Pen(
+    tool: tool,
+    color: color,
+    width: width,
+    usePressure: usePressure,
+    brush: b,
+  );
+
+  Pen withColor(String hex) => Pen(
+    tool: tool,
+    color: hex,
+    width: width,
+    usePressure: usePressure,
+    brush: brush,
+  );
 
   /// Kept in the tool's range, in steps of 0.1.
   Pen withWidth(double v) {
@@ -60,6 +78,7 @@ class Pen {
       color: color,
       width: ((v.clamp(lo, hi) * 10).round() / 10).clamp(lo, hi),
       usePressure: usePressure,
+      brush: brush,
     );
   }
 
@@ -74,6 +93,7 @@ class Pen {
         color: color,
         width: d.width,
         usePressure: usePressure,
+        brush: brush,
       );
     }
     final c = color.toLowerCase();
@@ -91,6 +111,7 @@ class Pen {
     'color': color,
     'width': width,
     'usePressure': usePressure,
+    if (brush != null) 'brush': brush!,
   };
 }
 

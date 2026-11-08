@@ -16,6 +16,7 @@ import '../model/pen_palette.dart';
 import '../render/page_painter.dart' show fillStroke, parseColor;
 import '../render/stroke_outline.dart';
 import 'library_fab.dart' show kkjShadow;
+import 'pen_advanced.dart';
 import 'pen_color_picker.dart';
 import 'providers.dart';
 
@@ -1072,6 +1073,7 @@ class PenEditDialog extends ConsumerWidget {
                     ),
                   ),
                 ),
+                PenAdvanced(index: i),
                 const SizedBox(height: KkjTokens.spacing3),
                 ExcludeSemantics(
                   child: SizedBox(

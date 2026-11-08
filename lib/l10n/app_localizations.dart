@@ -2989,6 +2989,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Moved {n} items to the trash.'**
   String itemsDeleted(int n);
+
+  /// No description provided for @brushAdvanced.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced brush settings'**
+  String get brushAdvanced;
+
+  /// No description provided for @brushPressureOwn.
+  ///
+  /// In en, this message translates to:
+  /// **'Own pressure curve'**
+  String get brushPressureOwn;
+
+  /// No description provided for @brushTiltTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'Tilt changes'**
+  String get brushTiltTarget;
+
+  /// No description provided for @brushTiltNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing'**
+  String get brushTiltNone;
+
+  /// No description provided for @brushTiltSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Width'**
+  String get brushTiltSize;
+
+  /// No description provided for @brushTiltOpacity.
+  ///
+  /// In en, this message translates to:
+  /// **'Opacity'**
+  String get brushTiltOpacity;
+
+  /// No description provided for @brushOpacity.
+  ///
+  /// In en, this message translates to:
+  /// **'Opacity'**
+  String get brushOpacity;
+
+  /// No description provided for @brushTexture.
+  ///
+  /// In en, this message translates to:
+  /// **'Texture'**
+  String get brushTexture;
+
+  /// No description provided for @brushTexturePlain.
+  ///
+  /// In en, this message translates to:
+  /// **'Plain'**
+  String get brushTexturePlain;
+
+  /// No description provided for @brushTexturePencil.
+  ///
+  /// In en, this message translates to:
+  /// **'Pencil grain'**
+  String get brushTexturePencil;
+
+  /// No description provided for @tiltCurveGraph.
+  ///
+  /// In en, this message translates to:
+  /// **'Tilt curve graph. Move a point with the arrow keys or drag it'**
+  String get tiltCurveGraph;
+
+  /// No description provided for @tiltCurveIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Tilt'**
+  String get tiltCurveIn;
+
+  /// No description provided for @tiltCurveOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Effect'**
+  String get tiltCurveOut;
+
+  /// No description provided for @tiltCurvePad.
+  ///
+  /// In en, this message translates to:
+  /// **'Tilt test pad. Draw with a pen held at different angles'**
+  String get tiltCurvePad;
 }
 
 class _AppLocalizationsDelegate

@@ -1626,4 +1626,46 @@ class AppLocalizationsKo extends AppLocalizations {
   String itemsDeleted(int n) {
     return '항목 $n개를 휴지통으로 옮겼어요.';
   }
+
+  @override
+  String get brushAdvanced => '고급 브러시 설정';
+
+  @override
+  String get brushPressureOwn => '이 펜 전용 필압 곡선';
+
+  @override
+  String get brushTiltTarget => '기울기가 바꾸는 것';
+
+  @override
+  String get brushTiltNone => '없음';
+
+  @override
+  String get brushTiltSize => '굵기';
+
+  @override
+  String get brushTiltOpacity => '농도';
+
+  @override
+  String get brushOpacity => '농도';
+
+  @override
+  String get brushTexture => '질감';
+
+  @override
+  String get brushTexturePlain => '매끈하게';
+
+  @override
+  String get brushTexturePencil => '연필 결';
+
+  @override
+  String get tiltCurveGraph => '기울기 곡선 그래프. 방향키로 점을 옮기거나 끌어서 옮겨요';
+
+  @override
+  String get tiltCurveIn => '기울기';
+
+  @override
+  String get tiltCurveOut => '효과';
+
+  @override
+  String get tiltCurvePad => '기울기 시험판. 펜을 여러 각도로 세워 그어 보세요';
 }

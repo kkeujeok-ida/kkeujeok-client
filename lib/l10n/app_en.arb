@@ -290,7 +290,19 @@
   "conflictNotificationChannel": "Conflicts",
   "conflictSheetTitle": "Pages edited on both devices",
   "conflictSheetProgress": "Page {page} · {i}/{total}",
-  "@conflictSheetProgress": {"placeholders": {"page": {"type": "int"}, "i": {"type": "int"}, "total": {"type": "int"}}},
+  "@conflictSheetProgress": {
+    "placeholders": {
+      "page": {
+        "type": "int"
+      },
+      "i": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "conflictPrev": "Previous page",
   "conflictNext": "Next page",
   "conflictQuestion": "Which one do you want to keep?",
@@ -298,7 +310,16 @@
   "conflictTagOther": "Other device",
   "conflictMoreRecent": "Newer",
   "conflictEditedAt": "{device} · {time}",
-  "@conflictEditedAt": {"placeholders": {"device": {"type": "String"}, "time": {"type": "String"}}},
+  "@conflictEditedAt": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "conflictKeepThis": "This device version",
   "conflictKeepOther": "Other device version",
   "conflictKeepBoth": "Keep both",
@@ -311,21 +332,72 @@
   "conflictRestAllThis": "Rest: all this device version",
   "conflictRestAllOther": "Rest: all other device version",
   "conflictRestAllConfirm": "Tap again to apply to {n} pages",
-  "@conflictRestAllConfirm": {"placeholders": {"n": {"type": "int"}}},
+  "@conflictRestAllConfirm": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "conflictPreviewSemantics": "{tag} version of page {n}",
-  "@conflictPreviewSemantics": {"placeholders": {"tag": {"type": "String"}, "n": {"type": "int"}}},
+  "@conflictPreviewSemantics": {
+    "placeholders": {
+      "tag": {
+        "type": "String"
+      },
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "conflictResolvedBoth": "Page {n}: kept both",
-  "@conflictResolvedBoth": {"placeholders": {"n": {"type": "int"}}},
+  "@conflictResolvedBoth": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "conflictResolvedThis": "Page {n}: kept this device version",
-  "@conflictResolvedThis": {"placeholders": {"n": {"type": "int"}}},
+  "@conflictResolvedThis": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "conflictResolvedOther": "Page {n}: kept the other device version",
-  "@conflictResolvedOther": {"placeholders": {"n": {"type": "int"}}},
+  "@conflictResolvedOther": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "conflictResolvedRemove": "Page {n}: deleted",
-  "@conflictResolvedRemove": {"placeholders": {"n": {"type": "int"}}},
+  "@conflictResolvedRemove": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "conflictResolvedKeep": "Page {n}: kept",
-  "@conflictResolvedKeep": {"placeholders": {"n": {"type": "int"}}},
+  "@conflictResolvedKeep": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "conflictResolvedAll": "{n, plural, =1{1 page resolved} other{{n} pages resolved}}",
-  "@conflictResolvedAll": {"placeholders": {"n": {"type": "int"}}},
+  "@conflictResolvedAll": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "conflictResolveFailed": "Could not resolve. Try again.",
   "viewModeVertical": "Vertical scroll",
   "viewModeHorizontal": "Horizontal scroll",
@@ -404,10 +476,10 @@
   "italic": "Italic",
   "on": "on",
   "off": "off",
-  "selectedCount": "{count, plural, =1{1 element selected} other{{count} elements selected}}",
+  "selectedCount": "{n} selected",
   "@selectedCount": {
     "placeholders": {
-      "count": {
+      "n": {
         "type": "int"
       }
     }
@@ -453,9 +525,21 @@
   "colorSaturation": "Saturation",
   "colorBrightness": "Brightness",
   "strokeWidthValue": "Thickness {v}",
-  "@strokeWidthValue": {"placeholders": {"v": {"type": "String"}}},
+  "@strokeWidthValue": {
+    "placeholders": {
+      "v": {
+        "type": "String"
+      }
+    }
+  },
   "customColorSlotLabel": "Custom color {hex}",
-  "@customColorSlotLabel": {"placeholders": {"hex": {"type": "String"}}},
+  "@customColorSlotLabel": {
+    "placeholders": {
+      "hex": {
+        "type": "String"
+      }
+    }
+  },
   "visibleToolsTitle": "Tools shown at once",
   "visibleToolsLess": "Show fewer tools",
   "visibleToolsMore": "Show more tools",
@@ -464,11 +548,29 @@
   "paletteReset": "Reset to default",
   "paletteFull": "A palette holds at most 18 colors.",
   "paletteEarlier": "Move {color} earlier",
-  "@paletteEarlier": {"placeholders": {"color": {"type": "String"}}},
+  "@paletteEarlier": {
+    "placeholders": {
+      "color": {
+        "type": "String"
+      }
+    }
+  },
   "paletteLater": "Move {color} later",
-  "@paletteLater": {"placeholders": {"color": {"type": "String"}}},
+  "@paletteLater": {
+    "placeholders": {
+      "color": {
+        "type": "String"
+      }
+    }
+  },
   "paletteRemove": "Remove {color}",
-  "@paletteRemove": {"placeholders": {"color": {"type": "String"}}},
+  "@paletteRemove": {
+    "placeholders": {
+      "color": {
+        "type": "String"
+      }
+    }
+  },
   "penOnlyTitle": "Write with pen only",
   "penOnlyAuto": "Auto",
   "penOnlyOn": "On",
@@ -479,13 +581,43 @@
   "dockRight": "Right",
   "dockBottom": "Bottom",
   "toolbarDocked": "Toolbar docked: {place}",
-  "@toolbarDocked": {"placeholders": {"place": {"type": "String"}}},
+  "@toolbarDocked": {
+    "placeholders": {
+      "place": {
+        "type": "String"
+      }
+    }
+  },
   "noteChip": "{title} · {n}/{total}",
-  "@noteChip": {"placeholders": {"title": {"type": "String"}, "n": {"type": "int"}, "total": {"type": "int"}}},
+  "@noteChip": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "n": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "noteBackTo": "Back to ‘{title}’",
-  "@noteBackTo": {"placeholders": {"title": {"type": "String"}}},
+  "@noteBackTo": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "noteOpened": "‘{title}’ opened",
-  "@noteOpened": {"placeholders": {"title": {"type": "String"}}},
+  "@noteOpened": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "noteBackUndo": "Back",
   "pageOverviewOpen": "Pages",
   "pageOverviewTitle": "Pages",
@@ -495,17 +627,39 @@
   "pageCurrent": "Current",
   "pageConflictBadge": "Conflict",
   "pageOutOfBoundsBadge": "{n} elements outside the page",
-  "@pageOutOfBoundsBadge": {"placeholders": {"n": {"type": "int"}}},
+  "@pageOutOfBoundsBadge": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "pageLandscape": "landscape",
   "pagePortrait": "portrait",
-  "pageSemantics": "Page {n} of {total}, {orientation}",
-  "@pageSemantics": {"placeholders": {"n": {"type": "int"}, "total": {"type": "int"}, "orientation": {"type": "String"}}},
   "pageAdded": "Page {n} added",
-  "@pageAdded": {"placeholders": {"n": {"type": "int"}}},
+  "@pageAdded": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "pageDeleted": "Page {n} deleted",
-  "@pageDeleted": {"placeholders": {"n": {"type": "int"}}},
+  "@pageDeleted": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "pageDuplicated": "Page {n} duplicated",
-  "@pageDuplicated": {"placeholders": {"n": {"type": "int"}}},
+  "@pageDuplicated": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "pageUndo": "Undo",
   "pageDeleteContentConfirm": "Some of these pages have content. Delete them anyway?",
   "pageDuplicate": "Duplicate",
@@ -513,36 +667,99 @@
   "pagePullMore": "Keep pulling to add a page",
   "pagePullRelease": "Release to add a page",
   "pageSelected": "{count} selected",
-  "@pageSelected": {"placeholders": {"count": {"type": "int"}}},
+  "@pageSelected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "pageSelectDone": "Done",
   "pageMoveEarlier": "Move earlier",
   "pageMoveLater": "Move later",
   "pageMoveFirst": "Move to start",
   "pageMoveLast": "Move to end",
   "pageMoved": "Page {n} moved to position {pos}",
-  "@pageMoved": {"placeholders": {"n": {"type": "int"}, "pos": {"type": "int"}}},
+  "@pageMoved": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "pos": {
+        "type": "int"
+      }
+    }
+  },
   "pagesMoved": "{count} pages moved",
-  "@pagesMoved": {"placeholders": {"count": {"type": "int"}}},
+  "@pagesMoved": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "pagesDeleted": "{count} pages deleted",
-  "@pagesDeleted": {"placeholders": {"count": {"type": "int"}}},
+  "@pagesDeleted": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "pagesDuplicated": "{count} pages duplicated",
-  "@pagesDuplicated": {"placeholders": {"count": {"type": "int"}}},
+  "@pagesDuplicated": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "pageBackgroundShort": "Background",
   "pageChangeBackground": "Change background",
   "pageToLandscape": "Make landscape",
   "pageToPortrait": "Make portrait",
   "pageBackgroundChanged": "Page {n} background changed",
-  "@pageBackgroundChanged": {"placeholders": {"n": {"type": "int"}}},
+  "@pageBackgroundChanged": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "pagesBackgroundChanged": "Background of {count} pages changed",
-  "@pagesBackgroundChanged": {"placeholders": {"count": {"type": "int"}}},
+  "@pagesBackgroundChanged": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "pageTurnedLandscape": "Page {n} is now landscape",
-  "@pageTurnedLandscape": {"placeholders": {"n": {"type": "int"}}},
+  "@pageTurnedLandscape": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "pageTurnedPortrait": "Page {n} is now portrait",
-  "@pageTurnedPortrait": {"placeholders": {"n": {"type": "int"}}},
+  "@pageTurnedPortrait": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "allNotes": "All notes",
   "folderAdd": "New folder",
   "folderMenu": "{name} menu",
-  "@folderMenu": {"placeholders": {"name": {"type": "String"}}},
+  "@folderMenu": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "folderNewSub": "New subfolder",
   "folderRename": "Rename",
   "folderMove": "Move",
@@ -553,38 +770,98 @@
   "searchHint": "Search titles",
   "searchClear": "Clear search",
   "searchNoResults": "No notes match ‘{q}’",
-  "@searchNoResults": {"placeholders": {"q": {"type": "String"}}},
+  "@searchNoResults": {
+    "placeholders": {
+      "q": {
+        "type": "String"
+      }
+    }
+  },
   "searchResultCount": "{n, plural, =1{1 note} other{{n} notes}}",
-  "@searchResultCount": {"placeholders": {"n": {"type": "int"}}},
+  "@searchResultCount": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "folderEmpty": "No notes in this folder",
   "folderDeleteBody": "{n, plural, =0{This folder goes to the app trash.} =1{This folder and its note go to the app trash.} other{This folder and its {n} notes go to the app trash.}}",
-  "@folderDeleteBody": {"placeholders": {"n": {"type": "int"}}},
+  "@folderDeleteBody": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "folderDeleteConfirm": "Delete",
   "folderTopLevel": "Home",
   "folderColor": "Color",
   "folderColorDefault": "Default",
   "folderColorOption": "Color {n}",
-  "@folderColorOption": {"placeholders": {"n": {"type": "int"}}},
+  "@folderColorOption": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "folderMoveTitle": "Move \"{name}\" to",
-  "@folderMoveTitle": {"placeholders": {"name": {"type": "String"}}},
+  "@folderMoveTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "folderMoved": "Moved \"{name}\"",
-  "@folderMoved": {"placeholders": {"name": {"type": "String"}}},
+  "@folderMoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "folderFailed": "The folder could not be changed.",
   "noteRename": "Rename",
   "noteMove": "Move",
   "noteMoveTitle": "Move \"{name}\" to",
-  "@noteMoveTitle": {"placeholders": {"name": {"type": "String"}}},
+  "@noteMoveTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "noteMoved": "Moved to \"{name}\"",
-  "@noteMoved": {"placeholders": {"name": {"type": "String"}}},
+  "@noteMoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "noteTitleTooLong": "A note title is 100 characters at most.",
   "noteActionFailed": "Could not change the note.",
   "noteCover": "Cover",
   "noteChangeCover": "Change cover",
   "coverNone": "No cover",
   "coverOptionSelected": "Cover, {name}, selected",
-  "@coverOptionSelected": {"placeholders": {"name": {"type": "String"}}},
+  "@coverOptionSelected": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "coverOptionUnselected": "Cover, {name}",
-  "@coverOptionUnselected": {"placeholders": {"name": {"type": "String"}}},
+  "@coverOptionUnselected": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "exportMenu": "Export",
   "exportTitle": "Export as PDF",
   "exportRangeAll": "All pages",
@@ -595,31 +872,74 @@
   "exportErrFormat": "Use a page number or a range like 3-7.",
   "exportErrReversed": "The first page must not come after the last.",
   "exportErrOutOfRange": "Pages must be between 1 and {count}.",
-  "@exportErrOutOfRange": {"placeholders": {"count": {"type": "int"}}},
+  "@exportErrOutOfRange": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "exportStart": "Export",
   "exportProgress": "Making PDF · {done}/{total} pages",
-  "@exportProgress": {"placeholders": {"done": {"type": "int"}, "total": {"type": "int"}}},
+  "@exportProgress": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "exportFailed": "Could not make the PDF.",
   "exportPdfMissing": "The original PDF has not been downloaded yet, so it cannot be exported.",
   "exportAssetMissing": "Some images are not on this device yet. Connect to the internet to download them, then try again.",
   "folderParentCard": "Up one folder",
   "folderOpenHint": "Opens the folder",
   "folderDropHint": "Press and hold, then drag onto a folder to move",
-  "selectedCount": "{n} selected",
-  "@selectedCount": {"placeholders": {"n": {"type": "int"}}},
   "selectCancel": "Cancel selection",
   "selectMove": "Move selected notes",
   "selectDelete": "Delete selected notes",
   "notesDeleteBody": "{n, plural, =1{Delete this note? It moves to the trash, where you can restore it.} other{Delete these {n} notes? They move to the trash, where you can restore them.}}",
-  "@notesDeleteBody": {"placeholders": {"n": {"type": "int"}}},
+  "@notesDeleteBody": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "notesMoveTitle": "Move {n} notes to",
-  "@notesMoveTitle": {"placeholders": {"n": {"type": "int"}}},
+  "@notesMoveTitle": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "notesMoved": "Moved {n} notes to \"{name}\"",
-  "@notesMoved": {"placeholders": {"n": {"type": "int"}, "name": {"type": "String"}}},
+  "@notesMoved": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "searchOpen": "Search",
   "pdfImport": "Import PDF",
   "pdfImportProgress": "Importing PDF · {done}/{total} pages",
-  "@pdfImportProgress": {"placeholders": {"done": {"type": "int"}, "total": {"type": "int"}}},
+  "@pdfImportProgress": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "pdfErrTooLarge": "PDFs larger than 100 MB cannot be imported.",
   "pdfErrTooManyPages": "PDFs longer than 500 pages cannot be imported.",
   "pdfErrEncrypted": "Password-protected PDFs cannot be imported.",
@@ -659,26 +979,109 @@
   "trashGone": "This item is already gone.",
   "trashFailed": "Could not finish. Please try again.",
   "trashNotes": "{n} notes",
-  "@trashNotes": {"placeholders": {"n": {"type": "int"}}},
+  "@trashNotes": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "trashKindNote": "Note",
   "trashKindFolder": "Folder",
   "trashItemSemantics": "{name}, {kind}, deleted {date}",
-  "@trashItemSemantics": {"placeholders": {"name": {"type": "String"}, "kind": {"type": "String"}, "date": {"type": "String"}}},
+  "@trashItemSemantics": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "kind": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "trashItemMenu": "{name} menu",
-  "@trashItemMenu": {"placeholders": {"name": {"type": "String"}}},
+  "@trashItemMenu": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "trashCannotOpen": "Cannot open",
   "noteDeleted": "Moved \"{title}\" to the trash.",
-  "@noteDeleted": {"placeholders": {"title": {"type": "String"}}},
+  "@noteDeleted": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "notesDeleted": "Moved {n} notes to the trash.",
-  "@notesDeleted": {"placeholders": {"n": {"type": "int"}}},
+  "@notesDeleted": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "folderDeleted": "Moved folder \"{name}\" to the trash.",
-  "@folderDeleted": {"placeholders": {"name": {"type": "String"}}},
+  "@folderDeleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "itemsDeleteBody": "Delete {n} items? Folders go to the trash with their notes. You can restore them from the trash.",
-  "@itemsDeleteBody": {"placeholders": {"n": {"type": "int"}}},
+  "@itemsDeleteBody": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "itemsMoveTitle": "Move {n} items to",
-  "@itemsMoveTitle": {"placeholders": {"n": {"type": "int"}}},
+  "@itemsMoveTitle": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "itemsMoved": "Moved {n} items to \"{name}\"",
-  "@itemsMoved": {"placeholders": {"n": {"type": "int"}, "name": {"type": "String"}}},
+  "@itemsMoved": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "itemsDeleted": "Moved {n} items to the trash.",
-  "@itemsDeleted": {"placeholders": {"n": {"type": "int"}}}
+  "@itemsDeleted": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "brushAdvanced": "Advanced brush settings",
+  "brushPressureOwn": "Own pressure curve",
+  "brushTiltTarget": "Tilt changes",
+  "brushTiltNone": "Nothing",
+  "brushTiltSize": "Width",
+  "brushTiltOpacity": "Opacity",
+  "brushOpacity": "Opacity",
+  "brushTexture": "Texture",
+  "brushTexturePlain": "Plain",
+  "brushTexturePencil": "Pencil grain",
+  "tiltCurveGraph": "Tilt curve graph. Move a point with the arrow keys or drag it",
+  "tiltCurveIn": "Tilt",
+  "tiltCurveOut": "Effect",
+  "tiltCurvePad": "Tilt test pad. Draw with a pen held at different angles"
 }

@@ -243,7 +243,19 @@
   "conflictNotificationChannel": "충돌",
   "conflictSheetTitle": "두 기기에서 고친 페이지가 있어요",
   "conflictSheetProgress": "{page}페이지 · {i}/{total}",
-  "@conflictSheetProgress": {"placeholders": {"page": {"type": "int"}, "i": {"type": "int"}, "total": {"type": "int"}}},
+  "@conflictSheetProgress": {
+    "placeholders": {
+      "page": {
+        "type": "int"
+      },
+      "i": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "conflictPrev": "이전 충돌 페이지",
   "conflictNext": "다음 충돌 페이지",
   "conflictQuestion": "어느 쪽을 남길까요?",
@@ -251,7 +263,16 @@
   "conflictTagOther": "다른 기기",
   "conflictMoreRecent": "더 최근",
   "conflictEditedAt": "{device} · {time}",
-  "@conflictEditedAt": {"placeholders": {"device": {"type": "String"}, "time": {"type": "String"}}},
+  "@conflictEditedAt": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "conflictKeepThis": "이 기기 버전",
   "conflictKeepOther": "다른 기기 버전",
   "conflictKeepBoth": "둘 다 남기기",
@@ -264,21 +285,72 @@
   "conflictRestAllThis": "나머지 모두 이 기기 버전",
   "conflictRestAllOther": "나머지 모두 다른 기기 버전",
   "conflictRestAllConfirm": "한 번 더 누르면 {n}페이지에 적용돼요",
-  "@conflictRestAllConfirm": {"placeholders": {"n": {"type": "int"}}},
+  "@conflictRestAllConfirm": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "conflictPreviewSemantics": "{n}페이지 {tag} 버전",
-  "@conflictPreviewSemantics": {"placeholders": {"tag": {"type": "String"}, "n": {"type": "int"}}},
+  "@conflictPreviewSemantics": {
+    "placeholders": {
+      "tag": {
+        "type": "String"
+      },
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "conflictResolvedBoth": "{n}페이지: 둘 다 남겼어요",
-  "@conflictResolvedBoth": {"placeholders": {"n": {"type": "int"}}},
+  "@conflictResolvedBoth": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "conflictResolvedThis": "{n}페이지: 이 기기 버전을 남겼어요",
-  "@conflictResolvedThis": {"placeholders": {"n": {"type": "int"}}},
+  "@conflictResolvedThis": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "conflictResolvedOther": "{n}페이지: 다른 기기 버전을 남겼어요",
-  "@conflictResolvedOther": {"placeholders": {"n": {"type": "int"}}},
+  "@conflictResolvedOther": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "conflictResolvedRemove": "{n}페이지: 지웠어요",
-  "@conflictResolvedRemove": {"placeholders": {"n": {"type": "int"}}},
+  "@conflictResolvedRemove": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "conflictResolvedKeep": "{n}페이지: 남겼어요",
-  "@conflictResolvedKeep": {"placeholders": {"n": {"type": "int"}}},
+  "@conflictResolvedKeep": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "conflictResolvedAll": "{n, plural, other{{n}페이지를 정했어요}}",
-  "@conflictResolvedAll": {"placeholders": {"n": {"type": "int"}}},
+  "@conflictResolvedAll": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "conflictResolveFailed": "정하지 못했어요. 다시 시도해 주세요.",
   "viewModeVertical": "세로 연속",
   "viewModeHorizontal": "가로 스크롤",
@@ -350,10 +422,10 @@
   "italic": "기울임",
   "on": "켜짐",
   "off": "꺼짐",
-  "selectedCount": "요소 {count}개 선택됨",
+  "selectedCount": "{n}개 선택됨",
   "@selectedCount": {
     "placeholders": {
-      "count": {
+      "n": {
         "type": "int"
       }
     }
@@ -386,9 +458,21 @@
   "colorSaturation": "채도",
   "colorBrightness": "밝기",
   "strokeWidthValue": "두께 {v}",
-  "@strokeWidthValue": {"placeholders": {"v": {"type": "String"}}},
+  "@strokeWidthValue": {
+    "placeholders": {
+      "v": {
+        "type": "String"
+      }
+    }
+  },
   "customColorSlotLabel": "사용자 지정 색 {hex}",
-  "@customColorSlotLabel": {"placeholders": {"hex": {"type": "String"}}},
+  "@customColorSlotLabel": {
+    "placeholders": {
+      "hex": {
+        "type": "String"
+      }
+    }
+  },
   "visibleToolsTitle": "한 번에 볼 도구 수",
   "visibleToolsLess": "도구 수 줄이기",
   "visibleToolsMore": "도구 수 늘리기",
@@ -397,11 +481,29 @@
   "paletteReset": "기본값으로",
   "paletteFull": "팔레트는 최대 18색이에요.",
   "paletteEarlier": "{color} 앞으로 이동",
-  "@paletteEarlier": {"placeholders": {"color": {"type": "String"}}},
+  "@paletteEarlier": {
+    "placeholders": {
+      "color": {
+        "type": "String"
+      }
+    }
+  },
   "paletteLater": "{color} 뒤로 이동",
-  "@paletteLater": {"placeholders": {"color": {"type": "String"}}},
+  "@paletteLater": {
+    "placeholders": {
+      "color": {
+        "type": "String"
+      }
+    }
+  },
   "paletteRemove": "{color} 삭제",
-  "@paletteRemove": {"placeholders": {"color": {"type": "String"}}},
+  "@paletteRemove": {
+    "placeholders": {
+      "color": {
+        "type": "String"
+      }
+    }
+  },
   "penOnlyTitle": "펜으로만 필기",
   "penOnlyAuto": "자동",
   "penOnlyOn": "켜기",
@@ -412,13 +514,43 @@
   "dockRight": "오른쪽",
   "dockBottom": "하단",
   "toolbarDocked": "툴바를 {place}에 붙였어요",
-  "@toolbarDocked": {"placeholders": {"place": {"type": "String"}}},
+  "@toolbarDocked": {
+    "placeholders": {
+      "place": {
+        "type": "String"
+      }
+    }
+  },
   "noteChip": "{title} · {n}/{total}",
-  "@noteChip": {"placeholders": {"title": {"type": "String"}, "n": {"type": "int"}, "total": {"type": "int"}}},
+  "@noteChip": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "n": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "noteBackTo": "‘{title}’로 돌아가기",
-  "@noteBackTo": {"placeholders": {"title": {"type": "String"}}},
+  "@noteBackTo": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "noteOpened": "‘{title}’ 열림",
-  "@noteOpened": {"placeholders": {"title": {"type": "String"}}},
+  "@noteOpened": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "noteBackUndo": "돌아가기",
   "pageOverviewOpen": "페이지",
   "pageOverviewTitle": "페이지",
@@ -428,17 +560,52 @@
   "pageCurrent": "현재",
   "pageConflictBadge": "충돌",
   "pageOutOfBoundsBadge": "페이지 밖 요소 {n}개",
-  "@pageOutOfBoundsBadge": {"placeholders": {"n": {"type": "int"}}},
+  "@pageOutOfBoundsBadge": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "pageLandscape": "가로",
   "pagePortrait": "세로",
-  "pageSemantics": "{n}페이지 / {total}, {orientation}",
-  "@pageSemantics": {"placeholders": {"n": {"type": "int"}, "total": {"type": "int"}, "orientation": {"type": "String"}}},
+  "@pageSemantics": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "orientation": {
+        "type": "String"
+      }
+    }
+  },
   "pageAdded": "{n}페이지를 추가했어요",
-  "@pageAdded": {"placeholders": {"n": {"type": "int"}}},
+  "@pageAdded": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "pageDeleted": "{n}페이지를 지웠어요",
-  "@pageDeleted": {"placeholders": {"n": {"type": "int"}}},
+  "@pageDeleted": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "pageDuplicated": "{n}페이지를 복제했어요",
-  "@pageDuplicated": {"placeholders": {"n": {"type": "int"}}},
+  "@pageDuplicated": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "pageUndo": "되돌리기",
   "pageDeleteContentConfirm": "내용이 있는 페이지가 있습니다. 정말 삭제하시겠습니까?",
   "pageDuplicate": "복제",
@@ -446,36 +613,99 @@
   "pagePullMore": "계속 당기면 페이지 추가",
   "pagePullRelease": "놓으면 페이지 추가",
   "pageSelected": "{count}장 선택",
-  "@pageSelected": {"placeholders": {"count": {"type": "int"}}},
+  "@pageSelected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "pageSelectDone": "완료",
   "pageMoveEarlier": "앞으로",
   "pageMoveLater": "뒤로",
   "pageMoveFirst": "맨 앞으로",
   "pageMoveLast": "맨 뒤로",
   "pageMoved": "{n}페이지를 {pos}번째로 옮겼어요",
-  "@pageMoved": {"placeholders": {"n": {"type": "int"}, "pos": {"type": "int"}}},
+  "@pageMoved": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "pos": {
+        "type": "int"
+      }
+    }
+  },
   "pagesMoved": "{count}장을 옮겼어요",
-  "@pagesMoved": {"placeholders": {"count": {"type": "int"}}},
+  "@pagesMoved": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "pagesDeleted": "{count}장을 지웠어요",
-  "@pagesDeleted": {"placeholders": {"count": {"type": "int"}}},
+  "@pagesDeleted": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "pagesDuplicated": "{count}장을 복제했어요",
-  "@pagesDuplicated": {"placeholders": {"count": {"type": "int"}}},
+  "@pagesDuplicated": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "pageBackgroundShort": "배경",
   "pageChangeBackground": "배경 바꾸기",
   "pageToLandscape": "가로로 바꾸기",
   "pageToPortrait": "세로로 바꾸기",
   "pageBackgroundChanged": "{n}페이지 배경을 바꿨어요",
-  "@pageBackgroundChanged": {"placeholders": {"n": {"type": "int"}}},
+  "@pageBackgroundChanged": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "pagesBackgroundChanged": "{count}장의 배경을 바꿨어요",
-  "@pagesBackgroundChanged": {"placeholders": {"count": {"type": "int"}}},
+  "@pagesBackgroundChanged": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "pageTurnedLandscape": "{n}페이지를 가로로 바꿨어요",
-  "@pageTurnedLandscape": {"placeholders": {"n": {"type": "int"}}},
+  "@pageTurnedLandscape": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "pageTurnedPortrait": "{n}페이지를 세로로 바꿨어요",
-  "@pageTurnedPortrait": {"placeholders": {"n": {"type": "int"}}},
+  "@pageTurnedPortrait": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "allNotes": "모든 노트",
   "folderAdd": "새 폴더",
   "folderMenu": "{name} 메뉴",
-  "@folderMenu": {"placeholders": {"name": {"type": "String"}}},
+  "@folderMenu": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "folderNewSub": "새 하위 폴더",
   "folderRename": "이름 변경",
   "folderMove": "이동",
@@ -486,38 +716,98 @@
   "searchHint": "제목 검색",
   "searchClear": "검색어 지우기",
   "searchNoResults": "‘{q}’와 맞는 노트가 없어요",
-  "@searchNoResults": {"placeholders": {"q": {"type": "String"}}},
+  "@searchNoResults": {
+    "placeholders": {
+      "q": {
+        "type": "String"
+      }
+    }
+  },
   "searchResultCount": "노트 {n}개",
-  "@searchResultCount": {"placeholders": {"n": {"type": "int"}}},
+  "@searchResultCount": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "folderEmpty": "이 폴더에 노트가 없어요",
   "folderDeleteBody": "{n, plural, =0{이 폴더를 앱 휴지통으로 옮겨요.} other{이 폴더와 안의 노트 {n}개를 앱 휴지통으로 옮겨요.}}",
-  "@folderDeleteBody": {"placeholders": {"n": {"type": "int"}}},
+  "@folderDeleteBody": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "folderDeleteConfirm": "지우기",
   "folderTopLevel": "홈",
   "folderColor": "색상",
   "folderColorDefault": "기본",
   "folderColorOption": "색상 {n}",
-  "@folderColorOption": {"placeholders": {"n": {"type": "int"}}},
+  "@folderColorOption": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "folderMoveTitle": "\"{name}\" 옮길 곳",
-  "@folderMoveTitle": {"placeholders": {"name": {"type": "String"}}},
+  "@folderMoveTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "folderMoved": "\"{name}\" 폴더를 옮겼어요",
-  "@folderMoved": {"placeholders": {"name": {"type": "String"}}},
+  "@folderMoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "folderFailed": "폴더를 바꾸지 못했어요.",
   "noteRename": "이름 변경",
   "noteMove": "이동",
   "noteMoveTitle": "\"{name}\" 옮길 곳",
-  "@noteMoveTitle": {"placeholders": {"name": {"type": "String"}}},
+  "@noteMoveTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "noteMoved": "\"{name}\" 폴더로 옮겼어요",
-  "@noteMoved": {"placeholders": {"name": {"type": "String"}}},
+  "@noteMoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "noteTitleTooLong": "노트 제목은 100자까지예요.",
   "noteActionFailed": "노트를 바꾸지 못했어요.",
   "noteCover": "표지",
   "noteChangeCover": "표지 변경",
   "coverNone": "표지 없음",
   "coverOptionSelected": "표지, {name}, 선택됨",
-  "@coverOptionSelected": {"placeholders": {"name": {"type": "String"}}},
+  "@coverOptionSelected": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "coverOptionUnselected": "표지, {name}",
-  "@coverOptionUnselected": {"placeholders": {"name": {"type": "String"}}},
+  "@coverOptionUnselected": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "exportMenu": "내보내기",
   "exportTitle": "PDF 내보내기",
   "exportRangeAll": "전체",
@@ -536,21 +826,49 @@
   "folderParentCard": "상위 폴더로",
   "folderOpenHint": "폴더를 열어요",
   "folderDropHint": "길게 눌러 다른 폴더 위로 끌면 옮겨요",
-  "selectedCount": "{n}개 선택됨",
-  "@selectedCount": {"placeholders": {"n": {"type": "int"}}},
   "selectCancel": "선택 취소",
   "selectMove": "선택한 노트 이동",
   "selectDelete": "선택한 노트 삭제",
   "notesDeleteBody": "노트 {n}개를 지울까요? 휴지통으로 옮겨져요. 휴지통에서 복구할 수 있어요.",
-  "@notesDeleteBody": {"placeholders": {"n": {"type": "int"}}},
+  "@notesDeleteBody": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "notesMoveTitle": "노트 {n}개 옮길 곳",
-  "@notesMoveTitle": {"placeholders": {"n": {"type": "int"}}},
+  "@notesMoveTitle": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "notesMoved": "노트 {n}개를 \"{name}\" 폴더로 옮겼어요",
-  "@notesMoved": {"placeholders": {"n": {"type": "int"}, "name": {"type": "String"}}},
+  "@notesMoved": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "searchOpen": "검색",
   "pdfImport": "PDF 가져오기",
   "pdfImportProgress": "PDF 가져오는 중 · {done}/{total}페이지",
-  "@pdfImportProgress": {"placeholders": {"done": {"type": "int"}, "total": {"type": "int"}}},
+  "@pdfImportProgress": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "pdfErrTooLarge": "100MB보다 큰 PDF는 가져올 수 없어요.",
   "pdfErrTooManyPages": "500페이지보다 긴 PDF는 가져올 수 없어요.",
   "pdfErrEncrypted": "암호가 걸린 PDF는 가져올 수 없어요.",
@@ -590,26 +908,109 @@
   "trashGone": "이미 없어진 항목이에요.",
   "trashFailed": "처리하지 못했어요. 다시 시도해 주세요.",
   "trashNotes": "노트 {n}개",
-  "@trashNotes": {"placeholders": {"n": {"type": "int"}}},
+  "@trashNotes": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "trashKindNote": "노트",
   "trashKindFolder": "폴더",
   "trashItemSemantics": "{name}, {kind}, {date}에 지움",
-  "@trashItemSemantics": {"placeholders": {"name": {"type": "String"}, "kind": {"type": "String"}, "date": {"type": "String"}}},
+  "@trashItemSemantics": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "kind": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "trashItemMenu": "{name} 메뉴",
-  "@trashItemMenu": {"placeholders": {"name": {"type": "String"}}},
+  "@trashItemMenu": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "trashCannotOpen": "열 수 없음",
   "noteDeleted": "\"{title}\" 노트를 휴지통으로 옮겼어요.",
-  "@noteDeleted": {"placeholders": {"title": {"type": "String"}}},
+  "@noteDeleted": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "notesDeleted": "노트 {n}개를 휴지통으로 옮겼어요.",
-  "@notesDeleted": {"placeholders": {"n": {"type": "int"}}},
+  "@notesDeleted": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "folderDeleted": "\"{name}\" 폴더를 휴지통으로 옮겼어요.",
-  "@folderDeleted": {"placeholders": {"name": {"type": "String"}}},
+  "@folderDeleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "itemsDeleteBody": "{n}개 항목을 지울까요? 폴더는 안의 노트와 함께 휴지통으로 옮겨져요. 휴지통에서 복구할 수 있어요.",
-  "@itemsDeleteBody": {"placeholders": {"n": {"type": "int"}}},
+  "@itemsDeleteBody": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "itemsMoveTitle": "항목 {n}개 옮길 곳",
-  "@itemsMoveTitle": {"placeholders": {"n": {"type": "int"}}},
+  "@itemsMoveTitle": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "itemsMoved": "항목 {n}개를 \"{name}\" 폴더로 옮겼어요",
-  "@itemsMoved": {"placeholders": {"n": {"type": "int"}, "name": {"type": "String"}}},
+  "@itemsMoved": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "itemsDeleted": "항목 {n}개를 휴지통으로 옮겼어요.",
-  "@itemsDeleted": {"placeholders": {"n": {"type": "int"}}}
+  "@itemsDeleted": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "brushAdvanced": "고급 브러시 설정",
+  "brushPressureOwn": "이 펜 전용 필압 곡선",
+  "brushTiltTarget": "기울기가 바꾸는 것",
+  "brushTiltNone": "없음",
+  "brushTiltSize": "굵기",
+  "brushTiltOpacity": "농도",
+  "brushOpacity": "농도",
+  "brushTexture": "질감",
+  "brushTexturePlain": "매끈하게",
+  "brushTexturePencil": "연필 결",
+  "tiltCurveGraph": "기울기 곡선 그래프. 방향키로 점을 옮기거나 끌어서 옮겨요",
+  "tiltCurveIn": "기울기",
+  "tiltCurveOut": "효과",
+  "tiltCurvePad": "기울기 시험판. 펜을 여러 각도로 세워 그어 보세요"
 }

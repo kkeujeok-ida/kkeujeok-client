@@ -53,7 +53,8 @@ List smoothPoints(List points, int level) {
                   : old[i][j] +
                         0.5 * ((old[i - 1][j] + old[i + 1][j]) / 2 - old[i][j]),
             if (old[i].length == 6) ...[
-              old[i][4] + 0.5 * ((old[i - 1][4] + old[i + 1][4]) / 2 - old[i][4]),
+              old[i][4] +
+                  0.5 * ((old[i - 1][4] + old[i + 1][4]) / 2 - old[i][4]),
               _arc(old[i][5], _arc(old[i - 1][5], old[i + 1][5], 0.5), 0.5),
             ],
           ],

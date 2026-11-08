@@ -2384,6 +2384,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     'width': _pen.width,
     // A straightened line has the tool's width, no pressure.
     'usePressure': _pen.usePressure && !_straight,
+    if (_pen.brush != null) 'brush': copyJsonValue(_pen.brush),
     'points': points,
   };
 

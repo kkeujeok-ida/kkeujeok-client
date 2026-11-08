@@ -1711,4 +1711,48 @@ class AppLocalizationsEn extends AppLocalizations {
   String itemsDeleted(int n) {
     return 'Moved $n items to the trash.';
   }
+
+  @override
+  String get brushAdvanced => 'Advanced brush settings';
+
+  @override
+  String get brushPressureOwn => 'Own pressure curve';
+
+  @override
+  String get brushTiltTarget => 'Tilt changes';
+
+  @override
+  String get brushTiltNone => 'Nothing';
+
+  @override
+  String get brushTiltSize => 'Width';
+
+  @override
+  String get brushTiltOpacity => 'Opacity';
+
+  @override
+  String get brushOpacity => 'Opacity';
+
+  @override
+  String get brushTexture => 'Texture';
+
+  @override
+  String get brushTexturePlain => 'Plain';
+
+  @override
+  String get brushTexturePencil => 'Pencil grain';
+
+  @override
+  String get tiltCurveGraph =>
+      'Tilt curve graph. Move a point with the arrow keys or drag it';
+
+  @override
+  String get tiltCurveIn => 'Tilt';
+
+  @override
+  String get tiltCurveOut => 'Effect';
+
+  @override
+  String get tiltCurvePad =>
+      'Tilt test pad. Draw with a pen held at different angles';
 }
