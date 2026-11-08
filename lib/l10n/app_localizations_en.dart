@@ -1623,4 +1623,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String folderDeleted(String name) {
     return 'Moved folder \"$name\" to the trash.';
   }
+
+  @override
+  String itemsDeleteBody(int n) {
+    return 'Delete $n items? Folders go to the trash with their notes. You can restore them from the trash.';
+  }
+
+  @override
+  String itemsMoveTitle(int n) {
+    return 'Move $n items to';
+  }
+
+  @override
+  String itemsMoved(int n, String name) {
+    return 'Moved $n items to \"$name\"';
+  }
+
+  @override
+  String itemsDeleted(int n) {
+    return 'Moved $n items to the trash.';
+  }
 }

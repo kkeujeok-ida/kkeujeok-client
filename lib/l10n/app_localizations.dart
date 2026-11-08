@@ -2839,6 +2839,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Moved folder \"{name}\" to the trash.'**
   String folderDeleted(String name);
+
+  /// No description provided for @itemsDeleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete {n} items? Folders go to the trash with their notes. You can restore them from the trash.'**
+  String itemsDeleteBody(int n);
+
+  /// No description provided for @itemsMoveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Move {n} items to'**
+  String itemsMoveTitle(int n);
+
+  /// No description provided for @itemsMoved.
+  ///
+  /// In en, this message translates to:
+  /// **'Moved {n} items to \"{name}\"'**
+  String itemsMoved(int n, String name);
+
+  /// No description provided for @itemsDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Moved {n} items to the trash.'**
+  String itemsDeleted(int n);
 }
 
 class _AppLocalizationsDelegate

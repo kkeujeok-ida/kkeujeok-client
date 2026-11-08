@@ -2,9 +2,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
@@ -12,24 +10,22 @@ import '../library/trash_service.dart';
 import '../model/note.dart';
 import '../render/page_painter.dart';
 import 'providers.dart';
+import 'kk.dart';
 import 'snack.dart';
 
-String _date(BuildContext context, String iso) {
-  final at = DateTime.tryParse(iso);
-  return at == null
-      ? ''
-      : DateFormat.yMd(Localizations.localeOf(context).toString())
-            .format(at.toLocal());
-}
-
 /// Restores [e] and shows the snackbar; true when the item is back (or gone).
-Future<bool> _restore(BuildContext context, WidgetRef ref, TrashEntry e) async {
+Future<bool> restoreTrashEntry(
+  BuildContext context,
+  WidgetRef ref,
+  TrashEntry e,
+) async {
   final l = AppLocalizations.of(context);
   final messenger = ScaffoldMessenger.of(context);
   // Read before the await: the screen may be gone when the restore ends.
   final service = ref.read(trashServiceProvider);
   final tree = ref.read(folderTreeProvider.notifier);
   final receiver = ref.read(noteReceiverProvider);
+  final coordinator = ref.read(uploadCoordinatorProvider);
   TrashOutcome r;
   try {
     r = await service.restore(e);
@@ -48,310 +44,16 @@ Future<bool> _restore(BuildContext context, WidgetRef ref, TrashEntry e) async {
   if (r == TrashOutcome.failed) return false;
   // Folders and the receive pick up a restored item.
   unawaited(tree.refresh());
-  unawaited(receiver.check().catchError((_) {}));
+  // A restored note comes down as a new note; whatever it leaves unsent goes
+  // up as soon as the receive is done (it showed "저장 대기" until a restart).
+  unawaited(
+    receiver
+        .check()
+        .catchError((_) {})
+        .then((_) => e.isFolder ? null : coordinator.noteClosed(e.id))
+        .catchError((_) {}),
+  );
   return true;
-}
-
-class TrashScreen extends ConsumerStatefulWidget {
-  const TrashScreen({super.key});
-
-  @override
-  ConsumerState<TrashScreen> createState() => _TrashScreenState();
-}
-
-class _TrashScreenState extends ConsumerState<TrashScreen> {
-  List<TrashEntry>? _entries;
-  bool _failed = false;
-  bool _busy = false;
-  String? _purging; // entry id waiting for the second tap
-  bool _confirmEmpty = false;
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_load());
-  }
-
-  Future<void> _load() async {
-    try {
-      final list = await ref.read(trashServiceProvider).list();
-      if (mounted) {
-        setState(() {
-          _entries = list;
-          _failed = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _entries = null;
-          _failed = true;
-        });
-      }
-    }
-  }
-
-  void _say(String text) => ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(appSnackBar(content: Text(text)));
-
-  Future<void> _guarded(Future<void> Function() body) async {
-    if (_busy) return;
-    setState(() {
-      _busy = true;
-      _purging = null;
-      _confirmEmpty = false;
-    });
-    try {
-      await body();
-    } catch (_) {
-      if (mounted) _say(AppLocalizations.of(context).trashFailed);
-    }
-    if (mounted) setState(() => _busy = false);
-    await _load();
-  }
-
-  Future<void> _restoreOne(TrashEntry e) =>
-      _guarded(() async => _restore(context, ref, e));
-
-  Future<void> _purge(TrashEntry e) => _guarded(() async {
-    final r = await ref.read(trashServiceProvider).purge(e);
-    if (r == TrashOutcome.failed && mounted) {
-      _say(AppLocalizations.of(context).trashFailed);
-    }
-  });
-
-  Future<void> _empty() => _guarded(() async {
-    final left = await ref.read(trashServiceProvider).empty(_entries ?? []);
-    if (left.isNotEmpty && mounted) {
-      _say(AppLocalizations.of(context).trashFailed);
-    }
-  });
-
-  Future<void> _open(TrashEntry e) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => TrashedNoteScreen(entry: e)),
-    );
-    if (mounted) await _load();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l = AppLocalizations.of(context);
-    final entries = _entries;
-    final Widget body;
-    if (entries == null) {
-      body = _failed
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(l.trashFailed),
-                  TextButton(onPressed: _load, child: Text(l.retry)),
-                ],
-              ),
-            )
-          : const Center(child: CircularProgressIndicator());
-    } else if (entries.isEmpty) {
-      body = Center(child: Text(l.trashEmpty));
-    } else {
-      body = ListView(
-        children: [
-          for (final e in entries)
-            _TrashRow(
-              key: ValueKey(e.id),
-              entry: e,
-              confirmingPurge: _purging == e.id,
-              busy: _busy,
-              onOpen: e.isFolder ? null : () => _open(e),
-              onRestore: () => _restoreOne(e),
-              onPurgeStart: () => setState(() {
-                _purging = e.id;
-                _confirmEmpty = false;
-              }),
-              onPurgeCancel: () => setState(() => _purging = null),
-              onPurge: () => _purge(e),
-            ),
-        ],
-      );
-    }
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l.trash),
-        actions: [
-          if (entries != null && entries.isNotEmpty)
-            TextButton(
-              onPressed: _busy
-                  ? null
-                  : _confirmEmpty
-                  ? _empty
-                  : () => setState(() {
-                      _confirmEmpty = true;
-                      _purging = null;
-                    }),
-              child: Text(
-                _confirmEmpty ? l.trashEmptyConfirm : l.trashEmptyAction,
-              ),
-            ),
-          if (_confirmEmpty)
-            IconButton(
-              tooltip: l.cancel,
-              icon: const Icon(Icons.close),
-              onPressed: () => setState(() => _confirmEmpty = false),
-            ),
-        ],
-      ),
-      body: SafeArea(child: body),
-    );
-  }
-}
-
-class _TrashRow extends StatelessWidget {
-  const _TrashRow({
-    super.key,
-    required this.entry,
-    required this.confirmingPurge,
-    required this.busy,
-    required this.onOpen,
-    required this.onRestore,
-    required this.onPurgeStart,
-    required this.onPurgeCancel,
-    required this.onPurge,
-  });
-
-  final TrashEntry entry;
-  final bool confirmingPurge;
-  final bool busy;
-  final VoidCallback? onOpen;
-  final VoidCallback onRestore;
-  final VoidCallback onPurgeStart;
-  final VoidCallback onPurgeCancel;
-  final VoidCallback onPurge;
-
-  @override
-  Widget build(BuildContext context) {
-    final l = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final date = _date(context, entry.trashedAt);
-    final kind = entry.isFolder ? l.trashKindFolder : l.trashKindNote;
-    final sub = entry.isFolder
-        ? '${l.trashNotes(entry.noteCount)} · $date'
-        : date;
-    const hit = Size(0, KkjTokens.spacingHitMinAndroid);
-    final Widget trailing = confirmingPurge
-        ? Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FilledButton(
-                style: FilledButton.styleFrom(minimumSize: hit),
-                onPressed: busy ? null : onPurge,
-                child: Text(l.trashPurgeConfirm),
-              ),
-              IconButton(
-                tooltip: l.cancel,
-                constraints: const BoxConstraints(
-                  minWidth: KkjTokens.spacingHitMinAndroid,
-                  minHeight: KkjTokens.spacingHitMinAndroid,
-                ),
-                icon: const Icon(Icons.close),
-                onPressed: onPurgeCancel,
-              ),
-            ],
-          )
-        : PopupMenuButton<bool>(
-            tooltip: l.trashItemMenu(entry.title),
-            enabled: !busy,
-            onSelected: (restore) => restore ? onRestore() : onPurgeStart(),
-            itemBuilder: (_) => [
-              PopupMenuItem(value: true, child: Text(l.trashRestore)),
-              PopupMenuItem(value: false, child: Text(l.trashPurge)),
-            ],
-          );
-    return Semantics(
-      container: true,
-      label: l.trashItemSemantics(entry.title, kind, date),
-      customSemanticsActions: {
-        CustomSemanticsAction(label: l.trashRestore): onRestore,
-        CustomSemanticsAction(label: l.trashPurge): onPurgeStart,
-      },
-      child: InkWell(
-        onTap: onOpen,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            minHeight: KkjTokens.spacingHitMinAndroid,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: KkjTokens.spacing4,
-              vertical: KkjTokens.spacing2,
-            ),
-            child: Row(
-              children: [
-                // Cover card: the trashed note has no device copy, so no
-                // thumbnail; the badge marks it as a trash item.
-                ExcludeSemantics(
-                  child: SizedBox(
-                    width: KkjTokens.spacing7 * 1.5,
-                    height: KkjTokens.spacing7 * 2,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(
-                          KkjTokens.roundedSm,
-                        ),
-                      ),
-                      child: Stack(
-                        children: [
-                          Center(
-                            child: Icon(
-                              entry.isFolder ? Icons.folder : Icons.description,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          if (!entry.isFolder)
-                            PositionedDirectional(
-                              bottom: KkjTokens.spacing1,
-                              start: KkjTokens.spacing1,
-                              child: Text(
-                                l.trash,
-                                style: theme.textTheme.labelSmall,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: KkjTokens.spacing3),
-                Expanded(
-                  child: ExcludeSemantics(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          entry.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelLarge,
-                        ),
-                        Text(
-                          sub,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                trailing,
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 /// A trashed note, read-only and from memory: downloaded by file id, never
@@ -386,7 +88,7 @@ class _TrashedNoteScreenState extends ConsumerState<TrashedNoteScreen> {
     if (_busy) return;
     setState(() => _busy = true);
     final nav = Navigator.of(context);
-    final ok = await _restore(context, ref, widget.entry);
+    final ok = await restoreTrashEntry(context, ref, widget.entry);
     if (!mounted) return;
     setState(() => _busy = false);
     if (ok) nav.pop();
@@ -397,38 +99,62 @@ class _TrashedNoteScreenState extends ConsumerState<TrashedNoteScreen> {
     final l = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(widget.entry.title)),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Semantics(
+      appBar: AppBar(
+        title: Text(widget.entry.title, overflow: TextOverflow.ellipsis),
+        actions: [
+          // The notice is a compact chip in the brand color, as wide as it
+          // needs to be, at the end of the title bar.
+          Flexible(
+            child: Semantics(
               container: true,
               liveRegion: true,
-              child: Material(
-                color: theme.colorScheme.secondaryContainer,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: KkjTokens.spacing4,
-                    vertical: KkjTokens.spacing2,
+              child: Padding(
+                padding: const EdgeInsetsDirectional.only(
+                  end: KkjTokens.spacing3,
+                ),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Kk.colorAccentSoft,
+                    borderRadius: BorderRadius.circular(KkjTokens.roundedSm),
                   ),
-                  child: Row(
-                    children: [
-                      Expanded(child: Text(l.trashNoteBanner)),
-                      TextButton(
-                        style: TextButton.styleFrom(
-                          minimumSize: const Size(
-                            0,
-                            KkjTokens.spacingHitMinAndroid,
+                  child: Padding(
+                    padding: const EdgeInsetsDirectional.only(
+                      start: KkjTokens.spacing3,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            l.trashNoteBanner,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: Kk.colorAccentText,
+                            ),
                           ),
                         ),
-                        onPressed: _busy ? null : _restoreIt,
-                        child: Text(l.trashRestore),
-                      ),
-                    ],
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            foregroundColor: Kk.colorAccentText,
+                            minimumSize: const Size(
+                              0,
+                              KkjTokens.spacingHitMinAndroid,
+                            ),
+                          ),
+                          onPressed: _busy ? null : _restoreIt,
+                          child: Text(l.trashRestore),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
             Expanded(
               child: FutureBuilder<NoteReadResult>(
                 future: _note,

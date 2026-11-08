@@ -12,7 +12,14 @@ enum _Action { rename, move, delete }
 
 /// "모든 노트" and the folder tree of the sidebar (Story 7.5).
 class FolderSidebarSection extends ConsumerStatefulWidget {
-  const FolderSidebarSection({super.key, this.onSelected});
+  const FolderSidebarSection({
+    super.key,
+    this.onSelected,
+    this.hideSelection = false,
+  });
+
+  /// The trash is shown: no folder row carries the selection mark.
+  final bool hideSelection;
 
   /// Called after a folder (or "모든 노트") was chosen: a drawer closes.
   final VoidCallback? onSelected;
@@ -74,7 +81,8 @@ class _SectionState extends ConsumerState<FolderSidebarSection> {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final view = ref.watch(folderTreeProvider).value ?? const FolderView();
-    final cur = ref.watch(effectiveFolderProvider);
+    final picked = ref.watch(effectiveFolderProvider);
+    final cur = widget.hideSelection ? 'trash!' : picked;
     final homeOpen = _expanded.contains('root');
     return ListView(
       children: [

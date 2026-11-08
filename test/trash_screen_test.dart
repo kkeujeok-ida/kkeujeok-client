@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/l10n/app_localizations.dart';
 import 'package:kkeujeok/library/trash_service.dart';
 import 'package:kkeujeok/ui/providers.dart';
-import 'package:kkeujeok/ui/trash_screen.dart';
+import 'package:kkeujeok/ui/library.dart';
 
 class _Trash implements TrashService {
   _Trash(this.entries);
@@ -36,7 +36,7 @@ Future<void> _pump(WidgetTester t, _Trash svc) => t.pumpWidget(
       locale: Locale('ko'),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      home: TrashScreen(),
+      home: Scaffold(body: TrashView()),
     ),
   ),
 );
@@ -80,5 +80,37 @@ void main() {
     await t.pumpAndSettle();
     expect(svc.purged, ['n1']);
     expect(find.text('필기'), findsNothing);
+  });
+
+  testWidgets('search filters the trash; folders come before notes', (t) async {
+    final svc = _Trash([
+      const TrashEntry(
+        isFolder: false,
+        id: 'n1',
+        fileId: 'f1',
+        title: '필기',
+        trashedAt: '2026-10-30T00:00:00.000Z',
+      ),
+      const TrashEntry(
+        isFolder: true,
+        id: 'd1',
+        fileId: 'f2',
+        title: '수업',
+        trashedAt: '2026-10-29T00:00:00.000Z',
+        noteCount: 3,
+      ),
+    ]);
+    await _pump(t, svc);
+    await t.pumpAndSettle();
+    expect(
+      t.getTopLeft(find.text('수업').first).dy,
+      lessThan(t.getTopLeft(find.text('필기').first).dy),
+    );
+    await t.tap(find.byKey(const Key('searchOpen')));
+    await t.pumpAndSettle();
+    await t.enterText(find.byKey(const Key('searchField')), '필기');
+    await t.pumpAndSettle();
+    expect(find.text('수업'), findsNothing);
+    expect(find.byTooltip('필기 메뉴'), findsOneWidget);
   });
 }

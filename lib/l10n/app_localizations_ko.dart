@@ -1540,4 +1540,24 @@ class AppLocalizationsKo extends AppLocalizations {
   String folderDeleted(String name) {
     return '\"$name\" 폴더를 휴지통으로 옮겼어요.';
   }
+
+  @override
+  String itemsDeleteBody(int n) {
+    return '$n개 항목을 지울까요? 폴더는 안의 노트와 함께 휴지통으로 옮겨져요. 휴지통에서 복구할 수 있어요.';
+  }
+
+  @override
+  String itemsMoveTitle(int n) {
+    return '항목 $n개 옮길 곳';
+  }
+
+  @override
+  String itemsMoved(int n, String name) {
+    return '항목 $n개를 \"$name\" 폴더로 옮겼어요';
+  }
+
+  @override
+  String itemsDeleted(int n) {
+    return '항목 $n개를 휴지통으로 옮겼어요.';
+  }
 }

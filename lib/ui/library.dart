@@ -16,7 +16,10 @@ import 'snack.dart';
 import '../design_tokens/build/tokens.dart';
 import '../drive/root_folder.dart' show RootStatus;
 import '../library/folder_service.dart' show FolderView, LibraryFolder;
-import '../library/trash_service.dart' show TrashService;
+import '../library/library_rules.dart'
+    show libraryKey, libraryNameCompare, libraryTrim;
+import '../library/trash_service.dart'
+    show TrashEntry, TrashOutcome, TrashService;
 import '../storage/note_store.dart' show NoteSaveException;
 import '../storage/pdf_intake.dart' show PdfImportException, takeSharedPdf;
 import 'folder_colors.dart';
@@ -45,8 +48,11 @@ import '../storage/hint_store.dart';
 import 'handed_menu.dart';
 import 'providers.dart';
 import 'sync_banner.dart';
+import 'trash_screen.dart' show TrashedNoteScreen, restoreTrashEntry;
 import 'sync_display.dart';
 import 'sync_indicator.dart';
+
+part 'trash_view.dart';
 
 // View sizes are fractions of the cover column minimum (web uses the same).
 const _gridFactor = {
@@ -247,14 +253,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   // Selection mode (Story 18.4): note ids picked by a long press.
   final _selected = <String>{};
-  bool get _selecting => _selected.isNotEmpty;
+
+  /// Folders picked the same way; a pick holds notes and folders together.
+  final _selectedFolders = <String>{};
+  bool get _selecting => _selected.isNotEmpty || _selectedFolders.isNotEmpty;
+  int get _selectedTotal => _selected.length + _selectedFolders.length;
 
   void _announceSelected() {
     if (!mounted) return;
     unawaited(
       SemanticsService.sendAnnouncement(
         View.of(context),
-        AppLocalizations.of(context).selectedCount(_selected.length),
+        AppLocalizations.of(context).selectedCount(_selectedTotal),
         Directionality.of(context),
         assertiveness: Assertiveness.polite,
       ),
@@ -268,8 +278,36 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     _announceSelected();
   }
 
+  void _toggleSelectFolder(String id) {
+    setState(
+      () => _selectedFolders.contains(id)
+          ? _selectedFolders.remove(id)
+          : _selectedFolders.add(id),
+    );
+    _announceSelected();
+  }
+
   void _clearSelect() {
-    if (_selected.isNotEmpty) setState(_selected.clear);
+    if (_selecting) {
+      setState(() {
+        _selected.clear();
+        _selectedFolders.clear();
+      });
+    }
+  }
+
+  /// The selected folders that still exist and are not inside another
+  /// selected folder (those travel with it).
+  List<String> _selectedFoldersNow() {
+    final tree = ref.read(folderTreeProvider).value ?? const FolderView();
+    final live = [
+      for (final id in _selectedFolders)
+        if (tree.folder(id) != null) id,
+    ];
+    return [
+      for (final id in live)
+        if (!live.any((o) => o != id && tree.isInside(id, o))) id,
+    ];
   }
 
   /// The selected notes that are still in the list.
@@ -283,40 +321,103 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   Future<void> _deleteSelected() => _guarded(() async {
     final ids = _selectedNow();
-    if (ids.isEmpty) return;
+    final folderIds = _selectedFoldersNow();
+    if (ids.isEmpty && folderIds.isEmpty) return;
     final l = AppLocalizations.of(context);
+    final mixed = folderIds.isNotEmpty;
+    final total = ids.length + folderIds.length;
     final ok = await showConfirmDialog(
       context,
-      body: l.notesDeleteBody(ids.length),
+      body: mixed ? l.itemsDeleteBody(total) : l.notesDeleteBody(ids.length),
       confirm: l.noteDeleteConfirm,
     );
     if (!ok || !mounted) return;
+    final tree = ref.read(folderTreeProvider.notifier);
+    final trash = ref.read(trashServiceProvider);
+    final messenger = ScaffoldMessenger.of(context);
     _clearSelect();
-    await _trashNotes(ids, l.notesDeleted(ids.length));
+    for (final id in folderIds) {
+      await tree.delete(id);
+    }
+    if (ids.isNotEmpty) {
+      await _trashNotes(
+        ids,
+        mixed ? l.itemsDeleted(total) : l.notesDeleted(ids.length),
+      );
+    }
+    if (folderIds.isEmpty || !mounted) return;
+    if (ids.isNotEmpty) return; // the notes' snackbar carries [복구]
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        appSnackBar(
+          content: Text(l.itemsDeleted(total)),
+          action: SnackBarAction(
+            label: l.trashRestore,
+            onPressed: () {
+              for (final id in folderIds) {
+                unawaited(tree.undoDelete(id, trash));
+              }
+            },
+          ),
+        ),
+      );
   });
 
   Future<void> _moveSelected() => _guarded(() async {
     final ids = _selectedNow();
-    if (ids.isEmpty) return;
+    final folderIds = _selectedFoldersNow();
+    if (ids.isEmpty && folderIds.isEmpty) return;
     final l = AppLocalizations.of(context);
     final tree = ref.read(folderTreeProvider).value ?? const FolderView();
+    final total = ids.length + folderIds.length;
     final target = await showFolderPicker(
       context,
-      title: l.notesMoveTitle(ids.length),
+      title: folderIds.isEmpty
+          ? l.notesMoveTitle(ids.length)
+          : l.itemsMoveTitle(total),
       view: tree,
+      disabled: {
+        for (final g in tree.folders)
+          if (folderIds.any((f) => tree.isInside(g.id, f))) g.id,
+      },
       selected: null,
     );
     if (target == null || !mounted) return;
-    await _moveNotesTo(ids, target);
+    await _moveNotesTo(ids, target, folderIds: folderIds);
   });
 
-  /// Moves [ids] into [target] ('root' = Home); a snackbar offers [되돌리기].
-  Future<void> _moveNotesTo(List<String> ids, String target) async {
+  /// Pull down: the folders are read from Drive again and the remote changes
+  /// are fetched (a delete or restore made elsewhere shows up).
+  Future<void> _pullRefresh() async {
+    try {
+      await Future.wait([
+        ref.read(folderTreeProvider.notifier).refresh(),
+        ref.read(noteReceiverProvider).check(),
+      ]);
+    } catch (_) {}
+  }
+
+  /// Moves [ids] (notes) and [folderIds] into [target] ('root' = Home); a
+  /// snackbar offers [되돌리기].
+  Future<void> _moveNotesTo(
+    List<String> ids,
+    String target, {
+    List<String> folderIds = const [],
+  }) async {
     final l = AppLocalizations.of(context);
     final tree = ref.read(folderTreeProvider).value ?? const FolderView();
     final notifier = ref.read(folderTreeProvider.notifier);
     final inverses = <Map<String, Object?>>[];
     var failed = false;
+    for (final id in folderIds) {
+      final r = await notifier.move(id, target);
+      if (!r.ok) {
+        failed = true;
+      } else if (r.inverse != null) {
+        inverses.add(r.inverse!);
+      }
+    }
     for (final id in ids) {
       final r = await notifier.moveNote(id, target);
       if (!r.ok) {
@@ -332,11 +433,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final name = target == 'root'
         ? l.folderTopLevel
         : tree.folder(target)!.name;
+    final total = ids.length + folderIds.length;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
         appSnackBar(
-          content: Text(l.notesMoved(ids.length, name)),
+          content: Text(
+            folderIds.isEmpty
+                ? l.notesMoved(ids.length, name)
+                : l.itemsMoved(total, name),
+          ),
           action: SnackBarAction(
             label: l.undo,
             onPressed: () {
@@ -349,11 +455,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       );
   }
 
-  /// A note card was dropped on a folder card or `../`: the whole selection
-  /// moves when the dragged note is part of it.
-  Future<void> _dropNote(String id, String target) => _guarded(() async {
-    final ids = _selected.contains(id) ? _selectedNow() : [id];
-    await _moveNotesTo(ids, target);
+  /// A note or folder card was dropped on a folder card or `../`: the whole
+  /// selection (notes and folders) moves when the dragged card is part of it.
+  Future<void> _dropItem(Object dragged, String target) => _guarded(() async {
+    final tree = ref.read(folderTreeProvider).value ?? const FolderView();
+    final String? note = dragged is _NoteDrag ? dragged.id : null;
+    final String? folder = dragged is LibraryFolder ? dragged.id : null;
+    final inSelection =
+        (note != null && _selected.contains(note)) ||
+        (folder != null && _selectedFolders.contains(folder));
+    final ids = inSelection ? _selectedNow() : [?note];
+    final all = inSelection ? _selectedFoldersNow() : [?folder];
+    // Never into itself or below itself.
+    final folders = [
+      for (final f in all)
+        if (f != target && !tree.isInside(target, f)) f,
+    ];
+    await _moveNotesTo(ids, target, folderIds: folders);
   });
 
   // One sheet or editor route at a time: a second tap while one is opening
@@ -760,9 +878,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       if (up != null)
         _ParentCard(
           canDrop: (_) => true,
-          onDrop: (d) => d is LibraryFolder
-              ? moveFolderTo(context, ref, d, up.parentId)
-              : _dropNote((d as _NoteDrag).id, up.parentId),
+          onDrop: (d) => _dropItem(d, up.parentId),
           onOpen: () =>
               ref.read(currentFolderProvider.notifier).select(up.parentId),
         ),
@@ -771,13 +887,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         _FolderCard(
           key: ValueKey('folder-card-${f.id}'),
           folder: f,
-          onOpen: () => ref.read(currentFolderProvider.notifier).select(f.id),
+          onOpen: () => _selecting
+              ? _toggleSelectFolder(f.id)
+              : ref.read(currentFolderProvider.notifier).select(f.id),
           canDrop: (d) => d is LibraryFolder
               ? d.id != f.id && !tree.isInside(f.id, d.id)
               : d is _NoteDrag,
-          onDrop: (d) => d is LibraryFolder
-              ? moveFolderTo(context, ref, d, f.id)
-              : _dropNote((d as _NoteDrag).id, f.id),
+          onDrop: (d) => _dropItem(d, f.id),
+          selecting: _selecting,
+          selected: _selectedFolders.contains(f.id),
+          onToggleSelect: () => _toggleSelectFolder(f.id),
           onRename: () => renameFolderDialog(context, ref, f),
           onMove: () => moveFolderDialog(context, ref, f),
           onDelete: () => deleteFolderDialog(context, ref, f),
@@ -860,7 +979,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 if (_selecting)
                   _SelectBar(
                     startInset: widget.headerStartInset,
-                    count: _selected.length,
+                    count: _selectedTotal,
                     onCancel: _clearSelect,
                     onMove: _moveSelected,
                     onDelete: _deleteSelected,
@@ -906,7 +1025,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     // A tap on empty space ends the selection.
                     behavior: HitTestBehavior.translucent,
                     onTap: _selecting ? _clearSelect : null,
-                    child: _Grid(view: view, children: cards),
+                    child: RefreshIndicator(
+                      onRefresh: _pullRefresh,
+                      child: _Grid(view: view, children: cards),
+                    ),
                   ),
                 ),
               ],
@@ -979,6 +1101,7 @@ class _Grid extends StatelessWidget {
             : 1;
         final lines = (children.length + cols - 1) ~/ cols;
         return ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.fromLTRB(
             edge,
             0,
@@ -1908,8 +2031,16 @@ class _FolderCard extends ConsumerWidget {
     required this.onRename,
     required this.onMove,
     required this.onDelete,
+    required this.selecting,
+    required this.selected,
+    required this.onToggleSelect,
   });
 
+  /// Selection mode: a long press starts it, a tap toggles (notes and
+  /// folders are picked together).
+  final bool selecting;
+  final bool selected;
+  final VoidCallback onToggleSelect;
   final LibraryFolder folder;
   final VoidCallback onOpen;
   final bool Function(Object dragged) canDrop;
@@ -2072,22 +2203,41 @@ class _FolderCard extends ConsumerWidget {
       onWillAcceptWithDetails: (d) => canDrop(d.data),
       onAcceptWithDetails: (d) => onDrop(d.data),
       builder: (context, hover, _) => _DropFrame(
-        highlight: hover.isNotEmpty,
+        highlight: hover.isNotEmpty || selected,
         child: InkWell(
           onTap: onOpen,
           borderRadius: BorderRadius.circular(
             KkjLight.componentsCoverCardRounded,
           ),
-          child: body,
+          child: Stack(
+            children: [
+              body,
+              if (selecting)
+                PositionedDirectional(
+                  top: KkjTokens.spacing2,
+                  start: KkjTokens.spacing2,
+                  child: Icon(
+                    selected
+                        ? Icons.check_circle
+                        : Icons.radio_button_unchecked,
+                    color: selected
+                        ? Theme.of(context).colorScheme.primary
+                        : Kk.colorInkSecondary,
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
     return Semantics(
       button: true,
       label: folder.name,
-      hint: l.folderOpenHint,
+      hint: selecting ? null : l.folderOpenHint,
+      selected: selecting ? selected : null,
       excludeSemantics: true,
       onTap: onOpen,
+      onLongPress: selected ? null : onToggleSelect,
       customSemanticsActions: {
         CustomSemanticsAction(label: l.folderRename): onRename,
         CustomSemanticsAction(label: l.folderMove): onMove,
@@ -2097,6 +2247,10 @@ class _FolderCard extends ConsumerWidget {
       },
       child: LongPressDraggable<Object>(
         data: folder,
+        // A long press that does not move is the selection gesture.
+        onDragStarted: () {
+          if (!selected) onToggleSelect();
+        },
         feedback: Material(
           color: Colors.transparent,
           child: Chip(

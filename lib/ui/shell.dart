@@ -5,7 +5,6 @@ import '../l10n/app_localizations.dart';
 import 'folder_sidebar.dart';
 import 'library.dart';
 import 'settings.dart';
-import 'trash_screen.dart';
 
 const double expandedMinWidth = 840; // dp: sidebar expanded at or above
 const double collapsedMinWidth = 600; // dp: collapsed rail at or above
@@ -41,10 +40,20 @@ class _ShellState extends State<Shell> {
     nav.push(MaterialPageRoute<void>(builder: (_) => const SettingsScreen()));
   }
 
+  // The trash is a folder-like place of the library: the sidebar stays and
+  // picking any folder leaves it (Story 23.2).
+  bool _trashOpen = false;
+
   void _openTrash() {
-    final nav = Navigator.of(context);
-    if (_scaffoldKey.currentState?.isDrawerOpen ?? false) nav.pop();
-    nav.push(MaterialPageRoute<void>(builder: (_) => const TrashScreen()));
+    if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
+      Navigator.of(context).pop();
+    }
+    setState(() => _trashOpen = true);
+  }
+
+  void _folderSelected() {
+    _closeDrawer();
+    if (_trashOpen) setState(() => _trashOpen = false);
   }
 
   @override
@@ -61,15 +70,15 @@ class _ShellState extends State<Shell> {
       color: sidebarColor,
       onSettings: _openSettings,
       onTrash: _openTrash,
-      onFolderSelected: _closeDrawer,
+      trashOpen: _trashOpen,
+      onFolderSelected: _folderSelected,
     );
 
-    final library = LibraryScreen(
-      // Phone: keep the header clear of the floating menu button.
-      headerStartInset: expanded || collapsed
-          ? 0
-          : KkjTokens.spacingHitMinAndroid,
-    );
+    // Phone: keep the header clear of the floating menu button.
+    final inset = expanded || collapsed ? 0.0 : KkjTokens.spacingHitMinAndroid;
+    final library = _trashOpen
+        ? TrashView(headerStartInset: inset)
+        : LibraryScreen(headerStartInset: inset);
 
     final Widget body;
     if (expanded) {
@@ -150,6 +159,7 @@ class _Sidebar extends StatelessWidget {
     required this.color,
     required this.onSettings,
     required this.onTrash,
+    required this.trashOpen,
     required this.onFolderSelected,
   });
 
@@ -157,6 +167,7 @@ class _Sidebar extends StatelessWidget {
   final Color color;
   final VoidCallback onSettings;
   final VoidCallback onTrash;
+  final bool trashOpen;
   final VoidCallback onFolderSelected;
 
   @override
@@ -180,31 +191,41 @@ class _Sidebar extends StatelessWidget {
                 ),
               ),
             ),
-            Expanded(child: FolderSidebarSection(onSelected: onFolderSelected)),
+            Expanded(
+              child: FolderSidebarSection(
+                onSelected: onFolderSelected,
+                hideSelection: trashOpen,
+              ),
+            ),
             Semantics(
               button: true,
               label: l10n.trash,
               excludeSemantics: true,
               onTap: onTrash,
-              child: InkWell(
-                onTap: onTrash,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    minHeight: KkjTokens.spacingHitMinAndroid,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: KkjTokens.spacing4,
+              child: Material(
+                color: trashOpen
+                    ? theme.colorScheme.secondaryContainer
+                    : Colors.transparent,
+                child: InkWell(
+                  onTap: onTrash,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minHeight: KkjTokens.spacingHitMinAndroid,
                     ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.delete_outline,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: KkjTokens.spacing3),
-                        Text(l10n.trash, style: theme.textTheme.bodyMedium),
-                      ],
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: KkjTokens.spacing4,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.delete_outline,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: KkjTokens.spacing3),
+                          Text(l10n.trash, style: theme.textTheme.bodyMedium),
+                        ],
+                      ),
                     ),
                   ),
                 ),

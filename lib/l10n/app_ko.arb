@@ -582,5 +582,13 @@
   "notesDeleted": "노트 {n}개를 휴지통으로 옮겼어요.",
   "@notesDeleted": {"placeholders": {"n": {"type": "int"}}},
   "folderDeleted": "\"{name}\" 폴더를 휴지통으로 옮겼어요.",
-  "@folderDeleted": {"placeholders": {"name": {"type": "String"}}}
+  "@folderDeleted": {"placeholders": {"name": {"type": "String"}}},
+  "itemsDeleteBody": "{n}개 항목을 지울까요? 폴더는 안의 노트와 함께 휴지통으로 옮겨져요. 휴지통에서 복구할 수 있어요.",
+  "@itemsDeleteBody": {"placeholders": {"n": {"type": "int"}}},
+  "itemsMoveTitle": "항목 {n}개 옮길 곳",
+  "@itemsMoveTitle": {"placeholders": {"n": {"type": "int"}}},
+  "itemsMoved": "항목 {n}개를 \"{name}\" 폴더로 옮겼어요",
+  "@itemsMoved": {"placeholders": {"n": {"type": "int"}, "name": {"type": "String"}}},
+  "itemsDeleted": "항목 {n}개를 휴지통으로 옮겼어요.",
+  "@itemsDeleted": {"placeholders": {"n": {"type": "int"}}}
 }
