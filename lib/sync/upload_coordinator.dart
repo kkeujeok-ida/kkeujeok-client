@@ -296,10 +296,17 @@ class UploadCoordinator {
 
   /// Story 7.7: the note is hidden at once; what is unsent goes up, then the
   /// Drive file is trashed. Offline, it is done when the network is back.
-  Future<void> deleteNote(String noteId) async {
+  /// [onHidden] runs as soon as the mark is written, before any network
+  /// call, so the caller can redraw the list without waiting for the upload.
+  Future<void> deleteNote(String noteId, {void Function()? onHidden}) async {
     if (!await uploader.markTrash(noteId)) return;
+    onHidden?.call();
     await _one(noteId);
   }
+
+  /// [되돌리기] of a delete: true when the mark was still there (nothing was
+  /// moved yet) and is gone now.
+  Future<bool> cancelDelete(String noteId) => uploader.cancelTrash(noteId);
 
   Future<void> _trash(String noteId) async {
     if (!await lease.acquire(noteId)) {

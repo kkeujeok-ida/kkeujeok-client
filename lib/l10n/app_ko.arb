@@ -576,5 +576,11 @@
   "@trashItemSemantics": {"placeholders": {"name": {"type": "String"}, "kind": {"type": "String"}, "date": {"type": "String"}}},
   "trashItemMenu": "{name} 메뉴",
   "@trashItemMenu": {"placeholders": {"name": {"type": "String"}}},
-  "trashCannotOpen": "열 수 없음"
+  "trashCannotOpen": "열 수 없음",
+  "noteDeleted": "\"{title}\" 노트를 휴지통으로 옮겼어요.",
+  "@noteDeleted": {"placeholders": {"title": {"type": "String"}}},
+  "notesDeleted": "노트 {n}개를 휴지통으로 옮겼어요.",
+  "@notesDeleted": {"placeholders": {"n": {"type": "int"}}},
+  "folderDeleted": "\"{name}\" 폴더를 휴지통으로 옮겼어요.",
+  "@folderDeleted": {"placeholders": {"name": {"type": "String"}}}
 }

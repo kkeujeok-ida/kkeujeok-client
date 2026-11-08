@@ -502,6 +502,20 @@ class FolderTreeNotifier extends AsyncNotifier<FolderView> {
 
   Future<FolderResult> delete(String id) => _act((s) => s.deleteFolder(id));
 
+  /// [되돌리기] of a folder delete: the queued move is dropped, or the folder
+  /// is restored from the trash when it was sent already.
+  Future<void> undoDelete(String id, TrashService trash) async {
+    final service = ref.read(folderServiceProvider);
+    if (!await service.cancelTrashFolder(id)) {
+      try {
+        await trash.restoreById(id, folder: true);
+      } catch (_) {}
+      await refresh();
+      return;
+    }
+    if (ref.mounted) await _publish();
+  }
+
   Future<FolderResult> undo(Map<String, Object?> inverse) =>
       _act((s) => s.undo(inverse));
 

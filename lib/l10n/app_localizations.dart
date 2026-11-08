@@ -2821,6 +2821,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Cannot open'**
   String get trashCannotOpen;
+
+  /// No description provided for @noteDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Moved \"{title}\" to the trash.'**
+  String noteDeleted(String title);
+
+  /// No description provided for @notesDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Moved {n} notes to the trash.'**
+  String notesDeleted(int n);
+
+  /// No description provided for @folderDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Moved folder \"{name}\" to the trash.'**
+  String folderDeleted(String name);
 }
 
 class _AppLocalizationsDelegate

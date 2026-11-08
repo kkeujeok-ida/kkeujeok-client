@@ -263,6 +263,22 @@ class NoteUploader {
     }
   });
 
+  /// Takes the delete mark back while the note has not left the device.
+  /// False when there is no mark (the note was moved to `.trashbin` already).
+  Future<bool> cancelTrash(String noteId) => _chained(noteId, () async {
+    try {
+      var had = false;
+      await store.updateSync(noteId, (c) {
+        had = c.extra[pendingTrashKey] != null;
+        if (!had) return c;
+        return c.copyWith(extra: {...c.extra}..remove(pendingTrashKey));
+      });
+      return had;
+    } on NoteSaveException {
+      return false;
+    }
+  });
+
   /// Sends what is unsent, moves the Drive file into `.trashbin` (never
   /// `trashed=true`), then removes the local note. False while it must wait
   /// (offline, a failed upload, a conflict): the mark stays and the next
@@ -271,6 +287,7 @@ class NoteUploader {
     try {
       var s = await store.readSync(noteId);
       var mark = s.info.extra[pendingTrashKey];
+      if (mark == null) return false; // cancelled meanwhile
       if (mark is! Map) {
         // The earlier `extra.pendingTrash: true`: migrated to the official
         // field; `from` null = the parent at the time of the move.
@@ -1456,7 +1473,8 @@ class NoteUploader {
             if (e is Map && e['type'] == 'image')
               '${e['asset']}': '${e['ext']}',
         for (final p in note.pages)
-          if (p['background'] case {'type': 'pdf', 'asset': final a}) '$a': 'pdf',
+          if (p['background'] case {'type': 'pdf', 'asset': final a})
+            '$a': 'pdf',
       };
       final bytes = <String, List<int>>{};
       for (final h in referenced) {

@@ -100,8 +100,20 @@ String? _goneKind(SyncInfo i) {
   if (i.state != SyncState.error || i.lastError?['class'] != 'deleted') {
     return null;
   }
-  return i.lastError?['reason'] == 'trashed' ? 'trashed' : 'removed';
+  return switch (i.lastError?['reason']) {
+    'trashed' => 'trashed',
+    'binned' => 'binned',
+    _ => 'removed',
+  };
 }
+
+/// A live note file that another device moved into `.trashbin` (the app
+/// trash writes `trashedAt` there and clears it on restore).
+bool _binned(DriveFile? f) =>
+    f != null &&
+    f.mimeType == noteMimeType &&
+    !f.trashed &&
+    (f.appProperties['trashedAt'] ?? '') != '';
 
 /// An `unreadable` note whose Drive file has another head now.
 bool _recoverable(SyncInfo i, String? head) =>
@@ -453,8 +465,9 @@ class NoteReceiver {
       if (f?.mimeType == 'application/vnd.google-apps.folder') {
         folderChanged = true;
       }
-      if (c.removed || f == null || f.trashed) {
+      if (c.removed || f == null || f.trashed || _binned(f)) {
         gone.add(c.fileId);
+        if (_binned(f)) folderChanged = true; // the library tree hides it
         if (owners == null) {
           owners = {};
           for (final id in await store.ids()) {
@@ -468,7 +481,11 @@ class NoteReceiver {
           goneNotes.add((
             id: owner,
             fileId: c.fileId,
-            kind: c.removed || f == null ? 'removed' : 'trashed',
+            kind: c.removed || f == null
+                ? 'removed'
+                : f.trashed
+                ? 'trashed'
+                : 'binned',
           ));
         }
         continue;
@@ -983,7 +1000,19 @@ class NoteReceiver {
     required bool announce,
   }) async {
     var k = kind;
-    if (k == 'trashed') {
+    if (k == 'binned') {
+      // Moved back out of `.trashbin`: to where it came from, else the top.
+      try {
+        await _call(
+          id,
+          () => _moveOutOfBin(fileId),
+          pass: (e) => e.kind == 'http' && e.status == 404,
+        );
+        k = 'trashed'; // only the label: the file is live again
+      } on DriveError {
+        k = 'removed';
+      }
+    } else if (k == 'trashed') {
       try {
         await _call(
           id,
@@ -1011,6 +1040,34 @@ class NoteReceiver {
     }
     if (announce) _emit((s) => s.copyWith(revived: s.revived + 1));
     _bump();
+  }
+
+  /// `trash.restoreNote` for a note this device wants back: the file leaves
+  /// `.trashbin` for its `trashedFrom` folder (else the top level) and the
+  /// trash marks are cleared.
+  Future<void> _moveOutOfBin(String fileId) async {
+    final cur = await drive.get(fileId, fields: 'id,parents,appProperties');
+    final root = (await device.read()).rootFolderId;
+    final from = cur.appProperties['trashedFrom'];
+    var target = root;
+    if (from != null && from != '' && from != 'root' && from != 'trashbin') {
+      final found = (await drive.list(
+        kkeujeokIdQuery(from),
+        fields: 'id,trashed,parents',
+      )).files.where((f) => !f.trashed);
+      // An origin inside the bin is no destination.
+      if (found.isNotEmpty &&
+          found.first.parents.every((p) => !cur.parents.contains(p))) {
+        target = found.first.id;
+      }
+    }
+    if (target == null) throw DriveError('http', status: 404);
+    await drive.update(
+      fileId,
+      addParents: target,
+      removeParents: cur.parents.join(','),
+      appProperties: {'trashedFrom': null, 'trashedAt': null},
+    );
   }
 
   /// One decision for a note whose file is gone, inside its chain; true =
@@ -1136,9 +1193,16 @@ class NoteReceiver {
       try {
         final f = await _call(
           id,
-          () => drive.get(fileId, fields: 'headRevisionId,trashed'),
+          () => drive.get(
+            fileId,
+            fields: 'headRevisionId,trashed,mimeType,appProperties',
+          ),
         );
-        if (f.trashed) kind = 'trashed';
+        if (f.trashed) {
+          kind = 'trashed';
+        } else if (_binned(f)) {
+          kind = 'binned';
+        }
       } on _Failure catch (e) {
         if (_transient.contains(e.cls)) rethrow;
         if (e.cls != 'deleted') {
@@ -1226,7 +1290,10 @@ class NoteReceiver {
     try {
       f = await _call(
         noteId,
-        () => drive.get(fileId, fields: 'headRevisionId,trashed'),
+        () => drive.get(
+          fileId,
+          fields: 'headRevisionId,trashed,mimeType,appProperties',
+        ),
       );
     } on _Failure catch (e) {
       if (e.cls != 'deleted') rethrow;
@@ -1235,6 +1302,7 @@ class NoteReceiver {
     await _guard(sub);
     final head = f.headRevisionId;
     if (f.trashed) return _fileGone(sub, noteId, fileId, 'trashed');
+    if (_binned(f)) return _fileGone(sub, noteId, fileId, 'binned');
     final probe = DriveFile(
       id: fileId,
       appProperties: {'kkeujeokId': noteId},

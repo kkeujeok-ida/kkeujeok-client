@@ -91,6 +91,30 @@ void main() {
       },
     );
 
+    test('moved into .trashbin by another device: the copy goes', () async {
+      final r = await synced();
+      env.note.appProperties['trashedAt'] = '2026-11-08T00:00:00.000Z';
+      env.drive.moveForeign(env.note, env.root.id);
+      await r.check();
+      expect(env.noteDir.existsSync(), isFalse);
+      final err = (await env.events()).where((e) => e['event'] == 'error');
+      expect(err.single['reason'], 'binned');
+    });
+
+    test('an open note moved into .trashbin gets the banner; revive moves it'
+        ' back', () async {
+      final r = await synced();
+      openEditor();
+      env.note.appProperties['trashedAt'] = '2026-11-08T00:00:00.000Z';
+      env.note.appProperties['trashedFrom'] = 'root';
+      env.drive.moveForeign(env.note, env.root.id);
+      await r.noteOpened(noteId);
+      expect(env.info.lastError?['reason'], 'binned');
+      await r.revive(noteId);
+      expect(env.info.lastError, isNull);
+      expect(env.note.appProperties.containsKey('trashedAt'), isFalse);
+    });
+
     test('deleted for good: the same', () async {
       final r = await synced();
       env.drive.removeForeign(env.note);

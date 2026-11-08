@@ -16,6 +16,7 @@ import 'snack.dart';
 import '../design_tokens/build/tokens.dart';
 import '../drive/root_folder.dart' show RootStatus;
 import '../library/folder_service.dart' show FolderView, LibraryFolder;
+import '../library/trash_service.dart' show TrashService;
 import '../storage/note_store.dart' show NoteSaveException;
 import '../storage/pdf_intake.dart' show PdfImportException, takeSharedPdf;
 import 'folder_colors.dart';
@@ -31,6 +32,7 @@ import '../render/pdf_pages.dart';
 import '../sync/conflict_notifier.dart' show askConflictPermissionOnce;
 import '../sync/note_receiver.dart';
 import '../sync/receive_scheduler.dart';
+import '../sync/upload_coordinator.dart' show UploadCoordinator;
 import 'cannot_open_sheet.dart';
 import 'cover_art.dart';
 import 'library_fab.dart';
@@ -289,14 +291,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       confirm: l.noteDeleteConfirm,
     );
     if (!ok || !mounted) return;
-    final coordinator = ref.read(uploadCoordinatorProvider);
-    final notifier = ref.read(libraryProvider.notifier);
-    for (final id in ids) {
-      await coordinator.deleteNote(id);
-    }
-    if (!mounted) return;
     _clearSelect();
-    notifier.reload();
+    await _trashNotes(ids, l.notesDeleted(ids.length));
   });
 
   Future<void> _moveSelected() => _guarded(() async {
@@ -565,11 +561,67 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       confirm: l.noteDeleteConfirm,
     );
     if (!ok || !mounted) return;
+    final title = ref
+        .read(libraryProvider)
+        .value
+        ?.where((e) => e.noteId == noteId)
+        .firstOrNull
+        ?.note
+        ?.title;
+    await _trashNotes([noteId], l.noteDeleted(title ?? ''));
+  });
+
+  /// Hides [ids] at once (the list is redrawn before any network call), lets
+  /// the uploads and the Drive moves run on, and offers [복구].
+  Future<void> _trashNotes(List<String> ids, String text) async {
+    final l = AppLocalizations.of(context);
     final coordinator = ref.read(uploadCoordinatorProvider);
     final notifier = ref.read(libraryProvider.notifier);
-    await coordinator.deleteNote(noteId);
-    if (mounted) notifier.reload();
-  });
+    final trash = ref.read(trashServiceProvider);
+    final tree = ref.read(folderTreeProvider.notifier);
+    final receiver = ref.read(noteReceiverProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    for (final id in ids) {
+      await coordinator.deleteNote(id, onHidden: notifier.reload);
+    }
+    if (!mounted) return;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        appSnackBar(
+          content: Text(text),
+          action: SnackBarAction(
+            label: l.trashRestore,
+            onPressed: () => unawaited(
+              _undoDelete(ids, coordinator, trash, tree, receiver, notifier),
+            ),
+          ),
+        ),
+      );
+  }
+
+  Future<void> _undoDelete(
+    List<String> ids,
+    UploadCoordinator coordinator,
+    TrashService trash,
+    FolderTreeNotifier tree,
+    NoteReceiver receiver,
+    LibraryNotifier notifier,
+  ) async {
+    var moved = false;
+    for (final id in ids) {
+      if (await coordinator.cancelDelete(id)) continue;
+      try {
+        await trash.restoreById(id);
+        moved = true;
+      } catch (_) {}
+    }
+    if (moved) {
+      unawaited(tree.refresh());
+      unawaited(receiver.check().catchError((_) {}));
+    }
+    unawaited(notifier.reload());
+  }
 
   /// The first conflict shown in the foreground asks for the permission of
   /// the background notification, once (UX-DR66).

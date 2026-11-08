@@ -1525,4 +1525,19 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get trashCannotOpen => '열 수 없음';
+
+  @override
+  String noteDeleted(String title) {
+    return '\"$title\" 노트를 휴지통으로 옮겼어요.';
+  }
+
+  @override
+  String notesDeleted(int n) {
+    return '노트 $n개를 휴지통으로 옮겼어요.';
+  }
+
+  @override
+  String folderDeleted(String name) {
+    return '\"$name\" 폴더를 휴지통으로 옮겼어요.';
+  }
 }

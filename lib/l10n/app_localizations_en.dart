@@ -1608,4 +1608,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get trashCannotOpen => 'Cannot open';
+
+  @override
+  String noteDeleted(String title) {
+    return 'Moved \"$title\" to the trash.';
+  }
+
+  @override
+  String notesDeleted(int n) {
+    return 'Moved $n notes to the trash.';
+  }
+
+  @override
+  String folderDeleted(String name) {
+    return 'Moved folder \"$name\" to the trash.';
+  }
 }

@@ -632,5 +632,11 @@
   "@trashItemSemantics": {"placeholders": {"name": {"type": "String"}, "kind": {"type": "String"}, "date": {"type": "String"}}},
   "trashItemMenu": "{name} menu",
   "@trashItemMenu": {"placeholders": {"name": {"type": "String"}}},
-  "trashCannotOpen": "Cannot open"
+  "trashCannotOpen": "Cannot open",
+  "noteDeleted": "Moved \"{title}\" to the trash.",
+  "@noteDeleted": {"placeholders": {"title": {"type": "String"}}},
+  "notesDeleted": "Moved {n} notes to the trash.",
+  "@notesDeleted": {"placeholders": {"n": {"type": "int"}}},
+  "folderDeleted": "Moved folder \"{name}\" to the trash.",
+  "@folderDeleted": {"placeholders": {"name": {"type": "String"}}}
 }

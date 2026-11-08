@@ -219,17 +219,44 @@ class TrashService {
     return TrashOutcome.done;
   }
 
-  /// `trash.emptyTrash`: one by one; a failure does not stop the others.
-  /// Returns the entries that are still in the trash.
+  /// `trash.emptyTrash`: a failure does not stop the others. Returns the
+  /// entries that are still in the trash. Items go [_emptyParallel] at a time
+  /// (each one is two Drive calls; one by one a full bin took minutes).
   Future<List<TrashEntry>> empty(List<TrashEntry> entries) async {
     final left = <TrashEntry>[];
-    for (final e in entries) {
-      try {
-        if (await purge(e) == TrashOutcome.failed) left.add(e);
-      } on DriveError {
-        left.add(e);
+    var next = 0;
+    Future<void> worker() async {
+      while (next < entries.length) {
+        final e = entries[next++];
+        try {
+          if (await purge(e) == TrashOutcome.failed) left.add(e);
+        } on DriveError {
+          left.add(e);
+        }
       }
     }
+
+    await Future.wait([for (var i = 0; i < _emptyParallel; i++) worker()]);
     return left;
+  }
+
+  static const _emptyParallel = 6;
+
+  /// [되돌리기] of a delete that already reached `.trashbin`: finds the item
+  /// there by its id and restores it. [TrashOutcome.gone] when it is not
+  /// there (still on its way, or purged).
+  Future<TrashOutcome> restoreById(String id, {bool folder = false}) async {
+    final found = await _all(kkeujeokIdQuery(id));
+    if (found.isEmpty) return TrashOutcome.gone;
+    final f = found.first;
+    return restore(
+      TrashEntry(
+        isFolder: folder,
+        id: id,
+        fileId: f.id,
+        title: _title(f),
+        trashedAt: f.appProperties['trashedAt'] ?? '',
+      ),
+    );
   }
 }

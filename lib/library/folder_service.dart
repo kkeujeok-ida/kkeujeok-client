@@ -187,6 +187,10 @@ class FolderService {
     return r;
   }
 
+  /// A change of the device record only: atomic under its lock, so it never
+  /// waits for a Drive call in [_run] (a refresh holds the queue for seconds).
+  Future<T> _local<T>(Future<T> Function() body) => body();
+
   // ---- state ---------------------------------------------------------------
 
   static _State _read(SyncDevice d) {
@@ -384,7 +388,7 @@ class FolderService {
 
   Future<FolderResult> createFolder(String name, String parentId) async {
     final id = _newId();
-    final r = await _run(
+    final r = await _local(
       () => _apply(
         (s) => libraryCreateFolder({
           'folders': s.visible(),
@@ -409,7 +413,7 @@ class FolderService {
   }
 
   Future<FolderResult> renameFolder(String id, String name) async {
-    final r = await _run(
+    final r = await _local(
       () => _apply(
         (s) => libraryRenameFolder({
           'folders': s.visible(),
@@ -425,7 +429,7 @@ class FolderService {
   }
 
   Future<FolderResult> moveFolder(String id, String targetParentId) async {
-    final r = await _run(
+    final r = await _local(
       () => _apply(
         (s) => libraryMoveFolder({
           'folders': s.visible(),
@@ -442,7 +446,7 @@ class FolderService {
 
   /// [noteId] moves to [targetParentId]; the note file is not touched.
   Future<FolderResult> moveNote(String noteId, String targetParentId) async {
-    final r = await _run(
+    final r = await _local(
       () => _apply(
         (s) => libraryMoveNote({
           'folders': s.visible(),
@@ -464,7 +468,7 @@ class FolderService {
   Future<FolderResult> deleteFolder(String id) async {
     final now = canonicalNow(_clock());
     late FolderResult out;
-    await _run(() async {
+    await _local(() async {
       await _mutate((s) {
         final f = s.visible().where((x) => x['id'] == id).firstOrNull;
         if (f == null) {
@@ -485,6 +489,18 @@ class FolderService {
       _flushSoon();
     }
     return out;
+  }
+
+  /// [되돌리기] of a folder delete that is still queued: the entry leaves the
+  /// queue and the folder stays. False when it was sent already.
+  Future<bool> cancelTrashFolder(String id) async {
+    var had = false;
+    await _mutate((s) {
+      final n = s.ops.length;
+      s.ops.removeWhere((o) => o['kind'] == 'trashFolder' && o['id'] == id);
+      had = s.ops.length != n;
+    });
+    return had;
   }
 
   /// Runs a stored inverse (the [FolderResult.inverse] of an earlier change).

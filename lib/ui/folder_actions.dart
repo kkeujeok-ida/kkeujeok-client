@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -117,6 +119,23 @@ Future<void> deleteFolderDialog(
     confirm: l10n.folderDeleteConfirm,
   );
   if (!ok || !context.mounted) return;
-  final r = await ref.read(folderTreeProvider.notifier).delete(f.id);
-  if (context.mounted && !r.ok) _failed(context);
+  final messenger = ScaffoldMessenger.of(context);
+  final tree = ref.read(folderTreeProvider.notifier);
+  final trash = ref.read(trashServiceProvider);
+  final r = await tree.delete(f.id);
+  if (!r.ok) {
+    if (context.mounted) _failed(context);
+    return;
+  }
+  messenger
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      appSnackBar(
+        content: Text(l10n.folderDeleted(f.name)),
+        action: SnackBarAction(
+          label: l10n.trashRestore,
+          onPressed: () => unawaited(tree.undoDelete(f.id, trash)),
+        ),
+      ),
+    );
 }
