@@ -532,6 +532,41 @@ final Map<String, void Function(Case)> runners = {
       );
     }
   },
+  'shape.resize': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final s = shapeResize(
+      i['shape'] as Map,
+      i['handle'] as String,
+      List<num>.from(i['to'] as List),
+      i['keepRatio'] as bool,
+    )!;
+    final want = (c['expected'] as Map)['shape'] as Map;
+    final tol = (c['tolerance'] as num).toDouble();
+    expect(s['kind'], want['kind']);
+    final a = s['vertices'] != null
+        ? [for (final v in s['vertices'] as List) ...v as List]
+        : [
+            for (final k in ['x', 'y', 'width', 'height', 'rotation']) s[k],
+          ];
+    final b = want['vertices'] != null
+        ? [for (final v in want['vertices'] as List) ...v as List]
+        : [
+            for (final k in ['x', 'y', 'width', 'height', 'rotation']) want[k],
+          ];
+    for (var k = 0; k < a.length; k++) {
+      expect(
+        ((a[k] as num) - (b[k] as num)).abs() <= tol,
+        isTrue,
+        reason: '$k',
+      );
+    }
+  },
+  'shape.rotate': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final r = shapeRotate(i['shape'] as Map, List<num>.from(i['to'] as List));
+    final want = ((c['expected'] as Map)['rotation'] as num).toDouble();
+    expect((r - want).abs() <= (c['tolerance'] as num).toDouble(), isTrue);
+  },
   'shape.fromDrag': (c) {
     final i = c['input'] as Map<String, dynamic>;
     final s = shapeFromDrag(
@@ -925,8 +960,6 @@ void _runOp(Case c) {
 const pendingRules = <String>{
   // Epic 25/26 (Stories 25.1, 26.1): runners arrive with 25.x and 26.x Android stories.
   'note.shape',
-  'shape.resize',
-  'shape.rotate',
 };
 
 final _sep = Platform.pathSeparator;

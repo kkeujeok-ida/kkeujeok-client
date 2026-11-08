@@ -28,6 +28,7 @@ import '../model/eraser.dart';
 import '../model/ids.dart';
 import '../model/image_rules.dart';
 import '../model/note.dart';
+import '../model/number.dart';
 import '../model/page_view_mode.dart';
 import '../model/pen.dart';
 import '../model/pen_only.dart';
@@ -113,7 +114,7 @@ void resetStylusSeen() => _stylusSeen = false;
 
 enum _Tool { pen, lasso, text, eraser, shape }
 
-enum _XKind { move, scale, rotate, width }
+enum _XKind { move, scale, rotate, width, reshape }
 
 // A selection drag: [box] is the selection's document box, [down] where it
 // began (document coordinates), [last] the latest pointer position (screen).
@@ -831,7 +832,26 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _selected = ids;
     });
     if (!same && ids.isNotEmpty && mounted) {
-      _announce(AppLocalizations.of(context).selectedCount(ids.length));
+      final l10n = AppLocalizations.of(context);
+      Map? one;
+      if (ids.length == 1 && pageId != null) {
+        for (final p in _pages) {
+          if (p['id'] != pageId) continue;
+          for (final e in p['elements'] as List) {
+            if ((e as Map)['id'] == ids.first) one = e;
+          }
+        }
+      }
+      final stroke = one != null && one['type'] == 'stroke';
+      _announce(
+        stroke && isKnownShape(one['shape'])
+            ? l10n.shapeSelected
+            : stroke &&
+                  one['shape'] == null &&
+                  (one['points'] as List).length == 2
+            ? l10n.lineSelected
+            : l10n.selectedCount(ids.length),
+      );
     }
   }
 
@@ -865,6 +885,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   double _selAngle() {
     final els = _selEls();
+    final sh = els.length == 1 ? els.first['shape'] : null;
+    if (isKnownShape(sh) && (sh as Map)['kind'] != 'triangle') {
+      return (sh['rotation'] as num).toDouble() * math.pi / 180;
+    }
     if (els.length == 1 &&
         els.first['type'] != 'stroke' &&
         els.first['rotation'] is num) {
@@ -1041,7 +1065,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
         ? -1
         : (dl <= dr ? 0 : 1);
     var xc = corner;
-    final _XKind kind;
+    _XKind kind;
     if (wk >= 0) {
       kind = _XKind.width;
       xc = wk;
@@ -1056,12 +1080,66 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     } else {
       return false;
     }
+    // A single line or shape: its own handles (spec/shape.md, Editing).
+    final rs = _reshapeEl();
+    if (rs != null) {
+      if (_isVertexShape(rs)) {
+        final d = [
+          for (final v in _vertexDoc(rs))
+            (vp.offset + v * vp.scale - at).distance,
+        ];
+        final best = d.reduce(math.min);
+        if (best <= reach) {
+          kind = _XKind.reshape;
+          xc = d.indexOf(best);
+        } else if (kind == _XKind.scale || kind == _XKind.rotate) {
+          if (!inside) return false;
+          kind = _XKind.move;
+        }
+      } else if (kind == _XKind.scale || kind == _XKind.rotate) {
+        xc = kind == _XKind.rotate ? 4 : xc;
+        kind = _XKind.reshape;
+      }
+    }
     _pointer = e.pointer;
     _strokePageId = _selPage;
     _origin = _pageOrigin(_selPage);
     _xf = _Xf(kind, xc, fr.rect, vp.toPage(at), at, fr.angle);
     _tick.value++;
     return true;
+  }
+
+  /// The one selected stroke that is a 2-point line or a known shape: its
+  /// handles reshape it (`reshapeStroke`).
+  Map<String, dynamic>? _reshapeEl() {
+    if (_tool != _Tool.lasso || _selected.length != 1 || !_canEditSel) {
+      return null;
+    }
+    final el = _selEls().firstOrNull;
+    if (el == null || el['type'] != 'stroke') return null;
+    if (isKnownShape(el['shape'])) return el;
+    final p = el['points'];
+    return el['shape'] == null && p is List && p.length == 2 ? el : null;
+  }
+
+  /// Lines and triangles have vertex handles; rect and circle a frame.
+  bool _isVertexShape(Map el) {
+    final s = el['shape'];
+    return s == null || (s as Map)['kind'] == 'triangle';
+  }
+
+  /// The vertex handles of [el] in document coordinates, from [op] when a
+  /// reshape drag is under way.
+  List<Offset> _vertexDoc(Map el, [Map? op]) {
+    final o = _pageOrigin(_selPage);
+    final s = (op ?? el)['shape'];
+    final List v = s is Map
+        ? s['vertices'] as List
+        : (op ?? el)['points'] as List;
+    return [
+      for (final p in v)
+        o + Offset((p[0] as num).toDouble(), (p[1] as num).toDouble()),
+    ];
   }
 
   /// A single selected text box that can be edited: the element and the
@@ -1152,6 +1230,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
           ),
           angle: t.angle,
         );
+      case _XKind.reshape:
+        return _reshapeResult(x, p - _origin);
       case _XKind.rotate:
         final o = b.center;
         var a =
@@ -1172,6 +1252,74 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
           angle: ang + a,
         );
     }
+  }
+
+  /// A handle drag of a line or shape to [to] (page coordinates): the
+  /// `reshapeStroke` op and the box it leaves. Null when nothing changes.
+  ({Map<String, dynamic> op, Rect box, double angle})? _reshapeResult(
+    _Xf x,
+    Offset to,
+  ) {
+    final el = _reshapeEl();
+    if (el == null) return null;
+    final t = [to.dx, to.dy];
+    final sh = el['shape'];
+    Map<String, dynamic>? ns;
+    List<List<num>> pts;
+    if (sh is Map) {
+      if (x.corner == 4) {
+        ns = {...sh.cast<String, dynamic>(), 'rotation': shapeRotate(sh, t)};
+      } else {
+        const names = ['nw', 'ne', 'se', 'sw'];
+        ns = shapeResize(
+          sh,
+          sh['kind'] == 'triangle' ? 'v${x.corner}' : names[x.corner],
+          t,
+          _ratioLock,
+        );
+      }
+      final np = ns == null ? null : shapePoints(ns);
+      if (np == null) return null;
+      pts = np;
+    } else {
+      final old = (el['points'] as List).cast<List>();
+      final (nx, ny) = lineSnapEnd(old[1 - x.corner].cast<num>(), t);
+      pts = [
+        for (var i = 0; i < 2; i++)
+          i == x.corner
+              ? <num>[round2(nx), round2(ny), ...old[i].skip(2).cast<num>()]
+              : old[i].cast<num>().toList(),
+      ];
+    }
+    if (jsonEqual(pts, el['points']) && jsonEqual(ns, el['shape'])) {
+      return null;
+    }
+    final op = <String, dynamic>{
+      'op': 'reshapeStroke',
+      'id': el['id'],
+      if (ns != null) 'shape': ns,
+      'points': pts,
+    };
+    final o = _origin;
+    if (ns != null && ns['kind'] != 'triangle') {
+      return (
+        op: op,
+        box: Rect.fromLTWH(
+          o.dx + (ns['x'] as num),
+          o.dy + (ns['y'] as num),
+          (ns['width'] as num).toDouble(),
+          (ns['height'] as num).toDouble(),
+        ),
+        angle: (ns['rotation'] as num).toDouble() * math.pi / 180,
+      );
+    }
+    var b = Rect.fromLTWH(pts[0][0].toDouble(), pts[0][1].toDouble(), 0, 0);
+    for (final p in pts) {
+      b = b.expandToInclude(
+        Rect.fromLTWH(p[0].toDouble(), p[1].toDouble(), 0, 0),
+      );
+    }
+    return (op: op, box: b.shift(o), angle: 0.0);
   }
 
   /// A corner drag on a turned selection: the box keeps its shape (the op
@@ -4253,7 +4401,23 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                                           ? null
                                           : (r.box, r.angle);
                                     },
+                                    boxless: () {
+                                      final rs = _reshapeEl();
+                                      return rs != null && _isVertexShape(rs);
+                                    },
                                     widthHandles: () {
+                                      final rs = _reshapeEl();
+                                      if (rs != null && _isVertexShape(rs)) {
+                                        final x = _xf;
+                                        return _vertexDoc(
+                                          rs,
+                                          x == null
+                                              ? null
+                                              : x.kind == _XKind.reshape
+                                              ? _xfResult(x, x.last)?.op
+                                              : null,
+                                        );
+                                      }
                                       final t = _textSel();
                                       return t == null ? const [] : [t.l, t.r];
                                     },

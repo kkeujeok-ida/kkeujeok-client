@@ -922,6 +922,12 @@ class AppLocalizationsKo extends AppLocalizations {
   String get off => '꺼짐';
 
   @override
+  String get lineSelected => '직선 선택됨. 끝점 핸들을 끌어 길이와 각도를 바꿉니다.';
+
+  @override
+  String get shapeSelected => '도형 선택됨. 모서리 핸들로 크기를, 위쪽 핸들로 회전을 바꿉니다.';
+
+  @override
   String selectedCount(int n) {
     return '$n개 선택됨';
   }

@@ -334,3 +334,74 @@ Map<String, dynamic>? recognizeShape(List<List<num>> points) {
     'rotation': 0,
   };
 }
+
+/// `shape.resize`: [s] with [handle] (`nw ne se sw` or `v0 v1 v2`) dragged to
+/// [to]; the opposite corner stays on the page. Null for an unknown shape or
+/// handle.
+Map<String, dynamic>? shapeResize(
+  Map s,
+  String handle,
+  List<num> to,
+  bool keepRatio,
+) {
+  if (!isKnownShape(s)) return null;
+  final tx = to[0].toDouble(), ty = to[1].toDouble();
+  if (s['kind'] == 'triangle') {
+    final i = const ['v0', 'v1', 'v2'].indexOf(handle);
+    if (i < 0) return null;
+    return {
+      'kind': 'triangle',
+      'vertices': [
+        for (var k = 0; k < 3; k++)
+          if (k == i)
+            [round2(tx), round2(ty)]
+          else
+            [
+              ((s['vertices'] as List)[k] as List)[0],
+              ((s['vertices'] as List)[k] as List)[1],
+            ],
+      ],
+    };
+  }
+  final corner = const ['nw', 'ne', 'se', 'sw'].indexOf(handle);
+  if (corner < 0) return null;
+  final x = (s['x'] as num).toDouble(), y = (s['y'] as num).toDouble();
+  final w = (s['width'] as num).toDouble(), h = (s['height'] as num).toDouble();
+  final cx = x + w / 2, cy = y + h / 2;
+  final r = (s['rotation'] as num) * math.pi / 180;
+  final ux = math.cos(r), uy = math.sin(r); // the box's own x axis
+  // The opposite corner in the box frame, then on the page.
+  final ox = (corner == 0 || corner == 3) ? w / 2 : -w / 2;
+  final oy = (corner == 0 || corner == 1) ? h / 2 : -h / 2;
+  final px = cx + ox * ux - oy * uy, py = cy + ox * uy + oy * ux;
+  var du = (tx - px) * ux + (ty - py) * uy;
+  var dv = -(tx - px) * uy + (ty - py) * ux;
+  if (keepRatio) {
+    final k = math.max(du.abs() / w, dv.abs() / h);
+    du = (du < 0 ? -1 : 1) * w * k;
+    dv = (dv < 0 ? -1 : 1) * h * k;
+  }
+  if (du.abs() < 1) du = du < 0 ? -1 : 1;
+  if (dv.abs() < 1) dv = dv < 0 ? -1 : 1;
+  final ncx = px + (du * ux - dv * uy) / 2, ncy = py + (du * uy + dv * ux) / 2;
+  return {
+    'kind': s['kind'],
+    'x': round2(ncx - du.abs() / 2),
+    'y': round2(ncy - dv.abs() / 2),
+    'width': round2(du.abs()),
+    'height': round2(dv.abs()),
+    'rotation': s['rotation'],
+  };
+}
+
+/// `shape.rotate`: the `rotation` a rotation handle dragged to [to] gives,
+/// snapped within 3 degrees of a multiple of 15.
+double shapeRotate(Map s, List<num> to) {
+  final cx = (s['x'] as num) + (s['width'] as num) / 2;
+  final cy = (s['y'] as num) + (s['height'] as num) / 2;
+  var a = math.atan2(to[1] - cy, to[0] - cx) * 180 / math.pi + 90;
+  a = (a % 360 + 360) % 360;
+  final near = (a / 15).round() * 15;
+  if ((a - near).abs() <= 3) a = near.toDouble();
+  return round2(a) % 360;
+}

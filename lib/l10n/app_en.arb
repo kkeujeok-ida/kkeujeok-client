@@ -482,6 +482,8 @@
   "italic": "Italic",
   "on": "on",
   "off": "off",
+  "lineSelected": "Line selected. Drag an end handle to change its length and angle.",
+  "shapeSelected": "Shape selected. Drag a corner handle to resize, the top handle to rotate.",
   "selectedCount": "{n} selected",
   "@selectedCount": {
     "placeholders": {

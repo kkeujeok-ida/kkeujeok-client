@@ -18,6 +18,7 @@ class SelectionPainter extends CustomPainter {
     required this.preview,
     required Listenable repaint,
     this.widthHandles,
+    this.boxless,
   }) : super(repaint: repaint);
 
   final PageViewport viewport;
@@ -35,6 +36,10 @@ class SelectionPainter extends CustomPainter {
   /// The two side handles of a single selected text box (document
   /// coordinates), if any.
   final List<Offset> Function()? widthHandles;
+
+  /// True for a line or triangle: no box, only the [widthHandles] (also while
+  /// a drag previews).
+  final bool Function()? boxless;
 
   Offset _s(Offset d) => viewport.offset + d * viewport.scale;
 
@@ -58,6 +63,27 @@ class SelectionPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
     final pv = preview();
+    final fill = Paint()..color = Kk.componentsSelectionHandleFill;
+    void handle(Offset c) {
+      canvas
+        ..drawCircle(c, selectionHandleRadius, fill)
+        ..drawCircle(
+          c,
+          selectionHandleRadius,
+          Paint()
+            ..color = Kk.componentsSelectionHandleBorder
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.5,
+        );
+    }
+
+    final bare = boxless?.call() ?? false;
+    void vertices() {
+      for (final h in widthHandles?.call() ?? const <Offset>[]) {
+        handle(_s(h));
+      }
+    }
+
     if (pv != null) {
       final (pb, angle) = pv;
       final pr = Rect.fromPoints(_s(pb.topLeft), _s(pb.bottomRight));
@@ -68,6 +94,11 @@ class SelectionPainter extends CustomPainter {
         ..translate(-pr.center.dx, -pr.center.dy)
         ..drawRect(pr, line)
         ..restore();
+      if (bare) vertices();
+      return;
+    }
+    if (bare) {
+      vertices();
       return;
     }
     final turn = angle?.call() ?? 0;
@@ -86,20 +117,6 @@ class SelectionPainter extends CustomPainter {
     }
     final top = Offset(r.center.dx, r.top - selectionRotateGap);
     canvas.drawLine(Offset(r.center.dx, r.top), top, line);
-    final fill = Paint()..color = Kk.componentsSelectionHandleFill;
-    void handle(Offset c) {
-      canvas
-        ..drawCircle(c, selectionHandleRadius, fill)
-        ..drawCircle(
-          c,
-          selectionHandleRadius,
-          Paint()
-            ..color = Kk.componentsSelectionHandleBorder
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.5,
-        );
-    }
-
     for (final c in [r.topLeft, r.topRight, r.bottomLeft, r.bottomRight, top]) {
       handle(c);
     }

@@ -142,6 +142,7 @@ OpResult applyOp(Note note, Map<String, dynamic> op, Ctx ctx) =>
       'scale' => _transformOp(note, op, ctx),
       'rotate' => _transformOp(note, op, ctx),
       'replaceElements' => replaceElements(note, op, ctx),
+      'reshapeStroke' => _reshapeStroke(note, op, ctx),
       'setStrokeColor' => _strokeOp(note, op, ctx),
       'setStrokeWidth' => _strokeOp(note, op, ctx),
       'delete' => _delete(note, op, ctx),
@@ -415,6 +416,46 @@ OpResult replaceElements(Note note, Map<String, dynamic> op, Ctx ctx) {
     'pageId': op['pageId'],
     'elements': before,
   });
+}
+
+// ops.reshapeStroke (spec/shape.md): new `points` and `shape` of one stroke.
+OpResult _reshapeStroke(Note note, Map<String, dynamic> op, Ctx ctx) {
+  final json = note.copyJson();
+  final page = _page(json, op['pageId']);
+  if (page == null) return const OpResult.error('pageNotFound');
+  final els = page['elements'] as List;
+  final i = els.indexWhere((e) => (e as Map)['id'] == op['id'] && _isStroke(e));
+  if (i < 0) return const OpResult.error('strokeNotFound');
+  final pts = op['points'];
+  if (pts is! List ||
+      pts.isEmpty ||
+      !pts.every(
+        (p) =>
+            p is List &&
+            (p.length == 4 || p.length == 6) &&
+            p.every((n) => n is num && n.isFinite),
+      )) {
+    return const OpResult.error('invalidStroke');
+  }
+  final el = els[i] as Map<String, dynamic>;
+  final inverse = {
+    'op': 'reshapeStroke',
+    'pageId': op['pageId'],
+    'id': op['id'],
+    'shape': copyJsonValue(el['shape']),
+    'points': copyJsonValue(el['points']),
+  };
+  el['points'] = copyJsonValue(pts);
+  if (op.containsKey('shape')) {
+    if (op['shape'] == null) {
+      el.remove('shape');
+    } else {
+      el['shape'] = copyJsonValue(op['shape']);
+    }
+  }
+  roundStroke(el);
+  _touch(page, ctx);
+  return OpResult.ok(Note.trusted(json), inverse);
 }
 
 final _colorRe = RegExp(r'^#[0-9a-f]{6}$');

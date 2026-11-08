@@ -982,6 +982,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get off => 'off';
 
   @override
+  String get lineSelected =>
+      'Line selected. Drag an end handle to change its length and angle.';
+
+  @override
+  String get shapeSelected =>
+      'Shape selected. Drag a corner handle to resize, the top handle to rotate.';
+
+  @override
   String selectedCount(int n) {
     return '$n selected';
   }

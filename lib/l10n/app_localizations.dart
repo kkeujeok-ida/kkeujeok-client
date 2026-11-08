@@ -1802,6 +1802,18 @@ abstract class AppLocalizations {
   /// **'off'**
   String get off;
 
+  /// No description provided for @lineSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'Line selected. Drag an end handle to change its length and angle.'**
+  String get lineSelected;
+
+  /// No description provided for @shapeSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'Shape selected. Drag a corner handle to resize, the top handle to rotate.'**
+  String get shapeSelected;
+
   /// No description provided for @selectedCount.
   ///
   /// In en, this message translates to:
