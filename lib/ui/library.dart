@@ -934,11 +934,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         cap(const _ScanPlaceholder()),
       ],
       for (final c in remote)
-        cap(
-          _RemoteNoteCard(
-            card: c,
-            receiving: recv.receiving.contains(c.noteId),
-          ),
+        _RemoteNoteCard(
+          card: c,
+          view: view,
+          receiving: recv.receiving.contains(c.noteId),
         ),
       for (final e in entries)
         e.readable
@@ -1360,9 +1359,14 @@ class _ScanPlaceholder extends StatelessWidget {
 /// A note that exists on Drive but is not downloaded yet: the card is drawn
 /// from its summary (title and date, no thumbnail).
 class _RemoteNoteCard extends StatelessWidget {
-  const _RemoteNoteCard({required this.card, required this.receiving});
+  const _RemoteNoteCard({
+    required this.card,
+    required this.view,
+    required this.receiving,
+  });
 
   final RemoteCard card;
+  final LibraryView view;
   final bool receiving;
 
   @override
@@ -1375,33 +1379,54 @@ class _RemoteNoteCard extends StatelessWidget {
         ? null
         : DateFormat.yMd(Localizations.localeOf(context).toString())
               .format(at.toLocal());
+    final thumb = _CardThumb(
+      thumb: const _Thumb(child: SizedBox.expand()),
+      label: receiving ? SyncLabel.receiving : null,
+    );
+    final text = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          card.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.labelMedium,
+        ),
+        if (date != null)
+          Text(
+            date,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall,
+          ),
+      ],
+    );
     return Semantics(
       label: card.title,
       value: receiving ? AppLocalizations.of(context).receiving : date,
       excludeSemantics: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _CardThumb(
-            thumb: const _Thumb(child: SizedBox.expand()),
-            label: receiving ? SyncLabel.receiving : null,
-          ),
-          const SizedBox(height: KkjTokens.spacing2),
-          Text(
-            card.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.labelMedium,
-          ),
-          if (date != null)
-            Text(
-              date,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall,
+      child: _isRows(view)
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width:
+                      KkjTokens.spacingCoverColumnMin *
+                      _rowThumbFactor[view.size]!,
+                  child: thumb,
+                ),
+                const SizedBox(width: KkjTokens.spacing3),
+                Expanded(child: text),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                thumb,
+                const SizedBox(height: KkjTokens.spacing2),
+                text,
+              ],
             ),
-        ],
-      ),
     );
   }
 }
