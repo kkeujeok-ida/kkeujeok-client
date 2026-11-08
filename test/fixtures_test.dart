@@ -230,7 +230,8 @@ final Map<String, void Function(Case)> runners = {
       p(i),
     );
   },
-  'note.roundTrip': (c) => _same(_roundTrip(c['input']), _written(c['expected'])),
+  'note.roundTrip': (c) =>
+      _same(_roundTrip(c['input']), _written(c['expected'])),
   'note.unknownFields': (c) =>
       _same(_roundTrip(c['input']), _written(c['expected'])),
   'note.formatVersion': (c) {
@@ -506,6 +507,31 @@ final Map<String, void Function(Case)> runners = {
       expect(pts[i][3], want[i][3]);
     }
   },
+  'shape.recognize': (c) {
+    final pts = [
+      for (final p in (c['input'] as Map)['points'] as List) List<num>.from(p),
+    ];
+    final s = recognizeShape(pts);
+    final want = (c['expected'] as Map)['shape'] as Map?;
+    if (want == null) return expect(s, isNull);
+    final tol = (c['tolerance'] as num).toDouble();
+    expect(s, isNotNull);
+    expect(s!['kind'], want['kind']);
+    List flat(Map m) => m['vertices'] != null
+        ? [for (final v in m['vertices'] as List) ...v as List]
+        : [
+            for (final k in ['x', 'y', 'width', 'height']) m[k],
+          ];
+    final a = flat(s), b = flat(want);
+    expect(a.length, b.length);
+    for (var k = 0; k < a.length; k++) {
+      expect(
+        ((a[k] as num) - (b[k] as num)).abs() <= tol,
+        isTrue,
+        reason: '$k',
+      );
+    }
+  },
   'shape.fromDrag': (c) {
     final i = c['input'] as Map<String, dynamic>;
     final s = shapeFromDrag(
@@ -520,10 +546,14 @@ final Map<String, void Function(Case)> runners = {
     expect(s!['kind'], want['kind']);
     final a = s['vertices'] != null
         ? [for (final v in s['vertices'] as List) ...v as List]
-        : [for (final k in ['x', 'y', 'width', 'height']) s[k]];
+        : [
+            for (final k in ['x', 'y', 'width', 'height']) s[k],
+          ];
     final b = want['vertices'] != null
         ? [for (final v in want['vertices'] as List) ...v as List]
-        : [for (final k in ['x', 'y', 'width', 'height']) want[k]];
+        : [
+            for (final k in ['x', 'y', 'width', 'height']) want[k],
+          ];
     expect(a.length, b.length);
     for (var k = 0; k < a.length; k++) {
       expect(((a[k] as num) - (b[k] as num)).abs() <= tol, isTrue);
@@ -897,7 +927,6 @@ const pendingRules = <String>{
   'note.shape',
   'shape.resize',
   'shape.rotate',
-  'shape.recognize',
 };
 
 final _sep = Platform.pathSeparator;

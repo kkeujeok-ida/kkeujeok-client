@@ -171,3 +171,166 @@ bool transformShape(
       round2((((s['rotation'] as num) + turn) % 360 + 360) % 360) % 360;
   return true;
 }
+
+double _dist(double ax, double ay, double bx, double by) =>
+    math.sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by));
+
+double _segDist(double px, double py, List<double> a, List<double> b) {
+  final dx = b[0] - a[0], dy = b[1] - a[1];
+  final l2 = dx * dx + dy * dy;
+  final t = l2 == 0
+      ? 0.0
+      : (((px - a[0]) * dx + (py - a[1]) * dy) / l2).clamp(0.0, 1.0);
+  return _dist(px, py, a[0] + t * dx, a[1] + t * dy);
+}
+
+/// `shape.recognize` (spec/shape.md): the shape a held stroke is turned into,
+/// or null when nothing fits.
+Map<String, dynamic>? recognizeShape(List<List<num>> points) {
+  // 1. Prepare.
+  final p = <List<double>>[];
+  for (final q in points) {
+    final x = q[0].toDouble(), y = q[1].toDouble();
+    if (p.isEmpty || _dist(x, y, p.last[0], p.last[1]) >= 0.01) p.add([x, y]);
+  }
+  if (p.length < 8) return null;
+  // 2. Size and closing.
+  var x0 = p[0][0], x1 = x0, y0 = p[0][1], y1 = y0;
+  for (final q in p) {
+    x0 = math.min(x0, q[0]);
+    x1 = math.max(x1, q[0]);
+    y0 = math.min(y0, q[1]);
+    y1 = math.max(y1, q[1]);
+  }
+  final w = x1 - x0, h = y1 - y0, diag = math.sqrt(w * w + h * h);
+  if (diag < 30) return null;
+  if (_dist(p.first[0], p.first[1], p.last[0], p.last[1]) > 0.25 * diag) {
+    return null;
+  }
+  final path = [...p, p.first];
+  var len = 0.0;
+  for (var i = 1; i < path.length; i++) {
+    len += _dist(path[i - 1][0], path[i - 1][1], path[i][0], path[i][1]);
+  }
+  if (len < 1.8 * diag) return null;
+  // 3. Resample into 64 points at equal arc length.
+  final s = <List<double>>[];
+  var seg = 1, acc = 0.0;
+  for (var i = 0; i < 64; i++) {
+    final target = len * i / 64;
+    while (seg < path.length - 1 &&
+        acc +
+                _dist(
+                  path[seg - 1][0],
+                  path[seg - 1][1],
+                  path[seg][0],
+                  path[seg][1],
+                ) <
+            target) {
+      acc += _dist(
+        path[seg - 1][0],
+        path[seg - 1][1],
+        path[seg][0],
+        path[seg][1],
+      );
+      seg++;
+    }
+    final a = path[seg - 1], b = path[seg];
+    final sl = _dist(a[0], a[1], b[0], b[1]);
+    final t = sl == 0 ? 0.0 : ((target - acc) / sl).clamp(0.0, 1.0);
+    s.add([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+  }
+  // 4. Fit.
+  double rms(double Function(List<double>) f) =>
+      math.sqrt(s.fold<double>(0, (m, q) => m + math.pow(f(q), 2)) / s.length);
+  final cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  final eCircle = (w > 0 && h > 0)
+      ? rms(
+          (q) => _dist((q[0] - cx) / (w / 2), (q[1] - cy) / (h / 2), 0, 0) - 1,
+        )
+      : double.infinity;
+  final eRect =
+      rms(
+        (q) => [
+          (q[0] - x0).abs(),
+          (q[0] - x1).abs(),
+          (q[1] - y0).abs(),
+          (q[1] - y1).abs(),
+        ].reduce(math.min),
+      ) /
+      diag;
+  // Convex hull (monotone chain, collinear dropped) of S, indices kept.
+  final idx = List.generate(64, (i) => i)
+    ..sort((a, b) {
+      final c = s[a][0].compareTo(s[b][0]);
+      return c != 0 ? c : s[a][1].compareTo(s[b][1]);
+    });
+  double cross(int o, int a, int b) =>
+      (s[a][0] - s[o][0]) * (s[b][1] - s[o][1]) -
+      (s[a][1] - s[o][1]) * (s[b][0] - s[o][0]);
+  List<int> half(Iterable<int> order) {
+    final r = <int>[];
+    for (final i in order) {
+      while (r.length >= 2 && cross(r[r.length - 2], r.last, i) <= 0) {
+        r.removeLast();
+      }
+      r.add(i);
+    }
+    return r..removeLast();
+  }
+
+  final hull = [...half(idx), ...half(idx.reversed)]..sort();
+  var best = -1.0;
+  var tri = <int>[];
+  for (var i = 0; i < hull.length; i++) {
+    for (var j = i + 1; j < hull.length; j++) {
+      for (var k = j + 1; k < hull.length; k++) {
+        final a = cross(hull[i], hull[j], hull[k]).abs();
+        if (a > best) {
+          best = a;
+          tri = [hull[i], hull[j], hull[k]];
+        }
+      }
+    }
+  }
+  final eTri = tri.length < 3
+      ? double.infinity
+      : rms(
+              (q) => [
+                for (var i = 0; i < 3; i++)
+                  _segDist(q[0], q[1], s[tri[i]], s[tri[(i + 1) % 3]]),
+              ].reduce(math.min),
+            ) /
+            diag;
+  // 5. Choose: lowest score, circle, rect, triangle on ties.
+  final scores = [eCircle / 0.10, eRect / 0.05, eTri / 0.05];
+  var kind = 0;
+  for (var i = 1; i < 3; i++) {
+    if (scores[i] < scores[kind]) kind = i;
+  }
+  if (!(scores[kind] <= 1)) return null;
+  // 6. Make the shape.
+  if (kind == 2) {
+    // Order along the path: tri is already in index order of S.
+    return {
+      'kind': 'triangle',
+      'vertices': [
+        for (final i in tri) [round2(s[i][0]), round2(s[i][1])],
+      ],
+    };
+  }
+  var bx = x0, by = y0, bw = w, bh = h;
+  if (kind == 0 && (w - h).abs() <= 0.15 * math.max(w, h)) {
+    bw = bh = (w + h) / 2;
+    bx = cx - bw / 2;
+    by = cy - bh / 2;
+  }
+  return {
+    'kind': kind == 0 ? 'circle' : 'rect',
+    'x': round2(bx),
+    'y': round2(by),
+    'width': round2(bw),
+    'height': round2(bh),
+    'rotation': 0,
+  };
+}

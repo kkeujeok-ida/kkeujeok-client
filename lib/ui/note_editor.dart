@@ -224,6 +224,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   bool _holdOn = false, _straight = false, _holdDead = false;
   // The pen draws only straight lines (Pen.lineMode), fixed at the press.
   bool _line = false;
+  // Story 26.6: the shape a held stroke would become (shown, made on up), and
+  // a short flash of the preview when it appears.
+  Map<String, dynamic>? _heldShape;
+  bool _flash = false;
   // The shape tool (Story 26.4): the stroke in progress is a shape dragged
   // from the first point; the kind and the toolbar ratio lock are UI state.
   bool _shaping = false;
@@ -2415,6 +2419,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       ? null
       : _shaping
       ? _shapeLive()
+      : _heldShape != null
+      ? (_stroke(const [], _heldShape)
+          ..['width'] = _flash ? _pen.width * 1.8 : _pen.width)
       : _stroke(_shownPoints());
 
   Map<String, dynamic>? _shapeLive() {
@@ -3309,8 +3316,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   void _holdReset() {
     _holdTimer?.cancel();
     _holdTimer = null;
-    _holdOn = _straight = _holdDead = _line = _shaping = false;
+    _holdOn = _straight = _holdDead = _line = _shaping = _flash = false;
     _holdAnchor = null;
+    _heldShape = null;
   }
 
   /// Still detection: a point farther than [holdDistance] (dp) from the
@@ -3326,6 +3334,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       return;
     }
     _holdAnchor = p;
+    if (_heldShape != null) {
+      _heldShape = null; // moving on ends the preview
+      _flash = false;
+    }
     _holdTimer?.cancel();
     _holdTimer = Timer(const Duration(milliseconds: holdMs), _holdFire);
   }
@@ -3334,6 +3346,21 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     final a = _holdAnchor;
     if (!mounted || _pointer == null || a == null || !_holdOn) return;
     if (_holdDead || _straight) return;
+    // Shape first (a straight stroke is open, so it never is one).
+    final shape = recognizeShape(_points);
+    if (shape != null) {
+      _heldShape = shape;
+      _flash = true;
+      HapticFeedback.selectionClick();
+      Timer(const Duration(milliseconds: 180), () {
+        if (mounted && _flash) {
+          _flash = false;
+          _tick.value++;
+        }
+      });
+      _tick.value++;
+      return;
+    }
     final k = _vp?.scale ?? 1;
     final on = straightenActive(
       enabled: true,
@@ -3356,8 +3383,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     if (!_holdOn || _holdDead) return;
     _holdTimer?.cancel();
     _holdDead = true;
-    if (_straight) {
+    if (_straight || _heldShape != null) {
       _straight = false;
+      _heldShape = null;
+      _flash = false;
       _tick.value++;
     }
   }
@@ -3757,7 +3786,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _finishErase(pageId);
       return;
     }
-    final shape = _dragShape();
+    final shape = _dragShape() ?? _heldShape;
     if (_shaping && shape == null) {
       _discardStroke(); // a tiny drag is no shape
       return;
