@@ -2435,11 +2435,18 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     return ((e.pressure - e.pressureMin) / range).clamp(0.0, 1.0);
   }
 
+  /// `[x, y, pressure, t]`, plus `tilt` and `azimuth` (spec/brush.md) when a
+  /// stylus reports a lean. Android orientation is clockwise from "up"; the
+  /// spec's azimuth is clockwise from +x, so it is shifted by 90 degrees.
   List<num> _point(PointerEvent e, Offset page) => [
     page.dx,
     page.dy,
     _pressure(e),
     (e.timeStamp - _t0).inMilliseconds,
+    if (e.kind == PointerDeviceKind.stylus && e.tilt > 0) ...[
+      (e.tilt * 180 / math.pi).clamp(0.0, 90.0),
+      (e.orientation * 180 / math.pi - 90 + 360) % 360,
+    ],
   ];
 
   double get _pageW => _geometry().w;

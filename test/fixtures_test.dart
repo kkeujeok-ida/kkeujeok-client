@@ -511,6 +511,7 @@ final Map<String, void Function(Case)> runners = {
     _same({'slot': out.toJson()}, c['expected']);
   },
   'note.penKinds': (c) => runners['note.formatVersion']!(c),
+  'note.brush': (c) => runners['note.formatVersion']!(c),
   'pen.defaultSlots': (c) => _same({
     'slots': [for (final p in defaultPenSlots) p.toJson()],
   }, c['expected']),
@@ -832,7 +833,6 @@ void _runOp(Case c) {
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6. The erase rules have runners (Story 5.6): none pending.
 const pendingRules = <String>{
   // Epic 25/26 (Stories 25.1, 26.1): runners arrive with 25.x and 26.x Android stories.
-  'note.brush',
   'note.shape',
   'brush.resolve',
   'shape.points',
