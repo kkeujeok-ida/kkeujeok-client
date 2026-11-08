@@ -163,7 +163,7 @@ final straightenStoreProvider = Provider<StraightenStore>(
   (ref) => StraightenStore(null),
 );
 
-/// Line straightening (spec/pen-feel.md pen.straighten), default off.
+/// Line straightening (spec/pen-feel.md pen.straighten), default on.
 class StraightenNotifier extends Notifier<bool> {
   @override
   bool build() => ref.read(straightenStoreProvider).read();
@@ -815,6 +815,9 @@ class PenSlotsNotifier extends Notifier<List<Pen>> {
     if (index < 0 || index >= state.length) return;
     await _put([...state]..[index] = state[index].withUsePressure(value));
   }
+
+  Future<void> setLineMode(int index, bool value) =>
+      _edit(index, (p) => p.withLineMode(value));
 
   Future<void> _edit(int index, Pen Function(Pen) f) async {
     if (index < 0 || index >= state.length) return;

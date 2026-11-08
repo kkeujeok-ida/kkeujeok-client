@@ -221,6 +221,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   // [_holdAnchor] is the still-detection anchor, [_holdDead] once a second
   // pointer or a palm came.
   bool _holdOn = false, _straight = false, _holdDead = false;
+  // The pen draws only straight lines (Pen.lineMode), fixed at the press.
+  bool _line = false;
   List<num>? _holdAnchor;
   Timer? _holdTimer;
   PageViewport? _vp;
@@ -2383,7 +2385,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     'color': _pen.color,
     'width': _pen.width,
     // A straightened line has the tool's width, no pressure.
-    'usePressure': _pen.usePressure && !_straight,
+    'usePressure': _pen.usePressure && !_straight && !_line,
     if (_pen.brush != null) 'brush': copyJsonValue(_pen.brush),
     'points': points,
   };
@@ -3254,20 +3256,32 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       ..clear()
       ..add(_point(e, doc - _origin));
     _holdReset();
-    _holdOn = !_erasing && _tool == _Tool.pen && ref.read(straightenProvider);
+    _line = !_erasing && _tool == _Tool.pen && _pen.lineMode;
+    _holdOn =
+        !_erasing &&
+        !_line &&
+        _tool == _Tool.pen &&
+        ref.read(straightenProvider);
     _holdPoint(_points.first);
     _tick.value++;
   }
 
   /// The points to show and store: the first and last raw point once
-  /// straightened.
-  List<List<num>> _shownPoints() =>
-      _straight ? [_points.first, _points.last] : List.of(_points);
+  /// straightened or in line drawing, the end snapped (`shape.lineSnap`).
+  List<List<num>> _shownPoints() {
+    if (!(_straight || _line) || _points.length < 2) return List.of(_points);
+    final a = _points.first, b = _points.last;
+    final (x, y) = lineSnapEnd(a, b);
+    return [
+      a,
+      [x, y, ...b.skip(2)],
+    ];
+  }
 
   void _holdReset() {
     _holdTimer?.cancel();
     _holdTimer = null;
-    _holdOn = _straight = _holdDead = false;
+    _holdOn = _straight = _holdDead = _line = false;
     _holdAnchor = null;
   }
 

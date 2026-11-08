@@ -94,5 +94,6 @@ Pen applyBrushPreset(Pen pen, BrushPreset p) {
     width: p.width,
     usePressure: p.usePressure,
     brush: p.brush,
+    lineMode: pen.lineMode,
   );
 }

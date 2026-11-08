@@ -35,6 +35,7 @@ class Pen {
     required this.width,
     required this.usePressure,
     this.brush,
+    this.lineMode = false,
   });
 
   final String tool; // one of [penTools]
@@ -46,40 +47,45 @@ class Pen {
   /// tool default; copied into each new stroke.
   final Map<String, Object?>? brush;
 
+  /// Line drawing (spec/shape.md): the pen draws only straight lines. A
+  /// device slot property, not in the note; it stays when the kind changes.
+  final bool lineMode;
+
   bool get isHighlighter => tool == 'highlighter';
 
   /// Key of the ko/en color name in the UI.
   String get colorNameKey => colorNameKeyFor(color);
 
-  Pen withUsePressure(bool v) =>
-      Pen(tool: tool, color: color, width: width, usePressure: v, brush: brush);
-
-  Pen withBrush(Map<String, Object?>? b) => Pen(
-    tool: tool,
-    color: color,
-    width: width,
-    usePressure: usePressure,
-    brush: b,
+  Pen _with({
+    String? tool,
+    String? color,
+    double? width,
+    bool? usePressure,
+    Map<String, Object?>? brush,
+    bool? lineMode,
+    bool dropBrush = false,
+  }) => Pen(
+    tool: tool ?? this.tool,
+    color: color ?? this.color,
+    width: width ?? this.width,
+    usePressure: usePressure ?? this.usePressure,
+    brush: dropBrush ? null : (brush ?? this.brush),
+    lineMode: lineMode ?? this.lineMode,
   );
 
-  Pen withColor(String hex) => Pen(
-    tool: tool,
-    color: hex,
-    width: width,
-    usePressure: usePressure,
-    brush: brush,
-  );
+  Pen withUsePressure(bool v) => _with(usePressure: v);
+
+  Pen withLineMode(bool v) => _with(lineMode: v);
+
+  Pen withBrush(Map<String, Object?>? b) =>
+      _with(brush: b, dropBrush: b == null);
+
+  Pen withColor(String hex) => _with(color: hex);
 
   /// Kept in the tool's range, in steps of 0.1.
   Pen withWidth(double v) {
     final (lo, hi) = penWidthRange(tool);
-    return Pen(
-      tool: tool,
-      color: color,
-      width: ((v.clamp(lo, hi) * 10).round() / 10).clamp(lo, hi),
-      usePressure: usePressure,
-      brush: brush,
-    );
+    return _with(width: ((v.clamp(lo, hi) * 10).round() / 10).clamp(lo, hi));
   }
 
   /// spec `pen.switchKind`: the kind's default width and `usePressure`; the
@@ -87,22 +93,15 @@ class Pen {
   /// first. The same kind resets only the width.
   Pen withTool(String t) {
     final d = defaultPenOf(t);
-    if (t == tool) {
-      return Pen(
-        tool: t,
-        color: color,
-        width: d.width,
-        usePressure: usePressure,
-        brush: brush,
-      );
-    }
+    if (t == tool) return _with(width: d.width);
     final c = color.toLowerCase();
     final keep = paletteFor(t).any((p) => p.hex == c);
-    return Pen(
+    return _with(
       tool: t,
       color: keep ? color : d.color,
       width: d.width,
       usePressure: d.usePressure,
+      dropBrush: true,
     );
   }
 
@@ -112,6 +111,7 @@ class Pen {
     'width': width,
     'usePressure': usePressure,
     if (brush != null) 'brush': brush!,
+    if (lineMode) 'lineMode': true,
   };
 }
 

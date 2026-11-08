@@ -143,6 +143,7 @@
   "fitPage": "Fit page",
   "penEditTitle": "Pen",
   "usePressure": "Use pressure",
+  "lineDraw": "Draw straight lines",
   "syncLogExport": "Export sync log",
   "syncLogExportFailed": "Couldn't export the log",
   "penDiagTitle": "Pen input diagnostic",

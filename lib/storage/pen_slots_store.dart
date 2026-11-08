@@ -84,6 +84,7 @@ class PenSlotsStore {
       width: width.toDouble(),
       usePressure: up,
       brush: b is Map && b.isNotEmpty ? b.cast<String, Object?>() : null,
+      lineMode: m['lineMode'] == true,
     );
   }
 

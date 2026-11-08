@@ -482,6 +482,17 @@ final Map<String, void Function(Case)> runners = {
     );
     expect({'active': on}, c['expected']);
   },
+  'shape.lineSnap': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final (x, y) = lineSnapEnd(
+      List<num>.from(i['start'] as List),
+      List<num>.from(i['end'] as List),
+    );
+    final want = (c['expected'] as Map)['end'] as List;
+    final tol = (c['tolerance'] as num).toDouble();
+    expect((x - (want[0] as num)).abs() <= tol, isTrue, reason: 'x: $x');
+    expect((y - (want[1] as num)).abs() <= tol, isTrue, reason: 'y: $y');
+  },
   'pen.pressureCurve': (c) {
     final i = c['input'] as Map<String, dynamic>;
     final tol = (c['tolerance'] as num).toDouble();
@@ -852,7 +863,6 @@ const pendingRules = <String>{
   'shape.fromDrag',
   'shape.resize',
   'shape.rotate',
-  'shape.lineSnap',
   'shape.recognize',
 };
 

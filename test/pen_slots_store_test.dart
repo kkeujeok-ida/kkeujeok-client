@@ -31,6 +31,7 @@ String _slot(String tool, String color, num width, Object up) => jsonEncode({
 });
 
 void main() {
+  lineModeTests();
   test('nothing stored: the three default slots', () async {
     final s = PenSlotsStore(await _prefs({}));
     expect(s.read().map((p) => p.color), ['#000000', '#1971c2', '#ffe066']);
@@ -335,5 +336,17 @@ void main() {
         }
       },
     );
+  });
+}
+
+void lineModeTests() {
+  test('lineMode round-trips, stays on a kind change, absent is false', () async {
+    final p = await _prefs({});
+    await PenSlotsStore(p).write([defaultPen.withLineMode(true), _hl]);
+    final back = PenSlotsStore(p).read();
+    expect(back[0].lineMode, isTrue);
+    expect(back[1].lineMode, isFalse);
+    expect(back[0].withTool('tape').lineMode, isTrue);
+    expect(back[0].withWidth(3).withUsePressure(false).lineMode, isTrue);
   });
 }

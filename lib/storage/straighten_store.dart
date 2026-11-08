@@ -1,7 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Line straightening on/off lives on this device in SharedPreferences
-/// (default off); not in the note, not synced.
+/// (default on since Story 26.2; a stored value is kept); not in the note, not synced.
 class StraightenStore {
   StraightenStore(this._prefs);
 
@@ -13,9 +13,9 @@ class StraightenStore {
 
   bool read() {
     try {
-      return _prefs?.getBool(_key) ?? false;
+      return _prefs?.getBool(_key) ?? true;
     } catch (_) {
-      return false; // a value of the wrong type is treated as unset
+      return true; // a value of the wrong type is treated as unset
     }
   }
 

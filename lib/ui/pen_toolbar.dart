@@ -878,6 +878,29 @@ class PenEditDialog extends ConsumerWidget {
       if (hex != null) pick(hex);
     }
 
+    Widget switchRow(String label, bool value, void Function(bool) set) =>
+        Semantics(
+          container: true,
+          label: label,
+          toggled: value,
+          onTap: () => set(!value),
+          excludeSemantics: true,
+          child: InkWell(
+            onTap: () => set(!value),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: _hit),
+              child: Row(
+                children: [
+                  Expanded(child: Text(label)),
+                  IgnorePointer(
+                    child: Switch(value: value, onChanged: set),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
     final (lo, hi) = penWidthRange(pen.tool);
     final width = pen.width.clamp(lo, hi);
     final widthText = width.toStringAsFixed(1);
@@ -1052,26 +1075,11 @@ class PenEditDialog extends ConsumerWidget {
                     ),
                   ],
                 ),
-                Semantics(
-                  container: true,
-                  label: l10n.usePressure,
-                  toggled: on,
-                  onTap: () => toggle(!on),
-                  excludeSemantics: true,
-                  child: InkWell(
-                    onTap: () => toggle(!on),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(minHeight: _hit),
-                      child: Row(
-                        children: [
-                          Expanded(child: Text(l10n.usePressure)),
-                          IgnorePointer(
-                            child: Switch(value: on, onChanged: toggle),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                switchRow(l10n.usePressure, on, toggle),
+                switchRow(
+                  l10n.lineDraw,
+                  pen.lineMode,
+                  (v) => notifier.setLineMode(i, v),
                 ),
                 PenAdvanced(index: i),
                 const SizedBox(height: KkjTokens.spacing3),

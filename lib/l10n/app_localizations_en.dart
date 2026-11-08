@@ -335,6 +335,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get usePressure => 'Use pressure';
 
   @override
+  String get lineDraw => 'Draw straight lines';
+
+  @override
   String get syncLogExport => 'Export sync log';
 
   @override

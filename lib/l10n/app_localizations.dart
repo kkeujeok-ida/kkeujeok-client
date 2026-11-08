@@ -716,6 +716,12 @@ abstract class AppLocalizations {
   /// **'Use pressure'**
   String get usePressure;
 
+  /// No description provided for @lineDraw.
+  ///
+  /// In en, this message translates to:
+  /// **'Draw straight lines'**
+  String get lineDraw;
+
   /// No description provided for @syncLogExport.
   ///
   /// In en, this message translates to:

@@ -39,3 +39,16 @@ bool straightenActive({
   return math.sqrt(math.pow(e[1] - f[1], 2) + math.pow(e[2] - f[2], 2)) >
       holdDistance;
 }
+
+/// spec rule `shape.lineSnap`: the end of a hold or line-drawing line snaps to
+/// the horizontal or vertical when within 3 degrees of it. [start] and [end]
+/// are `[x, y, ...]`; returns the end's `(x, y)`.
+(double, double) lineSnapEnd(List<num> start, List<num> end) {
+  final dx = (end[0] - start[0]).toDouble(),
+      dy = (end[1] - start[1]).toDouble();
+  final ax = dx.abs(), ay = dy.abs();
+  final t = math.tan(3 * math.pi / 180);
+  if (ay <= ax * t) return (end[0].toDouble(), start[1].toDouble());
+  if (ax <= ay * t) return (start[0].toDouble(), end[1].toDouble());
+  return (end[0].toDouble(), end[1].toDouble());
+}
