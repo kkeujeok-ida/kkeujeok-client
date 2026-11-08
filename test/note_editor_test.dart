@@ -1393,7 +1393,7 @@ void main() {
       await draw(t, line);
       await settle(t);
       final before = file.readAsBytesSync();
-      final v2 = Note.trusted(base.copyJson()..['formatVersion'] = 2);
+      final v2 = Note.trusted(base.copyJson()..['formatVersion'] = 3);
 
       final out = await syncIn(t, base, v2);
       await settle(t);

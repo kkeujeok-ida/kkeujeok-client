@@ -1008,6 +1008,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get toolHighlighter => 'Highlighter';
 
   @override
+  String get toolFountain => 'Fountain pen';
+
+  @override
+  String get toolPencil => 'Pencil';
+
+  @override
+  String get toolTape => 'Answer tape';
+
+  @override
+  String kindSlotLabel(String kind, String color, String width) {
+    return '$kind, $color, width $width';
+  }
+
+  @override
   String get recentColors => 'Recent';
 
   @override

@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'pen.dart';
+
 // spec rule `pen.straighten` (spec/pen-feel.md): holding the pen still turns
 // the stroke into a straight line.
 const holdMs = 500;
@@ -28,10 +30,7 @@ bool straightenActive({
   required num at,
   required List<List<num>> samples,
 }) {
-  if (!enabled ||
-      (tool != 'pen' && tool != 'highlighter') ||
-      palm ||
-      secondPointer) {
+  if (!enabled || !penTools.contains(tool) || palm || secondPointer) {
     return false;
   }
   final a = anchorOf(samples);

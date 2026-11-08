@@ -501,7 +501,7 @@ void main() {
     testWidgets('unreadable and newer notes are dimmed and inert', (t) async {
       seedBytes(1, utf8.encode('not gzip'));
       final newer = gzip.encode(
-        utf8.encode(jsonEncode({'formatVersion': 2, 'noteId': _id(2)})),
+        utf8.encode(jsonEncode({'formatVersion': 3, 'noteId': _id(2)})),
       );
       seedBytes(2, newer);
       seed(_note(3, 'Fine'));

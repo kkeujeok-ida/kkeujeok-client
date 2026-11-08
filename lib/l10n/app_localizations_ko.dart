@@ -948,6 +948,20 @@ class AppLocalizationsKo extends AppLocalizations {
   String get toolHighlighter => '형광펜';
 
   @override
+  String get toolFountain => '만년필';
+
+  @override
+  String get toolPencil => '연필';
+
+  @override
+  String get toolTape => '정답지 테이프';
+
+  @override
+  String kindSlotLabel(String kind, String color, String width) {
+    return '$kind, $color, 두께 $width';
+  }
+
+  @override
   String get recentColors => '최근';
 
   @override

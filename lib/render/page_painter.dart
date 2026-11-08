@@ -122,7 +122,14 @@ Path strokePath(Map<String, dynamic> s) {
   final w = (s['width'] as num).toDouble();
   return s['tool'] == 'highlighter'
       ? highlighterPath(highlighterPolygons(w, pts))
-      : outlinePath(strokeOutline(w, s['usePressure'] as bool, pts));
+      : outlinePath(
+          strokeOutlineFor(
+            s['tool'] as String?,
+            w,
+            s['usePressure'] as bool,
+            pts,
+          ),
+        );
 }
 
 /// Fills [p] with [color]. A highlighter is one layer in the opaque color,
@@ -161,14 +168,14 @@ void fillStroke(
 /// Finished-stroke outlines by stroke id, so a repaint does not rebuild them.
 /// The key holds what an edit could change: count, ends, width, pressure.
 class StrokePathCache {
-  final _byId = <String, (List<num>, Path)>{};
+  final _byId = <String, (List<Object?>, Path)>{};
 
-  static List<num> _key(Map<String, dynamic> s) {
+  static List<Object?> _key(Map<String, dynamic> s) {
     final pts = s['points'] as List;
     List<num> xy(int i) =>
         i < 0 || i >= pts.length ? const [0, 0] : [pts[i][0], pts[i][1]];
     return [
-      s['tool'] == 'highlighter' ? 1 : 0,
+      s['tool'],
       pts.length,
       (s['width'] as num),
       (s['usePressure'] as bool) ? 1 : 0,
@@ -189,7 +196,7 @@ class StrokePathCache {
     return path;
   }
 
-  static bool _same(List<num> a, List<num> b) {
+  static bool _same(List<Object?> a, List<Object?> b) {
     for (var i = 0; i < a.length; i++) {
       if (a[i] != b[i]) return false;
     }
@@ -381,7 +388,7 @@ class PagePainter extends CustomPainter {
         s['color'],
         highlighter: s['tool'] == 'highlighter',
         alpha: ep != null && ep.fade.contains(s['id']) ? ep.alpha : 1,
-        invert: inv,
+        invert: inv && s['tool'] != 'tape',
       );
       if (pcs != null) canvas.restore();
     }
@@ -395,7 +402,7 @@ class PagePainter extends CustomPainter {
         strokePath(s),
         s['color'],
         highlighter: s['tool'] == 'highlighter',
-        invert: inv,
+        invert: inv && s['tool'] != 'tape',
       );
     }
     canvas.restore();

@@ -1850,6 +1850,30 @@ abstract class AppLocalizations {
   /// **'Highlighter'**
   String get toolHighlighter;
 
+  /// No description provided for @toolFountain.
+  ///
+  /// In en, this message translates to:
+  /// **'Fountain pen'**
+  String get toolFountain;
+
+  /// No description provided for @toolPencil.
+  ///
+  /// In en, this message translates to:
+  /// **'Pencil'**
+  String get toolPencil;
+
+  /// No description provided for @toolTape.
+  ///
+  /// In en, this message translates to:
+  /// **'Answer tape'**
+  String get toolTape;
+
+  /// No description provided for @kindSlotLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'{kind}, {color}, width {width}'**
+  String kindSlotLabel(String kind, String color, String width);
+
   /// No description provided for @recentColors.
   ///
   /// In en, this message translates to:

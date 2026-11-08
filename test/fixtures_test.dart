@@ -99,7 +99,58 @@ void _rgb(List<int> got, Case c) {
   }
 }
 
-final runners = <String, void Function(Case)>{
+void _outlineCase(Case c, String rule) {
+  final i = c['input'] as Map<String, dynamic>;
+  final t = c['tolerance'];
+  if (t is! num) {
+    throw FormatException(
+      'stroke.outline.$rule needs a top-level "tolerance" number',
+    );
+  }
+  final tol = t.toDouble();
+  final got = strokeOutlineFor(
+    rule,
+    (i['width'] as num).toDouble(),
+    i['usePressure'] as bool,
+    i['points'] as List,
+  );
+  final want = (c['expected'] as Map)['polygon'] as List;
+  expect(got.length, want.length, reason: 'polygon point count');
+  for (var k = 0; k < got.length; k++) {
+    for (var d = 0; d < 2; d++) {
+      final e = ((want[k] as List)[d] as num).toDouble();
+      expect(
+        (got[k][d] - e).abs() <= tol + 1e-9,
+        isTrue,
+        reason: 'point $k[$d]: got ${got[k][d]}, expected $e',
+      );
+    }
+  }
+}
+
+void _penKinds(Case c) {
+  final tool = (c['input'] as Map)['tool'] as String;
+  final colors = paletteFor(tool);
+  final ko = AppLocalizationsKo(), en = AppLocalizationsEn();
+  final (lo, hi) = penWidthRange(tool);
+  final d = defaultPenOf(tool);
+  _same({
+    'columns': 6,
+    'rows': colors.length ~/ 6,
+    'colors': [
+      for (final p in colors)
+        {
+          'color': p.hex,
+          'ko': penColorName(ko, p.nameKey),
+          'en': penColorName(en, p.nameKey),
+        },
+    ],
+    'width': {'min': lo, 'max': hi, 'default': d.width, 'step': 0.1},
+    'usePressureDefault': d.usePressure,
+  }, c['expected']);
+}
+
+final Map<String, void Function(Case)> runners = {
   'number.round2': (c) {
     final input = c['input'], expected = c['expected'];
     if (input is! num || expected is! num) {
@@ -349,33 +400,8 @@ final runners = <String, void Function(Case)>{
   },
   'select.image': (c) => _selectRunners[(c['input'] as Map)['fn']]!(c),
   'select.textBox': (c) => _selectRunners[(c['input'] as Map)['fn']]!(c),
-  'stroke.outline.pen': (c) {
-    final i = c['input'] as Map<String, dynamic>;
-    final t = c['tolerance'];
-    if (t is! num) {
-      throw const FormatException(
-        'stroke.outline.pen needs a top-level "tolerance" number',
-      );
-    }
-    final tol = t.toDouble();
-    final got = strokeOutline(
-      (i['width'] as num).toDouble(),
-      i['usePressure'] as bool,
-      i['points'] as List,
-    );
-    final want = (c['expected'] as Map)['polygon'] as List;
-    expect(got.length, want.length, reason: 'polygon point count');
-    for (var k = 0; k < got.length; k++) {
-      for (var d = 0; d < 2; d++) {
-        final e = ((want[k] as List)[d] as num).toDouble();
-        expect(
-          (got[k][d] - e).abs() <= tol + 1e-9,
-          isTrue,
-          reason: 'point $k[$d]: got ${got[k][d]}, expected $e',
-        );
-      }
-    }
-  },
+  'stroke.outline.pen': (c) => _outlineCase(c, 'pen'),
+  'stroke.outline.fountain': (c) => _outlineCase(c, 'fountain'),
   'stroke.outline.highlighter': (c) {
     final i = c['input'] as Map<String, dynamic>;
     final tol = (c['tolerance'] as num).toDouble();
@@ -446,27 +472,20 @@ final runners = <String, void Function(Case)>{
       reason: 'factor of $q',
     );
   },
-  'pen.palette': (c) {
-    final tool = (c['input'] as Map)['tool'] as String;
-    final colors = paletteFor(tool);
-    final ko = AppLocalizationsKo(), en = AppLocalizationsEn();
-    final (lo, hi) = penWidthRange(tool);
-    final d = tool == 'highlighter' ? defaultPenSlots[2] : defaultPen;
-    _same({
-      'columns': 6,
-      'rows': colors.length ~/ 6,
-      'colors': [
-        for (final p in colors)
-          {
-            'color': p.hex,
-            'ko': penColorName(ko, p.nameKey),
-            'en': penColorName(en, p.nameKey),
-          },
-      ],
-      'width': {'min': lo, 'max': hi, 'default': d.width, 'step': 0.1},
-      'usePressureDefault': d.usePressure,
-    }, c['expected']);
+  'pen.palette': _penKinds,
+  'pen.kinds': _penKinds,
+  'pen.switchKind': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final s = i['slot'] as Map<String, dynamic>;
+    final out = Pen(
+      tool: s['tool'] as String,
+      color: s['color'] as String,
+      width: (s['width'] as num).toDouble(),
+      usePressure: s['usePressure'] as bool,
+    ).withTool(i['to'] as String);
+    _same({'slot': out.toJson()}, c['expected']);
   },
+  'note.penKinds': (c) => runners['note.formatVersion']!(c),
   'pen.defaultSlots': (c) => _same({
     'slots': [for (final p in defaultPenSlots) p.toJson()],
   }, c['expected']),
@@ -787,15 +806,11 @@ void _runOp(Case c) {
 // adds the runner, the entry has to go (a stale entry fails the run).
 // The select.* rules have runners (Story 4.2); the ops.* edit rules (Story 4.1) arrive with the Android stories 4.4, 4.6. The erase rules have runners (Story 5.6): none pending.
 const pendingRules = <String>{
-  // Epic 24 pen kinds (Story 24.1): the runners arrive with Story 24.2 (pen.*,
-  // note.penKinds, stroke.outline.fountain), 24.4 (pencil), 24.6 (tape).
-  'stroke.outline.fountain',
+  // Epic 24 pen kinds (Story 24.1): the runners arrive with Story 24.4
+  // (pencil), 24.6 (tape).
   'stroke.outline.pencil',
   'stroke.outline.tape',
   'stroke.texture.pencil',
-  'note.penKinds',
-  'pen.kinds',
-  'pen.switchKind',
   // Epic 25/26 (Stories 25.1, 26.1): runners arrive with 25.x and 26.x Android stories.
   'note.brush',
   'note.shape',

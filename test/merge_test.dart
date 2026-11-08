@@ -146,7 +146,7 @@ void main() {
     test('error precedence: unsupportedVersion, noteIdMismatch, duplicate', () {
       final other = base.copyJson()..['noteId'] = 'other';
       final dup = base.copyJson()..['pages'] = [_page(1), _page(1)];
-      final v2 = base.copyJson()..['formatVersion'] = 2;
+      final v2 = base.copyJson()..['formatVersion'] = 3;
       Map<String, Object?> m(Map<String, dynamic> l, Map<String, dynamic> r) =>
           mergeNotes(null, l, r, _ctx());
       // All three at once: the version wins.
@@ -374,7 +374,7 @@ void main() {
     test('a newer remote format changes no file', () async {
       await store.write(_draw(base, 1, 1));
       final before = dirFile('working.kkj').readAsBytesSync();
-      final v2 = Note.trusted(base.copyJson()..['formatVersion'] = 2);
+      final v2 = Note.trusted(base.copyJson()..['formatVersion'] = 3);
       final out = await step.merge(localAtStart: base, base: base, remote: v2);
       expect(out, isA<MergeUnsupported>());
       expect(dirFile('working.kkj').readAsBytesSync(), before);

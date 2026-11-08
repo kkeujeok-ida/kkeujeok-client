@@ -12,19 +12,24 @@ const _spacing = 2.0;
 const _minRatio = 0.25;
 const _maxRatio = 1.75;
 const _capSegments = 8;
+const _taperMin = 0.25;
 
 /// spec rule `stroke.outline.pen`: the closed polygon of a pen stroke, built
 /// from the stored [points] (`[x, y, pressure, t]`) only; never stored.
 /// [curve] defaults to the device setting (spec/pen-feel.md). A mouse stores
 /// 0.5 for every point: a stroke with no other pressure gets no curve.
+/// [minRatio]/[maxRatio] and [taper] are the kind changes of spec/pen-kinds.md
+/// (fountain: 0.2, 1.6, taper); the defaults are the pen.
 List<List<double>> strokeOutline(
   double width,
   bool usePressure,
   List points, [
   PressureCurve? curve,
+  double minRatio = _minRatio,
+  double maxRatio = _maxRatio,
+  bool taper = false,
 ]) {
-  final useCurve =
-      usePressure && points.any((p) => p.length > 2 && p[2] != 0.5)
+  final useCurve = usePressure && points.any((p) => p.length > 2 && p[2] != 0.5)
       ? (curve ?? pressureCurveInUse)
       : null;
   // 1. Prepare: dedupe against the last kept point.
@@ -43,8 +48,8 @@ List<List<double>> strokeOutline(
 
   double radius(double q) {
     final f = q < 0.5
-        ? _minRatio + (1 - _minRatio) * (q / 0.5)
-        : 1 + (_maxRatio - 1) * ((q - 0.5) / 0.5);
+        ? minRatio + (1 - minRatio) * (q / 0.5)
+        : 1 + (maxRatio - 1) * ((q - 0.5) / 0.5);
     return width / 2 * f;
   }
 
@@ -104,6 +109,19 @@ List<List<double>> strokeOutline(
     sq.add(qs[seg - 1] + (qs[seg] - qs[seg - 1]) * t);
   }
 
+  // Fountain taper: the radius narrows toward both ends (pen-kinds.md).
+  final g = List<double>.filled(n + 1, 1);
+  if (taper) {
+    final taperLength = math.min(3 * width, total / 2);
+    if (taperLength >= 1e-9) {
+      for (var i = 0; i <= n; i++) {
+        final s = total * i / n;
+        final d = math.min(s, total - s);
+        g[i] = _taperMin + (1 - _taperMin) * math.min(1, d / taperLength);
+      }
+    }
+  }
+
   // 5. Tangents (never NaN).
   final tx = List<double>.filled(n + 1, 1), ty = List<double>.filled(n + 1, 0);
   for (var i = 0; i <= n; i++) {
@@ -129,11 +147,11 @@ List<List<double>> strokeOutline(
   // 6-8. Sides, caps, polygon. Normal N = (-Ty, Tx).
   final left = <List<double>>[], right = <List<double>>[];
   for (var i = 0; i <= n; i++) {
-    final r = radius(sq[i]);
+    final r = radius(sq[i]) * g[i];
     left.add([sx[i] - r * ty[i], sy[i] + r * tx[i]]);
     right.add([sx[i] + r * ty[i], sy[i] - r * tx[i]]);
   }
-  final rEnd = radius(sq[n]), rStart = radius(sq[0]);
+  final rEnd = radius(sq[n]) * g[n], rStart = radius(sq[0]) * g[0];
   final endCap = <List<double>>[], startCap = <List<double>>[];
   for (var k = 1; k < _capSegments; k++) {
     final phi = math.pi * k / _capSegments;
@@ -152,6 +170,18 @@ List<List<double>> strokeOutline(
       [round2(p[0]), round2(p[1])],
   ];
 }
+
+/// The outline of a stroke by its `tool`. Pencil and tape are pen-shaped until
+/// Stories 24.4 and 24.6 give them their own.
+List<List<double>> strokeOutlineFor(
+  String? tool,
+  double width,
+  bool usePressure,
+  List points, [
+  PressureCurve? curve,
+]) => tool == 'fountain'
+    ? strokeOutline(width, usePressure, points, curve, 0.2, 1.6, true)
+    : strokeOutline(width, usePressure, points, curve);
 
 /// spec rule `stroke.outline.highlighter`: the chisel-nib rectangles of a
 /// highlighter stroke, in point order; their union is the stroke.

@@ -32,5 +32,10 @@ const highlighterPalette = <PaletteColor>[
   PaletteColor('#d0bfff', 'lavender'),
 ];
 
+/// Palette family of a tool: `highlighter` (also for `tape`) or `pen`
+/// (spec `pen.kinds`). Customized palettes and stored keys use this key.
+String paletteFamily(String tool) =>
+    tool == 'highlighter' || tool == 'tape' ? 'highlighter' : 'pen';
+
 List<PaletteColor> paletteFor(String tool) =>
-    tool == 'highlighter' ? highlighterPalette : penPalette;
+    paletteFamily(tool) == 'highlighter' ? highlighterPalette : penPalette;

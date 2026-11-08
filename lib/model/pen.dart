@@ -1,8 +1,31 @@
 import 'pen_palette.dart';
 
-/// Width range (pt) per tool, spec `pen.palette`.
-(double, double) penWidthRange(String tool) =>
-    tool == 'highlighter' ? (4, 30) : (0.5, 10);
+/// The five stroke tools (spec `pen.md`).
+const penTools = {'pen', 'highlighter', 'fountain', 'pencil', 'tape'};
+
+/// Width range (pt) per tool, spec `pen.palette` / `pen.kinds`.
+(double, double) penWidthRange(String tool) => switch (tool) {
+  'highlighter' => (4, 30),
+  'tape' => (8, 30),
+  'fountain' => (0.5, 8),
+  'pencil' => (0.5, 6),
+  _ => (0.5, 10),
+};
+
+/// The kind's own starting pen: default width and `usePressure` (spec
+/// `pen.kinds`); the color is black, or yellow for the highlighter family.
+Pen defaultPenOf(String tool) => switch (tool) {
+  'highlighter' => defaultPenSlots[2],
+  'tape' => const Pen(
+    tool: 'tape',
+    color: '#ffe066',
+    width: 20,
+    usePressure: false,
+  ),
+  'fountain' ||
+  'pencil' => Pen(tool: tool, color: '#000000', width: 1.5, usePressure: true),
+  _ => defaultPen,
+};
 
 /// A pen as the toolbar holds it (spec `pen.md` slots).
 class Pen {
@@ -13,7 +36,7 @@ class Pen {
     required this.usePressure,
   });
 
-  final String tool; // `pen` | `highlighter`
+  final String tool; // one of [penTools]
   final String color; // `#rrggbb`, written to strokes as is
   final double width; // pt
   final bool usePressure;
@@ -40,12 +63,28 @@ class Pen {
     );
   }
 
-  /// The other tool starts from its own defaults (ranges and palettes differ).
-  Pen withTool(String t) => t == tool
-      ? this
-      : t == 'highlighter'
-      ? defaultPenSlots[2]
-      : defaultPen;
+  /// spec `pen.switchKind`: the kind's default width and `usePressure`; the
+  /// color stays when it is in the kind's default palette, else the palette's
+  /// first. The same kind resets only the width.
+  Pen withTool(String t) {
+    final d = defaultPenOf(t);
+    if (t == tool) {
+      return Pen(
+        tool: t,
+        color: color,
+        width: d.width,
+        usePressure: usePressure,
+      );
+    }
+    final c = color.toLowerCase();
+    final keep = paletteFor(t).any((p) => p.hex == c);
+    return Pen(
+      tool: t,
+      color: keep ? color : d.color,
+      width: d.width,
+      usePressure: d.usePressure,
+    );
+  }
 
   Map<String, Object> toJson() => {
     'tool': tool,

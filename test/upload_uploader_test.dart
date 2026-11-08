@@ -438,7 +438,7 @@ void main() {
 
     test('a remote with a newer formatVersion is never touched', () async {
       await env.save(makeNote(rev: 2));
-      final json = makeNote(rev: 9).copyJson()..['formatVersion'] = 2;
+      final json = makeNote(rev: 9).copyJson()..['formatVersion'] = 3;
       final bytes = gzip.encode(utf8Json(json));
       final head = env.drive.foreignRevision(env.note, bytes);
 

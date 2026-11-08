@@ -1,7 +1,7 @@
 import 'number.dart';
 
 /// Highest `formatVersion` this client reads and writes.
-const supportedFormatVersion = 1;
+const supportedFormatVersion = 2;
 
 const backgrounds = {'plain', 'lined', 'grid', 'dot'};
 
@@ -74,7 +74,8 @@ class Note {
       }
       final bg = p['background'];
       if (bg is Map<String, dynamic> && bg['type'] == 'pdf') {
-        if (bg['box'] is List) bg['box'] = [for (final n in bg['box']) _round(n)];
+        if (bg['box'] is List)
+          bg['box'] = [for (final n in bg['box']) _round(n)];
         bg['userUnit'] = _round(bg['userUnit']);
       }
       for (final e in p['elements'] as List) {
@@ -174,10 +175,21 @@ bool _validElement(Object? e) {
   }
   if (e['type'] != 'stroke') return true;
   final pts = e['points'];
-  return (e['tool'] == 'pen' || e['tool'] == 'highlighter') &&
+  return const {
+        'pen',
+        'highlighter',
+        'fountain',
+        'pencil',
+        'tape',
+      }.contains(e['tool']) &&
       _isStr(e['color']) &&
       e['width'] is num &&
       e['usePressure'] is bool &&
       pts is List &&
-      pts.every((p) => p is List && p.length == 4 && p.every((n) => n is num));
+      pts.every(
+        (p) =>
+            p is List &&
+            (p.length == 4 || p.length == 6) &&
+            p.every((n) => n is num),
+      );
 }

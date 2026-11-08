@@ -139,7 +139,8 @@ void _poly(PdfGraphics g, List<List<double>> pts) {
 }
 
 void _pen(PdfGraphics g, Map<String, dynamic> s) {
-  final pts = strokeOutline(
+  final pts = strokeOutlineFor(
+    s['tool'] as String?,
     (s['width'] as num).toDouble(),
     s['usePressure'] as bool,
     s['points'] as List,

@@ -344,7 +344,7 @@ void main() {
         'buildId': '42',
         'buildNumber': '7',
         'platform': 'android',
-        'supportedFormatVersion': 1,
+        'supportedFormatVersion': 2,
         'exportedAt': '2026-10-11T04:30:00.000Z',
       });
       expect(jsonDecode(l[1])['event'], 'pageTokenRejected');

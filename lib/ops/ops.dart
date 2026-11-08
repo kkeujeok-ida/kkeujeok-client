@@ -6,6 +6,7 @@ import '../model/image_rules.dart';
 import '../model/note.dart';
 import '../model/note_title.dart';
 import '../model/number.dart';
+import '../model/pen.dart';
 import '../model/select.dart';
 import '../model/text_layout.dart';
 import 'page_ops.dart';
@@ -441,8 +442,8 @@ OpResult _strokeOp(Note note, Map<String, dynamic> op, Ctx ctx) {
       el['color'] = op['color'];
     } else {
       // Each stroke is clamped to its own tool's range (spec/ops.md).
-      final hl = el['tool'] == 'highlighter';
-      el['width'] = width.clamp(hl ? 4.0 : 0.5, hl ? 30.0 : 10.0);
+      final (lo, hi) = penWidthRange(el['tool'] as String);
+      el['width'] = width.clamp(lo, hi);
     }
   }
   _touch(page, ctx);

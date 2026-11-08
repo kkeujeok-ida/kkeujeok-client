@@ -64,7 +64,7 @@ class PenSlotsStore {
     final m = e as Map;
     final tool = m['tool'] ?? 'pen'; // saved before highlighters: a pen
     final color = m['color'], width = m['width'], up = m['usePressure'];
-    if (tool != 'pen' && tool != 'highlighter') {
+    if (!penTools.contains(tool)) {
       throw const FormatException();
     }
     final (lo, hi) = penWidthRange(tool as String);

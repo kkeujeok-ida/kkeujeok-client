@@ -112,7 +112,7 @@ void main() {
       ('broken gzip', [1, 2, 3, 4]),
       (
         'newer version',
-        gzip.encode(utf8.encode(jsonEncode({'formatVersion': 2, 'x': 1}))),
+        gzip.encode(utf8.encode(jsonEncode({'formatVersion': 3, 'x': 1}))),
       ),
     ]) {
       test(name, () async {

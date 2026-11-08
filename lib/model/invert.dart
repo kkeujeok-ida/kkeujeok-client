@@ -134,6 +134,7 @@ Map<String, Object?> invertLayers(Map<String, Object?> i) {
   if (e is! Map) return none;
   switch (e['type']) {
     case 'stroke':
+      if (e['tool'] == 'tape') return none; // a cover color, drawn as stored
       return {
         'invert': true,
         'how': e['tool'] == 'highlighter' ? 'highlighter' : 'ink',

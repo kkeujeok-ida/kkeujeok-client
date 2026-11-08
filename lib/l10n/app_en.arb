@@ -425,6 +425,23 @@
   "colorLavender": "Lavender",
   "toolPen": "Pen",
   "toolHighlighter": "Highlighter",
+  "toolFountain": "Fountain pen",
+  "toolPencil": "Pencil",
+  "toolTape": "Answer tape",
+  "kindSlotLabel": "{kind}, {color}, width {width}",
+  "@kindSlotLabel": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "color": {
+        "type": "String"
+      },
+      "width": {
+        "type": "String"
+      }
+    }
+  },
   "recentColors": "Recent",
   "widthDecrease": "Decrease thickness",
   "widthIncrease": "Increase thickness",

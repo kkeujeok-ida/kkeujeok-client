@@ -1,7 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
 import 'kk.dart';
+
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -211,9 +213,11 @@ class _PenToolbarState extends State<PenToolbar> {
       key: ObjectKey(pen), // each slot is its own Pen object
       index: i,
       child: Semantics(
-        label: pen.isHighlighter
-            ? l10n.highlighterSlotLabel(color, width)
-            : l10n.penSlotLabel(color, width),
+        label: switch (pen.tool) {
+          'highlighter' => l10n.highlighterSlotLabel(color, width),
+          'pen' => l10n.penSlotLabel(color, width),
+          _ => l10n.kindSlotLabel(_kindName(l10n, pen.tool), color, width),
+        },
         button: true,
         selected: selected,
         onTap: () => widget.onSlotTap?.call(i),
@@ -867,7 +871,7 @@ class PenEditDialog extends ConsumerWidget {
     final widthText = width.toStringAsFixed(1);
     void step(int d) => notifier.setWidth(i, width + d / 10);
     final palette = [
-      for (final hex in ref.watch(penPaletteProvider)[pen.tool]!)
+      for (final hex in ref.watch(penPaletteProvider)[paletteFamily(pen.tool)]!)
         PaletteColor(hex, colorNameKeyFor(hex)),
     ];
 
@@ -895,7 +899,7 @@ class PenEditDialog extends ConsumerWidget {
       ),
     ];
 
-    Widget switchButton(String tool, String text) {
+    Widget switchButton(String tool, String text, {bool glyph = true}) {
       final active = pen.tool == tool;
       return Expanded(
         child: Semantics(
@@ -917,15 +921,20 @@ class PenEditDialog extends ConsumerWidget {
                   border: Border.all(color: Kk.colorBorderControl),
                 ),
                 child: Center(
-                  child: CustomPaint(
-                    size: const Size(12, 21.6),
-                    painter: _ToolGlyphPainter(
-                      theme.colorScheme.onSurface,
-                      [tool == 'highlighter' ? _highlighterD : _penD],
-                      20,
-                      36,
-                    ),
-                  ),
+                  child: glyph
+                      ? CustomPaint(
+                          size: const Size(12, 21.6),
+                          painter: _ToolGlyphPainter(
+                            theme.colorScheme.onSurface,
+                            [tool == 'highlighter' ? _highlighterD : _penD],
+                            20,
+                            36,
+                          ),
+                        )
+                      : FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(text, style: theme.textTheme.labelMedium),
+                        ),
                 ),
               ),
             ),
@@ -971,11 +980,25 @@ class PenEditDialog extends ConsumerWidget {
                     ],
                   ),
                 ),
+                const SizedBox(height: KkjTokens.spacing2),
+                Semantics(
+                  container: true,
+                  role: SemanticsRole.radioGroup,
+                  child: Row(
+                    children: [
+                      for (final k in const ['fountain', 'pencil', 'tape']) ...[
+                        if (k != 'fountain')
+                          const SizedBox(width: KkjTokens.spacing2),
+                        switchButton(k, _kindName(l10n, k), glyph: false),
+                      ],
+                    ],
+                  ),
+                ),
                 const SizedBox(height: KkjTokens.spacing3),
                 Semantics(
                   header: true,
                   child: Text(
-                    pen.isHighlighter ? l10n.toolHighlighter : l10n.toolPen,
+                    _kindName(l10n, pen.tool),
                     style: theme.textTheme.titleMedium,
                   ),
                 ),
@@ -1372,10 +1395,7 @@ class _TailPainter extends CustomPainter {
           Offset(0, size.height),
         ], true);
     }
-    canvas.drawPath(
-      path,
-      Paint()..color = Kk.componentsPopoverBackground,
-    );
+    canvas.drawPath(path, Paint()..color = Kk.componentsPopoverBackground);
   }
 
   @override
@@ -1454,10 +1474,7 @@ class _ColorCell extends StatelessWidget {
                     ),
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        border: Border.all(
-                          color: Kk.colorAccent,
-                          width: 2,
-                        ),
+                        border: Border.all(color: Kk.colorAccent, width: 2),
                       ),
                     ),
                   ),
@@ -1468,6 +1485,14 @@ class _ColorCell extends StatelessWidget {
     ),
   );
 }
+
+String _kindName(AppLocalizations l10n, String tool) => switch (tool) {
+  'highlighter' => l10n.toolHighlighter,
+  'fountain' => l10n.toolFountain,
+  'pencil' => l10n.toolPencil,
+  'tape' => l10n.toolTape,
+  _ => l10n.toolPen,
+};
 
 const _previewW = 280.0, _previewH = 64.0, _previewScale = 3.0;
 const _previewAmp = 12.0, _previewMargin = 24.0; // margin: room for the caps
@@ -1503,7 +1528,7 @@ class PenPreviewPainter extends CustomPainter {
         (_previewMargin - 2) / 0.875,
       ),
     );
-    return strokeOutline(w, pen.usePressure, pts);
+    return strokeOutlineFor(pen.tool, w, pen.usePressure, pts);
   }
 
   static List<List<List<double>>> _rects(Pen pen) {

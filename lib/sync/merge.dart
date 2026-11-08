@@ -1,4 +1,4 @@
-import '../model/note.dart' show copyJsonValue;
+import '../model/note.dart' show copyJsonValue, supportedFormatVersion;
 import '../model/pdf_rules.dart' show isPdfBackground;
 
 /// Spec `merge`: page by page, then page order, then note fields. Pure: no
@@ -72,7 +72,10 @@ bool _hasDuplicate(Json? n) {
 }
 
 bool _unsupported(Object? v) =>
-    v is num && v.isFinite && v == v.truncateToDouble() && v > 1;
+    v is num &&
+    v.isFinite &&
+    v == v.truncateToDouble() &&
+    v > supportedFormatVersion;
 
 Map<String, Object?> _merge(
   Json? base0,

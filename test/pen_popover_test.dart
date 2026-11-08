@@ -229,11 +229,11 @@ void main() {
     expect(_cell('Red'), findsNothing);
     final sl = t.widget<Slider>(find.byType(Slider));
     expect((sl.min, sl.max), (4.0, 30.0));
-    // Same tool again: nothing changes.
+    // Same tool again: the width goes back to the default (pen.switchKind).
     c.read(penSlotsProvider.notifier).setWidth(0, 20);
     await t.tap(find.bySemanticsLabel('Highlighter').first);
     await t.pumpAndSettle();
-    expect(c.read(penSlotsProvider).first.width, 20);
+    expect(c.read(penSlotsProvider).first.width, 14);
     await t.tap(find.bySemanticsLabel('Pen').first);
     await t.pumpAndSettle();
     p = c.read(penSlotsProvider).first;
@@ -242,6 +242,32 @@ void main() {
       ('pen', '#000000', 2.0, true),
     );
     expect(_cell('Red'), findsOneWidget);
+  });
+
+  testWidgets('kind buttons switch the slot kind and it is stored', (t) async {
+    final c = await _open(t);
+    await t.tap(find.bySemanticsLabel('Fountain pen'));
+    await t.pumpAndSettle();
+    var p = c.read(penSlotsProvider).first;
+    expect(
+      (p.tool, p.color, p.width, p.usePressure),
+      ('fountain', '#000000', 1.5, true),
+    );
+    final sl = t.widget<Slider>(find.byType(Slider));
+    expect((sl.min, sl.max), (0.5, 8.0));
+    expect(_cell('Red'), findsOneWidget); // the pen palette
+    await t.tap(_cell('Red'));
+    await t.tap(find.bySemanticsLabel('Answer tape'));
+    await t.pumpAndSettle();
+    p = c.read(penSlotsProvider).first;
+    expect(
+      (p.tool, p.color, p.width, p.usePressure),
+      ('tape', '#ffe066', 20.0, false), // red is not in the highlighter palette
+    );
+    expect(_cell('Sky'), findsOneWidget);
+    // Restart: the stored slot reads back, the other two are as before.
+    final slots = PenSlotsStore(await SharedPreferences.getInstance()).read();
+    expect(slots.map((e) => e.tool), ['tape', 'pen', 'highlighter']);
   });
 
   testWidgets('palette cells name and select for TalkBack', (t) async {
