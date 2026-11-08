@@ -3,9 +3,12 @@ import 'dart:io';
 
 import 'note.dart';
 
-/// `.kkj` bytes: gzip of UTF-8 JSON.
-List<int> encodeKkj(Note note) =>
-    gzip.encode(utf8.encode(jsonEncode(note.toJson())));
+/// `.kkj` bytes: gzip of UTF-8 JSON. Always written as the supported
+/// `formatVersion` (spec `note-format.md`, "Format version 2").
+List<int> encodeKkj(Note note) => gzip.encode(utf8.encode(jsonEncode({
+      ...note.toJson(),
+      'formatVersion': supportedFormatVersion,
+    })));
 
 /// Spec `note.formatVersion`; never throws.
 NoteReadResult decodeKkj(List<int> bytes) {
