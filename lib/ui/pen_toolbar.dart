@@ -64,15 +64,20 @@ class PenToolbar extends StatefulWidget {
     this.onLasso,
     this.textSelected = false,
     this.onText,
+    this.shapeSelected = false,
+    this.shapeKind = 'rect',
+    this.shapeLock = false,
+    this.onShapeOpened,
+    this.onShapePick,
     this.onImage,
   });
 
   /// Width of everything but the slot list: padding, grip, [+], the divider,
   /// undo, redo, eraser, lasso, text and image. These never shrink or fold away.
-  static const fixedWidth = 311.0;
+  static const fixedWidth = 345.0;
 
   /// The same for the vertical bar (the [+] is 34 tall, not 48).
-  static const fixedHeight = 297.0;
+  static const fixedHeight = 331.0;
 
   /// Length of one slot along a horizontal bar (tighter than the 48 dp cell
   /// the vertical bar is wide).
@@ -122,6 +127,14 @@ class PenToolbar extends StatefulWidget {
   final VoidCallback? onLasso;
   final bool textSelected;
   final VoidCallback? onText;
+
+  /// [도형]: the shape tool; the menu picks `triangle`, `rect`, `circle` or
+  /// toggles the ratio lock (`lock`).
+  final bool shapeSelected;
+  final String shapeKind;
+  final bool shapeLock;
+  final VoidCallback? onShapeOpened;
+  final void Function(String value)? onShapePick;
 
   /// [이미지]: opens the gallery / camera choice. Null disables it.
   final VoidCallback? onImage;
@@ -445,6 +458,35 @@ class _PenToolbarState extends State<PenToolbar> {
               icon: const Icon(Icons.text_fields),
               onPressed: widget.onText,
             ),
+            PopupMenuButton<String>(
+              tooltip: l10n.shapeTool,
+              enabled: widget.onShapePick != null,
+              constraints: const BoxConstraints(minWidth: 160),
+              onOpened: widget.onShapeOpened,
+              onSelected: widget.onShapePick,
+              style: _compact.copyWith(
+                minimumSize: const WidgetStatePropertyAll(Size(_hit, _hit)),
+                backgroundColor: WidgetStatePropertyAll(
+                  widget.shapeSelected ? Kk.colorAccentSoft : null,
+                ),
+              ),
+              iconSize: _icon,
+              icon: Icon(_shapeIcon(widget.shapeKind)),
+              itemBuilder: (_) => [
+                for (final k in const ['triangle', 'rect', 'circle'])
+                  CheckedPopupMenuItem<String>(
+                    value: k,
+                    checked: widget.shapeKind == k,
+                    child: Text(_shapeName(l10n, k)),
+                  ),
+                const PopupMenuDivider(),
+                CheckedPopupMenuItem<String>(
+                  value: 'lock',
+                  checked: widget.shapeLock,
+                  child: Text(l10n.shapeLockRatio),
+                ),
+              ],
+            ),
             IconButton(
               tooltip: l10n.imageTool,
               constraints: const BoxConstraints(
@@ -463,6 +505,18 @@ class _PenToolbarState extends State<PenToolbar> {
     );
   }
 }
+
+IconData _shapeIcon(String kind) => switch (kind) {
+  'triangle' => Icons.change_history,
+  'circle' => Icons.circle_outlined,
+  _ => Icons.crop_square,
+};
+
+String _shapeName(AppLocalizations l10n, String kind) => switch (kind) {
+  'triangle' => l10n.shapeTriangle,
+  'circle' => l10n.shapeCircle,
+  _ => l10n.shapeRect,
+};
 
 /// The ko/en name of a palette color key (`custom` for any other color).
 String penColorName(AppLocalizations l10n, String key) => switch (key) {

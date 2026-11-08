@@ -32,6 +32,7 @@ import '../model/page_view_mode.dart';
 import '../model/pen.dart';
 import '../model/pen_only.dart';
 import '../model/select.dart';
+import '../model/shape.dart';
 import '../model/tape_hit.dart';
 import '../model/straighten.dart';
 import '../model/text_layout.dart';
@@ -110,7 +111,7 @@ bool _stylusSeen = false;
 @visibleForTesting
 void resetStylusSeen() => _stylusSeen = false;
 
-enum _Tool { pen, lasso, text, eraser }
+enum _Tool { pen, lasso, text, eraser, shape }
 
 enum _XKind { move, scale, rotate, width }
 
@@ -223,6 +224,11 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   bool _holdOn = false, _straight = false, _holdDead = false;
   // The pen draws only straight lines (Pen.lineMode), fixed at the press.
   bool _line = false;
+  // The shape tool (Story 26.4): the stroke in progress is a shape dragged
+  // from the first point; the kind and the toolbar ratio lock are UI state.
+  bool _shaping = false;
+  String _shapeKind = 'rect';
+  bool _shapeLock = false;
   List<num>? _holdAnchor;
   Timer? _holdTimer;
   PageViewport? _vp;
@@ -1331,12 +1337,13 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   /// its popover. Not while a stroke is going on.
   void _slotTap(int i) {
     if (_pointer != null) return;
-    if (_tool == _Tool.pen && i == ref.read(selectedPenSlotProvider)) {
+    if ((_tool == _Tool.pen || _tool == _Tool.shape) &&
+        i == ref.read(selectedPenSlotProvider)) {
       _editPen(i);
       return;
     }
     _pickSlot(i);
-    _setTool(_Tool.pen);
+    if (_tool != _Tool.shape) _setTool(_Tool.pen); // shapes use the new slot
   }
 
   /// Eraser button: picks the tool; on the picked one, opens its options.
@@ -2378,22 +2385,42 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     super.dispose();
   }
 
-  Map<String, dynamic> _stroke(List<List<num>> points) => {
+  /// The shape the drag makes (`shape.fromDrag`); the ratio is locked by the
+  /// toolbar toggle or a second finger down.
+  Map<String, dynamic>? _dragShape() {
+    if (!_shaping || _points.length < 2) return null;
+    final lock =
+        _shapeLock ||
+        (_mode == _Mode.pen ? _touches.isNotEmpty : _touches.length > 1);
+    final s = shapeFromDrag(_shapeKind, _points.first, _points.last, lock);
+    return isKnownShape(s) ? s : null; // a straight drag has no area
+  }
+
+  Map<String, dynamic> _stroke(List<List<num>> points, [Map? shape]) => {
     'id': newId(),
     'type': 'stroke',
     'tool': _pen.tool,
     'color': _pen.color,
     'width': _pen.width,
-    // A straightened line has the tool's width, no pressure.
-    'usePressure': _pen.usePressure && !_straight && !_line,
+    // A straightened line or a shape has the tool's width, no pressure.
+    'usePressure': _pen.usePressure && !_straight && !_line && shape == null,
     if (_pen.brush != null) 'brush': copyJsonValue(_pen.brush),
-    'points': points,
+    if (shape != null) 'shape': shape,
+    'points': shape == null ? points : shapePoints(shape)!,
   };
 
   // While erasing nothing is drawn live: the struck strokes show translucent
   // (see [_erasePreview]) and go away on up.
-  Map<String, dynamic>? _live() =>
-      _pointer == null || _erasing ? null : _stroke(_shownPoints());
+  Map<String, dynamic>? _live() => _pointer == null || _erasing
+      ? null
+      : _shaping
+      ? _shapeLive()
+      : _stroke(_shownPoints());
+
+  Map<String, dynamic>? _shapeLive() {
+    final s = _dragShape();
+    return s == null ? null : _stroke(const [], s);
+  }
 
   // Memo of the last preview, keyed on (point count, first point, page, mode):
   // a repaint without a new pointer point reuses it.
@@ -3256,6 +3283,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       ..clear()
       ..add(_point(e, doc - _origin));
     _holdReset();
+    _shaping = _tool == _Tool.shape;
     _line = !_erasing && _tool == _Tool.pen && _pen.lineMode;
     _holdOn =
         !_erasing &&
@@ -3281,7 +3309,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   void _holdReset() {
     _holdTimer?.cancel();
     _holdTimer = null;
-    _holdOn = _straight = _holdDead = _line = false;
+    _holdOn = _straight = _holdDead = _line = _shaping = false;
     _holdAnchor = null;
   }
 
@@ -3729,7 +3757,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _finishErase(pageId);
       return;
     }
-    final stroke = _stroke(_shownPoints());
+    final shape = _dragShape();
+    if (_shaping && shape == null) {
+      _discardStroke(); // a tiny drag is no shape
+      return;
+    }
+    final stroke = _stroke(_shownPoints(), shape);
     _pointer = null;
     _points.clear();
     _holdReset();
@@ -4550,6 +4583,24 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                       onLasso: () => _setTool(_Tool.lasso),
                       textSelected: _tool == _Tool.text,
                       onText: () => _setTool(_Tool.text),
+                      shapeSelected: _tool == _Tool.shape,
+                      shapeKind: _shapeKind,
+                      shapeLock: _shapeLock,
+                      onShapeOpened: readOnly || receiving || locked
+                          ? null
+                          : () => _setTool(_Tool.shape),
+                      onShapePick: readOnly || receiving || locked
+                          ? null
+                          : (v) {
+                              _setTool(_Tool.shape);
+                              setState(() {
+                                if (v == 'lock') {
+                                  _shapeLock = !_shapeLock;
+                                } else {
+                                  _shapeKind = v;
+                                }
+                              });
+                            },
                       onImage: readOnly || receiving || locked
                           ? null
                           : _chooseImage,

@@ -8,6 +8,7 @@ import '../model/note_title.dart';
 import '../model/number.dart';
 import '../model/pen.dart';
 import '../model/select.dart';
+import '../model/shape.dart';
 import '../model/text_layout.dart';
 import 'page_ops.dart';
 
@@ -328,6 +329,11 @@ OpResult _transformOp(Note note, Map<String, dynamic> op, Ctx ctx) {
         pt[0] = round2(x);
         pt[1] = round2(y);
       }
+      // A shape stroke follows the shape rule; its points are made again.
+      final shape = e['shape'];
+      if (shape is Map && transformShape(shape, f, sx, sy, turn)) {
+        e['points'] = shapePoints(shape);
+      }
     } else {
       final text = _isTextBox(e);
       final w = _d(e['width']), h = text ? textHeight(e) : _d(e['height']);
@@ -569,6 +575,7 @@ OpResult _erase(
       out.add(
         (copyJsonValue(e) as Map<String, dynamic>)
           ..['id'] = id
+          ..remove('shape') // a piece is a plain stroke
           ..['points'] = [for (final k in piece) copyJsonValue(entries[k])],
       );
     }

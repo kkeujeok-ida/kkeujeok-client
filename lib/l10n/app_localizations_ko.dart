@@ -808,6 +808,21 @@ class AppLocalizationsKo extends AppLocalizations {
   String get lassoTool => '올가미';
 
   @override
+  String get shapeTool => '도형';
+
+  @override
+  String get shapeTriangle => '삼각형';
+
+  @override
+  String get shapeRect => '사각형';
+
+  @override
+  String get shapeCircle => '원';
+
+  @override
+  String get shapeLockRatio => '비율 고정';
+
+  @override
   String get textTool => '텍스트';
 
   @override

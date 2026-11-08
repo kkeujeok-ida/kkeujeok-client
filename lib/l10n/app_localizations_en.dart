@@ -866,6 +866,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get lassoTool => 'Lasso';
 
   @override
+  String get shapeTool => 'Shapes';
+
+  @override
+  String get shapeTriangle => 'Triangle';
+
+  @override
+  String get shapeRect => 'Rectangle';
+
+  @override
+  String get shapeCircle => 'Circle';
+
+  @override
+  String get shapeLockRatio => 'Lock ratio';
+
+  @override
   String get textTool => 'Text';
 
   @override

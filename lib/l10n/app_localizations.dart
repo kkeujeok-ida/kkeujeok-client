@@ -1580,6 +1580,36 @@ abstract class AppLocalizations {
   /// **'Lasso'**
   String get lassoTool;
 
+  /// No description provided for @shapeTool.
+  ///
+  /// In en, this message translates to:
+  /// **'Shapes'**
+  String get shapeTool;
+
+  /// No description provided for @shapeTriangle.
+  ///
+  /// In en, this message translates to:
+  /// **'Triangle'**
+  String get shapeTriangle;
+
+  /// No description provided for @shapeRect.
+  ///
+  /// In en, this message translates to:
+  /// **'Rectangle'**
+  String get shapeRect;
+
+  /// No description provided for @shapeCircle.
+  ///
+  /// In en, this message translates to:
+  /// **'Circle'**
+  String get shapeCircle;
+
+  /// No description provided for @shapeLockRatio.
+  ///
+  /// In en, this message translates to:
+  /// **'Lock ratio'**
+  String get shapeLockRatio;
+
   /// No description provided for @textTool.
   ///
   /// In en, this message translates to:
