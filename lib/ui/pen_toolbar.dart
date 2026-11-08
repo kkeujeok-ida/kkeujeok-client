@@ -654,7 +654,7 @@ class _PenSlot extends StatelessWidget {
       size: const Size(_nibW, _nibH),
       painter: _ToolGlyphPainter(
         parseColor(pen.color),
-        [pen.isHighlighter ? _highlighterD : _penD],
+        [_glyphD(pen.tool)],
         20,
         36,
       ),
@@ -752,6 +752,17 @@ class _PenSlot extends StatelessWidget {
 // Shapes from spec/tool-icons.md: absolute M L H V Z only.
 const _penD = 'M3 0V22.3L10 36L17 22.3V0M3 22.3H17';
 const _highlighterD = 'M3 0V36L17 28V0M3 22.3H17';
+const _fountainD = 'M3 0V18L10 36L17 18V0M3 18H17M10 18V26';
+const _pencilD = 'M3 0V28L10 36L17 28V0ZM3 6H17M3 28H17';
+const _tapeD = 'M3 8H17V28H3ZM7 14H13M7 22H13';
+
+String _glyphD(String tool) => switch (tool) {
+  'highlighter' => _highlighterD,
+  'fountain' => _fountainD,
+  'pencil' => _pencilD,
+  'tape' => _tapeD,
+  _ => _penD,
+};
 const _eraserD = 'M15 3.5L20.5 9L10 19.5L4.5 14ZM8.7 9.8L14.2 15.3';
 const _eraserPartialD = 'M3 22H7M10 22H14M17 22H21';
 
@@ -899,7 +910,7 @@ class PenEditDialog extends ConsumerWidget {
       ),
     ];
 
-    Widget switchButton(String tool, String text, {bool glyph = true}) {
+    Widget switchButton(String tool, String text) {
       final active = pen.tool == tool;
       return Expanded(
         child: Semantics(
@@ -918,23 +929,17 @@ class PenEditDialog extends ConsumerWidget {
                 decoration: BoxDecoration(
                   color: active ? Kk.colorAccentSoft : null,
                   borderRadius: BorderRadius.circular(KkjTokens.roundedSm),
-                  border: Border.all(color: Kk.colorBorderControl),
                 ),
                 child: Center(
-                  child: glyph
-                      ? CustomPaint(
-                          size: const Size(12, 21.6),
-                          painter: _ToolGlyphPainter(
-                            theme.colorScheme.onSurface,
-                            [tool == 'highlighter' ? _highlighterD : _penD],
-                            20,
-                            36,
-                          ),
-                        )
-                      : FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(text, style: theme.textTheme.labelMedium),
-                        ),
+                  child: CustomPaint(
+                    size: const Size(12, 21.6),
+                    painter: _ToolGlyphPainter(
+                      theme.colorScheme.onSurface,
+                      [_glyphD(tool)],
+                      20,
+                      36,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -974,23 +979,14 @@ class PenEditDialog extends ConsumerWidget {
                   role: SemanticsRole.radioGroup,
                   child: Row(
                     children: [
-                      switchButton('pen', l10n.toolPen),
-                      const SizedBox(width: KkjTokens.spacing2),
-                      switchButton('highlighter', l10n.toolHighlighter),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: KkjTokens.spacing2),
-                Semantics(
-                  container: true,
-                  role: SemanticsRole.radioGroup,
-                  child: Row(
-                    children: [
-                      for (final k in const ['fountain', 'pencil', 'tape']) ...[
-                        if (k != 'fountain')
-                          const SizedBox(width: KkjTokens.spacing2),
-                        switchButton(k, _kindName(l10n, k), glyph: false),
-                      ],
+                      for (final k in const [
+                        'pen',
+                        'highlighter',
+                        'fountain',
+                        'pencil',
+                        'tape',
+                      ])
+                        switchButton(k, _kindName(l10n, k)),
                     ],
                   ),
                 ),

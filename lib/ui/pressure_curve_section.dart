@@ -202,20 +202,102 @@ class _PressureCurveSectionState extends ConsumerState<PressureCurveSection> {
           ),
           const SizedBox(height: KkjTokens.spacing2),
           right(
-            Semantics(
-              label: l10n.pressureCurveGraph,
-              child: _noScroll(
-                child: Listener(
-                  onPointerDown: _down,
-                  onPointerMove: _move,
-                  onPointerUp: (_) => _drag = -1,
-                  onPointerCancel: (_) => _drag = -1,
-                  child: SizedBox(
-                    width: _graph,
-                    height: _graph,
-                    child: CustomPaint(painter: _GraphPainter(curve, sel)),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Semantics(
+                    label: l10n.pressureCurveGraph,
+                    child: _noScroll(
+                      child: Listener(
+                        onPointerDown: _down,
+                        onPointerMove: _move,
+                        onPointerUp: (_) => _drag = -1,
+                        onPointerCancel: (_) => _drag = -1,
+                        child: SizedBox(
+                          width: _graph,
+                          height: _graph,
+                          child: CustomPaint(
+                            painter: _GraphPainter(curve, sel),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: KkjTokens.spacing2),
+                  SizedBox(
+                    width: 140,
+                    height: _graph,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (sel >= 0)
+                          for (final out in [false, true])
+                            SizedBox(
+                              width: 140,
+                              child: Semantics(
+                                label: out
+                                    ? l10n.pressureCurveOut
+                                    : l10n.pressureCurveIn,
+                                child: Slider(
+                                  min: out
+                                      ? (sel == 0 ? 0.0 : p[sel - 1].$2)
+                                      : (sel == 0 ? 0.0 : p[sel - 1].$1) + _eps,
+                                  max: out
+                                      ? (sel == p.length - 1
+                                            ? 1.0
+                                            : p[sel + 1].$2)
+                                      : (sel == p.length - 1
+                                                ? 1.0
+                                                : p[sel + 1].$1) -
+                                            _eps,
+                                  value: (out ? p[sel].$2 : p[sel].$1),
+                                  onChanged: (x) => _set(
+                                    p
+                                      ..[sel] = out
+                                          ? (p[sel].$1, x)
+                                          : (x, p[sel].$2),
+                                  ),
+                                  semanticFormatterCallback: (x) =>
+                                      x.toStringAsFixed(2),
+                                ),
+                              ),
+                            ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: KkjTokens.spacing2),
+                  Semantics(
+                    label: l10n.pressureCurvePad,
+                    child: _noScroll(
+                      kinds: {PointerDeviceKind.stylus},
+                      child: Listener(
+                        onPointerDown: (e) {
+                          if (e.kind != PointerDeviceKind.stylus) return;
+                          _pts.clear();
+                          _add(e);
+                        },
+                        onPointerMove: (e) {
+                          if (e.kind == PointerDeviceKind.stylus) _add(e);
+                        },
+                        child: Container(
+                          height: _graph,
+                          width: _graph,
+                          decoration: BoxDecoration(
+                            color: Kk.colorSurfaceRaised,
+                            border: Border.all(color: Kk.colorBorderControl),
+                          ),
+                          child: ClipRect(
+                            child: CustomPaint(
+                              painter: _PadPainter(List.of(_pts), curve),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -238,61 +320,6 @@ class _PressureCurveSectionState extends ConsumerState<PressureCurveSection> {
                   child: Text(l10n.pressureCurveReset),
                 ),
               ],
-            ),
-          ),
-          if (sel >= 0)
-            for (final out in [false, true])
-              right(
-                SizedBox(
-                  width: _graph,
-                  child: Semantics(
-                    label: out ? l10n.pressureCurveOut : l10n.pressureCurveIn,
-                    child: Slider(
-                      min: out
-                          ? (sel == 0 ? 0.0 : p[sel - 1].$2)
-                          : (sel == 0 ? 0.0 : p[sel - 1].$1) + _eps,
-                      max: out
-                          ? (sel == p.length - 1 ? 1.0 : p[sel + 1].$2)
-                          : (sel == p.length - 1 ? 1.0 : p[sel + 1].$1) - _eps,
-                      value: (out ? p[sel].$2 : p[sel].$1),
-                      onChanged: (x) => _set(
-                        p..[sel] = out ? (p[sel].$1, x) : (x, p[sel].$2),
-                      ),
-                      semanticFormatterCallback: (x) => x.toStringAsFixed(2),
-                    ),
-                  ),
-                ),
-              ),
-          Semantics(
-            label: l10n.pressureCurvePad,
-            child: _noScroll(
-              kinds: {PointerDeviceKind.stylus},
-              child: Listener(
-                onPointerDown: (e) {
-                  if (e.kind != PointerDeviceKind.stylus) return;
-                  _pts.clear();
-                  _add(e);
-                },
-                onPointerMove: (e) {
-                  if (e.kind == PointerDeviceKind.stylus) _add(e);
-                },
-                child: Container(
-                  height: 96,
-                  width: double.infinity,
-                  margin: const EdgeInsets.symmetric(
-                    vertical: KkjTokens.spacing2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Kk.colorSurfaceRaised,
-                    border: Border.all(color: Kk.colorBorderControl),
-                  ),
-                  child: ClipRect(
-                    child: CustomPaint(
-                      painter: _PadPainter(List.of(_pts), curve),
-                    ),
-                  ),
-                ),
-              ),
             ),
           ),
         ],

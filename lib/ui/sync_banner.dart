@@ -133,9 +133,7 @@ class SyncBanner extends ConsumerWidget {
       liveRegion: true,
       sortKey: const OrdinalSortKey(0),
       child: ColoredBox(
-        color: emphasis
-            ? Kk.colorAccentSoft
-            : Kk.componentsBannerBackground,
+        color: emphasis ? Kk.colorAccentSoft : Kk.componentsBannerBackground,
         child: Padding(
           padding: EdgeInsets.only(
             top: MediaQuery.paddingOf(context).top,

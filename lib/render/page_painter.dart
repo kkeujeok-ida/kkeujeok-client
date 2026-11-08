@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui show Image;
 
 import 'package:flutter/rendering.dart';
@@ -168,56 +167,59 @@ void fillStroke(
   c.restore();
 }
 
-/// Draws a ready pencil texture in the stroke color (All Dark: inverted like a
-/// pen). The cells are opaque in the image; the color filter paints them.
+/// Fills a pencil stroke [p] in the stroke color through the grain [tile]:
+/// the polygon is drawn in a layer, then the tile (anchored at the stroke's
+/// first point, so it moves with the stroke) keeps only its grain. Without a
+/// tile the plain alpha polygon is drawn.
 void fillPencil(
   Canvas c,
-  PencilDraw d,
-  Object? color, {
+  Path p,
+  Object? color,
+  ui.Image? tile,
+  Offset anchor,
+  double density, {
   double alpha = 1,
   bool invert = false,
-  bool minified = false,
 }) {
   final base = parseColor(invert && color is String ? inkHex(color) : color);
-  final paint = Paint()
-    ..colorFilter = ColorFilter.mode(
-      alpha == 1 ? base : base.withValues(alpha: base.a * alpha),
-      BlendMode.srcIn,
-    )
-    // Cells smaller than a pixel are averaged, larger ones stay crisp.
-    ..filterQuality = minified ? FilterQuality.medium : FilterQuality.none;
-  final m = d.m;
-  c.save();
-  if (m != null) {
-    c.transform(
-      Float64List.fromList([
-        m[0], m[1], 0, 0, //
-        -m[1], m[0], 0, 0,
-        0, 0, 1, 0,
-        m[2], m[3], 0, 1,
-      ]),
-    );
-  }
-  c.drawImageRect(
-    d.image,
-    Rect.fromLTWH(0, 0, d.image.width.toDouble(), d.image.height.toDouble()),
-    d.dst,
-    paint,
+  final ink = base.withValues(alpha: base.a * alpha * density);
+  if (tile == null) return c.drawPath(p, Paint()..color = ink);
+  final bounds = p.getBounds().inflate(1);
+  c.saveLayer(bounds, Paint());
+  c.drawPath(p, Paint()..color = ink);
+  final m = Matrix4.identity()
+    ..translateByDouble(anchor.dx, anchor.dy, 0, 1)
+    ..scaleByDouble(pencilGrainScale, pencilGrainScale, 1, 1);
+  c.drawRect(
+    bounds,
+    Paint()
+      ..blendMode = BlendMode.dstIn
+      ..filterQuality = FilterQuality.medium
+      ..shader = ImageShader(
+        tile,
+        TileMode.repeated,
+        TileMode.repeated,
+        m.storage,
+        filterQuality: FilterQuality.medium,
+      ),
   );
   c.restore();
 }
 
-/// Alpha of the plain pencil polygon: while the pen is down, while the cells
-/// build, and for a stroke too big for a texture.
+/// Mean-pressure density of a pencil stroke: how dark it is overall.
 double pencilAlpha(Map<String, dynamic> s) =>
     pencilDensity(meanPressure(s['usePressure'] as bool, s['points'] as List))
         .density;
 
+Offset _anchorOf(Map<String, dynamic> s) {
+  final p = (s['points'] as List).first as List;
+  return Offset((p[0] as num).toDouble(), (p[1] as num).toDouble());
+}
+
 /// Finished-stroke outlines by stroke id, so a repaint does not rebuild them.
 /// The key holds what an edit could change: count, ends, width, pressure.
 class StrokePathCache {
-  /// Cell images of pencil strokes (spec/pen-kinds.md); they build off the
-  /// paint path and notify the painter when one is ready.
+  /// The pencil grain tile (spec/pen-kinds.md); notifies the painter when loaded.
   final textures = PencilTextures();
   final _byId = <String, (List<Object?>, Path)>{};
 
@@ -260,7 +262,6 @@ class StrokePathCache {
   /// Forgets strokes that are no longer on the page.
   void keepOnly(Set<String> ids) {
     _byId.removeWhere((k, _) => !ids.contains(k));
-    textures.keepOnly(ids);
   }
 }
 
@@ -419,12 +420,6 @@ class PagePainter extends CustomPainter {
       paintPdfBackground(canvas, page, pdfPages, vis, sc);
     }
 
-    final clip = Rect.fromLTWH(
-      -vp.offset.dx / vp.scale,
-      -vp.offset.dy / vp.scale,
-      size.width / vp.scale,
-      size.height / vp.scale,
-    );
     final ids = <String>{};
     final skip = hidden?.call();
     final ep = erasePreview?.call();
@@ -475,18 +470,16 @@ class PagePainter extends CustomPainter {
         canvas.clipPath(hole);
       }
       final fade = ep != null && ep.fade.contains(s['id']) ? ep.alpha : 1.0;
-      // Off-screen strokes build no texture; they show the alpha polygon.
-      final tex = s['tool'] == 'pencil' && PencilTextures.touches(s, clip)
-          ? cache.textures.lookup(s)
-          : null;
-      if (tex != null) {
+      if (s['tool'] == 'pencil') {
         fillPencil(
           canvas,
-          tex,
+          cache.pathOf(s),
           s['color'],
+          cache.textures.image,
+          _anchorOf(s),
+          pencilAlpha(s),
           alpha: fade,
           invert: inv,
-          minified: vp.scale * pencilCell < 1,
         );
       } else if (s['tool'] == 'tape' && openTapes.contains(s['id'])) {
         canvas.drawPath(
@@ -502,7 +495,7 @@ class PagePainter extends CustomPainter {
           cache.pathOf(s),
           s['color'],
           highlighter: s['tool'] == 'highlighter',
-          alpha: s['tool'] == 'pencil' ? fade * pencilAlpha(s) : fade,
+          alpha: fade,
           invert: inv && s['tool'] != 'tape',
         );
       }
@@ -513,14 +506,25 @@ class PagePainter extends CustomPainter {
     cache.keepOnly(ids);
     final s = live?.call();
     if (s != null && drawableStroke(s)) {
-      fillStroke(
-        canvas,
-        strokePath(s),
-        s['color'],
-        highlighter: s['tool'] == 'highlighter',
-        alpha: s['tool'] == 'pencil' ? pencilAlpha(s) : 1,
-        invert: inv && s['tool'] != 'tape',
-      );
+      if (s['tool'] == 'pencil') {
+        fillPencil(
+          canvas,
+          strokePath(s),
+          s['color'],
+          cache.textures.image,
+          _anchorOf(s),
+          pencilAlpha(s),
+          invert: inv,
+        );
+      } else {
+        fillStroke(
+          canvas,
+          strokePath(s),
+          s['color'],
+          highlighter: s['tool'] == 'highlighter',
+          invert: inv && s['tool'] != 'tape',
+        );
+      }
     }
     canvas.restore();
   }

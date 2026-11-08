@@ -206,9 +206,7 @@ class _SyncIndicatorState extends ConsumerState<SyncIndicator> {
     final coordinator = ref.read(uploadCoordinatorProvider);
     return MenuAnchor(
       style: MenuStyle(
-        backgroundColor: WidgetStatePropertyAll(
-          Kk.componentsPopoverBackground,
-        ),
+        backgroundColor: WidgetStatePropertyAll(Kk.componentsPopoverBackground),
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(

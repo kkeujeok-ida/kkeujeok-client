@@ -419,30 +419,10 @@ final Map<String, void Function(Case)> runners = {
     final tol = (c['tolerance'] as num).toDouble();
     final want = c['expected'] as Map<String, dynamic>;
     switch (i['fn']) {
-      case 'seed':
-        expect(pencilSeed(i['id'] as String), want['seed']);
-      case 'grain':
-        expect(
-          pencilGrain(i['seed'] as int, i['i'] as int, i['j'] as int),
-          want['grain'],
-        );
       case 'density':
         final d = pencilDensity((i['q'] as num).toDouble());
         expect((d.density - (want['density'] as num)).abs() <= tol, isTrue);
         expect(d.threshold, want['threshold']);
-      case 'cell':
-        final cell = pencilCellOf(
-          (i['x'] as num).toDouble(),
-          (i['y'] as num).toDouble(),
-        );
-        final g = pencilGrain(i['seed'] as int, cell.i, cell.j);
-        expect(cell.i, want['i']);
-        expect(cell.j, want['j']);
-        expect(g, want['grain']);
-        expect(
-          g < pencilDensity((i['q'] as num).toDouble()).threshold,
-          want['inked'],
-        );
       default:
         fail('unknown fn ${i['fn']}');
     }

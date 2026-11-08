@@ -291,9 +291,7 @@ class _ConflictBodyState extends State<_ConflictBody> {
     backgroundColor: Kk.componentsConflictSheetVersionButtonBackground,
     foregroundColor: Kk.componentsConflictSheetVersionButtonText,
     minimumSize: const Size(0, _versionHeight),
-    side: BorderSide(
-      color: Kk.componentsConflictSheetVersionButtonBorder,
-    ),
+    side: BorderSide(color: Kk.componentsConflictSheetVersionButtonBorder),
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(
         KkjLight.componentsConflictSheetVersionButtonRounded,
@@ -350,9 +348,7 @@ class _ConflictBodyState extends State<_ConflictBody> {
         aspectRatio: _ratio(w, h),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            border: Border.all(
-              color: Kk.componentsConflictSheetPreviewBorder,
-            ),
+            border: Border.all(color: Kk.componentsConflictSheetPreviewBorder),
             borderRadius: BorderRadius.circular(KkjTokens.roundedSm),
           ),
           child: Center(

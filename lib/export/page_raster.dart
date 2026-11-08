@@ -85,7 +85,10 @@ Future<Uint8List?> renderPageRaster(
     ui.Picture draw() {
       final rec = ui.PictureRecorder();
       final canvas = ui.Canvas(rec)
-        ..drawColor(const ui.Color(0xFFFFFFFF), ui.BlendMode.src); // opaque edge strip
+        ..drawColor(
+          const ui.Color(0xFFFFFFFF),
+          ui.BlendMode.src,
+        ); // opaque edge strip
       PagePainter(
         page: page,
         cache: cache,

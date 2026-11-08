@@ -63,7 +63,8 @@ class GoogleAuthGateway implements AuthGateway {
       _client = account.authorizationClient;
       _account = AuthAccount(sub: account.id, email: account.email);
     } on GoogleSignInException catch (e) {
-      if (kDebugMode) debugPrint('signIn failed: ${e.code} ${e.description} ${e.details}');
+      if (kDebugMode)
+        debugPrint('signIn failed: ${e.code} ${e.description} ${e.details}');
       return signInFailure(e.code);
     } catch (e) {
       if (kDebugMode) debugPrint('signIn failed: $e');
@@ -89,7 +90,8 @@ class GoogleAuthGateway implements AuthGateway {
       if (a != null) await _hint.setAccount(a.sub, a.email);
       return AuthOutcome.granted;
     } on GoogleSignInException catch (e) {
-      if (kDebugMode) debugPrint('access failed: ${e.code} ${e.description} ${e.details}');
+      if (kDebugMode)
+        debugPrint('access failed: ${e.code} ${e.description} ${e.details}');
       return accessFailure(e.code, '${e.description} ${e.details}');
     } catch (e) {
       if (kDebugMode) debugPrint('access failed: $e');

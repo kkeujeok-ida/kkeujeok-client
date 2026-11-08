@@ -307,6 +307,25 @@ double _pressure(bool usePressure, List p, PressureCurve? curve) {
   return curve?.q(v.toDouble()) ?? v.toDouble().clamp(0.0, 1.0);
 }
 
-/// The polygon as a path; fill it non-zero (the default fill type).
-Path outlinePath(List<List<double>> polygon) =>
-    Path()..addPolygon([for (final p in polygon) Offset(p[0], p[1])], true);
+/// The polygon as a path; fill it non-zero. Long outlines go through the edge
+/// midpoints as quadratic curves, so no corner shows; a 4-point tape square
+/// stays square.
+Path outlinePath(List<List<double>> polygon) {
+  final n = polygon.length;
+  if (n < 8) {
+    return Path()
+      ..addPolygon([for (final p in polygon) Offset(p[0], p[1])], true);
+  }
+  Offset mid(int i, int j) => Offset(
+    (polygon[i][0] + polygon[j][0]) / 2,
+    (polygon[i][1] + polygon[j][1]) / 2,
+  );
+  final path = Path();
+  final s = mid(n - 1, 0);
+  path.moveTo(s.dx, s.dy);
+  for (var i = 0; i < n; i++) {
+    final m = mid(i, (i + 1) % n);
+    path.quadraticBezierTo(polygon[i][0], polygon[i][1], m.dx, m.dy);
+  }
+  return path..close();
+}

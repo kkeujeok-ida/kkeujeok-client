@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import 'kk.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../design_tokens/build/tokens.dart';
@@ -175,10 +177,7 @@ class _NewNoteSheetState extends ConsumerState<_NewNoteSheet> {
                       border: border,
                       enabledBorder: border,
                       focusedBorder: border.copyWith(
-                        borderSide: BorderSide(
-                          color: Kk.colorAccent,
-                          width: 2,
-                        ),
+                        borderSide: BorderSide(color: Kk.colorAccent, width: 2),
                       ),
                     ),
                   ),
@@ -230,8 +229,7 @@ class _NewNoteSheetState extends ConsumerState<_NewNoteSheet> {
                             ? null
                             : () => Navigator.of(context).pop(),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor:
-                              Kk.componentsButtonSecondaryText,
+                          foregroundColor: Kk.componentsButtonSecondaryText,
                           backgroundColor:
                               Kk.componentsButtonSecondaryBackground,
                           side: BorderSide(
@@ -253,8 +251,7 @@ class _NewNoteSheetState extends ConsumerState<_NewNoteSheet> {
                         onPressed: _saving ? null : _create,
                         style: FilledButton.styleFrom(
                           foregroundColor: Kk.componentsButtonPrimaryText,
-                          backgroundColor:
-                              Kk.componentsButtonPrimaryBackground,
+                          backgroundColor: Kk.componentsButtonPrimaryBackground,
                           disabledBackgroundColor: Kk.colorInkDisabled,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(

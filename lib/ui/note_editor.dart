@@ -3424,6 +3424,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _snap();
     _pull.value = 0;
     _pullLock = false;
+    _zoomLock = false;
     _fit = _Fit.free;
     _mode = _Mode.gesture;
     _gA = a;
@@ -3436,6 +3437,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   }
 
   bool _pullLock = false;
+  // Intent is settled before a pull starts: a spread past 6% is a zoom for the
+  // whole gesture; a pull needs a 32 px stretch (and a still spread) to lock.
+  bool _zoomLock = false;
+  static const _pullMargin = 32.0;
 
   void _pinch() {
     if (_spA >= 0) {
@@ -3449,18 +3454,17 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     // leaves the snap (spec zoom.snap, "Releasing").
     // Once a pull has begun the gesture stays a scroll: the spread of the
     // fingers no longer zooms, so a wobble cannot cancel the pull.
-    final s = _pullLock
-        ? _s0
-        : zoomSnap(_s0 * (pa - pb).distance / _d0, _fitScale);
+    final ratio = (pa - pb).distance / _d0;
+    if (!_pullLock && (ratio - 1).abs() >= 0.06) _zoomLock = true;
+    final s = _pullLock ? _s0 : zoomSnap(_s0 * ratio, _fitScale);
     if (s != _vp?.scale) _flashZoom(s);
     final cand = PageViewport(s, focal - _p0 * s);
     final c = _clamp(cand);
-    // A two-finger scroll, not a zoom, pulls.
-    if (_pullLock || (s - _s0).abs() < _s0 * 0.06) {
-      _pulled(cand, c, Offset.zero, abs: true);
-      if (_pull.value != 0) _pullLock = true;
-    } else {
+    if (_zoomLock) {
       _pull.value = 0; // a zoom never adds a page
+    } else {
+      _pulled(cand, c, Offset.zero, abs: true);
+      if (_pull.value.abs() >= _pullMargin) _pullLock = true;
     }
     _setView(c, _Fit.free);
   }

@@ -1,7 +1,9 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+
 import 'kk.dart';
+
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -83,9 +85,7 @@ class CoverChoice extends ConsumerWidget {
                   clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
                     border: Border.all(
-                      color: on
-                          ? Kk.colorAccent
-                          : Kk.componentsInputBorder,
+                      color: on ? Kk.colorAccent : Kk.componentsInputBorder,
                       width: on ? 2 : 1,
                     ),
                     borderRadius: BorderRadius.circular(KkjTokens.roundedSm),

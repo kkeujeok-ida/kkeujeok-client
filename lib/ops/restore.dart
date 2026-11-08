@@ -113,7 +113,8 @@ Map<String, Object?> _restorePage(
   final pageId = op0['pageId'] as String;
   final ctx = copyJsonValue(ctx0) as Json;
   final conflicts = [for (final c in conflicts0) copyJsonValue(c) as Json];
-  if (page['rev'] is! String || op0['originalIndex'] is! int) return {'error': 'invalidInput'};
+  if (page['rev'] is! String || op0['originalIndex'] is! int)
+    return {'error': 'invalidInput'};
   if (page['id'] != pageId) return {'error': 'pageIdMismatch'};
   final pages = (note['pages'] as List).cast<Json>();
   final idx = pages.indexWhere((p) => p['id'] == pageId);
