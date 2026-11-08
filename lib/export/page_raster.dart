@@ -84,6 +84,8 @@ Future<Uint8List?> renderPageRaster(
     final vp = PageViewport(2.5, ui.Offset.zero);
     ui.Picture draw() {
       final rec = ui.PictureRecorder();
+      final canvas = ui.Canvas(rec)
+        ..drawColor(const ui.Color(0xFFFFFFFF), ui.BlendMode.src); // opaque edge strip
       PagePainter(
         page: page,
         cache: cache,
@@ -91,7 +93,7 @@ Future<Uint8List?> renderPageRaster(
         images: _Images(images),
         pdfImage: ground,
         invert: false,
-      ).paint(ui.Canvas(rec), size);
+      ).paint(canvas, size);
       return rec.endRecording();
     }
 
