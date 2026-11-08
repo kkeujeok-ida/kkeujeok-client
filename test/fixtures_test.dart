@@ -325,6 +325,7 @@ final Map<String, void Function(Case)> runners = {
     );
   },
   'ops.addStroke': _runOp,
+  'ops.reshapeStroke': _runOp,
   'ops.addPage': _runOp,
   'ops.deletePage': _runOp,
   'ops.insertPages': _runOp,
