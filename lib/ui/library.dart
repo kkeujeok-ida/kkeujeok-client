@@ -25,7 +25,9 @@ import 'folder_sidebar.dart' show NameDialog, showConfirmDialog;
 import '../l10n/app_localizations.dart';
 import '../model/library_view.dart';
 import '../model/note.dart';
+import '../model/pdf_rules.dart' show isPdfBackground;
 import '../render/page_painter.dart';
+import '../render/pdf_pages.dart';
 import '../sync/conflict_notifier.dart' show askConflictPermissionOnce;
 import '../sync/note_receiver.dart';
 import '../sync/receive_scheduler.dart';
@@ -1030,23 +1032,53 @@ class _Thumb extends StatelessWidget {
   }
 }
 
-class _PageThumb extends StatefulWidget {
+class _PageThumb extends ConsumerStatefulWidget {
   const _PageThumb({required this.page});
 
   final Map<String, dynamic> page;
 
   @override
-  State<_PageThumb> createState() => _PageThumbState();
+  ConsumerState<_PageThumb> createState() => _PageThumbState();
 }
 
-class _PageThumbState extends State<_PageThumb> {
+class _PageThumbState extends ConsumerState<_PageThumb> {
   final _cache = StrokePathCache();
+  PdfPages? _pdf;
+
+  @override
+  void initState() {
+    super.initState();
+    final bg = widget.page['background'];
+    if (!isPdfBackground(bg)) return;
+    // A PDF first page: the PDF is drawn under the strokes when it is already
+    // on this device. The library never downloads it for a thumbnail.
+    final store = ref.read(assetStoreProvider);
+    final sync = ref.read(assetSyncProvider);
+    _pdf = PdfPages(store, sync);
+    final hash = '${(bg as Map)['asset']}';
+    unawaited(
+      store.pdfPath(hash).then((path) {
+        if (path != null && mounted) sync.markLocal(hash);
+      }),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pdf?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => RepaintBoundary(
     child: CustomPaint(
       size: Size.infinite,
-      painter: PagePainter(page: widget.page, cache: _cache),
+      painter: PagePainter(
+        page: widget.page,
+        cache: _cache,
+        pdf: _pdf,
+        repaint: _pdf,
+      ),
     ),
   );
 }

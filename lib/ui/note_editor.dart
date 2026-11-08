@@ -1503,7 +1503,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   // The pull past the end that adds a page (Story 6.4): how far the fingers
   // went beyond the edge of the paging axis, negative past the end.
-  static const _pullAt = 160.0;
+  static const _pullAt = 240.0; // 1.5 x 160 (Epic 9 device check)
   final _pull = ValueNotifier<double>(0);
 
   void _pulled(
