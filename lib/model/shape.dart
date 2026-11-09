@@ -667,6 +667,7 @@ Map<String, dynamic>? shapeHoldResize(Map s, List<num> p0, List<num> p) {
   if (du.abs() < 1) du = du < 0 ? -1 : 1;
   if (dv.abs() < 1) dv = dv < 0 ? -1 : 1;
   if (tri) {
+    if (w < 1 || h < 1) return null;
     final hx = sx[hi] * w / 2, hy = sy[hi] * h / 2;
     return {
       'kind': 'triangle',

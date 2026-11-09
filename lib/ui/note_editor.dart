@@ -4008,7 +4008,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       for (final e
           in _pages.firstWhere((p) => p['id'] == pageId)['elements'] as List) {
         if ((e as Map)['type'] == 'stroke') {
-          n += (e['points'] as List?)?.length ?? 0;
+          n += (denseOf(e) as List?)?.length ?? 0;
         }
       }
       ids = [for (var i = 0; i < n ~/ 2 + 1; i++) newId()];

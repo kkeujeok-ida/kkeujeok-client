@@ -110,4 +110,46 @@ void main() {
     );
     expect(el().containsKey('shape'), isFalse);
   });
+
+  test(
+    'scale collapsing a shape stroke moves nothing (shape and points agree)',
+    () {
+      final h = History(r.note!);
+      final rect = {
+        'kind': 'rect',
+        'x': 10,
+        'y': 10,
+        'width': 40,
+        'height': 20,
+        'rotation': 0,
+      };
+      h.doOp({
+        'op': 'addStroke',
+        'pageId': 'p',
+        'stroke': {
+          'id': 's',
+          'type': 'stroke',
+          'tool': 'pen',
+          'color': '#000000',
+          'width': 2,
+          'usePressure': false,
+          'points': shapePoints(rect),
+          'shape': rect,
+        },
+      }, ctx);
+      Map el() =>
+          (h.note.copyJson()['pages'] as List).first['elements'][0] as Map;
+      final pts = el()['points'];
+      h.doOp({
+        'op': 'scale',
+        'pageId': 'p',
+        'ids': ['s'],
+        'sx': 0.0001,
+        'sy': 1,
+        'anchor': [0, 0],
+      }, ctx);
+      expect(el()['shape'], rect);
+      expect(el()['points'], pts);
+    },
+  );
 }

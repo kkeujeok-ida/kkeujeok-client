@@ -137,7 +137,7 @@ Path strokePath(Map<String, dynamic> s) {
   final w = (s['width'] as num).toDouble();
   if (s['tool'] == 'highlighter')
     return highlighterPath(highlighterPolygons(w, pts));
-  final tool = s['tool'] as String?, up = s['usePressure'] as bool;
+  final tool = s['tool'] as String?, up = s['usePressure'] as bool? ?? true;
   if (s['brush'] == null) {
     return outlinePath(strokeOutlineFor(tool, w, up, pts));
   }
@@ -288,7 +288,7 @@ List<PencilStamp> stampsOf(Map<String, dynamic> s) {
   return pencilStamps(
     id: s['id'] as String,
     width: (s['width'] as num).toDouble(),
-    usePressure: s['usePressure'] as bool,
+    usePressure: s['usePressure'] as bool? ?? true,
     points: s['points'] as List,
     opacity: b.opacity,
     curve: b.pressureCurve == null
@@ -351,9 +351,9 @@ StampBatch buildBatch(
 }
 
 /// Mean-pressure density of a pencil stroke: how dark it is overall.
-double pencilAlpha(Map<String, dynamic> s) =>
-    pencilDensity(meanPressure(s['usePressure'] as bool, s['points'] as List))
-        .density;
+double pencilAlpha(Map<String, dynamic> s) => pencilDensity(
+  meanPressure(s['usePressure'] as bool? ?? true, s['points'] as List),
+).density;
 
 /// Finished-stroke outlines by stroke id, so a repaint does not rebuild them.
 /// The key holds what an edit could change: count, ends, width, pressure.
@@ -371,7 +371,7 @@ class StrokePathCache {
       s['tool'],
       pts.length,
       (s['width'] as num),
-      (s['usePressure'] as bool) ? 1 : 0,
+      (s['usePressure'] as bool? ?? true) ? 1 : 0,
       ...pressureCurveInUse.values,
       jsonEncode(s['brush']),
       jsonEncode(s['shape']),

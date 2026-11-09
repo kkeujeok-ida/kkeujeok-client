@@ -324,16 +324,20 @@ OpResult _transformOp(Note note, Map<String, dynamic> op, Ctx ctx) {
   for (final i in idx) {
     final e = els[i] as Map<String, dynamic>;
     if (_isStroke(e)) {
+      // A shape stroke follows the shape rule; its points are made again.
+      // If the shape rejects (collapse), nothing moves: it is drawn from shape.
+      final shape = e['shape'];
+      if (shape is Map && isKnownShape(shape)) {
+        if (transformShape(shape, f, sx, sy, turn)) {
+          e['points'] = shapeCorners(shape);
+        }
+        continue;
+      }
       for (final p in (e['points'] as List? ?? const [])) {
         final pt = p as List;
         final (x, y) = f(_d(pt[0]), _d(pt[1]));
         pt[0] = round2(x);
         pt[1] = round2(y);
-      }
-      // A shape stroke follows the shape rule; its points are made again.
-      final shape = e['shape'];
-      if (shape is Map && transformShape(shape, f, sx, sy, turn)) {
-        e['points'] = shapeCorners(shape);
       }
     } else {
       final text = _isTextBox(e);
