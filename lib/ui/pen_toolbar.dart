@@ -13,6 +13,7 @@ import '../l10n/app_localizations.dart';
 import '../model/eraser.dart';
 import '../model/pen.dart';
 import '../model/pen_palette.dart';
+import '../model/shape.dart' show shapeKinds;
 import '../render/page_painter.dart' show fillStroke, parseColor;
 import '../render/stroke_outline.dart';
 import 'library_fab.dart' show kkjShadow;
@@ -65,10 +66,8 @@ class PenToolbar extends StatefulWidget {
     this.textSelected = false,
     this.onText,
     this.shapeSelected = false,
-    this.shapeKind = 'rect',
-    this.shapeLock = false,
-    this.onShapeOpened,
-    this.onShapePick,
+    this.shapeKey,
+    this.onShape,
     this.onImage,
   });
 
@@ -128,13 +127,11 @@ class PenToolbar extends StatefulWidget {
   final bool textSelected;
   final VoidCallback? onText;
 
-  /// [도형]: the shape tool; the menu picks `triangle`, `rect`, `circle` or
-  /// toggles the ratio lock (`lock`).
+  /// [도형]: the shape tool. A tap picks it; on the picked one the editor opens
+  /// [ShapeToolDialog]. [shapeKey] marks the button for the bubble's anchor.
   final bool shapeSelected;
-  final String shapeKind;
-  final bool shapeLock;
-  final VoidCallback? onShapeOpened;
-  final void Function(String value)? onShapePick;
+  final GlobalKey? shapeKey;
+  final VoidCallback? onShape;
 
   /// [이미지]: opens the gallery / camera choice. Null disables it.
   final VoidCallback? onImage;
@@ -458,34 +455,22 @@ class _PenToolbarState extends State<PenToolbar> {
               icon: const Icon(Icons.text_fields),
               onPressed: widget.onText,
             ),
-            PopupMenuButton<String>(
+            IconButton(
+              key: widget.shapeKey,
               tooltip: l10n.shapeTool,
-              enabled: widget.onShapePick != null,
-              constraints: const BoxConstraints(minWidth: 160),
-              onOpened: widget.onShapeOpened,
-              onSelected: widget.onShapePick,
+              isSelected: widget.shapeSelected,
+              constraints: const BoxConstraints(
+                minWidth: _hit,
+                minHeight: _hit,
+              ),
               style: _compact.copyWith(
-                minimumSize: const WidgetStatePropertyAll(Size(_hit, _hit)),
                 backgroundColor: WidgetStatePropertyAll(
                   widget.shapeSelected ? Kk.colorAccentSoft : null,
                 ),
               ),
               iconSize: _icon,
-              icon: Icon(_shapeIcon(widget.shapeKind)),
-              itemBuilder: (_) => [
-                for (final k in const ['triangle', 'rect', 'circle'])
-                  CheckedPopupMenuItem<String>(
-                    value: k,
-                    checked: widget.shapeKind == k,
-                    child: Text(_shapeName(l10n, k)),
-                  ),
-                const PopupMenuDivider(),
-                CheckedPopupMenuItem<String>(
-                  value: 'lock',
-                  checked: widget.shapeLock,
-                  child: Text(l10n.shapeLockRatio),
-                ),
-              ],
+              icon: const _ToolGlyph([_shapesD]),
+              onPressed: widget.onShape,
             ),
             IconButton(
               tooltip: l10n.imageTool,
@@ -505,12 +490,6 @@ class _PenToolbarState extends State<PenToolbar> {
     );
   }
 }
-
-IconData _shapeIcon(String kind) => switch (kind) {
-  'triangle' => Icons.change_history,
-  'circle' => Icons.circle_outlined,
-  _ => Icons.crop_square,
-};
 
 String _shapeName(AppLocalizations l10n, String kind) => switch (kind) {
   'triangle' => l10n.shapeTriangle,
@@ -820,6 +799,18 @@ String _glyphD(String tool) => switch (tool) {
 };
 const _eraserD = 'M15 3.5L20.5 9L10 19.5L4.5 14ZM8.7 9.8L14.2 15.3';
 const _eraserPartialD = 'M3 22H7M10 22H14M17 22H21';
+// Triangle, square and circle overlapped (the circle is a 16-gon: M L H V Z only).
+const _shapesD =
+    'M8 3L14.5 14H1.5ZM3 10H12V19H3ZM21.5 15L21.04 17.3L19.74 19.24L17.8 20.54'
+    'L15.5 21L13.2 20.54L11.26 19.24L9.96 17.3L9.5 15L9.96 12.7L11.26 10.76'
+    'L13.2 9.46L15.5 9L17.8 9.46L19.74 10.76L21.04 12.7Z';
+const _shapeGlyphD = {
+  'triangle': 'M12 3L21 20H3Z',
+  'rect': 'M4 4H20V20H4Z',
+  'circle':
+      'M20 12L19.4 15.1L17.7 17.7L15.1 19.4L12 20L8.9 19.4L6.3 17.7L4.6 15.1'
+      'L4 12L4.6 8.9L6.3 6.3L8.9 4.6L12 4L15.1 4.6L17.7 6.3L19.4 8.9Z',
+};
 
 Path _svgPath(String d, double scale) {
   final path = Path();
@@ -870,6 +861,24 @@ class _ToolGlyphPainter extends CustomPainter {
   @override
   bool shouldRepaint(_ToolGlyphPainter old) =>
       old.color != color || old.ds.join() != ds.join();
+}
+
+/// A 24 x 24 spec/tool-icons.md glyph in the surrounding icon color.
+class _ToolGlyph extends StatelessWidget {
+  const _ToolGlyph(this.ds);
+
+  final List<String> ds;
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    size: const Size.square(_icon),
+    painter: _ToolGlyphPainter(
+      IconTheme.of(context).color ?? Colors.black,
+      ds,
+      24,
+      24,
+    ),
+  );
 }
 
 /// The eraser icon of spec/tool-icons.md, in the surrounding icon color.
@@ -1228,6 +1237,96 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
                     ),
                   ),
                 ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The shape tool's popover (spec/shape.md "Shape tool bar"): the pen's speech
+/// bubble with one row of three icon buttons, no text. Stays open on a pick.
+class ShapeToolDialog extends ConsumerStatefulWidget {
+  const ShapeToolDialog({
+    super.key,
+    required this.kind,
+    required this.onPick,
+    this.anchor,
+  });
+
+  final String kind;
+  final void Function(String kind) onPick;
+  final PenBubbleAnchor Function()? anchor;
+
+  @override
+  ConsumerState<ShapeToolDialog> createState() => _ShapeToolDialogState();
+}
+
+class _ShapeToolDialogState extends ConsumerState<ShapeToolDialog> {
+  late String _kind = widget.kind;
+
+  void _pick(String k) {
+    widget.onPick(k);
+    setState(() => _kind = k);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final color = Theme.of(context).colorScheme.onSurface;
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () =>
+            Navigator.of(context).maybePop(),
+      },
+      child: _PenBubble(
+        anchor: widget.anchor,
+        leftHanded: ref.watch(leftHandedProvider),
+        child: Padding(
+          padding: const EdgeInsets.all(KkjLight.componentsPopoverPadding),
+          child: Semantics(
+            container: true,
+            role: SemanticsRole.radioGroup,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final k in shapeKinds)
+                  Semantics(
+                    button: true,
+                    inMutuallyExclusiveGroup: true,
+                    checked: _kind == k,
+                    label: _shapeName(l10n, k),
+                    onTap: () => _pick(k),
+                    excludeSemantics: true,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(KkjTokens.roundedSm),
+                      onTap: () => _pick(k),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: _kind == k ? Kk.colorAccentSoft : null,
+                          borderRadius: BorderRadius.circular(
+                            KkjTokens.roundedSm,
+                          ),
+                        ),
+                        child: SizedBox.square(
+                          dimension: _cell,
+                          child: Center(
+                            child: CustomPaint(
+                              size: const Size.square(_icon),
+                              painter: _ToolGlyphPainter(
+                                color,
+                                [_shapeGlyphD[k]!],
+                                24,
+                                24,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),

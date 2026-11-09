@@ -236,7 +236,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   // from the first point; the kind and the toolbar ratio lock are UI state.
   bool _shaping = false;
   String _shapeKind = 'rect';
-  bool _shapeLock = false;
+  final _shapeBtn = GlobalKey();
   List<num>? _holdAnchor;
   Timer? _holdTimer;
   PageViewport? _vp;
@@ -1510,6 +1510,31 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     );
   }
 
+  /// Shape button: picks the tool; on the picked one, opens the shape bubble.
+  Future<void> _shapeTap() async {
+    if (_pointer != null || _mode != _Mode.none || _leaving) return;
+    if (_tool != _Tool.shape) return _setTool(_Tool.shape);
+    PenBubbleAnchor anchor() {
+      final pos = ref.read(toolbarPosProvider);
+      final bar = _barRect(pos, _size, _safe);
+      final box = _shapeBtn.currentContext?.findRenderObject() as RenderBox?;
+      final tool = box != null && box.attached
+          ? box.localToGlobal(Offset.zero) & box.size
+          : bar;
+      return PenBubbleAnchor(tool, bar, vertical: pos.vertical);
+    }
+
+    await showDialog<void>(
+      context: context,
+      useSafeArea: false,
+      builder: (_) => ShapeToolDialog(
+        kind: _shapeKind,
+        anchor: anchor,
+        onPick: (k) => setState(() => _shapeKind = k),
+      ),
+    );
+  }
+
   /// [+]: a copy of the picked slot at the end, then its popover.
   Future<void> _addSlot() async {
     if (_leaving || _pointer != null || _mode != _Mode.none) return;
@@ -2544,9 +2569,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   /// toolbar toggle or a second finger down.
   Map<String, dynamic>? _dragShape() {
     if (!_shaping || _points.length < 2) return null;
-    final lock =
-        _shapeLock ||
-        (_mode == _Mode.pen ? _touches.isNotEmpty : _touches.length > 1);
+    final lock = _mode == _Mode.pen ? _touches.isNotEmpty : _touches.length > 1;
     final s = shapeFromDrag(_shapeKind, _points.first, _points.last, lock);
     return isKnownShape(s) ? s : null; // a straight drag has no area
   }
@@ -4786,23 +4809,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                       textSelected: _tool == _Tool.text,
                       onText: () => _setTool(_Tool.text),
                       shapeSelected: _tool == _Tool.shape,
-                      shapeKind: _shapeKind,
-                      shapeLock: _shapeLock,
-                      onShapeOpened: readOnly || receiving || locked
+                      shapeKey: _shapeBtn,
+                      onShape: readOnly || receiving || locked
                           ? null
-                          : () => _setTool(_Tool.shape),
-                      onShapePick: readOnly || receiving || locked
-                          ? null
-                          : (v) {
-                              _setTool(_Tool.shape);
-                              setState(() {
-                                if (v == 'lock') {
-                                  _shapeLock = !_shapeLock;
-                                } else {
-                                  _shapeKind = v;
-                                }
-                              });
-                            },
+                          : _shapeTap,
                       onImage: readOnly || receiving || locked
                           ? null
                           : _chooseImage,
