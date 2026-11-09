@@ -1,5 +1,6 @@
 import 'dart:convert' show jsonEncode;
 import 'dart:math' as math;
+import 'dart:typed_data' show Float32List;
 import 'dart:ui' as ui show Image;
 
 import 'package:flutter/rendering.dart';
@@ -192,43 +193,134 @@ void fillStroke(
   c.restore();
 }
 
-/// Fills a pencil stroke [p] in the stroke color through the grain [tile]:
-/// the polygon is drawn in a layer, then the tile (anchored at the stroke's
-/// first point, so it moves with the stroke) keeps only its grain. Without a
-/// tile the plain alpha polygon is drawn.
+/// Fills the plain pencil polygon [p] at the pencil density (texture `none`,
+/// or the stamp image is not loaded).
 void fillPencil(
   Canvas c,
   Path p,
   Object? color,
-  ui.Image? tile,
-  Offset anchor,
   double density, {
   double alpha = 1,
   bool invert = false,
 }) {
   final base = parseColor(invert && color is String ? inkHex(color) : color);
-  final ink = base.withValues(alpha: base.a * alpha * density);
-  if (tile == null) return c.drawPath(p, Paint()..color = ink);
-  final bounds = p.getBounds().inflate(1);
-  c.saveLayer(bounds, Paint());
-  c.drawPath(p, Paint()..color = ink);
-  final m = Matrix4.identity()
-    ..translateByDouble(anchor.dx, anchor.dy, 0, 1)
-    ..scaleByDouble(pencilGrainScale, pencilGrainScale, 1, 1);
-  c.drawRect(
-    bounds,
-    Paint()
-      ..blendMode = BlendMode.dstIn
-      ..filterQuality = FilterQuality.medium
-      ..shader = ImageShader(
-        tile,
-        TileMode.repeated,
-        TileMode.repeated,
-        m.storage,
-        filterQuality: FilterQuality.medium,
-      ),
+  c.drawPath(
+    p,
+    Paint()..color = base.withValues(alpha: base.a * alpha * density),
   );
-  c.restore();
+}
+
+/// The stamps of a stroke ready for one `drawAtlas` call.
+class StampBatch {
+  StampBatch(List<PencilStamp> stamps, Color base, double factor)
+    : transforms = Float32List(stamps.length * 4),
+      rects = Float32List(stamps.length * 4),
+      colors = [] {
+    for (var i = 0; i < stamps.length; i++) {
+      final t = stamps[i];
+      final sc = t.size / _stampPx;
+      final r = t.angle * math.pi / 180;
+      // RSTransform.fromComponents with the anchor at the stamp centre.
+      final scos = math.cos(r) * sc, ssin = math.sin(r) * sc;
+      transforms[i * 4] = scos;
+      transforms[i * 4 + 1] = ssin;
+      transforms[i * 4 + 2] = t.x - scos * _stampPx / 2 + ssin * _stampPx / 2;
+      transforms[i * 4 + 3] = t.y - ssin * _stampPx / 2 - scos * _stampPx / 2;
+      rects[i * 4 + 2] = _stampPx;
+      rects[i * 4 + 3] = _stampPx;
+      colors.add(
+        base.withValues(alpha: (base.a * t.alpha * factor).clamp(0.0, 1.0)),
+      );
+    }
+  }
+
+  static const _stampPx = 128.0;
+  final Float32List transforms, rects;
+  final List<Color> colors;
+
+  void paint(Canvas c, ui.Image stamp) => c.drawAtlas(
+    stamp,
+    [
+      for (var i = 0; i < colors.length; i++)
+        RSTransform(
+          transforms[i * 4],
+          transforms[i * 4 + 1],
+          transforms[i * 4 + 2],
+          transforms[i * 4 + 3],
+        ),
+    ],
+    [
+      for (var i = 0; i < colors.length; i++)
+        Rect.fromLTWH(0, 0, _stampPx, _stampPx),
+    ],
+    colors,
+    BlendMode.modulate, // the stamp is white: colour x its alpha
+    null,
+    Paint()..filterQuality = FilterQuality.medium,
+  );
+}
+
+/// Stamps of a stroke (spec stroke.texture.pencilStamps) from its id, points
+/// and brush. The device pressure curve applies unless the brush has its own.
+List<PencilStamp> stampsOf(Map<String, dynamic> s) {
+  final b = brushResolve(s['tool'], s['brush']);
+  final oc = s['brush'] is Map
+      ? (s['brush'] as Map)['opacityPressureCurve']
+      : null;
+  return pencilStamps(
+    id: s['id'] as String,
+    width: (s['width'] as num).toDouble(),
+    usePressure: s['usePressure'] as bool,
+    points: s['points'] as List,
+    opacity: b.opacity,
+    curve: b.pressureCurve == null
+        ? pressureCurveInUse
+        : PressureCurve.fromValues(b.pressureCurve!),
+    opacityCurve: oc == null ? null : PressureCurve.fromJson(oc),
+  );
+}
+
+/// Draws a stroke's pencil look: stamps along its path, or the plain polygon
+/// when [stamp] is null (texture `none`, image not loaded). [batch] is the
+/// stamp batch to reuse, built on demand.
+void paintPencil(
+  Canvas c,
+  Map<String, dynamic> s,
+  ui.Image? stamp,
+  Path Function() polygon, {
+  required double fade,
+  required bool invert,
+  StampBatch? batch,
+}) {
+  final bd = brushDraw(s);
+  if (stamp == null || !bd.grain) {
+    return fillPencil(
+      c,
+      polygon(),
+      s['color'],
+      pencilAlpha(s),
+      alpha: fade * bd.alpha,
+      invert: invert,
+    );
+  }
+  (batch ?? buildBatch(s, bd, fade, invert)).paint(c, stamp);
+}
+
+StampBatch buildBatch(
+  Map<String, dynamic> s,
+  ({double alpha, bool grain}) bd,
+  double fade,
+  bool invert,
+) {
+  final color = s['color'];
+  final base = parseColor(invert && color is String ? inkHex(color) : color);
+  // Brush opacity is inside the stamp alpha; tilt opacity multiplies on top.
+  final op = brushResolve(s['tool'], s['brush']).opacity;
+  return StampBatch(
+    stampsOf(s),
+    base,
+    fade * (op > 0 ? bd.alpha / (op / toolOpacity(s['tool'])) : 0),
+  );
 }
 
 /// Mean-pressure density of a pencil stroke: how dark it is overall.
@@ -236,17 +328,13 @@ double pencilAlpha(Map<String, dynamic> s) =>
     pencilDensity(meanPressure(s['usePressure'] as bool, s['points'] as List))
         .density;
 
-Offset _anchorOf(Map<String, dynamic> s) {
-  final p = (s['points'] as List).first as List;
-  return Offset((p[0] as num).toDouble(), (p[1] as num).toDouble());
-}
-
 /// Finished-stroke outlines by stroke id, so a repaint does not rebuild them.
 /// The key holds what an edit could change: count, ends, width, pressure.
 class StrokePathCache {
-  /// The pencil grain tile (spec/pen-kinds.md); notifies the painter when loaded.
+  /// The pencil stamp image (spec/pen-kinds.md); notifies the painter when loaded.
   final textures = PencilTextures();
   final _byId = <String, (List<Object?>, Path)>{};
+  final _batches = <String, (List<Object?>, StampBatch)>{};
 
   static List<Object?> _key(Map<String, dynamic> s) {
     final pts = s['points'] as List;
@@ -275,6 +363,17 @@ class StrokePathCache {
     return path;
   }
 
+  /// Finished-stroke stamp batch, rebuilt only when the stroke or its look changes.
+  StampBatch batchOf(Map<String, dynamic> s, double fade, bool invert) {
+    final id = s['id'] as String;
+    final key = [..._key(s), s['color'], fade, invert];
+    final hit = _batches[id];
+    if (hit != null && _same(hit.$1, key)) return hit.$2;
+    final b = buildBatch(s, brushDraw(s), fade, invert);
+    _batches[id] = (key, b);
+    return b;
+  }
+
   static bool _same(List<Object?> a, List<Object?> b) {
     for (var i = 0; i < a.length; i++) {
       if (a[i] != b[i]) return false;
@@ -288,6 +387,7 @@ class StrokePathCache {
   /// Forgets strokes that are no longer on the page.
   void keepOnly(Set<String> ids) {
     _byId.removeWhere((k, _) => !ids.contains(k));
+    _batches.removeWhere((k, _) => !ids.contains(k));
   }
 }
 
@@ -498,15 +598,15 @@ class PagePainter extends CustomPainter {
       final fade = ep != null && ep.fade.contains(s['id']) ? ep.alpha : 1.0;
       final bd = brushDraw(s);
       if (s['tool'] == 'pencil' || bd.grain) {
-        fillPencil(
+        final st = bd.grain ? cache.textures.image : null;
+        paintPencil(
           canvas,
-          cache.pathOf(s),
-          s['color'],
-          bd.grain ? cache.textures.image : null,
-          _anchorOf(s),
-          pencilAlpha(s),
-          alpha: fade * bd.alpha,
+          s,
+          st,
+          () => cache.pathOf(s),
+          fade: fade,
           invert: inv,
+          batch: st == null ? null : cache.batchOf(s, fade, inv),
         );
       } else if (s['tool'] == 'tape' && openTapes.contains(s['id'])) {
         canvas.drawPath(
@@ -535,14 +635,12 @@ class PagePainter extends CustomPainter {
     if (s != null && drawableStroke(s)) {
       final bd = brushDraw(s);
       if (s['tool'] == 'pencil' || bd.grain) {
-        fillPencil(
+        paintPencil(
           canvas,
-          strokePath(s),
-          s['color'],
+          s,
           bd.grain ? cache.textures.image : null,
-          _anchorOf(s),
-          pencilAlpha(s),
-          alpha: bd.alpha,
+          () => strokePath(s),
+          fade: 1,
           invert: inv,
         );
       } else {

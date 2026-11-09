@@ -46,7 +46,7 @@ flutter:
   generate: true
   uses-material-design: true
   assets:
-    - assets/pencil_grain.png
+    - assets/pencil_stamp.png
     - assets/fonts/OFL-Pretendard.txt
     - assets/fonts/Pretendard-Regular.ttf
     - assets/fonts/Pretendard-SemiBold.ttf

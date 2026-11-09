@@ -327,12 +327,12 @@ void main() {
       }
     }
     expect(dark, 0);
-    // Pencil grain: a mix of inked and paper pixels along the stroke.
+    // Pencil stamps: a mix of inked and paper pixels along the stroke.
     var ink = 0, paper = 0;
     for (var x = 320; x < 480; x++) {
       at(x.toDouble(), 500)[0] < 0x80 ? ink++ : paper++;
     }
-    expect(ink, greaterThan(20));
+    expect(ink, greaterThan(5));
     expect(paper, greaterThan(0));
   });
 

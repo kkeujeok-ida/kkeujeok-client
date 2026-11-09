@@ -431,6 +431,40 @@ final Map<String, void Function(Case)> runners = {
         fail('unknown fn ${i['fn']}');
     }
   },
+  'stroke.texture.pencilStamps': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final tol = (c['tolerance'] as num).toDouble();
+    final got = pencilStamps(
+      id: i['id'] as String,
+      width: (i['width'] as num).toDouble(),
+      usePressure: i['usePressure'] as bool,
+      points: i['points'] as List,
+      opacity: ((i['opacity'] as num?) ?? 1).toDouble(),
+    );
+    final want = (c['expected'] as Map)['stamps'] as List;
+    expect(got.length, want.length);
+    for (var k = 0; k < want.length; k++) {
+      final w = want[k] as Map;
+      final g = got[k];
+      for (final e in {
+        'x': g.x,
+        'y': g.y,
+        'size': g.size,
+        'angle': g.angle,
+      }.entries) {
+        expect(
+          (e.value - (w[e.key] as num)).abs() <= tol,
+          isTrue,
+          reason: '$k ${e.key}',
+        );
+      }
+      expect(
+        (g.alpha - (w['alpha'] as num)).abs() <= 0.01,
+        isTrue,
+        reason: '$k alpha',
+      );
+    }
+  },
   'stroke.outline.highlighter': (c) {
     final i = c['input'] as Map<String, dynamic>;
     final tol = (c['tolerance'] as num).toDouble();
@@ -962,7 +996,6 @@ const pendingRules = <String>{
   // Epic 25/26 (Stories 25.1, 26.1): runners arrive with 25.x and 26.x Android stories.
   'note.shape',
   'brush.curve',
-  'stroke.texture.pencilStamps',
   // Story 26.11: runners arrive with the 26.x stories.
   'shape.corners',
   'shape.outline',
