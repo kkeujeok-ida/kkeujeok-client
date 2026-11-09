@@ -963,6 +963,11 @@ const pendingRules = <String>{
   'note.shape',
   'brush.curve',
   'stroke.texture.pencilStamps',
+  // Story 26.11: runners arrive with the 26.x stories.
+  'shape.corners',
+  'shape.outline',
+  'shape.recognizeTilted',
+  'shape.holdResize',
 };
 
 final _sep = Platform.pathSeparator;
