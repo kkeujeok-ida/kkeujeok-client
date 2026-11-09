@@ -3176,6 +3176,12 @@ abstract class AppLocalizations {
   /// **'Preset name'**
   String get brushPresetName;
 
+  /// No description provided for @brushPresetRename.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename preset'**
+  String get brushPresetRename;
+
   /// No description provided for @brushPresetSave.
   ///
   /// In en, this message translates to:

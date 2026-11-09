@@ -1030,5 +1030,6 @@
   "brushPresetUse": "쓰기:",
   "brushPresetDelete": "프리셋 지우기",
   "brushPresetName": "프리셋 이름",
+  "brushPresetRename": "프리셋 이름 바꾸기",
   "brushPresetSave": "현재 펜을 프리셋으로 저장"
 }

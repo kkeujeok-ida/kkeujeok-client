@@ -900,7 +900,7 @@ const _cols = 6;
 /// thickness, pressure, preview, delete. Reads and writes slot [index]
 /// through [penSlotsProvider], so every change is stored at once; the canvas
 /// below gets no input while it is open.
-class PenEditDialog extends ConsumerWidget {
+class PenEditDialog extends ConsumerStatefulWidget {
   const PenEditDialog({super.key, this.index = 0, this.anchor});
 
   final int index;
@@ -910,10 +910,19 @@ class PenEditDialog extends ConsumerWidget {
   final PenBubbleAnchor Function()? anchor;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PenEditDialog> createState() => _PenEditDialogState();
+}
+
+class _PenEditDialogState extends ConsumerState<PenEditDialog> {
+  bool _advanced =
+      false; // advanced columns + preset labels, right of the bubble
+
+  @override
+  Widget build(BuildContext context) {
+    final anchor = widget.anchor;
     final l10n = AppLocalizations.of(context);
     final slots = ref.watch(penSlotsProvider);
-    final i = index.clamp(0, slots.length - 1); // closing: may be gone
+    final i = widget.index.clamp(0, slots.length - 1); // closing: may be gone
     final pen = slots[i];
     final recent = ref.watch(recentPenColorsProvider);
     final canDelete = slots.length > 1;
@@ -1044,6 +1053,36 @@ class PenEditDialog extends ConsumerWidget {
       child: _PenBubble(
         anchor: anchor,
         leftHanded: ref.watch(leftHandedProvider),
+        extra: _advanced
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Flexible(
+                    child: Material(
+                      color: Kk.componentsPopoverBackground,
+                      elevation: 6,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          KkjLight.componentsPopoverRounded,
+                        ),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: SingleChildScrollView(
+                          child: PenAdvancedPanel(index: i),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: KkjTokens.spacing2),
+                  Material(
+                    type: MaterialType.transparency,
+                    child: PenPresets(index: i),
+                  ),
+                ],
+              )
+            : null,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 320),
           child: SingleChildScrollView(
@@ -1135,7 +1174,14 @@ class PenEditDialog extends ConsumerWidget {
                   pen.lineMode,
                   (v) => notifier.setLineMode(i, v),
                 ),
-                PenAdvanced(index: i),
+                Semantics(
+                  button: true,
+                  expanded: _advanced,
+                  child: TextButton(
+                    onPressed: () => setState(() => _advanced = !_advanced),
+                    child: Text(l10n.brushAdvanced),
+                  ),
+                ),
                 const SizedBox(height: KkjTokens.spacing3),
                 ExcludeSemantics(
                   child: SizedBox(
@@ -1294,10 +1340,14 @@ class _PenBubble extends StatefulWidget {
     required this.anchor,
     required this.child,
     required this.leftHanded,
+    this.extra,
   });
   final PenBubbleAnchor Function()? anchor;
   final bool leftHanded;
   final Widget child;
+
+  /// Laid out beside the bubble, outside it (advanced columns, presets).
+  final Widget? extra;
 
   @override
   State<_PenBubble> createState() => _PenBubbleState();
@@ -1325,6 +1375,7 @@ class _PenBubbleState extends State<_PenBubble> {
   Widget build(BuildContext context) {
     if (widget.anchor != null && _a == null) return const SizedBox.shrink();
     final layout = _BubbleLayout(_a, widget.leftHanded);
+    final extra = widget.extra;
     return CustomMultiChildLayout(
       delegate: layout,
       children: [
@@ -1342,6 +1393,7 @@ class _PenBubbleState extends State<_PenBubble> {
             child: widget.child,
           ),
         ),
+        if (extra != null) LayoutId(id: #extra, child: extra),
         if (_a != null)
           LayoutId(
             id: #tail,
@@ -1372,15 +1424,18 @@ class _BubbleLayout extends MultiChildLayoutDelegate {
     );
     final a = anchor;
     if (a == null) {
-      positionChild(
-        #bubble,
-        Offset((size.width - box.width) / 2, (size.height - box.height) / 2),
+      final tl = Offset(
+        (size.width - box.width) / 2,
+        (size.height - box.height) / 2,
       );
+      positionChild(#bubble, tl);
+      _placeExtra(size, tl, box, null);
       return;
     }
     final p = placePenBubble(a, box, size, leftHanded: leftHanded);
     side = p.side;
     positionChild(#bubble, p.topLeft);
+    _placeExtra(size, p.topLeft, box, p.side);
     if (!hasChild(#tail)) return;
     final tail = p.tail;
     if (tail == null) {
@@ -1414,6 +1469,36 @@ class _BubbleLayout extends MultiChildLayoutDelegate {
         p.topLeft.dy + tail - t.height / 2,
       ),
     });
+  }
+
+  /// The extra panel beside the bubble: right of it, or left when there is no
+  /// room (or the tail faces right). It scrolls inside the window margin.
+  void _placeExtra(Size size, Offset tl, Size box, AxisDirection? side) {
+    if (!hasChild(#extra)) return;
+    const gap = 8.0;
+    final right = size.width - (tl.dx + box.width) - gap - penBubbleMargin;
+    final left = tl.dx - gap - penBubbleMargin;
+    final onRight = side == AxisDirection.left
+        ? false
+        : side == AxisDirection.right || right >= 240 || right >= left;
+    final avail = math.max(0.0, onRight ? right : left);
+    final e = layoutChild(
+      #extra,
+      BoxConstraints(
+        maxWidth: avail,
+        maxHeight: math.max(0, size.height - penBubbleMargin * 2),
+      ),
+    );
+    final top = tl.dy
+        .clamp(
+          penBubbleMargin,
+          math.max(penBubbleMargin, size.height - penBubbleMargin - e.height),
+        )
+        .toDouble();
+    positionChild(
+      #extra,
+      Offset(onRight ? tl.dx + box.width + gap : tl.dx - gap - e.width, top),
+    );
   }
 
   @override

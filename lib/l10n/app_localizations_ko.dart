@@ -1722,5 +1722,8 @@ class AppLocalizationsKo extends AppLocalizations {
   String get brushPresetName => '프리셋 이름';
 
   @override
+  String get brushPresetRename => '프리셋 이름 바꾸기';
+
+  @override
   String get brushPresetSave => '현재 펜을 프리셋으로 저장';
 }

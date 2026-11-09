@@ -1811,5 +1811,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get brushPresetName => 'Preset name';
 
   @override
+  String get brushPresetRename => 'Rename preset';
+
+  @override
   String get brushPresetSave => 'Save current pen as preset';
 }

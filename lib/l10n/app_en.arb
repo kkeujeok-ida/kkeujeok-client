@@ -1101,5 +1101,6 @@
   "brushPresetUse": "Use",
   "brushPresetDelete": "Delete preset",
   "brushPresetName": "Preset name",
+  "brushPresetRename": "Rename preset",
   "brushPresetSave": "Save current pen as preset"
 }
