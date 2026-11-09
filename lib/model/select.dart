@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui' show Offset, Rect, Size;
 
+import 'shape.dart' show denseOf;
 import 'text_layout.dart';
 
 // spec rules select.lasso, select.tap, select.rect (spec/select.md) and the
@@ -134,7 +135,10 @@ List<String> selectLasso(List<El> elements, List<P> polygon) {
   final ids = <String>[];
   for (final e in _withHeights(elements).where(_usable)) {
     if (_isStroke(e)) {
-      final pts = _points(e);
+      // Dense ring for shapes: stored corners repeat the first point.
+      final pts = [
+        for (final p in (denseOf(e) as List? ?? const [])) (_n(p[0]), _n(p[1])),
+      ];
       if (pts.isEmpty) continue;
       final need = (pts.length + 1) ~/ 2;
       if (pts.where((p) => _inPolygon(p, polygon)).length >= need) {

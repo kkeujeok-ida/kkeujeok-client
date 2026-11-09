@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kkeujeok/model/kkj_codec.dart';
 import 'package:kkeujeok/model/note.dart';
 import 'package:kkeujeok/model/select.dart';
+import 'package:kkeujeok/model/shape.dart';
 import 'package:kkeujeok/ops/ops.dart';
 import 'package:kkeujeok/render/page_painter.dart';
 import 'package:kkeujeok/render/selection_painter.dart';
@@ -412,5 +413,28 @@ void main() {
     expect(selectLasso(els, [(-100, -100), (200, -100), (200, 200)]), ['a']);
     expect(selectTap(els, (50, 25)), 'a');
     expect(selectionBounds([els[1], els[2]]), isNull);
+  });
+
+  test('lasso on one triangle corner does not select the shape', () {
+    final t = shapeFromDrag('triangle', [0, 0], [100, 100], false)!;
+    final el = {
+      'id': 't',
+      'type': 'stroke',
+      'shape': t,
+      'points': shapeCorners(t),
+    };
+    final v = (t['vertices'] as List)[0] as List;
+    final (x, y) = ((v[0] as num).toDouble(), (v[1] as num).toDouble());
+    final lasso = [
+      (x - 20, y - 20),
+      (x + 20, y - 20),
+      (x + 20, y + 20),
+      (x - 20, y + 20),
+    ];
+    expect(selectLasso([el], lasso), isEmpty);
+    expect(
+      selectLasso([el], [(-500, -500), (500, -500), (500, 500), (-500, 500)]),
+      ['t'],
+    );
   });
 }
