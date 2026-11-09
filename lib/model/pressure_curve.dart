@@ -1,11 +1,12 @@
 // spec rule `pen.pressureCurve` (spec/pen-feel.md): maps a stored pressure p
 // to the drawing pressure q before the radius factor is applied.
+import 'curve.dart';
 
 /// A monotone cubic through (0,0), the inner points and (1,1). [values] is the
 /// flat inner list `[x1, y1, x2, y2, ...]`. [preset] is the name when it is
 /// one of the three presets, else null.
 class PressureCurve {
-  const PressureCurve._(this.preset, this.values);
+  const PressureCurve._(this.preset, this.values, [this.points]);
 
   static const maxInner = 6;
   static const soft = PressureCurve._('soft', [0.2, 0.4, 0.5, 0.8]);
@@ -15,6 +16,20 @@ class PressureCurve {
 
   final String? preset;
   final List<double> values;
+
+  /// Set for a point-list curve (spec/brush.md `brush.curve`); [values] is
+  /// then the flat list of the points and [q] uses the Fritsch-Carlson spline.
+  final List<List<double>>? points;
+
+  /// A brush curve as read: a point list, or a legacy 4-number curve (drawn
+  /// as before, Fritsch-Butland); invalid gives `normal`.
+  factory PressureCurve.fromCurve(Object? c) {
+    final v = validCurve(c);
+    if (v == null) return normal;
+    if (!isPointList(v)) return PressureCurve.fromValues(v.cast<double>());
+    final p = v.cast<List<double>>();
+    return PressureCurve._(null, [for (final q in p) ...q], p);
+  }
 
   /// Even length up to 12, values in 0..1, x strictly increasing inside
   /// (0,1), y never decreasing; an invalid set is `normal`.
@@ -56,7 +71,9 @@ class PressureCurve {
 
   @override
   bool operator ==(Object other) =>
-      other is PressureCurve && _same(other.values, values);
+      other is PressureCurve &&
+      (other.points == null) == (points == null) &&
+      _same(other.values, values);
 
   @override
   int get hashCode => Object.hashAll(values);
@@ -64,6 +81,7 @@ class PressureCurve {
   /// q for a stored pressure [p] (clamped to 0..1): monotone cubic Hermite
   /// (Fritsch-Butland tangents), spec/pen-feel.md.
   double q(double p) {
+    if (points != null) return curveEval(points, p) ?? p.clamp(0.0, 1.0);
     p = p.clamp(0.0, 1.0);
     if (p == 0 || p == 1 || values.isEmpty) return p;
     final x = [0.0, for (var i = 0; i < values.length; i += 2) values[i], 1.0];

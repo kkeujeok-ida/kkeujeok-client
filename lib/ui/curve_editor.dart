@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../design_tokens/build/tokens.dart';
 import '../model/brush.dart';
+import '../model/curve.dart';
 import '../model/pressure_curve.dart';
 import '../render/stroke_outline.dart';
 import 'kk.dart';
@@ -50,6 +51,7 @@ class CurveEditor extends StatefulWidget {
     this.mode = CurveMode.pressure,
     this.fixedCount,
     this.onReset,
+    this.pad = true,
   });
 
   final PressureCurve curve;
@@ -64,6 +66,9 @@ class CurveEditor extends StatefulWidget {
   final int? fixedCount;
   final VoidCallback? onReset;
 
+  /// false: no test pad (a curve that is not a width).
+  final bool pad;
+
   @override
   State<CurveEditor> createState() => _CurveEditorState();
 }
@@ -76,6 +81,14 @@ class _CurveEditorState extends State<CurveEditor> {
   Duration _lastTapAt = Duration.zero;
 
   bool get _fixed => widget.fixedCount != null;
+
+  // A point-list curve (spec/brush.md): the ends move up and down, x stays 0
+  // and 1; else the inner points of a legacy curve.
+  bool get _points => widget.curve.points != null;
+
+  List<(double, double)> get _pl => _points
+      ? [for (final q in widget.curve.points!) (q[0], q[1])]
+      : widget.curve.inner;
 
   double _pressure(PointerEvent e) {
     final range = e.pressureMax - e.pressureMin;
@@ -97,9 +110,13 @@ class _CurveEditorState extends State<CurveEditor> {
   });
 
   void _set(List<(double, double)> p) => widget.onChanged(
-    PressureCurve.fromValues([
-      for (final q in p) ...[q.$1, q.$2],
-    ]),
+    _points
+        ? PressureCurve.fromCurve([
+            for (final q in p) [q.$1, q.$2],
+          ])
+        : PressureCurve.fromValues([
+            for (final q in p) ...[q.$1, q.$2],
+          ]),
   );
 
   /// Point [i] of [p] moved to ([x], [y]), held between its neighbours; null
@@ -110,6 +127,12 @@ class _CurveEditorState extends State<CurveEditor> {
     double x,
     double y,
   ) {
+    if (_points) {
+      final yy = y.clamp(0.0, 1.0);
+      if (i == 0 || i == p.length - 1) return (i == 0 ? 0.0 : 1.0, yy);
+      if (p[i + 1].$1 - p[i - 1].$1 < 2 * _eps) return null;
+      return (x.clamp(p[i - 1].$1 + _eps, p[i + 1].$1 - _eps), yy);
+    }
     final lo = i == 0 ? (0.0, 0.0) : p[i - 1];
     final hi = i == p.length - 1 ? (1.0, 1.0) : p[i + 1];
     if (hi.$1 - lo.$1 < 2 * _eps) return null;
@@ -134,13 +157,15 @@ class _CurveEditorState extends State<CurveEditor> {
 
   void _remove(int i) {
     if (_fixed || i < 0) return;
-    final p = widget.curve.inner..removeAt(i);
+    final p = _pl;
+    if (_points && (i == 0 || i == p.length - 1)) return;
+    p.removeAt(i);
     setState(() => _sel = -1);
     _set(p);
   }
 
   void _down(PointerDownEvent e) {
-    final p = widget.curve.inner;
+    final p = _pl;
     var i = _hit(p, e.localPosition);
     if (i >= 0) {
       final again =
@@ -149,7 +174,8 @@ class _CurveEditorState extends State<CurveEditor> {
       _lastTapIdx = again ? -1 : i;
       _lastTapAt = e.timeStamp;
       if (again && !_fixed) return _remove(i);
-    } else if (!_fixed && p.length < PressureCurve.maxInner) {
+    } else if (!_fixed &&
+        p.length < (_points ? maxCurvePoints : PressureCurve.maxInner)) {
       _lastTapIdx = -1;
       final x = e.localPosition.dx / _graph;
       var at = p.indexWhere((q) => q.$1 > x);
@@ -166,7 +192,7 @@ class _CurveEditorState extends State<CurveEditor> {
   }
 
   void _move(PointerMoveEvent e) {
-    final p = widget.curve.inner;
+    final p = _pl;
     if (_drag < 0 || _drag >= p.length) return;
     final c = _clampOffset(p, _drag, e.localPosition);
     if (c != null) _set(p..[_drag] = c);
@@ -174,20 +200,21 @@ class _CurveEditorState extends State<CurveEditor> {
 
   /// A point on the curve in the widest gap.
   void _addMid() {
-    final p = widget.curve.inner;
-    final xs = [0.0, for (final q in p) q.$1, 1.0];
+    final p = _pl;
+    final xs = [if (!_points) 0.0, for (final q in p) q.$1, if (!_points) 1.0];
     var g = 0;
     for (var k = 1; k < xs.length - 1; k++) {
       if (xs[k + 1] - xs[k] > xs[g + 1] - xs[g]) g = k;
     }
     final x = (xs[g] + xs[g + 1]) / 2;
-    setState(() => _sel = g);
-    _set(p..insert(g, (x, widget.curve.q(x))));
+    final at = _points ? g + 1 : g;
+    setState(() => _sel = at);
+    _set(p..insert(at, (x, widget.curve.q(x))));
   }
 
   /// Point [i] moved by ([dx], [dy]) (arrow keys, screen-reader actions).
   void _nudge(int i, double dx, double dy) {
-    final p = widget.curve.inner;
+    final p = _pl;
     if (i < 0 || i >= p.length) return;
     final c = _clampAt(p, i, p[i].$1 + dx, p[i].$2 + dy);
     if (c != null) _set(p..[i] = c);
@@ -219,7 +246,7 @@ class _CurveEditorState extends State<CurveEditor> {
   Widget build(BuildContext context) {
     final l = widget.labels;
     final curve = widget.curve;
-    final p = curve.inner;
+    final p = _pl;
     final sel = _sel >= 0 && _sel < p.length ? _sel : -1;
     Widget right(Widget w) => Align(alignment: Alignment.centerRight, child: w);
     return Column(
@@ -298,10 +325,18 @@ class _CurveEditorState extends State<CurveEditor> {
                             child: Semantics(
                               label: out ? l.output : l.input,
                               child: Slider(
-                                min: out
+                                min: _points
+                                    ? (out || sel == 0
+                                          ? 0.0
+                                          : p[sel - 1].$1 + _eps)
+                                    : out
                                     ? (sel == 0 ? 0.0 : p[sel - 1].$2)
                                     : (sel == 0 ? 0.0 : p[sel - 1].$1) + _eps,
-                                max: out
+                                max: _points
+                                    ? (out || sel == p.length - 1
+                                          ? 1.0
+                                          : p[sel + 1].$1 - _eps)
+                                    : out
                                     ? (sel == p.length - 1
                                           ? 1.0
                                           : p[sel + 1].$2)
@@ -310,12 +345,17 @@ class _CurveEditorState extends State<CurveEditor> {
                                               : p[sel + 1].$1) -
                                           _eps,
                                 value: (out ? p[sel].$2 : p[sel].$1),
-                                onChanged: (x) => _set(
-                                  p
-                                    ..[sel] = out
-                                        ? (p[sel].$1, x)
-                                        : (x, p[sel].$2),
-                                ),
+                                onChanged:
+                                    _points &&
+                                        !out &&
+                                        (sel == 0 || sel == p.length - 1)
+                                    ? null
+                                    : (x) => _set(
+                                        p
+                                          ..[sel] = out
+                                              ? (p[sel].$1, x)
+                                              : (x, p[sel].$2),
+                                      ),
                                 semanticFormatterCallback: (x) =>
                                     x.toStringAsFixed(2),
                               ),
@@ -324,40 +364,42 @@ class _CurveEditorState extends State<CurveEditor> {
                     ],
                   ),
                 ),
-                const SizedBox(width: KkjTokens.spacing2),
-                Semantics(
-                  label: l.pad,
-                  child: _noScroll(
-                    kinds: {PointerDeviceKind.stylus},
-                    child: Listener(
-                      onPointerDown: (e) {
-                        if (e.kind != PointerDeviceKind.stylus) return;
-                        _pts.clear();
-                        _add(e);
-                      },
-                      onPointerMove: (e) {
-                        if (e.kind == PointerDeviceKind.stylus) _add(e);
-                      },
-                      child: Container(
-                        height: _graph,
-                        width: _graph,
-                        decoration: BoxDecoration(
-                          color: Kk.colorSurfaceRaised,
-                          border: Border.all(color: Kk.colorBorderControl),
-                        ),
-                        child: ClipRect(
-                          child: CustomPaint(
-                            painter: _PadPainter(
-                              List.of(_pts),
-                              curve,
-                              widget.mode,
+                if (widget.pad) ...[
+                  const SizedBox(width: KkjTokens.spacing2),
+                  Semantics(
+                    label: l.pad,
+                    child: _noScroll(
+                      kinds: {PointerDeviceKind.stylus},
+                      child: Listener(
+                        onPointerDown: (e) {
+                          if (e.kind != PointerDeviceKind.stylus) return;
+                          _pts.clear();
+                          _add(e);
+                        },
+                        onPointerMove: (e) {
+                          if (e.kind == PointerDeviceKind.stylus) _add(e);
+                        },
+                        child: Container(
+                          height: _graph,
+                          width: _graph,
+                          decoration: BoxDecoration(
+                            color: Kk.colorSurfaceRaised,
+                            border: Border.all(color: Kk.colorBorderControl),
+                          ),
+                          child: ClipRect(
+                            child: CustomPaint(
+                              painter: _PadPainter(
+                                List.of(_pts),
+                                curve,
+                                widget.mode,
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -367,7 +409,11 @@ class _CurveEditorState extends State<CurveEditor> {
             children: [
               if (!_fixed) ...[
                 TextButton(
-                  onPressed: p.length < PressureCurve.maxInner ? _addMid : null,
+                  onPressed:
+                      p.length <
+                          (_points ? maxCurvePoints : PressureCurve.maxInner)
+                      ? _addMid
+                      : null,
                   child: Text(l.add),
                 ),
                 TextButton(
@@ -427,7 +473,9 @@ class _GraphPainter extends CustomPainter {
         ..strokeWidth = 2
         ..color = Kk.colorInkPrimary,
     );
-    final p = curve.inner;
+    final p = curve.points == null
+        ? curve.inner
+        : [for (final q in curve.points!) (q[0], q[1])];
     for (var i = 0; i < p.length; i++) {
       final c = Offset(p[i].$1 * size.width, (1 - p[i].$2) * size.height);
       final rad = i == sel ? 8.0 : 6.0;
@@ -464,7 +512,7 @@ class _PadPainter extends CustomPainter {
             false,
             pts,
             PressureCurve.normal,
-            (p) => tiltSizeFactor(p, curve.values),
+            (p) => tiltSizeFactor(p, curve),
           )
         : strokeOutline(6, true, pts, curve);
     canvas.drawPath(outlinePath(poly), Paint()..color = Kk.colorInkPrimary);

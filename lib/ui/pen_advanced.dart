@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/app_localizations.dart';
 import '../model/brush.dart';
 import '../model/brush_preset.dart';
+import '../model/curve.dart';
 import '../model/ids.dart';
 import '../model/pen.dart';
 import '../model/pressure_curve.dart';
@@ -62,6 +63,7 @@ class _PenAdvancedState extends ConsumerState<PenAdvanced> {
         .setBrush(i, patchBrush(pen.tool, pen.brush, patch));
     final flat = pen.tool == 'highlighter' || pen.tool == 'tape';
     final own = b.pressureCurve != null;
+    final oc = opacityPressureCurve(pen.brush);
     Widget radios(
       String label,
       List<(String, String)> items,
@@ -143,9 +145,9 @@ class _PenAdvancedState extends ConsumerState<PenAdvanced> {
             ),
             if (own)
               CurveEditor(
-                curve: PressureCurve.fromValues(b.pressureCurve!),
+                curve: PressureCurve.fromCurve(editPoints(b.pressureCurve)),
                 fixedCount: 2,
-                onChanged: (c) => set({'pressureCurve': c.values}),
+                onChanged: (c) => set({'pressureCurve': c.points}),
                 labels: (
                   graph: l10n.pressureCurveGraph,
                   input: l10n.pressureCurveIn,
@@ -154,6 +156,32 @@ class _PenAdvancedState extends ConsumerState<PenAdvanced> {
                   add: l10n.pressureCurveAdd,
                   remove: l10n.pressureCurveRemove,
                   reset: l10n.pressureCurveReset,
+                ),
+              ),
+          ],
+          if (pen.tool != 'tape' && pen.usePressure) ...[
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(l10n.brushOpacityPressure),
+              value: oc != null,
+              onChanged: (v) => set({
+                'opacityPressureCurve': v ? curveToPoints(_linear) : null,
+              }),
+            ),
+            if (oc != null)
+              CurveEditor(
+                curve: PressureCurve.fromCurve(editPoints(oc)),
+                fixedCount: 2,
+                pad: false,
+                onChanged: (c) => set({'opacityPressureCurve': c.points}),
+                labels: (
+                  graph: l10n.opacityCurveGraph,
+                  input: l10n.opacityCurveIn,
+                  output: l10n.opacityCurveOut,
+                  pad: l10n.opacityCurvePad,
+                  add: '',
+                  remove: '',
+                  reset: '',
                 ),
               ),
           ],
@@ -170,10 +198,10 @@ class _PenAdvancedState extends ConsumerState<PenAdvanced> {
             ),
             if (b.tiltTarget != 'none')
               CurveEditor(
-                curve: PressureCurve.fromValues(b.tiltCurve),
+                curve: PressureCurve.fromCurve(editPoints(b.tiltCurve)),
                 mode: CurveMode.tilt,
                 fixedCount: 2,
-                onChanged: (c) => set({'tiltCurve': c.values}),
+                onChanged: (c) => set({'tiltCurve': c.points}),
                 labels: (
                   graph: l10n.tiltCurveGraph,
                   input: l10n.tiltCurveIn,

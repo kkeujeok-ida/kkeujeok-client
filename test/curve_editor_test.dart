@@ -75,4 +75,17 @@ void main() {
     expect(log, isNotEmpty);
     expect(log.last.values[1], closeTo(0.41, 1e-9));
   });
+
+  testWidgets('point list: an end point moves up and down (flip)', (t) async {
+    final log = <PressureCurve>[];
+    await t.pumpWidget(
+      _host(PressureCurve.fromCurve([[0, 0], [1, 1]]), log, fixed: 2),
+    );
+    t.semantics.increase(find.semantics.byLabel('graph 1'));
+    await t.pump();
+    expect(log.last.points![0], [0.0, closeTo(0.05, 1e-9)]);
+    t.semantics.decrease(find.semantics.byLabel('graph 2'));
+    await t.pump();
+    expect(log.last.points![1][0], 1.0);
+  });
 }

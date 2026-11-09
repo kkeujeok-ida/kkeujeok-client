@@ -1694,6 +1694,22 @@ class AppLocalizationsKo extends AppLocalizations {
   String get tiltCurvePad => '기울기 시험판. 펜을 여러 각도로 세워 그어 보세요';
 
   @override
+  String get brushOpacityPressure => '필압이 농도를 바꿈';
+
+  @override
+  String get opacityCurveGraph =>
+      '필압→농도 그래프. 방향키로 점을 옮기거나 끌어서 옮겨요. 양 끝점을 위아래로 끌면 곡선이 뒤집혀요';
+
+  @override
+  String get opacityCurveIn => '필압';
+
+  @override
+  String get opacityCurveOut => '농도';
+
+  @override
+  String get opacityCurvePad => '농도';
+
+  @override
   String get brushPresets => '브러시 프리셋';
 
   @override

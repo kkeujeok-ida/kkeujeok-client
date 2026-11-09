@@ -3122,6 +3122,36 @@ abstract class AppLocalizations {
   /// **'Tilt test pad. Draw with a pen held at different angles'**
   String get tiltCurvePad;
 
+  /// No description provided for @brushOpacityPressure.
+  ///
+  /// In en, this message translates to:
+  /// **'Pressure changes opacity'**
+  String get brushOpacityPressure;
+
+  /// No description provided for @opacityCurveGraph.
+  ///
+  /// In en, this message translates to:
+  /// **'Pressure to opacity graph. Move a point with the arrow keys or drag it; drag an end point up or down to flip the curve'**
+  String get opacityCurveGraph;
+
+  /// No description provided for @opacityCurveIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Pressure'**
+  String get opacityCurveIn;
+
+  /// No description provided for @opacityCurveOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Opacity'**
+  String get opacityCurveOut;
+
+  /// No description provided for @opacityCurvePad.
+  ///
+  /// In en, this message translates to:
+  /// **'Opacity'**
+  String get opacityCurvePad;
+
   /// No description provided for @brushPresets.
   ///
   /// In en, this message translates to:

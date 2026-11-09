@@ -39,4 +39,19 @@ void main() {
     expect(brushAlphaFactor('tape', {'opacity': 0.2}, pts), 1);
     expect(brushAlphaFactor('pen', {'tiltTarget': 'opacity'}, pts), closeTo(0.5, 1e-5));
   });
+  test('pressure to opacity: mean q, inverse flips, usePressure off is 0.5', () {
+    final hi = [[0, 0, 1.0, 0], [1, 0, 1.0, 1]];
+    final inv = {'opacityPressureCurve': [[0, 1], [1, 0]]};
+    final lin = {'opacityPressureCurve': [[0, 0], [1, 1]]};
+    expect(brushAlphaFactor('pen', lin, hi), closeTo(1, 1e-9));
+    expect(brushAlphaFactor('pen', inv, hi), closeTo(0, 1e-9));
+    expect(brushAlphaFactor('pen', inv, hi, false), closeTo(0.5, 1e-9));
+    expect(brushAlphaFactor('tape', inv, hi), 1);
+  });
+  test('point-list pressureCurve draws; legacy stays Butland', () {
+    final c = PressureCurve.fromCurve([[0, 1], [1, 0]]);
+    expect(c.q(0.25), closeTo(0.75, 1e-9));
+    expect(PressureCurve.fromCurve([0.2, 0.4, 0.5, 0.8]),
+        PressureCurve.fromValues([0.2, 0.4, 0.5, 0.8]));
+  });
 }

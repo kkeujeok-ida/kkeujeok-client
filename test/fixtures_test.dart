@@ -26,6 +26,7 @@ import 'package:kkeujeok/model/pdf_rules.dart';
 import 'package:kkeujeok/model/pen.dart';
 import 'package:kkeujeok/model/pen_palette.dart';
 import 'package:kkeujeok/model/brush.dart';
+import 'package:kkeujeok/model/curve.dart';
 import 'package:kkeujeok/model/pressure_curve.dart';
 import 'package:kkeujeok/ui/pen_toolbar.dart'
     show PenBubbleAnchor, penColorName, placePenBubble;
@@ -78,6 +79,27 @@ Map<String, dynamic> _opOutput(OpResult r) => r.error != null
 
 void _same(Object? actual, Object? expected) =>
     expect(actual, equals(expected)); // == on numbers: 1 equals 1.0
+
+/// [actual] equals [expected]; numbers within [tol].
+void _near(Object? actual, Object? expected, double tol) {
+  if (expected is num) {
+    expect(actual, isA<num>());
+    expect((actual as num) - expected, closeTo(0, tol + 1e-9));
+  } else if (expected is List) {
+    expect(actual, isA<List>());
+    expect((actual as List).length, expected.length);
+    for (var k = 0; k < expected.length; k++) {
+      _near(actual[k], expected[k], tol);
+    }
+  } else if (expected is Map) {
+    expect(actual, isA<Map>());
+    for (final k in expected.keys) {
+      _near((actual as Map)[k], expected[k], tol);
+    }
+  } else {
+    expect(actual, equals(expected));
+  }
+}
 
 List<Map<String, dynamic>> _els(Map<String, dynamic> i) => [
   for (final e in i['elements'] as List) e as Map<String, dynamic>,
@@ -660,6 +682,19 @@ final Map<String, void Function(Case)> runners = {
   },
   'note.penKinds': (c) => runners['note.formatVersion']!(c),
   'note.brush': (c) => runners['note.formatVersion']!(c),
+  'brush.curve': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final fn = i['fn'];
+    _near(
+      fn == 'eval'
+          ? {'y': curveEval(i['curve'], (i['x'] as num).toDouble())}
+          : fn == 'convert'
+          ? {'points': curveToPoints(i['curve'])}
+          : {'opacityPressureCurve': opacityPressureCurve(i['brush'])},
+      c['expected'],
+      (c['tolerance'] as num?)?.toDouble() ?? 0,
+    );
+  },
   'brush.resolve': (c) {
     final i = c['input'] as Map<String, dynamic>;
     final p = brushResolve(i['tool'], i['brush']);
@@ -995,7 +1030,6 @@ void _runOp(Case c) {
 const pendingRules = <String>{
   // Epic 25/26 (Stories 25.1, 26.1): runners arrive with 25.x and 26.x Android stories.
   'note.shape',
-  'brush.curve',
   // Story 26.11: runners arrive with the 26.x stories.
   'shape.corners',
   'shape.outline',

@@ -1783,6 +1783,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'Tilt test pad. Draw with a pen held at different angles';
 
   @override
+  String get brushOpacityPressure => 'Pressure changes opacity';
+
+  @override
+  String get opacityCurveGraph =>
+      'Pressure to opacity graph. Move a point with the arrow keys or drag it; drag an end point up or down to flip the curve';
+
+  @override
+  String get opacityCurveIn => 'Pressure';
+
+  @override
+  String get opacityCurveOut => 'Opacity';
+
+  @override
+  String get opacityCurvePad => 'Opacity';
+
+  @override
   String get brushPresets => 'Brush presets';
 
   @override

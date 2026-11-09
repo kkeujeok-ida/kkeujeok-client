@@ -132,16 +132,15 @@ Path strokePath(Map<String, dynamic> s) {
     return outlinePath(strokeOutlineFor(tool, w, up, pts));
   }
   final b = brushResolve(tool, s['brush']);
+  final tiltCurve = PressureCurve.fromCurve(b.tiltCurve);
   return outlinePath(
     strokeOutlineFor(
       tool,
       w,
       up,
       pts,
-      b.pressureCurve == null
-          ? null
-          : PressureCurve.fromValues(b.pressureCurve!),
-      b.tiltTarget == 'size' ? (p) => tiltSizeFactor(p, b.tiltCurve) : null,
+      b.pressureCurve == null ? null : PressureCurve.fromCurve(b.pressureCurve),
+      b.tiltTarget == 'size' ? (p) => tiltSizeFactor(p, tiltCurve) : null,
     ),
   );
 }
@@ -150,13 +149,22 @@ Path strokePath(Map<String, dynamic> s) {
 /// the pencil grain (spec/brush.md).
 ({double alpha, bool grain}) brushDraw(Map<String, dynamic> s) {
   final tool = s['tool'];
+  final grain = tool == 'highlighter' || tool == 'tape'
+      ? false
+      : s['brush'] == null
+      ? tool == 'pencil'
+      : brushResolve(tool, s['brush']).texture == 'pencil';
   return (
-    alpha: brushAlphaFactor(tool, s['brush'], s['points'] as List),
-    grain: tool == 'highlighter' || tool == 'tape'
-        ? false
-        : s['brush'] == null
-        ? tool == 'pencil'
-        : brushResolve(tool, s['brush']).texture == 'pencil',
+    // grain: the stamps carry the pressure opacity (paintPencil adds it back
+    // for the plain fallback)
+    alpha: brushAlphaFactor(
+      tool,
+      s['brush'],
+      s['points'] as List,
+      s['usePressure'] as bool? ?? true,
+      !grain,
+    ),
+    grain: grain,
   );
 }
 
@@ -275,8 +283,8 @@ List<PencilStamp> stampsOf(Map<String, dynamic> s) {
     opacity: b.opacity,
     curve: b.pressureCurve == null
         ? pressureCurveInUse
-        : PressureCurve.fromValues(b.pressureCurve!),
-    opacityCurve: oc == null ? null : PressureCurve.fromJson(oc),
+        : PressureCurve.fromCurve(b.pressureCurve),
+    opacityCurve: oc == null ? null : PressureCurve.fromCurve(oc),
   );
 }
 
@@ -299,7 +307,16 @@ void paintPencil(
       polygon(),
       s['color'],
       pencilAlpha(s),
-      alpha: fade * bd.alpha,
+      alpha:
+          fade *
+          (bd.grain
+              ? brushAlphaFactor(
+                  s['tool'],
+                  s['brush'],
+                  s['points'] as List,
+                  s['usePressure'] as bool? ?? true,
+                )
+              : bd.alpha),
       invert: invert,
     );
   }
