@@ -227,7 +227,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   bool _line = false;
   // Story 26.6: the shape a held stroke would become (shown, made on up), and
   // a short flash of the preview when it appears.
-  Map<String, dynamic>? _heldShape;
+  // Story 26.12: [_heldShape] follows the pen (`shape.holdResize`) from
+  // [_heldShape0] as recognized, with [_heldP0] the pen then.
+  Map<String, dynamic>? _heldShape, _heldShape0;
+  List<num>? _heldP0;
   bool _flash = false;
   // The shape tool (Story 26.4): the stroke in progress is a shape dragged
   // from the first point; the kind and the toolbar ratio lock are UI state.
@@ -1278,7 +1281,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
           _ratioLock,
         );
       }
-      final np = ns == null ? null : shapePoints(ns);
+      final np = ns == null ? null : shapeCorners(ns);
       if (np == null) return null;
       pts = np;
     } else {
@@ -2558,7 +2561,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     'usePressure': _pen.usePressure && !_straight && !_line && shape == null,
     if (_pen.brush != null) 'brush': copyJsonValue(_pen.brush),
     if (shape != null) 'shape': shape,
-    'points': shape == null ? points : shapePoints(shape)!,
+    'points': shape == null ? points : shapeCorners(shape)!,
   };
 
   // While erasing nothing is drawn live: the struck strokes show translucent
@@ -3466,13 +3469,15 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _holdTimer = null;
     _holdOn = _straight = _holdDead = _line = _shaping = _flash = false;
     _holdAnchor = null;
-    _heldShape = null;
+    _heldShape = _heldShape0 = null;
+    _heldP0 = null;
   }
 
   /// Still detection: a point farther than [holdDistance] (dp) from the
   /// anchor becomes the anchor and restarts the timer.
   void _holdPoint(List<num> p) {
-    if (!_holdOn || _holdDead || _straight) return;
+    // A shown shape is not recognized again: only the pen resizes it.
+    if (!_holdOn || _holdDead || _straight || _heldShape0 != null) return;
     final a = _holdAnchor, k = _vp?.scale ?? 1;
     if (a != null &&
         math.sqrt(
@@ -3482,10 +3487,6 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       return;
     }
     _holdAnchor = p;
-    if (_heldShape != null) {
-      _heldShape = null; // moving on ends the preview
-      _flash = false;
-    }
     _holdTimer?.cancel();
     _holdTimer = Timer(const Duration(milliseconds: holdMs), _holdFire);
   }
@@ -3495,9 +3496,11 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     if (!mounted || _pointer == null || a == null || !_holdOn) return;
     if (_holdDead || _straight) return;
     // Shape first (a straight stroke is open, so it never is one).
-    final shape = recognizeShape(_points);
+    final rec = recognizeTilted(_points);
+    final shape = rec.shape;
     if (shape != null) {
-      _heldShape = shape;
+      _heldShape = _heldShape0 = shape;
+      _heldP0 = _points.last;
       _flash = true;
       HapticFeedback.selectionClick();
       Timer(const Duration(milliseconds: 180), () {
@@ -3509,6 +3512,8 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _tick.value++;
       return;
     }
+    // Only a straight stroke becomes a line; a scribble stays as drawn.
+    if (!rec.line) return;
     final k = _vp?.scale ?? 1;
     final on = straightenActive(
       enabled: true,
@@ -3533,7 +3538,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     _holdDead = true;
     if (_straight || _heldShape != null) {
       _straight = false;
-      _heldShape = null;
+      _heldShape = _heldShape0 = null;
       _flash = false;
       _tick.value++;
     }
@@ -3780,6 +3785,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     // Not clipped here: points outside the page are kept.
     _points.add(_point(e, _vp!.toPage(e.localPosition) - _origin));
     _holdPoint(_points.last);
+    final s0 = _heldShape0, p0 = _heldP0;
+    if (s0 != null && p0 != null && !_holdDead) {
+      _heldShape = shapeHoldResize(s0, p0, _points.last) ?? s0;
+    }
     _tick.value++;
   }
 

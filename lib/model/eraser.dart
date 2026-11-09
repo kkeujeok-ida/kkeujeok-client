@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'shape.dart' show denseOf;
+
 // spec/erase.md: eraser settings and the pure touch / split rules.
 
 enum EraserMode { stroke, partial }
@@ -175,7 +177,7 @@ List<List<int>> splitPieces(List<Pt> pts, List<Pt> path, double r) {
     fade.add(m['id'] as String);
     out.add(e);
     if (!partial || m['tool'] == 'tape') continue;
-    final entries = m['points'] as List;
+    final entries = denseOf(m) as List;
     var j = 0;
     for (final piece in splitPieces(pts, path, r)) {
       out.add({
@@ -208,7 +210,7 @@ bool _boxNear(Map e, double x0, double x1, double y0, double y1) {
 }
 
 List<Pt>? _strokePts(Map e) {
-  final pts = e['points'];
+  final pts = denseOf(e);
   if (pts is! List || pts.isEmpty || e['id'] is! String) return null;
   final out = <Pt>[];
   for (final p in pts) {

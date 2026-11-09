@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart';
 import '../model/brush.dart';
 import '../model/invert.dart';
 import '../model/pressure_curve.dart';
+import '../model/shape.dart' show shapeRings;
 import '../model/smooth.dart';
 import '../ui/kk.dart';
 import 'asset_images.dart';
@@ -123,6 +124,15 @@ bool drawableStroke(Object? e) =>
 /// The smoothing level is applied here, on screen only (export calls
 /// [strokeOutline] directly).
 Path strokePath(Map<String, dynamic> s) {
+  // A shape is a closed ring of one width, whatever the pen (spec/shape.md).
+  final rings = shapeRings(s['shape'], (s['width'] as num).toDouble());
+  if (rings != null) {
+    final path = Path();
+    for (final r in rings) {
+      path.addPolygon([for (final p in r) Offset(p[0], p[1])], true);
+    }
+    return path;
+  }
   final pts = smoothPoints(s['points'] as List, smoothInUse);
   final w = (s['width'] as num).toDouble();
   if (s['tool'] == 'highlighter')
@@ -364,6 +374,7 @@ class StrokePathCache {
       (s['usePressure'] as bool) ? 1 : 0,
       ...pressureCurveInUse.values,
       jsonEncode(s['brush']),
+      jsonEncode(s['shape']),
       smoothInUse,
       ...xy(0),
       ...xy(pts.length - 1),

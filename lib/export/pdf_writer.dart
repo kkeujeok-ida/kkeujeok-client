@@ -7,6 +7,7 @@ import 'package:pdf/pdf.dart';
 import '../model/note.dart';
 import '../model/pressure_curve.dart';
 import '../model/pdf_rules.dart' show patternOf;
+import '../model/shape.dart' show shapeRings;
 import '../model/text_layout.dart';
 import '../model/text_metrics.dart';
 import '../render/page_background.dart';
@@ -187,7 +188,26 @@ void _poly(PdfGraphics g, List<List<double>> pts) {
   g.closePath();
 }
 
+// A shape is its two rings in one fill (non-zero), as on screen.
+void _rings(PdfGraphics g, List<List<List<double>>> rings) {
+  for (final r in rings) {
+    if (r.isNotEmpty) _poly(g, r);
+  }
+}
+
 void _pen(PdfGraphics g, Map<String, dynamic> s, {double? alpha}) {
+  final rings = shapeRings(s['shape'], (s['width'] as num).toDouble());
+  if (rings != null) {
+    if (alpha != null) {
+      g.saveContext();
+      g.setGraphicState(PdfGraphicState(opacity: alpha));
+    }
+    g.setFillColor(_color(s['color']));
+    _rings(g, rings);
+    g.fillPath();
+    if (alpha != null) g.restoreContext();
+    return;
+  }
   final pts = strokeOutlineFor(
     s['tool'] as String?,
     (s['width'] as num).toDouble(),
@@ -207,6 +227,18 @@ void _pen(PdfGraphics g, Map<String, dynamic> s, {double? alpha}) {
 }
 
 void _highlighter(PdfGraphics g, Map<String, dynamic> s) {
+  final rings = shapeRings(s['shape'], (s['width'] as num).toDouble());
+  if (rings != null) {
+    g.saveContext();
+    g.setGraphicState(
+      const PdfGraphicState(opacity: 0.4, blendMode: PdfBlendMode.multiply),
+    );
+    g.setFillColor(_color(s['color']));
+    _rings(g, rings);
+    g.fillPath();
+    g.restoreContext();
+    return;
+  }
   final polys = highlighterPolygons(
     (s['width'] as num).toDouble(),
     s['points'] as List,

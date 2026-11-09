@@ -185,8 +185,12 @@ double _segDist(double px, double py, List<double> a, List<double> b) {
 }
 
 /// `shape.recognize` (spec/shape.md): the shape a held stroke is turned into,
-/// or null when nothing fits.
-Map<String, dynamic>? recognizeShape(List<List<num>> points) {
+/// or null when nothing fits. [tilted] (`shape.recognizeTilted`) fits the
+/// rect as an oriented one.
+Map<String, dynamic>? recognizeShape(
+  List<List<num>> points, {
+  bool tilted = false,
+}) {
   // 1. Prepare.
   final p = <List<double>>[];
   for (final q in points) {
@@ -204,7 +208,7 @@ Map<String, dynamic>? recognizeShape(List<List<num>> points) {
   }
   final w = x1 - x0, h = y1 - y0, diag = math.sqrt(w * w + h * h);
   if (diag < 30) return null;
-  if (_dist(p.first[0], p.first[1], p.last[0], p.last[1]) > 0.25 * diag) {
+  if (_dist(p.first[0], p.first[1], p.last[0], p.last[1]) > 0.30 * diag) {
     return null;
   }
   final path = [...p, p.first];
@@ -249,7 +253,7 @@ Map<String, dynamic>? recognizeShape(List<List<num>> points) {
           (q) => _dist((q[0] - cx) / (w / 2), (q[1] - cy) / (h / 2), 0, 0) - 1,
         )
       : double.infinity;
-  final eRect =
+  var eRect =
       rms(
         (q) => [
           (q[0] - x0).abs(),
@@ -280,6 +284,55 @@ Map<String, dynamic>? recognizeShape(List<List<num>> points) {
   }
 
   final hull = [...half(idx), ...half(idx.reversed)]..sort();
+  // Oriented rect: least area around the hull (rotating calipers), the angle
+  // folded to [0, 90); within 4 degrees of an axis it is the bounding box.
+  var rcx = cx, rcy = cy, rw = w, rh = h, rrot = 0.0;
+  if (tilted && hull.length >= 3) {
+    var bestArea = double.infinity;
+    for (var i = 0; i < hull.length; i++) {
+      final a = s[hull[i]], b = s[hull[(i + 1) % hull.length]];
+      final deg = math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / math.pi;
+      final th = (deg % 90 + 90) % 90;
+      final ux = math.cos(th * math.pi / 180), uy = math.sin(th * math.pi / 180);
+      var u0 = double.infinity, u1 = -double.infinity;
+      var v0 = double.infinity, v1 = -double.infinity;
+      for (final k in hull) {
+        final du = s[k][0] * ux + s[k][1] * uy;
+        final dv = -s[k][0] * uy + s[k][1] * ux;
+        u0 = math.min(u0, du);
+        u1 = math.max(u1, du);
+        v0 = math.min(v0, dv);
+        v1 = math.max(v1, dv);
+      }
+      if ((u1 - u0) * (v1 - v0) < bestArea) {
+        bestArea = (u1 - u0) * (v1 - v0);
+        rw = u1 - u0;
+        rh = v1 - v0;
+        final mu = (u0 + u1) / 2, mv = (v0 + v1) / 2;
+        rcx = mu * ux - mv * uy;
+        rcy = mu * uy + mv * ux;
+        rrot = th;
+      }
+    }
+    if (rrot < 4 || rrot > 86) {
+      rcx = cx;
+      rcy = cy;
+      rw = w;
+      rh = h;
+      rrot = 0;
+    }
+    final ux = math.cos(rrot * math.pi / 180);
+    final uy = math.sin(rrot * math.pi / 180);
+    eRect =
+        rms((q) {
+          final lu = (q[0] - rcx) * ux + (q[1] - rcy) * uy;
+          final lv = -(q[0] - rcx) * uy + (q[1] - rcy) * ux;
+          final dx = lu.abs() - rw / 2, dy = lv.abs() - rh / 2;
+          if (dx <= 0 && dy <= 0) return math.min(-dx, -dy);
+          return _dist(math.max(dx, 0), math.max(dy, 0), 0, 0);
+        }) /
+        diag;
+  }
   var best = -1.0;
   var tri = <int>[];
   for (var i = 0; i < hull.length; i++) {
@@ -317,6 +370,16 @@ Map<String, dynamic>? recognizeShape(List<List<num>> points) {
       'vertices': [
         for (final i in tri) [round2(s[i][0]), round2(s[i][1])],
       ],
+    };
+  }
+  if (kind == 1 && tilted) {
+    return {
+      'kind': 'rect',
+      'x': round2(rcx - rw / 2),
+      'y': round2(rcy - rh / 2),
+      'width': round2(rw),
+      'height': round2(rh),
+      'rotation': round2(rrot),
     };
   }
   var bx = x0, by = y0, bw = w, bh = h;
@@ -404,4 +467,231 @@ double shapeRotate(Map s, List<num> to) {
   final near = (a / 15).round() * 15;
   if ((a - near).abs() <= 3) a = near.toDouble();
   return round2(a) % 360;
+}
+
+/// `shape.recognizeTilted`: the shape (oriented rect) of a held stroke, and
+/// whether a stroke that is no shape is straight enough to become a line.
+({Map<String, dynamic>? shape, bool line}) recognizeTilted(
+  List<List<num>> points,
+) {
+  final shape = recognizeShape(points, tilted: true);
+  if (shape != null || points.length < 2) return (shape: shape, line: false);
+  final a = [points.first[0].toDouble(), points.first[1].toDouble()];
+  final b = [points.last[0].toDouble(), points.last[1].toDouble()];
+  final len = _dist(a[0], a[1], b[0], b[1]);
+  if (len < 1e-9) return (shape: null, line: false);
+  var worst = 0.0;
+  for (final p in points) {
+    worst = math.max(worst, _segDist(p[0].toDouble(), p[1].toDouble(), a, b));
+  }
+  return (shape: null, line: worst <= 0.08 * len);
+}
+
+/// `shape.corners`: the `points` a shape stroke stores. Polygons keep one point
+/// per corner, closed; a circle is its dense ring. Null for an unknown shape.
+List<List<num>>? shapeCorners(Object? s) {
+  if (!isKnownShape(s)) return null;
+  s as Map;
+  if (s['kind'] == 'circle') return shapePoints(s);
+  List<(double, double)> q;
+  if (s['kind'] == 'triangle') {
+    q = [
+      for (final p in s['vertices'] as List)
+        ((p[0] as num).toDouble(), (p[1] as num).toDouble()),
+    ];
+  } else {
+    final x = (s['x'] as num).toDouble(), y = (s['y'] as num).toDouble();
+    final w = (s['width'] as num).toDouble();
+    final h = (s['height'] as num).toDouble();
+    final cx = x + w / 2, cy = y + h / 2;
+    final r = (s['rotation'] as num) * math.pi / 180;
+    final c = math.cos(r), sn = math.sin(r);
+    q = [
+      for (final (px, py) in [(x, y), (x + w, y), (x + w, y + h), (x, y + h)])
+        (
+          cx + (px - cx) * c - (py - cy) * sn,
+          cy + (px - cx) * sn + (py - cy) * c,
+        ),
+    ];
+  }
+  q.add(q.first);
+  return [
+    for (var i = 0; i < q.length; i++)
+      <num>[round2(q[i].$1), round2(q[i].$2), 0.5, 16 * i],
+  ];
+}
+
+/// The points partial erase cuts: the dense points of a known shape
+/// (`shape.points`), else the stored ones.
+Object? denseOf(Map e) => shapePoints(e['shape']) ?? e['points'];
+
+/// `shape.outline`: the two rings (left, right) of the closed polyline
+/// [points] at [width]; [join] is `miter` or `round`. Fill both with non-zero.
+List<List<List<double>>> shapeOutline(List points, double width, String join) {
+  final v = <(double, double)>[];
+  for (final p in points) {
+    final x = (p[0] as num).toDouble(), y = (p[1] as num).toDouble();
+    if (v.isEmpty || _dist(x, y, v.last.$1, v.last.$2) >= 0.01) v.add((x, y));
+  }
+  if (v.length > 1 &&
+      _dist(v.last.$1, v.last.$2, v.first.$1, v.first.$2) < 0.01) {
+    v.removeLast();
+  }
+  final n = v.length;
+  if (n < 2) return [[], []];
+  final d = <(double, double)>[], nm = <(double, double)>[];
+  for (var i = 0; i < n; i++) {
+    final a = v[i], b = v[(i + 1) % n];
+    final l = _dist(a.$1, a.$2, b.$1, b.$2);
+    final dx = (b.$1 - a.$1) / l, dy = (b.$2 - a.$2) / l;
+    d.add((dx, dy));
+    nm.add((-dy, dx));
+  }
+  final h = width / 2;
+  List<List<double>> side(double sg) {
+    final out = <List<double>>[];
+    void add(double x, double y) => out.add([round2(x), round2(y)]);
+    for (var i = 0; i < n; i++) {
+      final pv = (i + n - 1) % n;
+      final a = nm[pv], b = nm[i];
+      final (vx, vy) = v[i];
+      final c = a.$1 * b.$1 + a.$2 * b.$2;
+      final k = d[pv].$1 * d[i].$2 - d[pv].$2 * d[i].$1;
+      void miter() => add(
+        vx + sg * h * (a.$1 + b.$1) / (1 + c),
+        vy + sg * h * (a.$2 + b.$2) / (1 + c),
+      );
+      void bevel() {
+        add(vx + sg * h * a.$1, vy + sg * h * a.$2);
+        add(vx + sg * h * b.$1, vy + sg * h * b.$2);
+      }
+
+      if (1 + c < 1e-9) {
+        bevel();
+      } else if (sg * k > 0 || k == 0) {
+        miter();
+      } else if (join == 'round') {
+        final phi = math.acos(c.clamp(-1.0, 1.0));
+        final kk = math.max(1, (phi / (math.pi / 8)).ceil());
+        final s0 = math.atan2(a.$2, a.$1), dir = k >= 0 ? 1 : -1;
+        for (var j = 0; j <= kk; j++) {
+          final al = s0 + dir * phi * j / kk;
+          add(vx + sg * h * math.cos(al), vy + sg * h * math.sin(al));
+        }
+      } else if ((1 + c) / 2 >= 1 / 16) {
+        miter();
+      } else {
+        bevel();
+      }
+    }
+    return out;
+  }
+
+  return [side(1), side(-1).reversed.toList()];
+}
+
+/// The outline rings of a known shape at [width] (null for an unknown one),
+/// made from the shape itself so a stroke with old dense `points` draws too.
+List<List<List<double>>>? shapeRings(Object? s, double width) {
+  final pts = shapeCorners(s);
+  if (pts == null) return null;
+  return shapeOutline(
+    pts,
+    width,
+    (s as Map)['kind'] == 'circle' ? 'round' : 'miter',
+  );
+}
+
+/// `shape.holdResize`: [s] with the box corner nearest to [p0] following the
+/// pen at [p] and the opposite corner fixed. Null for an unknown shape.
+Map<String, dynamic>? shapeHoldResize(Map s, List<num> p0, List<num> p) {
+  if (!isKnownShape(s)) return null;
+  final tri = s['kind'] == 'triangle';
+  double cx, cy, w, h, r;
+  if (tri) {
+    final v = [
+      for (final q in s['vertices'] as List)
+        ((q[0] as num).toDouble(), (q[1] as num).toDouble()),
+    ];
+    var best = -1.0, ang = 0.0;
+    for (var i = 0; i < 3; i++) {
+      final a = v[i], b = v[(i + 1) % 3];
+      final l = _dist(a.$1, a.$2, b.$1, b.$2);
+      if (l > best) {
+        best = l;
+        ang = math.atan2(b.$2 - a.$2, b.$1 - a.$1) * 180 / math.pi;
+      }
+    }
+    r = (ang % 90 + 90) % 90;
+    final ux = math.cos(r * math.pi / 180), uy = math.sin(r * math.pi / 180);
+    var u0 = double.infinity, u1 = -double.infinity;
+    var v0 = double.infinity, v1 = -double.infinity;
+    for (final q in v) {
+      final du = q.$1 * ux + q.$2 * uy, dv = -q.$1 * uy + q.$2 * ux;
+      u0 = math.min(u0, du);
+      u1 = math.max(u1, du);
+      v0 = math.min(v0, dv);
+      v1 = math.max(v1, dv);
+    }
+    w = u1 - u0;
+    h = v1 - v0;
+    final mu = (u0 + u1) / 2, mv = (v0 + v1) / 2;
+    cx = mu * ux - mv * uy;
+    cy = mu * uy + mv * ux;
+  } else {
+    w = (s['width'] as num).toDouble();
+    h = (s['height'] as num).toDouble();
+    cx = (s['x'] as num) + w / 2;
+    cy = (s['y'] as num) + h / 2;
+    r = (s['rotation'] as num).toDouble();
+  }
+  final ux = math.cos(r * math.pi / 180), uy = math.sin(r * math.pi / 180);
+  const sx = [-1, 1, 1, -1], sy = [-1, -1, 1, 1]; // nw, ne, se, sw
+  (double, double) corner(int i) => (
+    cx + sx[i] * w / 2 * ux - sy[i] * h / 2 * uy,
+    cy + sx[i] * w / 2 * uy + sy[i] * h / 2 * ux,
+  );
+  var hi = 0, bd = double.infinity;
+  for (var i = 0; i < 4; i++) {
+    final c = corner(i);
+    final dd = _dist(c.$1, c.$2, p0[0].toDouble(), p0[1].toDouble());
+    if (dd < bd) {
+      bd = dd;
+      hi = i;
+    }
+  }
+  final hc = corner(hi), a = corner((hi + 2) % 4);
+  final tx = hc.$1 + (p[0] - p0[0]), ty = hc.$2 + (p[1] - p0[1]);
+  var du = (tx - a.$1) * ux + (ty - a.$2) * uy;
+  var dv = -(tx - a.$1) * uy + (ty - a.$2) * ux;
+  if (du.abs() < 1) du = du < 0 ? -1 : 1;
+  if (dv.abs() < 1) dv = dv < 0 ? -1 : 1;
+  if (tri) {
+    final hx = sx[hi] * w / 2, hy = sy[hi] * h / 2;
+    return {
+      'kind': 'triangle',
+      'vertices': [
+        for (final q in s['vertices'] as List)
+          () {
+            final qx = (q[0] as num) - a.$1, qy = (q[1] as num) - a.$2;
+            final nu = (qx * ux + qy * uy) * du / (2 * hx);
+            final nv = (-qx * uy + qy * ux) * dv / (2 * hy);
+            return [
+              round2(a.$1 + nu * ux - nv * uy),
+              round2(a.$2 + nu * uy + nv * ux),
+            ];
+          }(),
+      ],
+    };
+  }
+  final ncx = a.$1 + (du * ux - dv * uy) / 2;
+  final ncy = a.$2 + (du * uy + dv * ux) / 2;
+  return {
+    'kind': s['kind'],
+    'x': round2(ncx - du.abs() / 2),
+    'y': round2(ncy - dv.abs() / 2),
+    'width': round2(du.abs()),
+    'height': round2(dv.abs()),
+    'rotation': s['rotation'],
+  };
 }

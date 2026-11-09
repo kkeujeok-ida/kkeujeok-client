@@ -333,7 +333,7 @@ OpResult _transformOp(Note note, Map<String, dynamic> op, Ctx ctx) {
       // A shape stroke follows the shape rule; its points are made again.
       final shape = e['shape'];
       if (shape is Map && transformShape(shape, f, sx, sy, turn)) {
-        e['points'] = shapePoints(shape);
+        e['points'] = shapeCorners(shape);
       }
     } else {
       final text = _isTextBox(e);
@@ -609,7 +609,7 @@ OpResult _erase(
     }
     items.add({'index': i, 'element': e});
     if (!partial || tape) continue;
-    final entries = e['points'] as List;
+    final entries = denseOf(e) as List;
     for (final piece in splitPieces(pts, path, r)) {
       final id = ctx.ids[newIds.length];
       newIds.add(id);
@@ -636,7 +636,7 @@ OpResult _erase(
 
 // null when the stroke has no points or a malformed one: never touched.
 List<Pt>? _strokePoints(Map e) {
-  final pts = e['points'];
+  final pts = denseOf(e);
   if (pts is! List || pts.isEmpty) return null;
   final out = <Pt>[];
   for (final p in pts) {

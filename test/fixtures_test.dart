@@ -589,6 +589,85 @@ final Map<String, void Function(Case)> runners = {
       );
     }
   },
+  'shape.corners': (c) {
+    final pts = shapeCorners((c['input'] as Map)['shape'])!;
+    final want = ((c['expected'] as Map)['points'] as List).cast<List>();
+    final tol = (c['tolerance'] as num).toDouble();
+    expect(pts.length, want.length);
+    for (var i = 0; i < want.length; i++) {
+      expect((pts[i][0] - want[i][0]).abs() <= tol, isTrue, reason: 'x[$i]');
+      expect((pts[i][1] - want[i][1]).abs() <= tol, isTrue, reason: 'y[$i]');
+      expect(pts[i][2], want[i][2]);
+      expect(pts[i][3], want[i][3]);
+    }
+  },
+  'shape.outline': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final rings = shapeOutline(
+      i['points'] as List,
+      (i['width'] as num).toDouble(),
+      i['join'] as String,
+    );
+    final want = ((c['expected'] as Map)['rings'] as List).cast<List>();
+    final tol = (c['tolerance'] as num).toDouble();
+    expect(rings.length, want.length);
+    for (var r = 0; r < want.length; r++) {
+      expect(rings[r].length, want[r].length, reason: 'ring $r');
+      for (var k = 0; k < want[r].length; k++) {
+        for (var j = 0; j < 2; j++) {
+          expect(
+            (rings[r][k][j] - (want[r][k][j] as num)).abs() <= tol,
+            isTrue,
+            reason: 'ring $r point $k',
+          );
+        }
+      }
+    }
+  },
+  'shape.recognizeTilted': (c) {
+    final pts = [
+      for (final p in (c['input'] as Map)['points'] as List) List<num>.from(p),
+    ];
+    final r = recognizeTilted(pts);
+    final e = c['expected'] as Map;
+    expect(r.line, e['line']);
+    final want = e['shape'] as Map?;
+    if (want == null) return expect(r.shape, isNull);
+    final tol = (c['tolerance'] as num).toDouble();
+    final s = r.shape!;
+    expect(s['kind'], want['kind']);
+    List flat(Map m) => m['vertices'] != null
+        ? [for (final v in m['vertices'] as List) ...v as List]
+        : [
+            for (final k in ['x', 'y', 'width', 'height', 'rotation']) m[k],
+          ];
+    final a = flat(s), b = flat(want);
+    expect(a.length, b.length);
+    for (var k = 0; k < a.length; k++) {
+      expect(((a[k] as num) - (b[k] as num)).abs() <= tol, isTrue, reason: '$k');
+    }
+  },
+  'shape.holdResize': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final s = shapeHoldResize(
+      i['shape'] as Map,
+      List<num>.from(i['P0'] as List),
+      List<num>.from(i['P'] as List),
+    )!;
+    final want = (c['expected'] as Map)['shape'] as Map;
+    final tol = (c['tolerance'] as num).toDouble();
+    expect(s['kind'], want['kind']);
+    List flat(Map m) => m['vertices'] != null
+        ? [for (final v in m['vertices'] as List) ...v as List]
+        : [
+            for (final k in ['x', 'y', 'width', 'height', 'rotation']) m[k],
+          ];
+    final a = flat(s), b = flat(want);
+    expect(a.length, b.length);
+    for (var k = 0; k < a.length; k++) {
+      expect(((a[k] as num) - (b[k] as num)).abs() <= tol, isTrue, reason: '$k');
+    }
+  },
   'shape.resize': (c) {
     final i = c['input'] as Map<String, dynamic>;
     final s = shapeResize(
@@ -1030,11 +1109,6 @@ void _runOp(Case c) {
 const pendingRules = <String>{
   // Epic 25/26 (Stories 25.1, 26.1): runners arrive with 25.x and 26.x Android stories.
   'note.shape',
-  // Story 26.11: runners arrive with the 26.x stories.
-  'shape.corners',
-  'shape.outline',
-  'shape.recognizeTilted',
-  'shape.holdResize',
 };
 
 final _sep = Platform.pathSeparator;
