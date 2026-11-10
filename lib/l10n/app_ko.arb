@@ -1031,5 +1031,11 @@
   "brushPresetDelete": "프리셋 지우기",
   "brushPresetName": "프리셋 이름",
   "brushPresetRename": "프리셋 이름 바꾸기",
-  "brushPresetSave": "현재 펜을 프리셋으로 저장"
+  "brushPresetSave": "현재 펜을 프리셋으로 저장",
+  "settingsCategoryGeneral": "일반",
+  "settingsCategoryInput": "입력·필기",
+  "settingsCategoryTools": "도구",
+  "settingsCategorySupport": "도움말·진단",
+  "settingsCategoryAccount": "계정",
+  "settingsCategoriesLabel": "설정 카테고리"
 }

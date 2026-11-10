@@ -31,6 +31,7 @@ import 'package:kkeujeok/model/pressure_curve.dart';
 import 'package:kkeujeok/ui/pen_toolbar.dart'
     show PenBubbleAnchor, penColorName, placePenBubble;
 import 'package:kkeujeok/model/select.dart';
+import 'package:kkeujeok/model/settings_layout.dart';
 import 'package:kkeujeok/model/smooth.dart';
 import 'package:kkeujeok/model/text_layout.dart';
 import 'package:kkeujeok/model/text_metrics.dart';
@@ -857,6 +858,31 @@ final Map<String, void Function(Case)> runners = {
     driveFileNameRule((c['input'] as Map).cast<String, Object?>()),
     c['expected'],
   ),
+  'settings.sections': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final r = settingsSections(
+      signedIn: i['signedIn'] as bool,
+      platform: i['platform'] as String,
+    );
+    _same([
+      for (final s in r) {'id': s.id, 'items': s.items},
+    ], c['expected']);
+  },
+  'settings.activeSection': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    expect(
+      activeSettingsSection(
+        [
+          for (final h in i['headings'] as List)
+            (id: h['id'] as String, top: (h['top'] as num).toDouble()),
+        ],
+        viewportTop: (i['viewportTop'] as num).toDouble(),
+        offset: (i['offset'] as num).toDouble(),
+        atEnd: i['atEnd'] as bool,
+      ),
+      c['expected'],
+    );
+  },
   'toolbar.snap': (c) {
     final i = c['input'] as Map<String, dynamic>;
     Size sz(String k) => Size(
@@ -1109,6 +1135,8 @@ void _runOp(Case c) {
 const pendingRules = <String>{
   // Epic 25/26 (Stories 25.1, 26.1): runners arrive with 25.x and 26.x Android stories.
   'note.shape',
+  // Story 27.4.
+  'settings.search',
 };
 
 final _sep = Platform.pathSeparator;

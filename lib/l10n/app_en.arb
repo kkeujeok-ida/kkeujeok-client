@@ -1102,5 +1102,11 @@
   "brushPresetDelete": "Delete preset",
   "brushPresetName": "Preset name",
   "brushPresetRename": "Rename preset",
-  "brushPresetSave": "Save current pen as preset"
+  "brushPresetSave": "Save current pen as preset",
+  "settingsCategoryGeneral": "General",
+  "settingsCategoryInput": "Input and writing",
+  "settingsCategoryTools": "Tools",
+  "settingsCategorySupport": "Help and diagnostics",
+  "settingsCategoryAccount": "Account",
+  "settingsCategoriesLabel": "Settings categories"
 }

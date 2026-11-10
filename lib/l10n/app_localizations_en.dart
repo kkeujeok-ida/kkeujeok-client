@@ -1815,4 +1815,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get brushPresetSave => 'Save current pen as preset';
+
+  @override
+  String get settingsCategoryGeneral => 'General';
+
+  @override
+  String get settingsCategoryInput => 'Input and writing';
+
+  @override
+  String get settingsCategoryTools => 'Tools';
+
+  @override
+  String get settingsCategorySupport => 'Help and diagnostics';
+
+  @override
+  String get settingsCategoryAccount => 'Account';
+
+  @override
+  String get settingsCategoriesLabel => 'Settings categories';
 }

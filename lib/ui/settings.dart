@@ -7,6 +7,7 @@ import 'snack.dart';
 
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
+import '../model/settings_layout.dart';
 import '../model/smooth.dart';
 import '../model/pen_only.dart';
 import '../storage/pen_slots_store.dart';
@@ -127,6 +128,61 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  final _scroll = ScrollController();
+  final _viewKey = GlobalKey();
+  final _keys = <String, GlobalKey>{};
+  List<String> _ids = const [];
+  String _active = 'general';
+  final _chipKeys = <String, GlobalKey>{};
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  // Scroll-spy: highlight follows settings.activeSection (offset 8).
+  void _spy(ScrollMetrics m) {
+    final box = _viewKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize || _ids.isEmpty) return;
+    final top = box.localToGlobal(Offset.zero).dy;
+    final hs = <({String id, double top})>[];
+    for (final id in _ids) {
+      final o = _keys[id]?.currentContext?.findRenderObject() as RenderBox?;
+      if (o == null || !o.attached) return;
+      hs.add((id: id, top: o.localToGlobal(Offset.zero).dy));
+    }
+    final a = activeSettingsSection(
+      hs,
+      viewportTop: top,
+      offset: 8,
+      atEnd: m.pixels >= m.maxScrollExtent - 1,
+    );
+    if (a != _active) _setActive(a);
+  }
+
+  // Keeps the active chip visible in the horizontal row.
+  void _setActive(String id) {
+    setState(() => _active = id);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final c = _chipKeys[id]?.currentContext;
+      if (mounted && c != null) Scrollable.ensureVisible(c);
+    });
+  }
+
+  void _goTo(String id) {
+    _setActive(id);
+    final ctx = _keys[id]?.currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      alignment: 0,
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 250),
+    );
+  }
+
   bool _counting = false; // single-flight: one unsent count at a time
 
   /// The notes with unsent changes, or null (unknown). Null `busy` result
@@ -287,18 +343,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
         );
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.settings, style: theme.textTheme.titleLarge),
-        backgroundColor: theme.colorScheme.surface,
-        scrolledUnderElevation: 0,
-      ),
-      body: ListView(
+    final items = <String, Widget>{
+      'language': group(l10n.language, options, choice, (v) {
+        ref.read(languageProvider.notifier).select(v);
+      }),
+      'theme': Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          group(l10n.language, options, choice, (v) {
-            ref.read(languageProvider.notifier).select(v);
-          }),
-          Divider(color: theme.colorScheme.outlineVariant),
           Padding(
             padding: const EdgeInsets.fromLTRB(
               KkjTokens.spacing4,
@@ -347,123 +398,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ),
           ),
-          Divider(color: theme.colorScheme.outlineVariant),
-          SwitchListTile(
-            title: Text(l10n.leftHanded),
-            value: ref.watch(leftHandedProvider),
-            onChanged: ref.read(leftHandedProvider.notifier).set,
-          ),
-          Divider(color: theme.colorScheme.outlineVariant),
-          SwitchListTile(
-            title: Text(l10n.straighten),
-            subtitle: Text(l10n.straightenHint),
-            value: ref.watch(straightenProvider),
-            onChanged: ref.read(straightenProvider.notifier).set,
-          ),
-          Divider(color: theme.colorScheme.outlineVariant),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: KkjTokens.spacing4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: KkjTokens.spacing2,
-                  ),
-                  child: Semantics(
-                    header: true,
-                    child: Text(
-                      l10n.smooth,
-                      style: theme.textTheme.labelMedium,
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: SizedBox(
-                    width: 280,
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Semantics(
-                            label: l10n.smooth,
-                            child: Slider(
-                              min: 0,
-                              max: smoothMax.toDouble(),
-                              divisions: smoothMax,
-                              value: ref.watch(smoothProvider).toDouble(),
-                              onChanged: (v) => ref
-                                  .read(smoothProvider.notifier)
-                                  .set(v.round()),
-                              semanticFormatterCallback: (v) =>
-                                  v == 0 ? l10n.smoothOff : '${v.round()}',
-                            ),
-                          ),
-                        ),
-                        SizedBox(
-                          width: 32,
-                          child: ExcludeSemantics(
-                            child: Text(
-                              '${ref.watch(smoothProvider)}',
-                              textAlign: TextAlign.end,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Divider(color: theme.colorScheme.outlineVariant),
-          const PressureCurveSection(),
-          Divider(color: theme.colorScheme.outlineVariant),
-          Builder(
-            builder: (_) {
-              final n = ref.watch(visibleToolsProvider);
-              final set = ref.read(visibleToolsProvider.notifier).set;
-              return Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: KkjTokens.spacing4,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(child: Text(l10n.visibleToolsTitle)),
-                    IconButton(
-                      tooltip: l10n.visibleToolsLess,
-                      constraints: const BoxConstraints(
-                        minWidth: 48,
-                        minHeight: 48,
-                      ),
-                      icon: const Icon(Icons.remove),
-                      onPressed: n > PenSlotsStore.visibleToolsMin
-                          ? () => set(n - 1)
-                          : null,
-                    ),
-                    Semantics(
-                      liveRegion: true,
-                      child: Text('$n', style: theme.textTheme.titleMedium),
-                    ),
-                    IconButton(
-                      tooltip: l10n.visibleToolsMore,
-                      constraints: const BoxConstraints(
-                        minWidth: 48,
-                        minHeight: 48,
-                      ),
-                      icon: const Icon(Icons.add),
-                      onPressed: n < PenSlotsStore.visibleToolsMax
-                          ? () => set(n + 1)
-                          : null,
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-          Divider(color: theme.colorScheme.outlineVariant),
-          const PenPaletteEditor(),
-          Divider(color: theme.colorScheme.outlineVariant),
+        ],
+      ),
+      'leftHanded': SwitchListTile(
+        title: Text(l10n.leftHanded),
+        value: ref.watch(leftHandedProvider),
+        onChanged: ref.read(leftHandedProvider.notifier).set,
+      ),
+      'penOnly': Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(
               KkjTokens.spacing4,
@@ -519,60 +463,354 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ),
           ),
-          Divider(color: theme.colorScheme.outlineVariant),
-          Semantics(
-            button: true,
-            enabled: hasPrivacy,
-            label: l10n.privacyPolicy,
-            hint: hasPrivacy ? null : l10n.privacyUnavailable,
-            excludeSemantics: true,
-            onTap: hasPrivacy ? openPrivacy : null,
-            child: _Row(
-              onTap: hasPrivacy ? openPrivacy : null,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.privacyPolicy,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: hasPrivacy ? null : theme.disabledColor,
-                    ),
-                  ),
-                  if (!hasPrivacy)
-                    Text(
-                      l10n.privacyUnavailable,
-                      style: theme.textTheme.bodySmall,
-                    ),
-                ],
-              ),
-            ),
-          ),
-          action(
-            l10n.helpTitle,
-            () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute<void>(builder: (_) => const HelpScreen())),
-          ),
-          const _ExportLogRow(),
-          action(
-            l10n.penDiagTitle,
-            () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const PenInputDiagnosticScreen(),
-              ),
-            ),
-          ),
-          if (signedIn) ...[
-            Divider(color: theme.colorScheme.outlineVariant),
-            action(l10n.logOut, _logOut),
-            action(
-              l10n.disconnect,
-              _disconnect,
-              color: theme.colorScheme.error,
-            ),
-          ],
         ],
       ),
+      'straighten': SwitchListTile(
+        title: Text(l10n.straighten),
+        subtitle: Text(l10n.straightenHint),
+        value: ref.watch(straightenProvider),
+        onChanged: ref.read(straightenProvider.notifier).set,
+      ),
+      'smooth': Padding(
+        padding: const EdgeInsets.symmetric(horizontal: KkjTokens.spacing4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: KkjTokens.spacing2),
+              child: Semantics(
+                header: true,
+                child: Text(l10n.smooth, style: theme.textTheme.labelMedium),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: SizedBox(
+                width: 280,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Semantics(
+                        label: l10n.smooth,
+                        child: Slider(
+                          min: 0,
+                          max: smoothMax.toDouble(),
+                          divisions: smoothMax,
+                          value: ref.watch(smoothProvider).toDouble(),
+                          onChanged: (v) =>
+                              ref.read(smoothProvider.notifier).set(v.round()),
+                          semanticFormatterCallback: (v) =>
+                              v == 0 ? l10n.smoothOff : '${v.round()}',
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 32,
+                      child: ExcludeSemantics(
+                        child: Text(
+                          '${ref.watch(smoothProvider)}',
+                          textAlign: TextAlign.end,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      'pressureCurve': const PressureCurveSection(),
+      'visibleTools': Builder(
+        builder: (_) {
+          final n = ref.watch(visibleToolsProvider);
+          final set = ref.read(visibleToolsProvider.notifier).set;
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: KkjTokens.spacing4),
+            child: Row(
+              children: [
+                Expanded(child: Text(l10n.visibleToolsTitle)),
+                IconButton(
+                  tooltip: l10n.visibleToolsLess,
+                  constraints: const BoxConstraints(
+                    minWidth: 48,
+                    minHeight: 48,
+                  ),
+                  icon: const Icon(Icons.remove),
+                  onPressed: n > PenSlotsStore.visibleToolsMin
+                      ? () => set(n - 1)
+                      : null,
+                ),
+                Semantics(
+                  liveRegion: true,
+                  child: Text('$n', style: theme.textTheme.titleMedium),
+                ),
+                IconButton(
+                  tooltip: l10n.visibleToolsMore,
+                  constraints: const BoxConstraints(
+                    minWidth: 48,
+                    minHeight: 48,
+                  ),
+                  icon: const Icon(Icons.add),
+                  onPressed: n < PenSlotsStore.visibleToolsMax
+                      ? () => set(n + 1)
+                      : null,
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+      'penPalette': const PenPaletteEditor(),
+      'help': action(
+        l10n.helpTitle,
+        () => Navigator.of(context)
+            .push(MaterialPageRoute<void>(builder: (_) => const HelpScreen())),
+      ),
+      'privacy': Semantics(
+        button: true,
+        enabled: hasPrivacy,
+        label: l10n.privacyPolicy,
+        hint: hasPrivacy ? null : l10n.privacyUnavailable,
+        excludeSemantics: true,
+        onTap: hasPrivacy ? openPrivacy : null,
+        child: _Row(
+          onTap: hasPrivacy ? openPrivacy : null,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.privacyPolicy,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: hasPrivacy ? null : theme.disabledColor,
+                ),
+              ),
+              if (!hasPrivacy)
+                Text(l10n.privacyUnavailable, style: theme.textTheme.bodySmall),
+            ],
+          ),
+        ),
+      ),
+      'exportLog': const _ExportLogRow(),
+      'penDiag': action(
+        l10n.penDiagTitle,
+        () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const PenInputDiagnosticScreen(),
+          ),
+        ),
+      ),
+      'logOut': action(l10n.logOut, _logOut),
+      'disconnect': action(
+        l10n.disconnect,
+        _disconnect,
+        color: theme.colorScheme.error,
+      ),
+    };
+    final names = {
+      'general': l10n.settingsCategoryGeneral,
+      'input': l10n.settingsCategoryInput,
+      'tools': l10n.settingsCategoryTools,
+      'support': l10n.settingsCategorySupport,
+      'account': l10n.settingsCategoryAccount,
+    };
+    final secs = settingsSections(signedIn: signedIn, platform: 'android');
+    _ids = [for (final s in secs) s.id];
+    for (final id in _ids) {
+      _keys.putIfAbsent(id, GlobalKey.new);
+      _chipKeys.putIfAbsent(id, GlobalKey.new);
+    }
+    if (!_ids.contains(_active)) _active = _ids.first;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(l10n.settings, style: theme.textTheme.titleLarge),
+        backgroundColor: theme.colorScheme.surface,
+        scrolledUnderElevation: 0,
+      ),
+      body: LayoutBuilder(
+        builder: (context, box) {
+          // Width measured after text scale: big text switches to the chip row.
+          final wide =
+              box.maxWidth / MediaQuery.textScalerOf(context).scale(1) >= 720;
+          final nav = _Nav(
+            ids: _ids,
+            names: names,
+            active: _active,
+            wide: wide,
+            label: l10n.settingsCategoriesLabel,
+            onTap: _goTo,
+            keys: _chipKeys,
+          );
+          // Right highlight on open and resize, not only after a scroll.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _scroll.hasClients) _spy(_scroll.position);
+          });
+          final main = LayoutBuilder(
+            builder: (context, view) => NotificationListener<ScrollNotification>(
+              onNotification: (n) {
+                if (n.metrics.axis == Axis.vertical) _spy(n.metrics);
+                return false;
+              },
+              child: SingleChildScrollView(
+                key: _viewKey,
+                controller: _scroll,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final (i, s) in secs.indexed)
+                      // The last section is at least a viewport tall so it can
+                      // reach the top.
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: i == secs.length - 1 ? view.maxHeight : 0,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Padding(
+                              key: _keys[s.id],
+                              padding: const EdgeInsets.fromLTRB(
+                                KkjTokens.spacing4,
+                                KkjTokens.spacing4,
+                                KkjTokens.spacing4,
+                                KkjTokens.spacing2,
+                              ),
+                              child: Semantics(
+                                header: true,
+                                child: Text(
+                                  names[s.id]!,
+                                  style: theme.textTheme.titleMedium,
+                                ),
+                              ),
+                            ),
+                            for (final (j, id) in s.items.indexed) ...[
+                              if (j > 0)
+                                Divider(
+                                  color: theme.colorScheme.outlineVariant,
+                                ),
+                              items[id]!,
+                            ],
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          );
+          return wide
+              ? Row(
+                  children: [
+                    SizedBox(width: 200, child: nav),
+                    VerticalDivider(
+                      width: 1,
+                      color: theme.colorScheme.outlineVariant,
+                    ),
+                    Expanded(child: main),
+                  ],
+                )
+              : Column(
+                  children: [
+                    nav,
+                    Expanded(child: main),
+                  ],
+                );
+        },
+      ),
+    );
+  }
+}
+
+/// Category navigation: left list (wide) or sticky chip row (narrow).
+class _Nav extends StatelessWidget {
+  const _Nav({
+    required this.ids,
+    required this.names,
+    required this.active,
+    required this.wide,
+    required this.label,
+    required this.onTap,
+    required this.keys,
+  });
+
+  final List<String> ids;
+  final Map<String, String> names;
+  final String active;
+  final bool wide;
+  final String label;
+  final void Function(String) onTap;
+  final Map<String, GlobalKey> keys;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    Widget entry(String id) {
+      final sel = id == active;
+      return Semantics(
+        key: keys[id],
+        button: true,
+        selected: sel,
+        label: names[id],
+        excludeSemantics: true,
+        onTap: () => onTap(id),
+        child: Padding(
+          padding: EdgeInsets.all(wide ? 0 : KkjTokens.spacing1),
+          child: Material(
+            color: sel ? Kk.colorAccentSoft : Kk.colorSurfaceRaised,
+            shape: wide
+                ? null
+                : StadiumBorder(side: BorderSide(color: Kk.colorBorderControl)),
+            child: InkWell(
+              onTap: () => onTap(id),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minHeight: KkjTokens.spacingHitMinAndroid,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: KkjTokens.spacing4,
+                    vertical: KkjTokens.spacing2,
+                  ),
+                  child: Align(
+                    alignment: wide
+                        ? AlignmentDirectional.centerStart
+                        : Alignment.center,
+                    widthFactor: wide ? null : 1,
+                    child: Text(
+                      names[id]!,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: sel ? Kk.colorAccentText : Kk.colorInkPrimary,
+                        fontWeight: sel ? FontWeight.w600 : null,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Semantics(
+      container: true,
+      label: label,
+      child: wide
+          ? SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [for (final id in ids) entry(id)],
+              ),
+            )
+          : SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(
+                horizontal: KkjTokens.spacing2,
+              ),
+              child: Row(children: [for (final id in ids) entry(id)]),
+            ),
     );
   }
 }

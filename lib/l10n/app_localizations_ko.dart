@@ -1726,4 +1726,22 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get brushPresetSave => '현재 펜을 프리셋으로 저장';
+
+  @override
+  String get settingsCategoryGeneral => '일반';
+
+  @override
+  String get settingsCategoryInput => '입력·필기';
+
+  @override
+  String get settingsCategoryTools => '도구';
+
+  @override
+  String get settingsCategorySupport => '도움말·진단';
+
+  @override
+  String get settingsCategoryAccount => '계정';
+
+  @override
+  String get settingsCategoriesLabel => '설정 카테고리';
 }

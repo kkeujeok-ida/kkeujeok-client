@@ -3187,6 +3187,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Save current pen as preset'**
   String get brushPresetSave;
+
+  /// No description provided for @settingsCategoryGeneral.
+  ///
+  /// In en, this message translates to:
+  /// **'General'**
+  String get settingsCategoryGeneral;
+
+  /// No description provided for @settingsCategoryInput.
+  ///
+  /// In en, this message translates to:
+  /// **'Input and writing'**
+  String get settingsCategoryInput;
+
+  /// No description provided for @settingsCategoryTools.
+  ///
+  /// In en, this message translates to:
+  /// **'Tools'**
+  String get settingsCategoryTools;
+
+  /// No description provided for @settingsCategorySupport.
+  ///
+  /// In en, this message translates to:
+  /// **'Help and diagnostics'**
+  String get settingsCategorySupport;
+
+  /// No description provided for @settingsCategoryAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get settingsCategoryAccount;
+
+  /// No description provided for @settingsCategoriesLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings categories'**
+  String get settingsCategoriesLabel;
 }
 
 class _AppLocalizationsDelegate
