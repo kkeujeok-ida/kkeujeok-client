@@ -72,5 +72,25 @@ void main() {
         .flagsCollection
         .isChecked;
     expect(selected.name, 'isTrue');
+
+    // Own pen: width, opacity and color change it, never the pen slots; no
+    // advanced button.
+    final c = ProviderScope.containerOf(
+      t.element(find.byType(ShapeToolDialog)),
+    );
+    expect(find.text('Advanced'), findsNothing);
+    expect(c.read(shapePenProvider).width, 2.0);
+    final slots = c.read(penSlotsProvider);
+    c.read(shapePenProvider.notifier)
+      ..setWidth(4)
+      ..setColor('#FF0000')
+      ..setBrush({'opacity': 0.5});
+    await t.pumpAndSettle();
+    final shapePen = c.read(shapePenProvider);
+    expect(shapePen.width, 4.0);
+    expect(shapePen.color, '#ff0000');
+    expect(shapePen.brush, {'opacity': 0.5});
+    expect(c.read(penSlotsProvider), slots);
+    expect(find.text('Opacity'), findsOneWidget);
   });
 }

@@ -330,6 +330,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get usePressure => '필압 반영';
 
   @override
+  String get lineDrawOn => '직선 그리기 켜짐';
+
+  @override
   String get lineDraw => '직선 그리기';
 
   @override

@@ -88,6 +88,35 @@ class PenSlotsStore {
     );
   }
 
+  static const _shapePenKey = 'shapePen';
+  Pen? _shapePenSession;
+
+  /// The shape tool's own pen (spec/shape.md): [defaultShapePen] when nothing
+  /// valid is stored.
+  Pen readShapePen() {
+    final session = _shapePenSession;
+    if (session != null) return session;
+    try {
+      final raw = _prefs?.getString(_shapePenKey);
+      if (raw != null) return _pen(jsonDecode(raw));
+    } catch (_) {
+      // Wrong type or shape: treated as nothing stored.
+    }
+    return defaultShapePen;
+  }
+
+  Future<void> writeShapePen(Pen pen) {
+    _shapePenSession = pen;
+    final data = jsonEncode(pen.toJson());
+    return _pending = _pending.then((_) async {
+      try {
+        await _prefs?.setString(_shapePenKey, data);
+      } catch (_) {
+        // Save failed: the pen still applies for this session.
+      }
+    });
+  }
+
   static const _presetsKey = 'brushPresets';
   List<BrushPreset>? _presetsSession;
 

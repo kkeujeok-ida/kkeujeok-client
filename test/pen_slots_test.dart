@@ -72,6 +72,22 @@ Future<ProviderContainer> _pump(
 Finder _slot(String label) => find.bySemanticsLabel(label);
 
 void main() {
+  testWidgets('line drawing on: a ruler beside the nib, gone when off', (
+    t,
+  ) async {
+    final h = t.ensureSemantics();
+    final c = await _pump(t);
+    expect(find.byIcon(Icons.straighten), findsNothing);
+    await c.read(penSlotsProvider.notifier).setLineMode(1, true);
+    await t.pumpAndSettle();
+    expect(find.byIcon(Icons.straighten), findsOneWidget);
+    expect(_slot('Pen, Blue, width 2.0, Straight lines on'), findsOneWidget);
+    await c.read(penSlotsProvider.notifier).setLineMode(1, false);
+    await t.pumpAndSettle();
+    expect(find.byIcon(Icons.straighten), findsNothing);
+    h.dispose();
+  });
+
   testWidgets('first run: black pen, blue pen, yellow highlighter', (t) async {
     final h = t.ensureSemantics();
     final c = await _pump(t);

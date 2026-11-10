@@ -217,7 +217,10 @@ class _PenToolbarState extends State<PenToolbar> {
   Widget _slot(BuildContext context, int i, AppLocalizations l10n) {
     final pen = widget.slots[i];
     final active =
-        !widget.eraserSelected && !widget.lassoSelected && !widget.textSelected;
+        !widget.eraserSelected &&
+        !widget.lassoSelected &&
+        !widget.textSelected &&
+        !widget.shapeSelected;
     final selected = active && i == widget.selectedSlot;
     final color = _colorName(l10n, pen);
     final width = pen.width.toStringAsFixed(1);
@@ -225,11 +228,13 @@ class _PenToolbarState extends State<PenToolbar> {
       key: ObjectKey(pen), // each slot is its own Pen object
       index: i,
       child: Semantics(
-        label: switch (pen.tool) {
-          'highlighter' => l10n.highlighterSlotLabel(color, width),
-          'pen' => l10n.penSlotLabel(color, width),
-          _ => l10n.kindSlotLabel(_kindName(l10n, pen.tool), color, width),
-        },
+        label:
+            switch (pen.tool) {
+              'highlighter' => l10n.highlighterSlotLabel(color, width),
+              'pen' => l10n.penSlotLabel(color, width),
+              _ => l10n.kindSlotLabel(_kindName(l10n, pen.tool), color, width),
+            } +
+            (pen.lineMode ? ', ${l10n.lineDrawOn}' : ''),
         button: true,
         selected: selected,
         onTap: () => widget.onSlotTap?.call(i),
@@ -470,7 +475,17 @@ class _PenToolbarState extends State<PenToolbar> {
                 ),
               ),
               iconSize: _icon,
-              icon: const _ToolGlyph([_shapesD]),
+              // Each shape is filled with the toolbar face (the accent soft
+              // when selected) so the one in front hides the overlap.
+              icon: _ToolGlyph(
+                _shapesD,
+                fill: widget.shapeSelected
+                    ? Color.alphaBlend(
+                        Kk.colorAccentSoft,
+                        Kk.componentsToolbarBackground,
+                      )
+                    : Kk.componentsToolbarBackground,
+              ),
               onPressed: widget.onShape,
             ),
             IconButton(
@@ -706,6 +721,16 @@ class _PenSlot extends StatelessWidget {
         color: Theme.of(context).colorScheme.onSurface,
       ),
     );
+    // Straight-line drawing is on: a small ruler right of the nib (~60% of
+    // its height), a meaning element with its own label.
+    final ruler = pen.lineMode
+        ? Icon(
+            Icons.straighten,
+            size: _nibH * 0.6,
+            semanticLabel: AppLocalizations.of(context).lineDrawOn,
+            color: Theme.of(context).colorScheme.onSurface,
+          )
+        : null;
     final lift = selected ? KkjLight.componentsPenSlotSelectedOffset : 0.0;
     final indicator = DecoratedBox(
       decoration: BoxDecoration(
@@ -746,6 +771,13 @@ class _PenSlot extends StatelessWidget {
                 bottom: 4,
                 child: number,
               ),
+              if (ruler != null)
+                Positioned(
+                  left: fromRight ? null : gap + lift,
+                  right: fromRight ? gap + lift : null,
+                  top: 2,
+                  child: ruler,
+                ),
               if (selected)
                 Positioned(
                   left: fromRight ? 0 : null,
@@ -771,6 +803,8 @@ class _PenSlot extends StatelessWidget {
             // and the selected pen sits `selected-offset` lower.
             Positioned(left: left, top: -8 + lift, child: nib),
             Positioned(left: left + _nibW + 1, bottom: 3, child: number),
+            if (ruler != null)
+              Positioned(left: left + _nibW + 1, top: 2, child: ruler),
             if (selected)
               Positioned(
                 left: (along - KkjLight.componentsPenSlotSelectedWidth) / 2,
@@ -800,11 +834,15 @@ String _glyphD(String tool) => switch (tool) {
 };
 const _eraserD = 'M15 3.5L20.5 9L10 19.5L4.5 14ZM8.7 9.8L14.2 15.3';
 const _eraserPartialD = 'M3 22H7M10 22H14M17 22H21';
-// Triangle, square and circle overlapped (the circle is a 16-gon: M L H V Z only).
-const _shapesD =
-    'M8 3L14.5 14H1.5ZM3 10H12V19H3ZM21.5 15L21.04 17.3L19.74 19.24L17.8 20.54'
-    'L15.5 21L13.2 20.54L11.26 19.24L9.96 17.3L9.5 15L9.96 12.7L11.26 10.76'
-    'L13.2 9.46L15.5 9L17.8 9.46L19.74 10.76L21.04 12.7Z';
+// Triangle, square and circle overlapped, back to front (the circle is a
+// 16-gon: M L H V Z only).
+const _shapesD = [
+  'M8 3L14.5 14H1.5Z',
+  'M3 10H12V19H3Z',
+  'M21.5 15L21.04 17.3L19.74 19.24L17.8 20.54L15.5 21L13.2 20.54L11.26 19.24'
+      'L9.96 17.3L9.5 15L9.96 12.7L11.26 10.76L13.2 9.46L15.5 9L17.8 9.46'
+      'L19.74 10.76L21.04 12.7Z',
+];
 const _shapeGlyphD = {
   'triangle': 'M12 3L21 20H3Z',
   'rect': 'M4 4H20V20H4Z',
@@ -839,9 +877,10 @@ Path _svgPath(String d, double scale) {
 
 /// Draws spec/tool-icons.md shapes scaled to fit [size] from a [vw] x [vh] box.
 class _ToolGlyphPainter extends CustomPainter {
-  _ToolGlyphPainter(this.color, this.ds, this.vw, this.vh);
+  _ToolGlyphPainter(this.color, this.ds, this.vw, this.vh, [this.fill]);
 
   final Color color;
+  final Color? fill; // each path is filled first, so it hides what is behind
   final List<String> ds;
   final double vw, vh;
 
@@ -855,20 +894,23 @@ class _ToolGlyphPainter extends CustomPainter {
       ..strokeJoin = StrokeJoin.round
       ..strokeCap = StrokeCap.round;
     for (final d in ds) {
-      canvas.drawPath(_svgPath(d, k), paint);
+      final path = _svgPath(d, k);
+      if (fill != null) canvas.drawPath(path, Paint()..color = fill!);
+      canvas.drawPath(path, paint);
     }
   }
 
   @override
   bool shouldRepaint(_ToolGlyphPainter old) =>
-      old.color != color || old.ds.join() != ds.join();
+      old.color != color || old.fill != fill || old.ds.join() != ds.join();
 }
 
 /// A 24 x 24 spec/tool-icons.md glyph in the surrounding icon color.
 class _ToolGlyph extends StatelessWidget {
-  const _ToolGlyph(this.ds);
+  const _ToolGlyph(this.ds, {this.fill});
 
   final List<String> ds;
+  final Color? fill;
 
   @override
   Widget build(BuildContext context) => CustomPaint(
@@ -878,6 +920,7 @@ class _ToolGlyph extends StatelessWidget {
       ds,
       24,
       24,
+      fill,
     ),
   );
 }
@@ -910,9 +953,20 @@ const _cell = 48.0;
 /// through [penSlotsProvider], so every change is stored at once; the canvas
 /// below gets no input while it is open.
 class PenEditDialog extends ConsumerStatefulWidget {
-  const PenEditDialog({super.key, this.index = 0, this.anchor});
+  const PenEditDialog({
+    super.key,
+    this.index = 0,
+    this.anchor,
+    this.shapeKind,
+    this.onPickShape,
+  });
 
   final int index;
+
+  /// Non-null: the shape tool's own pen (spec/shape.md "Shape tool bar"), not
+  /// slot [index]: a kind row, then color, width and opacity only.
+  final String? shapeKind;
+  final void Function(String kind)? onPickShape;
 
   /// Where the tool button and its toolbar are, read at every layout so a
   /// rotation re-places the bubble. Null: centered, no tail.
@@ -925,6 +979,7 @@ class PenEditDialog extends ConsumerStatefulWidget {
 class _PenEditDialogState extends ConsumerState<PenEditDialog> {
   bool _advanced =
       false; // advanced columns + preset labels, right of the bubble
+  late String _kind = widget.shapeKind ?? 'rect';
 
   @override
   Widget build(BuildContext context) {
@@ -932,15 +987,24 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
     final l10n = AppLocalizations.of(context);
     final slots = ref.watch(penSlotsProvider);
     final i = widget.index.clamp(0, slots.length - 1); // closing: may be gone
-    final pen = slots[i];
+    final isShape = widget.shapeKind != null;
+    final pen = isShape ? ref.watch(shapePenProvider) : slots[i];
     final recent = ref.watch(recentPenColorsProvider);
     final canDelete = slots.length > 1;
     final on = pen.usePressure;
     final notifier = ref.read(penSlotsProvider.notifier);
+    final shapeNotifier = ref.read(shapePenProvider.notifier);
     final theme = Theme.of(context);
+    void pickKind(String k) {
+      widget.onPickShape?.call(k);
+      setState(() => _kind = k);
+    }
+
     void toggle(bool v) => notifier.setUsePressure(i, v);
+    void setWidth(double v) =>
+        isShape ? shapeNotifier.setWidth(v) : notifier.setWidth(i, v);
     void pick(String hex) {
-      notifier.setColor(i, hex);
+      isShape ? shapeNotifier.setColor(hex) : notifier.setColor(i, hex);
       ref.read(recentPenColorsProvider.notifier).useColor(hex);
     }
 
@@ -1023,6 +1087,42 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
       );
     }
 
+    // One icon button of the shape kind row (icon only; the name is semantics).
+    Widget shapeButton(String k) => Expanded(
+      child: Semantics(
+        button: true,
+        inMutuallyExclusiveGroup: true,
+        checked: _kind == k,
+        label: _shapeName(l10n, k),
+        onTap: () => pickKind(k),
+        excludeSemantics: true,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(KkjTokens.roundedSm),
+          onTap: () => pickKind(k),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: _kind == k ? Kk.colorAccentSoft : null,
+              borderRadius: BorderRadius.circular(KkjTokens.roundedSm),
+            ),
+            child: SizedBox(
+              height: _cell,
+              child: Center(
+                child: CustomPaint(
+                  size: const Size.square(_icon),
+                  painter: _ToolGlyphPainter(
+                    theme.colorScheme.onSurface,
+                    [_shapeGlyphD[k]!],
+                    24,
+                    24,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
     Widget stepper(IconData icon, String tip, bool enabled, VoidCallback f) =>
         IconButton(
           tooltip: tip,
@@ -1082,10 +1182,14 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
     );
 
     // Texture + density: pen, fountain, pencil (spec/brush.md); not highlighter/tape.
-    final textured = const ['pen', 'fountain', 'pencil'].contains(pen.tool);
+    final textured =
+        !isShape && const ['pen', 'fountain', 'pencil'].contains(pen.tool);
     final tex = brushResolve(pen.tool, pen.brush);
-    void setBrush(Map<String, Object?> patch) =>
-        notifier.setBrush(i, patchBrush(pen.tool, pen.brush, patch));
+    void setBrush(Map<String, Object?> patch) {
+      final b = patchBrush(pen.tool, pen.brush, patch);
+      isShape ? shapeNotifier.setBrush(b) : notifier.setBrush(i, b);
+    }
+
     void del() => Navigator.of(context).pop(true);
     return CallbackShortcuts(
       bindings: {
@@ -1095,7 +1199,7 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
       child: _PenBubble(
         anchor: anchor,
         leftHanded: ref.watch(leftHandedProvider),
-        extra: _advanced && pen.tool != 'tape'
+        extra: !isShape && _advanced && pen.tool != 'tape'
             ? Align(
                 alignment: Alignment.topLeft,
                 child: Material(
@@ -1117,28 +1221,32 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
                   role: SemanticsRole.radioGroup,
                   child: Row(
                     children: [
-                      for (final k in const [
-                        'pen',
-                        'highlighter',
-                        'fountain',
-                        'pencil',
-                        'tape',
-                      ])
-                        switchButton(k, _kindName(l10n, k)),
+                      if (isShape)
+                        for (final k in shapeKinds) shapeButton(k)
+                      else
+                        for (final k in const [
+                          'pen',
+                          'highlighter',
+                          'fountain',
+                          'pencil',
+                          'tape',
+                        ])
+                          switchButton(k, _kindName(l10n, k)),
                     ],
                   ),
                 ),
                 const SizedBox(height: KkjTokens.spacing3),
                 Row(
                   children: [
-                    Semantics(
-                      header: true,
-                      child: Text(
-                        _kindName(l10n, pen.tool),
-                        style: theme.textTheme.titleMedium,
+                    if (!isShape)
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          _kindName(l10n, pen.tool),
+                          style: theme.textTheme.titleMedium,
+                        ),
                       ),
-                    ),
-                    if (pen.tool != 'tape')
+                    if (!isShape && pen.tool != 'tape')
                       Expanded(
                         child: Align(
                           alignment: AlignmentDirectional.centerEnd,
@@ -1166,8 +1274,8 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
                   min: lo,
                   max: hi,
                   divisions: ((hi - lo) * 10).round(),
-                  onChanged: (v) => notifier.setWidth(i, v),
-                  onStep: (d) => notifier.setWidth(i, width + d / 10),
+                  onChanged: setWidth,
+                  onStep: (d) => setWidth(width + d / 10),
                   decTip: l10n.widthDecrease,
                   incTip: l10n.widthIncrease,
                 ),
@@ -1255,13 +1363,15 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
                     ),
                   ),
                 ],
-                switchRow(l10n.usePressure, on, toggle),
-                switchRow(
-                  l10n.lineDraw,
-                  pen.lineMode,
-                  (v) => notifier.setLineMode(i, v),
-                ),
-                if (_advanced && pen.tool != 'tape') ...[
+                if (!isShape) ...[
+                  switchRow(l10n.usePressure, on, toggle),
+                  switchRow(
+                    l10n.lineDraw,
+                    pen.lineMode,
+                    (v) => notifier.setLineMode(i, v),
+                  ),
+                ],
+                if (!isShape && _advanced && pen.tool != 'tape') ...[
                   const SizedBox(height: KkjTokens.spacing3),
                   PenAdvancedPanel(index: i),
                 ],
@@ -1272,45 +1382,46 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
                     child: CustomPaint(painter: PenPreviewPainter(pen)),
                   ),
                 ),
-                Divider(color: Kk.colorBorderHairline),
+                if (!isShape) Divider(color: Kk.colorBorderHairline),
                 // Closes the popover; the editor removes the slot and offers
                 // to undo. The last slot cannot go.
-                Align(
-                  alignment: AlignmentDirectional.centerEnd,
-                  child: Semantics(
-                    button: true,
-                    enabled: canDelete,
-                    onTap: canDelete ? del : null,
-                    excludeSemantics: true,
-                    label: l10n.deletePenSlot,
-                    child: InkWell(
+                if (!isShape)
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: Semantics(
+                      button: true,
+                      enabled: canDelete,
                       onTap: canDelete ? del : null,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(minHeight: _cell),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.delete_outline,
-                              color: canDelete
-                                  ? theme.colorScheme.error
-                                  : Kk.colorInkDisabled,
-                            ),
-                            const SizedBox(width: KkjTokens.spacing1),
-                            Text(
-                              l10n.deletePenSlot,
-                              style: TextStyle(
+                      excludeSemantics: true,
+                      label: l10n.deletePenSlot,
+                      child: InkWell(
+                        onTap: canDelete ? del : null,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(minHeight: _cell),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.delete_outline,
                                 color: canDelete
                                     ? theme.colorScheme.error
                                     : Kk.colorInkDisabled,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: KkjTokens.spacing1),
+                              Text(
+                                l10n.deletePenSlot,
+                                style: TextStyle(
+                                  color: canDelete
+                                      ? theme.colorScheme.error
+                                      : Kk.colorInkDisabled,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -1320,9 +1431,10 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
   }
 }
 
-/// The shape tool's popover (spec/shape.md "Shape tool bar"): the pen's speech
-/// bubble with one row of three icon buttons, no text. Stays open on a pick.
-class ShapeToolDialog extends ConsumerStatefulWidget {
+/// The shape tool's popover (spec/shape.md "Shape tool bar"): the shape kind
+/// row, then the basic pen settings of the shape tool's own pen. Stays open
+/// on a pick.
+class ShapeToolDialog extends StatelessWidget {
   const ShapeToolDialog({
     super.key,
     required this.kind,
@@ -1335,79 +1447,8 @@ class ShapeToolDialog extends ConsumerStatefulWidget {
   final PenBubbleAnchor Function()? anchor;
 
   @override
-  ConsumerState<ShapeToolDialog> createState() => _ShapeToolDialogState();
-}
-
-class _ShapeToolDialogState extends ConsumerState<ShapeToolDialog> {
-  late String _kind = widget.kind;
-
-  void _pick(String k) {
-    widget.onPick(k);
-    setState(() => _kind = k);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final color = Theme.of(context).colorScheme.onSurface;
-    return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.escape): () =>
-            Navigator.of(context).maybePop(),
-      },
-      child: _PenBubble(
-        anchor: widget.anchor,
-        leftHanded: ref.watch(leftHandedProvider),
-        child: Padding(
-          padding: const EdgeInsets.all(KkjLight.componentsPopoverPadding),
-          child: Semantics(
-            container: true,
-            role: SemanticsRole.radioGroup,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final k in shapeKinds)
-                  Semantics(
-                    button: true,
-                    inMutuallyExclusiveGroup: true,
-                    checked: _kind == k,
-                    label: _shapeName(l10n, k),
-                    onTap: () => _pick(k),
-                    excludeSemantics: true,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(KkjTokens.roundedSm),
-                      onTap: () => _pick(k),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: _kind == k ? Kk.colorAccentSoft : null,
-                          borderRadius: BorderRadius.circular(
-                            KkjTokens.roundedSm,
-                          ),
-                        ),
-                        child: SizedBox.square(
-                          dimension: _cell,
-                          child: Center(
-                            child: CustomPaint(
-                              size: const Size.square(_icon),
-                              painter: _ToolGlyphPainter(
-                                color,
-                                [_shapeGlyphD[k]!],
-                                24,
-                                24,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      PenEditDialog(shapeKind: kind, onPickShape: onPick, anchor: anchor);
 }
 
 /// Where the pen bubble points: the tool button [tool], on the toolbar [bar].

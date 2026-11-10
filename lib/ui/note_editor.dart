@@ -1492,13 +1492,12 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   /// its popover. Not while a stroke is going on.
   void _slotTap(int i) {
     if (_pointer != null) return;
-    if ((_tool == _Tool.pen || _tool == _Tool.shape) &&
-        i == ref.read(selectedPenSlotProvider)) {
+    if (_tool == _Tool.pen && i == ref.read(selectedPenSlotProvider)) {
       _editPen(i);
       return;
     }
     _pickSlot(i);
-    if (_tool != _Tool.shape) _setTool(_Tool.pen); // shapes use the new slot
+    _setTool(_Tool.pen); // a pen ends the shape tool
   }
 
   /// Eraser button: picks the tool; on the picked one, opens its options.
@@ -2574,18 +2573,23 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     return isKnownShape(s) ? s : null; // a straight drag has no area
   }
 
-  Map<String, dynamic> _stroke(List<List<num>> points, [Map? shape]) => {
-    'id': newId(),
-    'type': 'stroke',
-    'tool': _pen.tool,
-    'color': _pen.color,
-    'width': _pen.width,
-    // A straightened line or a shape has the tool's width, no pressure.
-    'usePressure': _pen.usePressure && !_straight && !_line && shape == null,
-    if (_pen.brush != null) 'brush': copyJsonValue(_pen.brush),
-    if (shape != null) 'shape': shape,
-    'points': shape == null ? points : shapeCorners(shape)!,
-  };
+  // [pen] is the pen of the stroke: the shape tool's own pen for a dragged
+  // shape, else the current slot (a held, recognized shape keeps its pen).
+  Map<String, dynamic> _stroke(List<List<num>> points, [Map? shape, Pen? pen]) {
+    pen ??= _pen;
+    return {
+      'id': newId(),
+      'type': 'stroke',
+      'tool': pen.tool,
+      'color': pen.color,
+      'width': pen.width,
+      // A straightened line or a shape has the tool's width, no pressure.
+      'usePressure': pen.usePressure && !_straight && !_line && shape == null,
+      if (pen.brush != null) 'brush': copyJsonValue(pen.brush),
+      if (shape != null) 'shape': shape,
+      'points': shape == null ? points : shapeCorners(shape)!,
+    };
+  }
 
   // While erasing nothing is drawn live: the struck strokes show translucent
   // (see [_erasePreview]) and go away on up.
@@ -2600,7 +2604,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
 
   Map<String, dynamic>? _shapeLive() {
     final s = _dragShape();
-    return s == null ? null : _stroke(const [], s);
+    return s == null ? null : _stroke(const [], s, ref.read(shapePenProvider));
   }
 
   // Memo of the last preview, keyed on (point count, first point, page, mode):
@@ -3971,7 +3975,11 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       _discardStroke(); // a tiny drag is no shape
       return;
     }
-    final stroke = _stroke(_shownPoints(), shape);
+    final stroke = _stroke(
+      _shownPoints(),
+      shape,
+      _shaping ? ref.read(shapePenProvider) : null,
+    );
     _pointer = null;
     _points.clear();
     _holdReset();

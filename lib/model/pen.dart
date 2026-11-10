@@ -124,6 +124,10 @@ String colorNameKeyFor(String hex) {
   return 'custom';
 }
 
+/// The shape tool's own pen (spec/shape.md "Shape tool bar"): black, 2.0, no
+/// pressure (a shape is one thickness).
+const defaultShapePen = Pen(color: '#000000', width: 2.0, usePressure: false);
+
 const defaultPen = Pen(color: '#000000', width: 2.0, usePressure: true);
 
 /// The slots a device starts with: black pen, blue pen, yellow highlighter.

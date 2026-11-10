@@ -895,6 +895,28 @@ final penSlotsProvider = NotifierProvider<PenSlotsNotifier, List<Pen>>(
   PenSlotsNotifier.new,
 );
 
+/// The shape tool's own pen: color, width and opacity, independent of the pen
+/// slots. A device setting, stored at once.
+class ShapePenNotifier extends Notifier<Pen> {
+  @override
+  Pen build() => ref.read(penSlotsStoreProvider).readShapePen();
+
+  void _put(Pen p) {
+    state = p;
+    ref.read(penSlotsStoreProvider).writeShapePen(p);
+  }
+
+  void setColor(String hex) => _put(state.withColor(hex.toLowerCase()));
+
+  void setWidth(double v) => _put(state.withWidth(v));
+
+  void setBrush(Map<String, Object?>? b) => _put(state.withBrush(b));
+}
+
+final shapePenProvider = NotifierProvider<ShapePenNotifier, Pen>(
+  ShapePenNotifier.new,
+);
+
 /// Recent pen colors, newest first, at most 6, shared by both tools.
 class RecentPenColorsNotifier extends Notifier<List<String>> {
   @override
