@@ -61,6 +61,7 @@ class PenToolbar extends StatefulWidget {
     this.slotFocus,
     this.eraserSelected = false,
     this.eraserMode = EraserMode.stroke,
+    this.eraserKey,
     this.onEraser,
     this.lassoSelected = false,
     this.onLasso,
@@ -122,6 +123,7 @@ class PenToolbar extends StatefulWidget {
   final FocusNode? slotFocus;
   final bool eraserSelected;
   final EraserMode eraserMode;
+  final GlobalKey? eraserKey; // anchors the eraser bubble
   final VoidCallback? onEraser;
   final bool lassoSelected;
   final VoidCallback? onLasso;
@@ -411,6 +413,7 @@ class _PenToolbarState extends State<PenToolbar> {
                 return Semantics(
                   value: mode,
                   child: IconButton(
+                    key: widget.eraserKey,
                     tooltip: '${l10n.eraserTool} ($mode)',
                     isSelected: widget.eraserSelected,
                     constraints: const BoxConstraints(
@@ -1196,7 +1199,7 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
         const SingleActivator(LogicalKeyboardKey.escape): () =>
             Navigator.of(context).maybePop(),
       },
-      child: _PenBubble(
+      child: PenBubble(
         anchor: anchor,
         leftHanded: ref.watch(leftHandedProvider),
         extra: !isShape && _advanced && pen.tool != 'tape'
@@ -1498,7 +1501,26 @@ PenBubblePlacement placePenBubble(
   Size win, {
   bool leftHanded = false,
 }) {
-  final side = penBubbleSide(a, win, leftHanded: leftHanded);
+  final p = _place(
+    a,
+    bubble,
+    win,
+    penBubbleSide(a, win, leftHanded: leftHanded),
+  );
+  if (!leftHanded) return p;
+  // Left-handed: the opposite side has no room (a bar docked at that window
+  // edge): the pulled bubble would cover the bar, so use the normal side.
+  return (p.topLeft & bubble).overlaps(a.bar)
+      ? _place(a, bubble, win, penBubbleSide(a, win))
+      : p;
+}
+
+PenBubblePlacement _place(
+  PenBubbleAnchor a,
+  Size bubble,
+  Size win,
+  AxisDirection side,
+) {
   const m = penBubbleMargin, edge = _tailBase / 2 + 8;
   double fit(double v, double size, double max) =>
       v.clamp(m, math.max(m, max - m - size)).toDouble();
@@ -1549,8 +1571,9 @@ PenBubblePlacement placePenBubble(
 /// The pen popover as a speech bubble with a tail toward the tool button.
 /// The anchor is read after a frame (the toolbar is laid out by then), again
 /// whenever the window size changes; until then nothing shows.
-class _PenBubble extends StatefulWidget {
-  const _PenBubble({
+class PenBubble extends StatefulWidget {
+  const PenBubble({
+    super.key,
     required this.anchor,
     required this.child,
     required this.leftHanded,
@@ -1564,10 +1587,10 @@ class _PenBubble extends StatefulWidget {
   final Widget? extra;
 
   @override
-  State<_PenBubble> createState() => _PenBubbleState();
+  State<PenBubble> createState() => _PenBubbleState();
 }
 
-class _PenBubbleState extends State<_PenBubble> {
+class _PenBubbleState extends State<PenBubble> {
   PenBubbleAnchor? _a;
   Size? _size;
 

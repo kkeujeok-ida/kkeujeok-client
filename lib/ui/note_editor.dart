@@ -237,6 +237,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   bool _shaping = false;
   String _shapeKind = 'rect';
   final _shapeBtn = GlobalKey();
+  final _eraserBtn = GlobalKey();
   List<num>? _holdAnchor;
   Timer? _holdTimer;
   PageViewport? _vp;
@@ -1505,30 +1506,34 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     if (_pointer != null || _mode != _Mode.none || _leaving) return;
     if (_tool != _Tool.eraser) return _setTool(_Tool.eraser);
     unawaited(
-      showDialog<void>(context: context, builder: (_) => const EraserDialog()),
+      showDialog<void>(
+        context: context,
+        useSafeArea: false, // the bubble is placed in window coordinates
+        builder: (_) => EraserDialog(anchor: () => _toolAnchor(_eraserBtn)),
+      ),
     );
+  }
+
+  PenBubbleAnchor _toolAnchor(GlobalKey key) {
+    final pos = ref.read(toolbarPosProvider);
+    final bar = _barRect(pos, _size, _safe);
+    final box = key.currentContext?.findRenderObject() as RenderBox?;
+    final tool = box != null && box.attached
+        ? box.localToGlobal(Offset.zero) & box.size
+        : bar;
+    return PenBubbleAnchor(tool, bar, vertical: pos.vertical);
   }
 
   /// Shape button: picks the tool; on the picked one, opens the shape bubble.
   Future<void> _shapeTap() async {
     if (_pointer != null || _mode != _Mode.none || _leaving) return;
     if (_tool != _Tool.shape) return _setTool(_Tool.shape);
-    PenBubbleAnchor anchor() {
-      final pos = ref.read(toolbarPosProvider);
-      final bar = _barRect(pos, _size, _safe);
-      final box = _shapeBtn.currentContext?.findRenderObject() as RenderBox?;
-      final tool = box != null && box.attached
-          ? box.localToGlobal(Offset.zero) & box.size
-          : bar;
-      return PenBubbleAnchor(tool, bar, vertical: pos.vertical);
-    }
-
     await showDialog<void>(
       context: context,
       useSafeArea: false,
       builder: (_) => ShapeToolDialog(
         kind: _shapeKind,
-        anchor: anchor,
+        anchor: () => _toolAnchor(_shapeBtn),
         onPick: (k) => setState(() => _shapeKind = k),
       ),
     );
@@ -4811,6 +4816,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                       onMove: _slots.move,
                       eraserSelected: _tool == _Tool.eraser,
                       eraserMode: ref.watch(eraserSettingsProvider).mode,
+                      eraserKey: _eraserBtn,
                       onEraser: _eraserTap,
                       lassoSelected: _tool == _Tool.lasso,
                       onLasso: () => _setTool(_Tool.lasso),

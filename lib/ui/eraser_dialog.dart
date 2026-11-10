@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'kk.dart';
 
@@ -10,12 +11,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
 import '../model/eraser.dart';
+import 'pen_toolbar.dart' show PenBubble, PenBubbleAnchor;
 import 'providers.dart';
 
-/// Eraser options popover: stroke / partial and return-to-pen. Every change
+/// Eraser options popover (a speech bubble like the pen's; left-handed mirrors it): stroke / partial and return-to-pen. Every change
 /// is stored at once; tapping outside closes it keeping the changes.
 class EraserDialog extends ConsumerWidget {
-  const EraserDialog({super.key});
+  const EraserDialog({super.key, this.anchor});
+
+  final PenBubbleAnchor Function()? anchor;
 
   static const _cell = 48.0;
 
@@ -68,51 +72,50 @@ class EraserDialog extends ConsumerWidget {
       );
     }
 
-    return Dialog(
-      // Left-handed: opens on the opposite side.
-      alignment: ref.watch(leftHandedProvider)
-          ? AlignmentDirectional.centerStart
-          : null,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      backgroundColor: Kk.componentsPopoverBackground,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(KkjLight.componentsPopoverRounded),
-      ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 320),
-        child: Padding(
-          padding: const EdgeInsets.all(KkjLight.componentsPopoverPadding),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Semantics(
-                header: true,
-                child: Text(
-                  l10n.eraserOptionsTitle,
-                  style: Theme.of(context).textTheme.titleMedium,
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () =>
+            Navigator.of(context).maybePop(),
+      },
+      child: PenBubble(
+        anchor: anchor,
+        leftHanded: ref.watch(leftHandedProvider),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: Padding(
+            padding: const EdgeInsets.all(KkjLight.componentsPopoverPadding),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Semantics(
+                  header: true,
+                  child: Text(
+                    l10n.eraserOptionsTitle,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                 ),
-              ),
-              const SizedBox(height: KkjTokens.spacing3),
-              Semantics(
-                container: true,
-                role: SemanticsRole.radioGroup,
-                child: Row(
-                  children: [
-                    seg(EraserMode.stroke, l10n.eraserModeStroke),
-                    const SizedBox(width: KkjTokens.spacing2),
-                    seg(EraserMode.partial, l10n.eraserModePartial),
-                  ],
+                const SizedBox(height: KkjTokens.spacing3),
+                Semantics(
+                  container: true,
+                  role: SemanticsRole.radioGroup,
+                  child: Row(
+                    children: [
+                      seg(EraserMode.stroke, l10n.eraserModeStroke),
+                      const SizedBox(width: KkjTokens.spacing2),
+                      seg(EraserMode.partial, l10n.eraserModePartial),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: KkjTokens.spacing2),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(l10n.eraserReturnToPen),
-                value: s.returnToPen,
-                onChanged: notifier.setReturnToPen,
-              ),
-            ],
+                const SizedBox(height: KkjTokens.spacing2),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l10n.eraserReturnToPen),
+                  value: s.returnToPen,
+                  onChanged: notifier.setReturnToPen,
+                ),
+              ],
+            ),
           ),
         ),
       ),
