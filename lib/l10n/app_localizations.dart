@@ -3223,6 +3223,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Settings categories'**
   String get settingsCategoriesLabel;
+
+  /// No description provided for @settingsSearchLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Search settings'**
+  String get settingsSearchLabel;
+
+  /// No description provided for @settingsSearchClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear search'**
+  String get settingsSearchClear;
+
+  /// No description provided for @settingsSearchNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No results'**
+  String get settingsSearchNone;
+
+  /// No description provided for @settingsSearchCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 result} other{{count} results}}'**
+  String settingsSearchCount(int count);
 }
 
 class _AppLocalizationsDelegate

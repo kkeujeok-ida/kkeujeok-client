@@ -1744,4 +1744,18 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get settingsCategoriesLabel => '설정 카테고리';
+
+  @override
+  String get settingsSearchLabel => '설정 검색';
+
+  @override
+  String get settingsSearchClear => '검색 지우기';
+
+  @override
+  String get settingsSearchNone => '결과 없음';
+
+  @override
+  String settingsSearchCount(int count) {
+    return '결과 $count개';
+  }
 }

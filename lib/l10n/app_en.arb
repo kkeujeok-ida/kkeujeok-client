@@ -1108,5 +1108,16 @@
   "settingsCategoryTools": "Tools",
   "settingsCategorySupport": "Help and diagnostics",
   "settingsCategoryAccount": "Account",
-  "settingsCategoriesLabel": "Settings categories"
+  "settingsCategoriesLabel": "Settings categories",
+  "settingsSearchLabel": "Search settings",
+  "settingsSearchClear": "Clear search",
+  "settingsSearchNone": "No results",
+  "settingsSearchCount": "{count, plural, =1{1 result} other{{count} results}}",
+  "@settingsSearchCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

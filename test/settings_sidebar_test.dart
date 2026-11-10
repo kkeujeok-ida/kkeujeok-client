@@ -48,7 +48,7 @@ void main() {
     expect(selected(t, 'Tools'), isTrue);
     expect(selected(t, 'General'), isFalse);
     final top = t.getTopLeft(heading).dy;
-    expect(top, lessThan(56 + 40)); // just under the app bar
+    expect(top, lessThan(56 + 72 + 40)); // under the app bar and search field
     h.dispose();
   });
 

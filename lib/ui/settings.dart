@@ -134,9 +134,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   List<String> _ids = const [];
   String _active = 'general';
   final _chipKeys = <String, GlobalKey>{};
+  final _search = TextEditingController();
+  String _query = '';
+  double? _savedOffset; // scroll position from before the search began
 
   @override
   void dispose() {
+    _search.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -159,6 +163,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       atEnd: m.pixels >= m.maxScrollExtent - 1,
     );
     if (a != _active) _setActive(a);
+  }
+
+  void _onQuery(String v) {
+    final was = _query.trim().isNotEmpty;
+    final now = v.trim().isNotEmpty;
+    if (!was && now && _scroll.hasClients) _savedOffset = _scroll.offset;
+    setState(() => _query = v);
+    if (was && !now) {
+      final o = _savedOffset;
+      _savedOffset = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (o != null && mounted && _scroll.hasClients) {
+          _scroll.jumpTo(o.clamp(0, _scroll.position.maxScrollExtent));
+        }
+      });
+    }
+  }
+
+  void _clear() {
+    _search.clear();
+    _onQuery('');
   }
 
   // Keeps the active chip visible in the horizontal row.
@@ -614,13 +639,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       'support': l10n.settingsCategorySupport,
       'account': l10n.settingsCategoryAccount,
     };
-    final secs = settingsSections(signedIn: signedIn, platform: 'android');
+    final allSecs = settingsSections(signedIn: signedIn, platform: 'android');
+    // Searchable text: the item's title plus its hint, as shown.
+    final texts = {
+      'language': l10n.language,
+      'theme': l10n.theme,
+      'leftHanded': l10n.leftHanded,
+      'penOnly': l10n.penOnlyTitle,
+      'straighten': '${l10n.straighten} ${l10n.straightenHint}',
+      'smooth': l10n.smooth,
+      'pressureCurve': l10n.pressureCurve,
+      'visibleTools': l10n.visibleToolsTitle,
+      'penPalette': l10n.palettePenTitle,
+      'help': l10n.helpTitle,
+      'privacy': l10n.privacyPolicy,
+      'exportLog': l10n.syncLogExport,
+      'penDiag': l10n.penDiagTitle,
+      'logOut': l10n.logOut,
+      'disconnect': l10n.disconnect,
+    };
+    final searching = _query.trim().isNotEmpty;
+    final found = searchSettings(_query, [
+      for (final s in allSecs)
+        for (final id in s.items) (id: id, section: s.id, text: texts[id]!),
+    ]);
+    final shown = found.visible.toSet();
+    // Sections with no match leave the sidebar; their widgets stay mounted.
+    final secs = [
+      for (final s in allSecs)
+        if (!searching || found.counts[s.id]! > 0) s,
+    ];
     _ids = [for (final s in secs) s.id];
-    for (final id in _ids) {
-      _keys.putIfAbsent(id, GlobalKey.new);
-      _chipKeys.putIfAbsent(id, GlobalKey.new);
+    for (final s in allSecs) {
+      _keys.putIfAbsent(s.id, GlobalKey.new);
+      _chipKeys.putIfAbsent(s.id, GlobalKey.new);
     }
-    if (!_ids.contains(_active)) _active = _ids.first;
+    if (_ids.isNotEmpty && !_ids.contains(_active)) _active = _ids.first;
 
     return Scaffold(
       appBar: AppBar(
@@ -641,6 +695,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             label: l10n.settingsCategoriesLabel,
             onTap: _goTo,
             keys: _chipKeys,
+            counts: searching ? found.counts : null,
           );
           // Right highlight on open and resize, not only after a scroll.
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -658,41 +713,55 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    for (final (i, s) in secs.indexed)
-                      // The last section is at least a viewport tall so it can
-                      // reach the top.
-                      ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minHeight: i == secs.length - 1 ? view.maxHeight : 0,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Padding(
-                              key: _keys[s.id],
-                              padding: const EdgeInsets.fromLTRB(
-                                KkjTokens.spacing4,
-                                KkjTokens.spacing4,
-                                KkjTokens.spacing4,
-                                KkjTokens.spacing2,
-                              ),
-                              child: Semantics(
-                                header: true,
-                                child: Text(
-                                  names[s.id]!,
-                                  style: theme.textTheme.titleMedium,
+                    for (final s in allSecs)
+                      // The last shown section is at least a viewport tall so
+                      // it can reach the top. Hidden ones stay mounted.
+                      Offstage(
+                        offstage: searching && found.counts[s.id] == 0,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: secs.isNotEmpty && s.id == secs.last.id
+                                ? view.maxHeight
+                                : 0,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Padding(
+                                key: _keys[s.id],
+                                padding: const EdgeInsets.fromLTRB(
+                                  KkjTokens.spacing4,
+                                  KkjTokens.spacing4,
+                                  KkjTokens.spacing4,
+                                  KkjTokens.spacing2,
+                                ),
+                                child: Semantics(
+                                  header: true,
+                                  child: Text(
+                                    names[s.id]!,
+                                    style: theme.textTheme.titleMedium,
+                                  ),
                                 ),
                               ),
-                            ),
-                            for (final (j, id) in s.items.indexed) ...[
-                              if (j > 0)
-                                Divider(
-                                  color: theme.colorScheme.outlineVariant,
+                              for (final (j, id) in s.items.indexed) ...[
+                                if (s.items
+                                        .take(j)
+                                        .any(
+                                          (e) =>
+                                              !searching || shown.contains(e),
+                                        ) &&
+                                    (!searching || shown.contains(id)))
+                                  Divider(
+                                    color: theme.colorScheme.outlineVariant,
+                                  ),
+                                Offstage(
+                                  offstage: searching && !shown.contains(id),
+                                  child: items[id]!,
                                 ),
-                              items[id]!,
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
                   ],
@@ -700,7 +769,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ),
           );
-          return wide
+          final body = wide
               ? Row(
                   children: [
                     SizedBox(width: 200, child: nav),
@@ -717,6 +786,46 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     Expanded(child: main),
                   ],
                 );
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(KkjTokens.spacing2),
+                child: TextField(
+                  controller: _search,
+                  onChanged: _onQuery,
+                  decoration: InputDecoration(
+                    labelText: l10n.settingsSearchLabel,
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: searching
+                        ? IconButton(
+                            tooltip: l10n.settingsSearchClear,
+                            constraints: const BoxConstraints(
+                              minWidth: KkjTokens.spacingHitMinAndroid,
+                              minHeight: KkjTokens.spacingHitMinAndroid,
+                            ),
+                            icon: const Icon(Icons.clear),
+                            onPressed: _clear,
+                          )
+                        : null,
+                  ),
+                ),
+              ),
+              if (searching)
+                Semantics(
+                  liveRegion: true,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: KkjTokens.spacing2),
+                    child: Text(
+                      found.visible.isEmpty
+                          ? l10n.settingsSearchNone
+                          : l10n.settingsSearchCount(found.visible.length),
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ),
+                ),
+              Expanded(child: body),
+            ],
+          );
         },
       ),
     );
@@ -733,6 +842,7 @@ class _Nav extends StatelessWidget {
     required this.label,
     required this.onTap,
     required this.keys,
+    this.counts,
   });
 
   final List<String> ids;
@@ -742,17 +852,21 @@ class _Nav extends StatelessWidget {
   final String label;
   final void Function(String) onTap;
   final Map<String, GlobalKey> keys;
+  final Map<String, int>? counts; // per-section matches while searching
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     Widget entry(String id) {
       final sel = id == active;
+      final name = counts == null
+          ? names[id]!
+          : '${names[id]} (${counts![id]})';
       return Semantics(
         key: keys[id],
         button: true,
         selected: sel,
-        label: names[id],
+        label: name,
         excludeSemantics: true,
         onTap: () => onTap(id),
         child: Padding(
@@ -779,7 +893,7 @@ class _Nav extends StatelessWidget {
                         : Alignment.center,
                     widthFactor: wide ? null : 1,
                     child: Text(
-                      names[id]!,
+                      name,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: sel ? Kk.colorAccentText : Kk.colorInkPrimary,
                         fontWeight: sel ? FontWeight.w600 : null,

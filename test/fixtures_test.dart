@@ -645,7 +645,11 @@ final Map<String, void Function(Case)> runners = {
     final a = flat(s), b = flat(want);
     expect(a.length, b.length);
     for (var k = 0; k < a.length; k++) {
-      expect(((a[k] as num) - (b[k] as num)).abs() <= tol, isTrue, reason: '$k');
+      expect(
+        ((a[k] as num) - (b[k] as num)).abs() <= tol,
+        isTrue,
+        reason: '$k',
+      );
     }
   },
   'shape.holdResize': (c) {
@@ -666,7 +670,11 @@ final Map<String, void Function(Case)> runners = {
     final a = flat(s), b = flat(want);
     expect(a.length, b.length);
     for (var k = 0; k < a.length; k++) {
-      expect(((a[k] as num) - (b[k] as num)).abs() <= tol, isTrue, reason: '$k');
+      expect(
+        ((a[k] as num) - (b[k] as num)).abs() <= tol,
+        isTrue,
+        reason: '$k',
+      );
     }
   },
   'shape.resize': (c) {
@@ -882,6 +890,18 @@ final Map<String, void Function(Case)> runners = {
       ),
       c['expected'],
     );
+  },
+  'settings.search': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final r = searchSettings(i['query'] as String, [
+      for (final m in i['items'] as List)
+        (
+          id: m['id'] as String,
+          section: m['section'] as String,
+          text: m['text'] as String,
+        ),
+    ]);
+    _same({'visible': r.visible, 'counts': r.counts}, c['expected']);
   },
   'toolbar.snap': (c) {
     final i = c['input'] as Map<String, dynamic>;
@@ -1135,8 +1155,6 @@ void _runOp(Case c) {
 const pendingRules = <String>{
   // Epic 25/26 (Stories 25.1, 26.1): runners arrive with 25.x and 26.x Android stories.
   'note.shape',
-  // Story 27.4.
-  'settings.search',
 };
 
 final _sep = Platform.pathSeparator;

@@ -1037,5 +1037,16 @@
   "settingsCategoryTools": "도구",
   "settingsCategorySupport": "도움말·진단",
   "settingsCategoryAccount": "계정",
-  "settingsCategoriesLabel": "설정 카테고리"
+  "settingsCategoriesLabel": "설정 카테고리",
+  "settingsSearchLabel": "설정 검색",
+  "settingsSearchClear": "검색 지우기",
+  "settingsSearchNone": "결과 없음",
+  "settingsSearchCount": "결과 {count}개",
+  "@settingsSearchCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }
