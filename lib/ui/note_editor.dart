@@ -53,6 +53,7 @@ import '../sync/merge_step.dart';
 import '../sync/version_history.dart' show RestoreFailure;
 import 'conflict_sheet.dart';
 import 'page_overview.dart';
+import 'dock_dialog.dart';
 import 'eraser_dialog.dart';
 import 'note_order.dart';
 import 'page_layout.dart';
@@ -3246,34 +3247,18 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
         .set(ref.read(toolbarPosProvider).applyDock(d));
   }
 
-  /// The position menu next to the handle: [상단][왼쪽][오른쪽][하단].
+  /// The position bubble on the handle: top / right / bottom / left icons.
   Future<void> _positionMenu() async {
-    final box = _handleKey.currentContext?.findRenderObject();
-    final overlay = Overlay.of(context).context.findRenderObject();
-    if (_dragCenter != null ||
-        box is! RenderBox ||
-        overlay is! RenderBox ||
-        !box.attached) {
-      return;
-    }
+    if (_dragCenter != null) return;
     final l10n = AppLocalizations.of(context);
     final at = ref.read(toolbarPosProvider).dock;
-    final dock = await showMenu<ToolbarDock>(
+    final dock = await showDialog<ToolbarDock>(
       context: context,
-      position: RelativeRect.fromRect(
-        box.localToGlobal(Offset.zero, ancestor: overlay) & box.size,
-        Offset.zero & overlay.size,
-      ),
-      items: [
-        for (final d in snapOrder)
-          CheckedPopupMenuItem(
-            value: d,
-            checked: at == d,
-            child: Text(_dockName(l10n, d)),
-          ),
-      ],
+      useSafeArea: false, // the bubble is placed in window coordinates
+      builder: (_) =>
+          DockDialog(current: at, anchor: () => _toolAnchor(_handleKey)),
     );
-    if (dock == null || !mounted) return;
+    if (dock == null || !mounted || dock == at) return;
     _dock(dock);
     _announce(l10n.toolbarDocked(_dockName(l10n, dock)), polite: true);
   }
@@ -3674,7 +3659,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       case 'move':
         return (
           ids: ids,
-          m: selectionMatrix(d: Offset(op!['dx'] as double, op['dy'] as double)),
+          m: selectionMatrix(
+            d: Offset(op!['dx'] as double, op['dy'] as double),
+          ),
         );
       case 'scale':
         final a = op!['anchor'] as List;
