@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -52,6 +54,7 @@ class CurveEditor extends StatefulWidget {
     this.fixedCount,
     this.onReset,
     this.pad = true,
+    this.onTouch,
   });
 
   final PressureCurve curve;
@@ -69,6 +72,10 @@ class CurveEditor extends StatefulWidget {
   /// false: no test pad (a curve that is not a width).
   final bool pad;
 
+  /// Called at pointer down on the graph, before the edit (a curve switched
+  /// off turns on here, spec/brush.md "Curve switches").
+  final VoidCallback? onTouch;
+
   @override
   State<CurveEditor> createState() => _CurveEditorState();
 }
@@ -77,13 +84,12 @@ class _CurveEditorState extends State<CurveEditor> {
   final _pts = <List<double>>[];
   int _sel = -1; // selected inner point
   int _drag = -1;
-  int _lastTapIdx = -1;
-  Duration _lastTapAt = Duration.zero;
 
   bool get _fixed => widget.fixedCount != null;
 
-  // A point-list curve (spec/brush.md): the ends move up and down, x stays 0
-  // and 1; else the inner points of a legacy curve.
+  // A point-list curve (spec/brush.md): edited with `brush.curveEdit`, the
+  // ends move up and down, x stays 0 and 1; else the inner points of a legacy
+  // curve.
   bool get _points => widget.curve.points != null;
 
   List<(double, double)> get _pl => _points
@@ -110,37 +116,30 @@ class _CurveEditorState extends State<CurveEditor> {
   });
 
   void _set(List<(double, double)> p) => widget.onChanged(
-    _points
-        ? PressureCurve.fromCurve([
-            for (final q in p) [q.$1, q.$2],
-          ])
-        : PressureCurve.fromValues([
-            for (final q in p) ...[q.$1, q.$2],
-          ]),
+    PressureCurve.fromValues([
+      for (final q in p) ...[q.$1, q.$2],
+    ]),
   );
 
-  /// Point [i] of [p] moved to ([x], [y]), held between its neighbours; null
-  /// when there is no room.
+  /// Point-list curve after the `brush.curveEdit` op [op].
+  List<List<double>> _edit(Map op) => curveEdit(widget.curve.points!, op);
+
+  void _setList(List<List<double>> l) =>
+      widget.onChanged(PressureCurve.fromCurve(l));
+
+  /// Legacy curve: point [i] of [p] moved to ([x], [y]), held between its
+  /// neighbours; null when there is no room.
   (double, double)? _clampAt(
     List<(double, double)> p,
     int i,
     double x,
     double y,
   ) {
-    if (_points) {
-      final yy = y.clamp(0.0, 1.0);
-      if (i == 0 || i == p.length - 1) return (i == 0 ? 0.0 : 1.0, yy);
-      if (p[i + 1].$1 - p[i - 1].$1 < 2 * _eps) return null;
-      return (x.clamp(p[i - 1].$1 + _eps, p[i + 1].$1 - _eps), yy);
-    }
     final lo = i == 0 ? (0.0, 0.0) : p[i - 1];
     final hi = i == p.length - 1 ? (1.0, 1.0) : p[i + 1];
     if (hi.$1 - lo.$1 < 2 * _eps) return null;
     return (x.clamp(lo.$1 + _eps, hi.$1 - _eps), y.clamp(lo.$2, hi.$2));
   }
-
-  (double, double)? _clampOffset(List<(double, double)> p, int i, Offset o) =>
-      _clampAt(p, i, o.dx / _graph, 1 - o.dy / _graph);
 
   int _hit(List<(double, double)> p, Offset o) {
     var best = -1;
@@ -157,65 +156,101 @@ class _CurveEditorState extends State<CurveEditor> {
 
   void _remove(int i) {
     if (_fixed || i < 0) return;
-    final p = _pl;
-    if (_points && (i == 0 || i == p.length - 1)) return;
-    p.removeAt(i);
+    if (_points) {
+      final l = _edit({'kind': 'release', 'index': i, 'outside': 1});
+      if (l.length == widget.curve.points!.length) return;
+      setState(() => _sel = -1);
+      return _setList(l);
+    }
+    final p = _pl..removeAt(i);
     setState(() => _sel = -1);
     _set(p);
   }
 
   void _down(PointerDownEvent e) {
+    widget.onTouch?.call();
     final p = _pl;
     var i = _hit(p, e.localPosition);
-    if (i >= 0) {
-      final again =
-          i == _lastTapIdx &&
-          e.timeStamp - _lastTapAt < const Duration(milliseconds: 350);
-      _lastTapIdx = again ? -1 : i;
-      _lastTapAt = e.timeStamp;
-      if (again && !_fixed) return _remove(i);
-    } else if (!_fixed &&
-        p.length < (_points ? maxCurvePoints : PressureCurve.maxInner)) {
-      _lastTapIdx = -1;
+    if (i < 0 && !_fixed) {
       final x = e.localPosition.dx / _graph;
-      var at = p.indexWhere((q) => q.$1 > x);
-      if (at < 0) at = p.length;
-      final np = [...p]..insert(at, (x, 1 - e.localPosition.dy / _graph));
-      final c = _clampOffset(np, at, e.localPosition);
-      if (c == null) return;
-      _set(np..[at] = c);
-      i = at;
-    } else {
-      return;
+      final y = 1 - e.localPosition.dy / _graph;
+      if (_points) {
+        final l = _edit({'kind': 'add', 'x': x, 'y': y});
+        if (l.length == p.length) return;
+        i = l.indexWhere((q) => !p.any((o) => o.$1 == q[0] && o.$2 == q[1]));
+        _setList(l);
+      } else if (p.length < PressureCurve.maxInner) {
+        var at = p.indexWhere((q) => q.$1 > x);
+        if (at < 0) at = p.length;
+        final np = [...p]..insert(at, (x, y));
+        final c = _clampAt(np, at, x, y);
+        if (c == null) return;
+        _set(np..[at] = c);
+        i = at;
+      }
     }
+    if (i < 0) return;
     setState(() => _sel = _drag = i);
   }
 
   void _move(PointerMoveEvent e) {
     final p = _pl;
     if (_drag < 0 || _drag >= p.length) return;
-    final c = _clampOffset(p, _drag, e.localPosition);
+    final x = e.localPosition.dx / _graph, y = 1 - e.localPosition.dy / _graph;
+    if (_points) {
+      return _setList(_edit({'kind': 'move', 'index': _drag, 'x': x, 'y': y}));
+    }
+    final c = _clampAt(p, _drag, x, y);
     if (c != null) _set(p..[_drag] = c);
   }
 
-  /// A point on the curve in the widest gap.
+  /// Letting go beyond the graph box deletes an inner point (`brush.curveEdit`
+  /// release; the legacy curve uses the same distance).
+  void _up(PointerEvent e) {
+    final i = _drag;
+    _drag = -1;
+    if (i < 0 || _fixed || e is PointerCancelEvent) return;
+    final o = e.localPosition;
+    double over(double v) => math.max(math.max(-v, v - _graph), 0) / _graph;
+    final outside = math.max(over(o.dx), over(o.dy));
+    if (outside <= 0.08) return;
+    if (_points) {
+      final l = _edit({'kind': 'release', 'index': i, 'outside': outside});
+      if (l.length == widget.curve.points!.length) return;
+      setState(() => _sel = -1);
+      _setList(l);
+    } else if (i < _pl.length) {
+      _remove(i);
+    }
+  }
+
+  /// A point on the curve in the widest gap (legacy curve only).
   void _addMid() {
     final p = _pl;
-    final xs = [if (!_points) 0.0, for (final q in p) q.$1, if (!_points) 1.0];
+    final xs = [0.0, for (final q in p) q.$1, 1.0];
     var g = 0;
     for (var k = 1; k < xs.length - 1; k++) {
       if (xs[k + 1] - xs[k] > xs[g + 1] - xs[g]) g = k;
     }
     final x = (xs[g] + xs[g + 1]) / 2;
-    final at = _points ? g + 1 : g;
-    setState(() => _sel = at);
-    _set(p..insert(at, (x, widget.curve.q(x))));
+    setState(() => _sel = g);
+    _set(p..insert(g, (x, widget.curve.q(x))));
   }
 
   /// Point [i] moved by ([dx], [dy]) (arrow keys, screen-reader actions).
   void _nudge(int i, double dx, double dy) {
     final p = _pl;
     if (i < 0 || i >= p.length) return;
+    if (_points) {
+      return _setList(
+        _edit({
+          'kind': 'move',
+          'index': i,
+          'x': p[i].$1 + dx,
+          'y': p[i].$2 + dy,
+        }),
+      );
+    }
     final c = _clampAt(p, i, p[i].$1 + dx, p[i].$2 + dy);
     if (c != null) _set(p..[i] = c);
   }
@@ -248,12 +283,12 @@ class _CurveEditorState extends State<CurveEditor> {
     final curve = widget.curve;
     final p = _pl;
     final sel = _sel >= 0 && _sel < p.length ? _sel : -1;
-    Widget right(Widget w) => Align(alignment: Alignment.centerRight, child: w);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        right(
-          FittedBox(
+        Align(
+          alignment: widget.pad ? Alignment.centerRight : Alignment.center,
+          child: FittedBox(
             fit: BoxFit.scaleDown,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -265,12 +300,13 @@ class _CurveEditorState extends State<CurveEditor> {
                     child: Listener(
                       onPointerDown: _down,
                       onPointerMove: _move,
-                      onPointerUp: (_) => _drag = -1,
-                      onPointerCancel: (_) => _drag = -1,
+                      onPointerUp: _up,
+                      onPointerCancel: _up,
                       child: SizedBox(
                         width: _graph,
                         height: _graph,
                         child: Stack(
+                          clipBehavior: Clip.none,
                           children: [
                             Positioned.fill(
                               child: CustomPaint(
@@ -309,59 +345,6 @@ class _CurveEditorState extends State<CurveEditor> {
                         ),
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: KkjTokens.spacing2),
-                SizedBox(
-                  width: 140,
-                  height: _graph,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (sel >= 0)
-                        for (final out in [false, true])
-                          SizedBox(
-                            width: 140,
-                            child: Semantics(
-                              label: out ? l.output : l.input,
-                              child: Slider(
-                                min: _points
-                                    ? (out || sel == 0
-                                          ? 0.0
-                                          : p[sel - 1].$1 + _eps)
-                                    : out
-                                    ? (sel == 0 ? 0.0 : p[sel - 1].$2)
-                                    : (sel == 0 ? 0.0 : p[sel - 1].$1) + _eps,
-                                max: _points
-                                    ? (out || sel == p.length - 1
-                                          ? 1.0
-                                          : p[sel + 1].$1 - _eps)
-                                    : out
-                                    ? (sel == p.length - 1
-                                          ? 1.0
-                                          : p[sel + 1].$2)
-                                    : (sel == p.length - 1
-                                              ? 1.0
-                                              : p[sel + 1].$1) -
-                                          _eps,
-                                value: (out ? p[sel].$2 : p[sel].$1),
-                                onChanged:
-                                    _points &&
-                                        !out &&
-                                        (sel == 0 || sel == p.length - 1)
-                                    ? null
-                                    : (x) => _set(
-                                        p
-                                          ..[sel] = out
-                                              ? (p[sel].$1, x)
-                                              : (x, p[sel].$2),
-                                      ),
-                                semanticFormatterCallback: (x) =>
-                                    x.toStringAsFixed(2),
-                              ),
-                            ),
-                          ),
-                    ],
                   ),
                 ),
                 if (widget.pad) ...[
@@ -404,16 +387,15 @@ class _CurveEditorState extends State<CurveEditor> {
             ),
           ),
         ),
-        right(
-          Wrap(
+        Align(
+          alignment: Alignment.centerRight,
+          child: Wrap(
             children: [
-              if (!_fixed) ...[
+              // Legacy curve only (the settings screen); a point-list curve
+              // adds by touching and removes by dragging out.
+              if (!_fixed && !_points) ...[
                 TextButton(
-                  onPressed:
-                      p.length <
-                          (_points ? maxCurvePoints : PressureCurve.maxInner)
-                      ? _addMid
-                      : null,
+                  onPressed: p.length < PressureCurve.maxInner ? _addMid : null,
                   child: Text(l.add),
                 ),
                 TextButton(

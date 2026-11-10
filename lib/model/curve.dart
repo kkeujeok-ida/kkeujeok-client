@@ -100,3 +100,43 @@ List<List<double>>? editPoints(Object? c) {
       ? v.cast<List<double>>()
       : curveToPoints(v);
 }
+
+double _r4(double v) => (v.abs() * 1e4 + 0.5).floorToDouble() / 1e4 * v.sign;
+
+/// spec rule `brush.curveEdit`: [op] (`add`, `move`, `release`) applied to the
+/// point list [points] (2 to 8 points, first x 0, last x 1); the output is
+/// rounded to 4 decimals.
+List<List<double>> curveEdit(List points, Map op) {
+  final p = [
+    for (final q in points)
+      [(q[0] as num).toDouble(), (q[1] as num).toDouble()],
+  ];
+  double n(String k) => (op[k] as num).toDouble();
+  switch (op['kind']) {
+    case 'add':
+      final x = n('x').clamp(0.0, 1.0), y = n('y').clamp(0.0, 1.0);
+      final onLine = (y - (curveEval(p, x) ?? y)).abs() <= 0.04;
+      final near = p.any((q) => (q[0] - x).abs() < 0.02);
+      if (!onLine && !near && p.length < maxCurvePoints) {
+        p.insert(p.indexWhere((q) => q[0] > x), [x, y]);
+      }
+    case 'move':
+      final i = (op['index'] as num).toInt();
+      if (i < 0 || i >= p.length) break;
+      final y = n('y').clamp(0.0, 1.0);
+      if (i == 0 || i == p.length - 1) {
+        p[i][1] = y;
+      } else {
+        final lo = p[i - 1][0] + 0.02, hi = p[i + 1][0] - 0.02;
+        p[i] = [lo > hi ? p[i][0] : n('x').clamp(lo, hi), y];
+      }
+    case 'release':
+      final i = (op['index'] as num).toInt();
+      if (n('outside') > 0.08 && i > 0 && i < p.length - 1 && p.length > 2) {
+        p.removeAt(i);
+      }
+  }
+  return [
+    for (final q in p) [_r4(q[0]), _r4(q[1])],
+  ];
+}

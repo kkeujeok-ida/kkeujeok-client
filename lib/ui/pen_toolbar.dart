@@ -952,32 +952,11 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
     }
 
     Widget switchRow(String label, bool value, void Function(bool) set) =>
-        Semantics(
-          container: true,
-          label: label,
-          toggled: value,
-          onTap: () => set(!value),
-          excludeSemantics: true,
-          child: InkWell(
-            onTap: () => set(!value),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: _hit),
-              child: Row(
-                children: [
-                  Expanded(child: Text(label)),
-                  IgnorePointer(
-                    child: Switch(value: value, onChanged: set),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
+        PenSwitchRow(label: label, value: value, onChanged: set);
 
     final (lo, hi) = penWidthRange(pen.tool);
     final width = pen.width.clamp(lo, hi);
     final widthText = width.toStringAsFixed(1);
-    void step(int d) => notifier.setWidth(i, width + d / 10);
     final palette = [
       for (final hex in ref.watch(penPaletteProvider)[paletteFamily(pen.tool)]!)
         PaletteColor(hex, colorNameKeyFor(hex)),
@@ -1045,14 +1024,63 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
       );
     }
 
-    Widget stepper(IconData icon, String tip, bool enabled, int d) =>
+    Widget stepper(IconData icon, String tip, bool enabled, VoidCallback f) =>
         IconButton(
           tooltip: tip,
           constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
           icon: Icon(icon),
           disabledColor: Kk.colorInkDisabled,
-          onPressed: enabled ? () => step(d) : null,
+          onPressed: enabled ? f : null,
         );
+
+    // One line: label | value | slider | < > (spec/brush.md "Basic settings
+    // rows"); the values line up in one column.
+    Widget sliderRow({
+      required String name,
+      required String valueText,
+      required double value,
+      required double min,
+      required double max,
+      required int divisions,
+      required ValueChanged<double> onChanged,
+      required void Function(int) onStep,
+      String? decTip,
+      String? incTip,
+    }) => Row(
+      children: [
+        SizedBox(
+          width: 56,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: AlignmentDirectional.centerStart,
+            child: Text(name),
+          ),
+        ),
+        SizedBox(width: 40, child: Text(valueText, textAlign: TextAlign.end)),
+        Expanded(
+          child: Slider(
+            value: value,
+            min: min,
+            max: max,
+            divisions: divisions,
+            semanticFormatterCallback: (_) => valueText,
+            onChanged: onChanged,
+          ),
+        ),
+        stepper(
+          Icons.chevron_left,
+          decTip ?? '$name -',
+          value > min + 1e-9,
+          () => onStep(-1),
+        ),
+        stepper(
+          Icons.chevron_right,
+          incTip ?? '$name +',
+          value < max - 1e-9,
+          () => onStep(1),
+        ),
+      ],
+    );
 
     // Texture + density: pen, fountain, pencil (spec/brush.md); not highlighter/tape.
     final textured = const ['pen', 'fountain', 'pencil'].contains(pen.tool);
@@ -1068,34 +1096,13 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
       child: _PenBubble(
         anchor: anchor,
         leftHanded: ref.watch(leftHandedProvider),
-        extra: _advanced
-            ? Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Flexible(
-                    child: Material(
-                      color: Kk.componentsPopoverBackground,
-                      elevation: 6,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          KkjLight.componentsPopoverRounded,
-                        ),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: SingleChildScrollView(
-                          child: PenAdvancedPanel(index: i),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: KkjTokens.spacing2),
-                  Material(
-                    type: MaterialType.transparency,
-                    child: PenPresets(index: i),
-                  ),
-                ],
+        extra: _advanced && pen.tool != 'tape'
+            ? Align(
+                alignment: Alignment.topLeft,
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: PenPresets(index: i),
+                ),
               )
             : null,
         child: ConstrainedBox(
@@ -1123,66 +1130,65 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
                   ),
                 ),
                 const SizedBox(height: KkjTokens.spacing3),
-                Semantics(
-                  header: true,
-                  child: Text(
-                    _kindName(l10n, pen.tool),
-                    style: theme.textTheme.titleMedium,
-                  ),
-                ),
-                const SizedBox(height: KkjTokens.spacing2),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Wrap(children: cells),
-                ),
-                if (recent.isNotEmpty) ...[
-                  const SizedBox(height: KkjTokens.spacing3),
-                  Text(l10n.recentColors, style: theme.textTheme.labelMedium),
-                  const SizedBox(height: KkjTokens.spacing1),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Wrap(
-                      children: [
-                        for (var k = 0; k < recent.length; k++)
-                          _ColorCell(
-                            hex: recent[k],
-                            label: label(recent[k]),
-                            selected: pen.color.toLowerCase() == recent[k],
-                            onTap: () => pick(recent[k]),
-                            corners: _corners(recent.length, k),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-                const SizedBox(height: KkjTokens.spacing3),
-                Text(l10n.strokeWidthValue(widthText)),
                 Row(
                   children: [
-                    stepper(
-                      Icons.chevron_left,
-                      l10n.widthDecrease,
-                      width > lo + 1e-9,
-                      -1,
-                    ),
-                    Expanded(
-                      child: Slider(
-                        value: width,
-                        min: lo,
-                        max: hi,
-                        divisions: ((hi - lo) * 10).round(),
-                        semanticFormatterCallback: (v) => v.toStringAsFixed(1),
-                        onChanged: (v) => notifier.setWidth(i, v),
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        _kindName(l10n, pen.tool),
+                        style: theme.textTheme.titleMedium,
                       ),
                     ),
-                    stepper(
-                      Icons.chevron_right,
-                      l10n.widthIncrease,
-                      width < hi - 1e-9,
-                      1,
-                    ),
+                    if (pen.tool != 'tape')
+                      Expanded(
+                        child: Align(
+                          alignment: AlignmentDirectional.centerEnd,
+                          child: Semantics(
+                            button: true,
+                            expanded: _advanced,
+                            child: TextButton(
+                              onPressed: () =>
+                                  setState(() => _advanced = !_advanced),
+                              child: Text(
+                                l10n.brushAdvanced,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
+                sliderRow(
+                  name: l10n.brushWidth,
+                  valueText: widthText,
+                  value: width,
+                  min: lo,
+                  max: hi,
+                  divisions: ((hi - lo) * 10).round(),
+                  onChanged: (v) => notifier.setWidth(i, v),
+                  onStep: (d) => notifier.setWidth(i, width + d / 10),
+                  decTip: l10n.widthDecrease,
+                  incTip: l10n.widthIncrease,
+                ),
+                if (pen.tool != 'highlighter' && pen.tool != 'tape')
+                  sliderRow(
+                    name: l10n.brushOpacity,
+                    valueText: '${(tex.opacity * 100).round()}%',
+                    value: tex.opacity.clamp(0.05, 1.0),
+                    min: 0.05,
+                    max: 1,
+                    divisions: 19,
+                    onChanged: (x) =>
+                        setBrush({'opacity': (x * 100).round() / 100}),
+                    onStep: (d) => setBrush({
+                      'opacity':
+                          ((tex.opacity.clamp(0.05, 1.0) + d * 0.05) * 100)
+                              .round() /
+                          100,
+                    }),
+                  ),
                 if (textured) ...[
                   Text(l10n.brushTexture, style: theme.textTheme.labelMedium),
                   Semantics(
@@ -1208,24 +1214,47 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
                     ),
                   ),
                   if (tex.texture == 'pencil')
-                    Row(
+                    sliderRow(
+                      name: l10n.brushDensity,
+                      valueText: '${(tex.density * 100).round()}%',
+                      value: tex.density.clamp(0.05, 1.0),
+                      min: 0.05,
+                      max: 1,
+                      divisions: 19,
+                      onChanged: (x) =>
+                          setBrush({'density': (x * 100).round() / 100}),
+                      onStep: (d) => setBrush({
+                        'density':
+                            ((tex.density.clamp(0.05, 1.0) + d * 0.05) * 100)
+                                .round() /
+                            100,
+                      }),
+                    ),
+                ],
+                const SizedBox(height: KkjTokens.spacing2),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Wrap(children: cells),
+                ),
+                if (recent.isNotEmpty) ...[
+                  const SizedBox(height: KkjTokens.spacing3),
+                  Text(l10n.recentColors, style: theme.textTheme.labelMedium),
+                  const SizedBox(height: KkjTokens.spacing1),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Wrap(
                       children: [
-                        Text(l10n.brushDensity),
-                        Expanded(
-                          child: Slider(
-                            min: 0.05,
-                            max: 1,
-                            divisions: 19,
-                            value: tex.density.clamp(0.05, 1.0),
-                            label: '${(tex.density * 100).round()}%',
-                            semanticFormatterCallback: (x) =>
-                                '${(x * 100).round()}%',
-                            onChanged: (x) =>
-                                setBrush({'density': (x * 100).round() / 100}),
+                        for (var k = 0; k < recent.length; k++)
+                          _ColorCell(
+                            hex: recent[k],
+                            label: label(recent[k]),
+                            selected: pen.color.toLowerCase() == recent[k],
+                            onTap: () => pick(recent[k]),
+                            corners: _corners(recent.length, k),
                           ),
-                        ),
                       ],
                     ),
+                  ),
                 ],
                 switchRow(l10n.usePressure, on, toggle),
                 switchRow(
@@ -1233,14 +1262,10 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
                   pen.lineMode,
                   (v) => notifier.setLineMode(i, v),
                 ),
-                Semantics(
-                  button: true,
-                  expanded: _advanced,
-                  child: TextButton(
-                    onPressed: () => setState(() => _advanced = !_advanced),
-                    child: Text(l10n.brushAdvanced),
-                  ),
-                ),
+                if (_advanced && pen.tool != 'tape') ...[
+                  const SizedBox(height: KkjTokens.spacing3),
+                  PenAdvancedPanel(index: i),
+                ],
                 const SizedBox(height: KkjTokens.spacing3),
                 ExcludeSemantics(
                   child: SizedBox(
@@ -1738,42 +1763,47 @@ class _ColorCell extends StatelessWidget {
       onTap: onTap,
       child: SizedBox.square(
         dimension: _cell,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: corners,
-            color: hex == null ? null : parseColor(hex),
-            gradient: hex == null
-                ? const SweepGradient(
-                    colors: [
-                      Color(0xFFFF0000),
-                      Color(0xFFFFFF00),
-                      Color(0xFF00FF00),
-                      Color(0xFF00FFFF),
-                      Color(0xFF0000FF),
-                      Color(0xFFFF00FF),
-                      Color(0xFFFF0000),
-                    ],
-                  )
-                : null,
+        child: Center(
+          child: SizedBox.square(
+            dimension: paletteSwatch,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: corners,
+                color: hex == null ? null : parseColor(hex),
+                gradient: hex == null
+                    ? const SweepGradient(
+                        colors: [
+                          Color(0xFFFF0000),
+                          Color(0xFFFFFF00),
+                          Color(0xFF00FF00),
+                          Color(0xFF00FFFF),
+                          Color(0xFF0000FF),
+                          Color(0xFFFF00FF),
+                          Color(0xFFFF0000),
+                        ],
+                      )
+                    : null,
+              ),
+              child: selected
+                  ? Padding(
+                      padding: const EdgeInsets.all(3),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: Kk.componentsPopoverBackground,
+                            width: 2,
+                          ),
+                        ),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Kk.colorAccent, width: 2),
+                          ),
+                        ),
+                      ),
+                    )
+                  : null,
+            ),
           ),
-          child: selected
-              ? Padding(
-                  padding: const EdgeInsets.all(3),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Kk.componentsPopoverBackground,
-                        width: 2,
-                      ),
-                    ),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Kk.colorAccent, width: 2),
-                      ),
-                    ),
-                  ),
-                )
-              : null,
         ),
       ),
     ),

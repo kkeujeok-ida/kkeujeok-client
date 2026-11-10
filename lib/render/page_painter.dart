@@ -167,7 +167,6 @@ List<List<List<double>>> piecePolygons(
     ];
   }
   final b = brushResolve(tool, s['brush']);
-  final tiltCurve = PressureCurve.fromCurve(b.tiltCurve);
   return [
     strokeOutlineFor(
       tool,
@@ -175,7 +174,9 @@ List<List<List<double>>> piecePolygons(
       up,
       pts,
       b.pressureCurve == null ? null : PressureCurve.fromCurve(b.pressureCurve),
-      b.tiltTarget == 'size' ? (p) => tiltSizeFactor(p, tiltCurve) : null,
+      b.sizeTiltCurve == null
+          ? null
+          : (p) => tiltSizeFactor(p, PressureCurve.fromCurve(b.sizeTiltCurve)),
       head,
       tail,
       from,
@@ -220,13 +221,12 @@ List<AlphaPiece> alphaPieces(
   final w = (s['width'] as num).toDouble();
   final tool = s['tool'] as String?, up = s['usePressure'] as bool? ?? true;
   final b = brushResolve(tool, s['brush']);
-  final tiltCurve = PressureCurve.fromCurve(b.tiltCurve);
   final curve = b.pressureCurve == null
       ? null
       : PressureCurve.fromCurve(b.pressureCurve);
-  final sizeOf = b.tiltTarget == 'size'
-      ? (List p) => tiltSizeFactor(p, tiltCurve)
-      : null;
+  final sizeOf = b.sizeTiltCurve == null
+      ? null
+      : (List p) => tiltSizeFactor(p, PressureCurve.fromCurve(b.sizeTiltCurve));
   final oc = b.curvesOff.contains('opacityPressure')
       ? null
       : opacityPressureCurve(s['brush']);
@@ -240,12 +240,23 @@ List<AlphaPiece> alphaPieces(
     tilt: at(p, 4),
     usePressure: up,
   );
-  final poly = strokeOutlineFor(tool, w, up, pts, curve, sizeOf, head, tail, from, to);
+  final poly = strokeOutlineFor(
+    tool,
+    w,
+    up,
+    pts,
+    curve,
+    sizeOf,
+    head,
+    tail,
+    from,
+    to,
+  );
   // Same samples as the outline; the size channel carries the alpha instead.
   final a = strokeSamples(up, pts, curve, alphaOf, from, to).m;
   if (poly.isEmpty || a.isEmpty) return [];
-  Path ring(Iterable<List<double>> ps) => Path()
-    ..addPolygon([for (final p in ps) Offset(p[0], p[1])], true);
+  Path ring(Iterable<List<double>> ps) =>
+      Path()..addPolygon([for (final p in ps) Offset(p[0], p[1])], true);
   if (a.length == 1) return [(path: ring(poly), alpha: a[0])];
   // polygon = left(N), end cap(7), right reversed(N), start cap(7)
   final n = a.length;
@@ -267,7 +278,10 @@ List<AlphaPiece> alphaPieces(
         ]),
         alpha: (a[i] + a[i + 1]) / 2,
       ),
-    (path: ring([l(n - 1), ...poly.sublist(n, n + 7), r(n - 1)]), alpha: a.last),
+    (
+      path: ring([l(n - 1), ...poly.sublist(n, n + 7), r(n - 1)]),
+      alpha: a.last,
+    ),
   ];
 }
 

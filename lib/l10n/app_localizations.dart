@@ -299,7 +299,7 @@ abstract class AppLocalizations {
   /// No description provided for @pressureCurveGraph.
   ///
   /// In en, this message translates to:
-  /// **'Pressure curve graph. Tap an empty spot to add a point, drag a point to move it, double-tap to delete it'**
+  /// **'Pressure curve graph. Tap an empty spot to add a point, drag a point to move it, drag it out of the graph to delete it'**
   String get pressureCurveGraph;
 
   /// No description provided for @pressureCurveIn.
@@ -1982,12 +1982,6 @@ abstract class AppLocalizations {
   /// **'Brightness'**
   String get colorBrightness;
 
-  /// No description provided for @strokeWidthValue.
-  ///
-  /// In en, this message translates to:
-  /// **'Thickness {v}'**
-  String strokeWidthValue(String v);
-
   /// No description provided for @customColorSlotLabel.
   ///
   /// In en, this message translates to:
@@ -3038,41 +3032,47 @@ abstract class AppLocalizations {
   /// **'Moved {n} items to the trash.'**
   String itemsDeleted(int n);
 
+  /// No description provided for @brushCurvePressure.
+  ///
+  /// In en, this message translates to:
+  /// **'Width pressure curve'**
+  String get brushCurvePressure;
+
+  /// No description provided for @brushCurveSizeTilt.
+  ///
+  /// In en, this message translates to:
+  /// **'Width tilt curve'**
+  String get brushCurveSizeTilt;
+
+  /// No description provided for @brushCurveOpacityPressure.
+  ///
+  /// In en, this message translates to:
+  /// **'Opacity pressure curve'**
+  String get brushCurveOpacityPressure;
+
+  /// No description provided for @brushCurveOpacityTilt.
+  ///
+  /// In en, this message translates to:
+  /// **'Opacity tilt curve'**
+  String get brushCurveOpacityTilt;
+
+  /// No description provided for @brushCurveDensityPressure.
+  ///
+  /// In en, this message translates to:
+  /// **'Density pressure curve'**
+  String get brushCurveDensityPressure;
+
+  /// No description provided for @brushWidth.
+  ///
+  /// In en, this message translates to:
+  /// **'Width'**
+  String get brushWidth;
+
   /// No description provided for @brushAdvanced.
   ///
   /// In en, this message translates to:
   /// **'Advanced brush settings'**
   String get brushAdvanced;
-
-  /// No description provided for @brushPressureOwn.
-  ///
-  /// In en, this message translates to:
-  /// **'Own pressure curve'**
-  String get brushPressureOwn;
-
-  /// No description provided for @brushTiltTarget.
-  ///
-  /// In en, this message translates to:
-  /// **'Tilt changes'**
-  String get brushTiltTarget;
-
-  /// No description provided for @brushTiltNone.
-  ///
-  /// In en, this message translates to:
-  /// **'Nothing'**
-  String get brushTiltNone;
-
-  /// No description provided for @brushTiltSize.
-  ///
-  /// In en, this message translates to:
-  /// **'Width'**
-  String get brushTiltSize;
-
-  /// No description provided for @brushTiltOpacity.
-  ///
-  /// In en, this message translates to:
-  /// **'Opacity'**
-  String get brushTiltOpacity;
 
   /// No description provided for @brushOpacity.
   ///
@@ -3119,7 +3119,7 @@ abstract class AppLocalizations {
   /// No description provided for @tiltCurveGraph.
   ///
   /// In en, this message translates to:
-  /// **'Tilt curve graph. Move a point with the arrow keys or drag it'**
+  /// **'Tilt curve graph. Tap an empty spot to add a point, move a point with the arrow keys or drag it, drag it out of the graph to delete it'**
   String get tiltCurveGraph;
 
   /// No description provided for @tiltCurveIn.
@@ -3134,22 +3134,10 @@ abstract class AppLocalizations {
   /// **'Effect'**
   String get tiltCurveOut;
 
-  /// No description provided for @tiltCurvePad.
-  ///
-  /// In en, this message translates to:
-  /// **'Tilt test pad. Draw with a pen held at different angles'**
-  String get tiltCurvePad;
-
-  /// No description provided for @brushOpacityPressure.
-  ///
-  /// In en, this message translates to:
-  /// **'Pressure changes opacity'**
-  String get brushOpacityPressure;
-
   /// No description provided for @opacityCurveGraph.
   ///
   /// In en, this message translates to:
-  /// **'Pressure to opacity graph. Move a point with the arrow keys or drag it; drag an end point up or down to flip the curve'**
+  /// **'Opacity curve graph. Tap an empty spot to add a point, move a point with the arrow keys or drag it, drag it out of the graph to delete it; drag an end point up or down to flip the curve'**
   String get opacityCurveGraph;
 
   /// No description provided for @opacityCurveIn.
@@ -3163,12 +3151,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Opacity'**
   String get opacityCurveOut;
-
-  /// No description provided for @opacityCurvePad.
-  ///
-  /// In en, this message translates to:
-  /// **'Opacity'**
-  String get opacityCurvePad;
 
   /// No description provided for @brushPresets.
   ///
@@ -3203,7 +3185,7 @@ abstract class AppLocalizations {
   /// No description provided for @brushPresetSave.
   ///
   /// In en, this message translates to:
-  /// **'Save current pen as preset'**
+  /// **'Save preset'**
   String get brushPresetSave;
 
   /// No description provided for @settingsCategoryGeneral.

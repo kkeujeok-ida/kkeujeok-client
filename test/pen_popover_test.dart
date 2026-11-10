@@ -193,16 +193,16 @@ void main() {
 
   testWidgets('thickness: caption, steps by 0.1, stops at the ends', (t) async {
     final c = await _open(t);
-    expect(find.text('Thickness 2.0'), findsOneWidget);
+    expect(find.text('2.0'), findsOneWidget);
     await t.tap(find.byTooltip('Increase thickness'));
     await t.pump();
-    expect(find.text('Thickness 2.1'), findsOneWidget);
+    expect(find.text('2.1'), findsOneWidget);
     expect(c.read(penSlotsProvider).first.width, 2.1);
     await t.tap(find.byTooltip('Decrease thickness'));
     await t.pump();
     expect(c.read(penSlotsProvider).first.width, 2.0);
     IconButton btn(IconData i) =>
-        t.widget<IconButton>(find.widgetWithIcon(IconButton, i));
+        t.widget<IconButton>(find.widgetWithIcon(IconButton, i).first);
     c.read(penSlotsProvider.notifier).setWidth(0, 0.5);
     await t.pump();
     expect(btn(Icons.chevron_left).onPressed, isNull);
@@ -210,7 +210,7 @@ void main() {
     await t.pump();
     expect(c.read(penSlotsProvider).first.width, 10);
     expect(btn(Icons.chevron_right).onPressed, isNull);
-    final sl = t.widget<Slider>(find.byType(Slider));
+    final sl = t.widget<Slider>(find.byType(Slider).first);
     expect((sl.min, sl.max, sl.divisions), (0.5, 10.0, 95));
   });
 
@@ -227,7 +227,7 @@ void main() {
     );
     expect(_cell('Sky'), findsOneWidget);
     expect(_cell('Red'), findsNothing);
-    final sl = t.widget<Slider>(find.byType(Slider));
+    final sl = t.widget<Slider>(find.byType(Slider).first);
     expect((sl.min, sl.max), (4.0, 30.0));
     // Same tool again: the width goes back to the default (pen.switchKind).
     c.read(penSlotsProvider.notifier).setWidth(0, 20);
@@ -253,7 +253,7 @@ void main() {
       (p.tool, p.color, p.width, p.usePressure),
       ('fountain', '#000000', 1.5, true),
     );
-    final sl = t.widget<Slider>(find.byType(Slider));
+    final sl = t.widget<Slider>(find.byType(Slider).first);
     expect((sl.min, sl.max), (0.5, 8.0));
     expect(_cell('Red'), findsOneWidget); // the pen palette
     await t.tap(_cell('Red'));

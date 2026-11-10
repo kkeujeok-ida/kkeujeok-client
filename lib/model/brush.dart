@@ -36,7 +36,9 @@ BrushParams brushResolve(Object? tool, Object? brush) {
   final dn = b['density'];
   final lt = brushLegacyTilt(brush);
   return (
-    pressureCurve: validCurve(b['pressureCurve']),
+    pressureCurve: lt.curvesOff.contains('pressure')
+        ? null
+        : validCurve(b['pressureCurve']),
     tiltCurve: validCurve(b['tiltCurve']) ?? _linear,
     tiltTarget: tt == 'size' || tt == 'opacity' ? tt as String : 'none',
     opacity: opacity,
@@ -143,7 +145,8 @@ double brushAlphaFactor(
   }
   // Pressure alone drives it; usePressure off counts as 0.5 (spec/brush.md).
   // [pressureOpacity] false: the stamps carry it per stamp.
-  final oc = pressureOpacity &&
+  final oc =
+      pressureOpacity &&
           tool != 'tape' &&
           !b.curvesOff.contains('opacityPressure')
       ? opacityPressureCurve(brush)

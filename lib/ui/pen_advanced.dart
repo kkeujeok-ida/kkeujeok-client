@@ -10,17 +10,62 @@ import '../model/curve.dart';
 import '../model/ids.dart';
 import '../model/pressure_curve.dart';
 import 'curve_editor.dart';
+import 'kk.dart';
 import 'providers.dart';
 
-const _linear = [1 / 3, 1 / 3, 2 / 3, 2 / 3];
+/// Palette swatch edge: about 0.7 x the previous 48 dp; the hit area stays 48
+/// (spec/brush.md "Sizes").
+const paletteSwatch = 34.0;
 
-CurveLabels _labels(String g, String i, String o, String p) =>
-    (graph: g, input: i, output: o, pad: p, add: '', remove: '', reset: '');
+/// Switch scale: about 0.75 x the Material size; the row stays 48 dp high.
+const switchScale = 0.75;
 
-/// Advanced brush settings (spec/brush.md "Advanced settings layout"): the
-/// curve graphs, always open, one column each, to the right of the pen
-/// popover. The result is stored on the pen as a sparse `brush`; strokes
-/// already drawn keep theirs.
+/// A labelled switch row, the whole 48 dp row taps (spec/brush.md "Sizes").
+class PenSwitchRow extends StatelessWidget {
+  const PenSwitchRow({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    container: true,
+    label: label,
+    toggled: value,
+    onTap: () => onChanged(!value),
+    excludeSemantics: true,
+    child: InkWell(
+      onTap: () => onChanged(!value),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Row(
+          children: [
+            Expanded(child: Text(label)),
+            IgnorePointer(
+              child: Transform.scale(
+                scale: switchScale,
+                alignment: Alignment.centerRight,
+                child: Switch(value: value, onChanged: onChanged),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// Advanced brush settings (spec/brush.md "Advanced settings layout"): one
+/// block per curve (switch, title, graph), always open, in one column below
+/// the basic settings. The result is stored on the pen as a sparse `brush`;
+/// strokes already drawn keep theirs. A switch only adds its name to
+/// `brush.curvesOff`; the points stay.
 class PenAdvancedPanel extends ConsumerWidget {
   const PenAdvancedPanel({super.key, required this.index});
 
@@ -33,131 +78,170 @@ class PenAdvancedPanel extends ConsumerWidget {
     final i = index.clamp(0, slots.length - 1);
     final pen = slots[i];
     final b = brushResolve(pen.tool, pen.brush);
-    void set(Map<String, Object?> patch) => ref
-        .read(penSlotsProvider.notifier)
-        .setBrush(i, patchBrush(pen.tool, pen.brush, patch));
-    final flat = pen.tool == 'highlighter' || pen.tool == 'tape';
-    final oc = opacityPressureCurve(pen.brush);
-    final cols = <List<Widget>>[
-      if (!flat && pen.usePressure)
-        [
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(l10n.brushPressureOwn),
-            value: b.pressureCurve != null,
-            onChanged: (v) => set({'pressureCurve': v ? _linear : null}),
-          ),
-          CurveEditor(
-            curve: PressureCurve.fromCurve(editPoints(b.pressureCurve)),
-            fixedCount: 2,
-            pad: false,
-            onChanged: (c) => set({'pressureCurve': c.points}),
-            labels: _labels(
-              l10n.pressureCurveGraph,
-              l10n.pressureCurveIn,
-              l10n.pressureCurveOut,
-              l10n.pressureCurvePad,
-            ),
-          ),
-        ],
-      if (pen.tool != 'tape' && pen.usePressure)
-        [
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(l10n.brushOpacityPressure),
-            value: oc != null,
-            onChanged: (v) => set({
-              'opacityPressureCurve': v ? curveToPoints(_linear) : null,
-            }),
-          ),
-          CurveEditor(
-            curve: PressureCurve.fromCurve(editPoints(oc)),
-            fixedCount: 2,
-            pad: false,
-            onChanged: (c) => set({'opacityPressureCurve': c.points}),
-            labels: _labels(
-              l10n.opacityCurveGraph,
-              l10n.opacityCurveIn,
-              l10n.opacityCurveOut,
-              l10n.opacityCurvePad,
-            ),
-          ),
-        ],
-      if (!flat)
-        [
-          Semantics(
-            container: true,
-            label: l10n.brushTiltTarget,
-            child: SegmentedButton<String>(
-              showSelectedIcon: false,
-              segments: [
-                ButtonSegment(value: 'none', label: Text(l10n.brushTiltNone)),
-                ButtonSegment(value: 'size', label: Text(l10n.brushTiltSize)),
-                ButtonSegment(
-                  value: 'opacity',
-                  label: Text(l10n.brushTiltOpacity),
-                ),
-              ],
-              selected: {b.tiltTarget},
-              onSelectionChanged: (s) => set({'tiltTarget': s.first}),
-            ),
-          ),
-          CurveEditor(
-            curve: PressureCurve.fromCurve(editPoints(b.tiltCurve)),
-            mode: CurveMode.tilt,
-            fixedCount: 2,
-            pad: false,
-            onChanged: (c) => set({'tiltCurve': c.points}),
-            labels: _labels(
-              l10n.tiltCurveGraph,
-              l10n.tiltCurveIn,
-              l10n.tiltCurveOut,
-              l10n.tiltCurvePad,
-            ),
-          ),
-        ],
+    // Read the latest pen: a touch on a switched-off graph turns it on and the
+    // same gesture edits it, two writes in one frame.
+    void set(Map<String, Object?> patch) {
+      final cur = ref.read(penSlotsProvider);
+      final p = cur[i.clamp(0, cur.length - 1)];
+      ref
+          .read(penSlotsProvider.notifier)
+          .setBrush(i, patchBrush(p.tool, p.brush, patch));
+    }
+
+    final off = curvesOff(pen.brush);
+    // Old tiltTarget/tiltCurve read as the two tilt curves, ignoring the switch.
+    final legacy = brushLegacyTilt({
+      if (pen.brush != null) ...pen.brush!,
+      'curvesOff': <String>[],
+    });
+    final brush = pen.brush;
+    final stored = {
+      'pressure': validCurve(brush?['pressureCurve']),
+      'sizeTilt': legacy.sizeTiltCurve,
+      'opacityPressure': opacityPressureCurve(brush),
+      'opacityTilt': legacy.opacityTiltCurve,
+      'densityPressure': validCurve(brush?['densityPressureCurve']),
+    };
+    const press = [
+      [0.0, 0.0],
+      [1.0, 1.0],
     ];
-    if (pen.tool != 'tape') {
-      if (cols.isEmpty) cols.add([]);
-      cols.last.add(
-        Row(
-          children: [
-            Text(l10n.brushOpacity),
-            Expanded(
-              child: Slider(
-                min: 0.05,
-                max: 1,
-                divisions: 19,
-                value: b.opacity.clamp(0.05, 1.0),
-                label: '${(b.opacity * 100).round()}%',
-                semanticFormatterCallback: (x) => '${(x * 100).round()}%',
-                onChanged: (x) => set({'opacity': (x * 100).round() / 100}),
-              ),
+    const flat = [
+      [0.0, 1.0],
+      [1.0, 1.0],
+    ];
+
+    Widget block(
+      String name,
+      String field,
+      String title,
+      CurveMode mode,
+      CurveLabels labels,
+    ) {
+      final curve = stored[name];
+      final on = curve != null && !off.contains(name);
+      final start = mode == CurveMode.tilt ? flat : press;
+      void turnOn() {
+        if (on) return;
+        final rest = [
+          for (final s in curvesOff(ref.read(penSlotsProvider)[i].brush))
+            if (s != name) s,
+        ];
+        set({
+          'curvesOff': rest.isEmpty ? null : rest,
+          if (curve == null) field: start,
+        });
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          PenSwitchRow(
+            label: title,
+            value: on,
+            onChanged: (v) => v
+                ? turnOn()
+                : set({
+                    'curvesOff': [...off, name],
+                  }),
+          ),
+          Opacity(
+            opacity: on ? 1 : 0.45,
+            child: CurveEditor(
+              curve: PressureCurve.fromCurve(editPoints(curve) ?? start),
+              pad: false,
+              onTouch: turnOn,
+              onChanged: (c) => set({field: c.points}),
+              labels: labels,
             ),
-          ],
-        ),
+          ),
+        ],
       );
     }
-    // Graph 220 + sliders 140 fit a 380 column unscaled (spec: >= 160 dp).
+
+    CurveLabels labels(String title, String input, String output) => (
+      graph: title,
+      input: input,
+      output: output,
+      pad: '',
+      add: '',
+      remove: '',
+      reset: '',
+    );
+
+    final highlighter = pen.tool == 'highlighter';
+    final blocks = pen.tool == 'tape'
+        ? <Widget>[]
+        : [
+            block(
+              'pressure',
+              'pressureCurve',
+              l10n.brushCurvePressure,
+              CurveMode.pressure,
+              labels(
+                l10n.brushCurvePressure,
+                l10n.pressureCurveIn,
+                l10n.pressureCurveOut,
+              ),
+            ),
+            if (!highlighter) ...[
+              block(
+                'sizeTilt',
+                'sizeTiltCurve',
+                l10n.brushCurveSizeTilt,
+                CurveMode.tilt,
+                labels(
+                  l10n.brushCurveSizeTilt,
+                  l10n.tiltCurveIn,
+                  l10n.tiltCurveOut,
+                ),
+              ),
+              block(
+                'opacityPressure',
+                'opacityPressureCurve',
+                l10n.brushCurveOpacityPressure,
+                CurveMode.pressure,
+                labels(
+                  l10n.brushCurveOpacityPressure,
+                  l10n.opacityCurveIn,
+                  l10n.opacityCurveOut,
+                ),
+              ),
+              block(
+                'opacityTilt',
+                'opacityTiltCurve',
+                l10n.brushCurveOpacityTilt,
+                CurveMode.tilt,
+                labels(
+                  l10n.brushCurveOpacityTilt,
+                  l10n.tiltCurveIn,
+                  l10n.opacityCurveOut,
+                ),
+              ),
+              if (b.texture == 'pencil')
+                block(
+                  'densityPressure',
+                  'densityPressureCurve',
+                  l10n.brushCurveDensityPressure,
+                  CurveMode.pressure,
+                  labels(
+                    l10n.brushCurveDensityPressure,
+                    l10n.opacityCurveIn,
+                    l10n.brushDensity,
+                  ),
+                ),
+            ],
+          ];
     return Semantics(
       container: true,
       label: l10n.brushAdvanced,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final c in cols)
-            SizedBox(
-              width: 380,
-              child: Padding(
-                padding: const EdgeInsets.all(
-                  KkjLight.componentsPopoverPadding,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: c,
-                ),
-              ),
-            ),
+          for (final w in blocks) ...[
+            w,
+            const SizedBox(height: KkjTokens.spacing3),
+          ],
         ],
       ),
     );
@@ -274,6 +358,9 @@ class _PenPresetsState extends ConsumerState<PenPresets> {
           spacing: KkjTokens.spacing1,
           children: [
             ActionChip(
+              shape: const StadiumBorder(),
+              side: BorderSide.none,
+              backgroundColor: Kk.colorAccent.withValues(alpha: 0.25),
               avatar: const Icon(Icons.add),
               label: Text(l10n.brushPresetSave),
               onPressed: _presets.length >= maxPresets ? null : _save,
@@ -289,6 +376,10 @@ class _PenPresetsState extends ConsumerState<PenPresets> {
                 child: GestureDetector(
                   onLongPressStart: (d) => _menu(p, d.globalPosition),
                   child: ActionChip(
+                    shape: const StadiumBorder(),
+                    side: BorderSide.none,
+                    backgroundColor: Kk.colorAccent,
+                    labelStyle: TextStyle(color: Kk.colorOnAccent),
                     label: Text(p.name),
                     onPressed: () => ref
                         .read(penSlotsProvider.notifier)

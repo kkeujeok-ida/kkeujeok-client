@@ -111,7 +111,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pressureCurveGraph =>
-      'Pressure curve graph. Tap an empty spot to add a point, drag a point to move it, double-tap to delete it';
+      'Pressure curve graph. Tap an empty spot to add a point, drag a point to move it, drag it out of the graph to delete it';
 
   @override
   String get pressureCurveIn => 'Selected point horizontal (pressure in)';
@@ -1078,11 +1078,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get colorBrightness => 'Brightness';
 
   @override
-  String strokeWidthValue(String v) {
-    return 'Thickness $v';
-  }
-
-  @override
   String customColorSlotLabel(String hex) {
     return 'Custom color $hex';
   }
@@ -1739,22 +1734,25 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get brushCurvePressure => 'Width pressure curve';
+
+  @override
+  String get brushCurveSizeTilt => 'Width tilt curve';
+
+  @override
+  String get brushCurveOpacityPressure => 'Opacity pressure curve';
+
+  @override
+  String get brushCurveOpacityTilt => 'Opacity tilt curve';
+
+  @override
+  String get brushCurveDensityPressure => 'Density pressure curve';
+
+  @override
+  String get brushWidth => 'Width';
+
+  @override
   String get brushAdvanced => 'Advanced brush settings';
-
-  @override
-  String get brushPressureOwn => 'Own pressure curve';
-
-  @override
-  String get brushTiltTarget => 'Tilt changes';
-
-  @override
-  String get brushTiltNone => 'Nothing';
-
-  @override
-  String get brushTiltSize => 'Width';
-
-  @override
-  String get brushTiltOpacity => 'Opacity';
 
   @override
   String get brushOpacity => 'Opacity';
@@ -1779,7 +1777,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tiltCurveGraph =>
-      'Tilt curve graph. Move a point with the arrow keys or drag it';
+      'Tilt curve graph. Tap an empty spot to add a point, move a point with the arrow keys or drag it, drag it out of the graph to delete it';
 
   @override
   String get tiltCurveIn => 'Tilt';
@@ -1788,24 +1786,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tiltCurveOut => 'Effect';
 
   @override
-  String get tiltCurvePad =>
-      'Tilt test pad. Draw with a pen held at different angles';
-
-  @override
-  String get brushOpacityPressure => 'Pressure changes opacity';
-
-  @override
   String get opacityCurveGraph =>
-      'Pressure to opacity graph. Move a point with the arrow keys or drag it; drag an end point up or down to flip the curve';
+      'Opacity curve graph. Tap an empty spot to add a point, move a point with the arrow keys or drag it, drag it out of the graph to delete it; drag an end point up or down to flip the curve';
 
   @override
   String get opacityCurveIn => 'Pressure';
 
   @override
   String get opacityCurveOut => 'Opacity';
-
-  @override
-  String get opacityCurvePad => 'Opacity';
 
   @override
   String get brushPresets => 'Brush presets';
@@ -1823,7 +1811,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get brushPresetRename => 'Rename preset';
 
   @override
-  String get brushPresetSave => 'Save current pen as preset';
+  String get brushPresetSave => 'Save preset';
 
   @override
   String get settingsCategoryGeneral => 'General';

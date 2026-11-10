@@ -110,7 +110,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get pressureCurveGraph =>
-      '필압 커브 그래프. 빈 곳을 눌러 점을 더하고, 점을 끌어 옮기고, 두 번 눌러 지워요';
+      '필압 커브 그래프. 빈 곳을 눌러 점을 더하고, 점을 끌어 옮기고, 그래프 밖으로 끌어 놓으면 지워요';
 
   @override
   String get pressureCurveIn => '선택한 점 가로 (누르는 힘)';
@@ -1016,11 +1016,6 @@ class AppLocalizationsKo extends AppLocalizations {
   String get colorBrightness => '밝기';
 
   @override
-  String strokeWidthValue(String v) {
-    return '두께 $v';
-  }
-
-  @override
   String customColorSlotLabel(String hex) {
     return '사용자 지정 색 $hex';
   }
@@ -1652,25 +1647,28 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
+  String get brushCurvePressure => '두께 필압 커브';
+
+  @override
+  String get brushCurveSizeTilt => '두께 기울기 커브';
+
+  @override
+  String get brushCurveOpacityPressure => '불투명도 필압 커브';
+
+  @override
+  String get brushCurveOpacityTilt => '불투명도 기울기 커브';
+
+  @override
+  String get brushCurveDensityPressure => '농도 필압 커브';
+
+  @override
+  String get brushWidth => '두께';
+
+  @override
   String get brushAdvanced => '고급 브러시 설정';
 
   @override
-  String get brushPressureOwn => '이 펜 전용 필압 곡선';
-
-  @override
-  String get brushTiltTarget => '기울기가 바꾸는 것';
-
-  @override
-  String get brushTiltNone => '없음';
-
-  @override
-  String get brushTiltSize => '굵기';
-
-  @override
-  String get brushTiltOpacity => '농도';
-
-  @override
-  String get brushOpacity => '농도';
+  String get brushOpacity => '불투명도';
 
   @override
   String get brushTexture => '질감';
@@ -1691,7 +1689,8 @@ class AppLocalizationsKo extends AppLocalizations {
   String get brushDensity => '농도';
 
   @override
-  String get tiltCurveGraph => '기울기 곡선 그래프. 방향키로 점을 옮기거나 끌어서 옮겨요';
+  String get tiltCurveGraph =>
+      '기울기 커브 그래프. 빈 곳을 눌러 점을 더하고, 방향키로 점을 옮기거나 끌어서 옮기고, 그래프 밖으로 끌어 놓으면 지워요';
 
   @override
   String get tiltCurveIn => '기울기';
@@ -1700,23 +1699,14 @@ class AppLocalizationsKo extends AppLocalizations {
   String get tiltCurveOut => '효과';
 
   @override
-  String get tiltCurvePad => '기울기 시험판. 펜을 여러 각도로 세워 그어 보세요';
-
-  @override
-  String get brushOpacityPressure => '필압이 농도를 바꿈';
-
-  @override
   String get opacityCurveGraph =>
-      '필압→농도 그래프. 방향키로 점을 옮기거나 끌어서 옮겨요. 양 끝점을 위아래로 끌면 곡선이 뒤집혀요';
+      '불투명도 커브 그래프. 빈 곳을 눌러 점을 더하고, 방향키로 점을 옮기거나 끌어서 옮기고, 그래프 밖으로 끌어 놓으면 지워요. 양 끝점을 위아래로 끌면 곡선이 뒤집혀요';
 
   @override
   String get opacityCurveIn => '필압';
 
   @override
   String get opacityCurveOut => '농도';
-
-  @override
-  String get opacityCurvePad => '농도';
 
   @override
   String get brushPresets => '브러시 프리셋';
@@ -1734,7 +1724,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get brushPresetRename => '프리셋 이름 바꾸기';
 
   @override
-  String get brushPresetSave => '현재 펜을 프리셋으로 저장';
+  String get brushPresetSave => '프리셋 저장';
 
   @override
   String get settingsCategoryGeneral => '일반';

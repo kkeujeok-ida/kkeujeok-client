@@ -33,7 +33,7 @@
   "pressureCurveSoft": "Soft",
   "pressureCurveNormal": "Normal",
   "pressureCurveFirm": "Firm",
-  "pressureCurveGraph": "Pressure curve graph. Tap an empty spot to add a point, drag a point to move it, double-tap to delete it",
+  "pressureCurveGraph": "Pressure curve graph. Tap an empty spot to add a point, drag a point to move it, drag it out of the graph to delete it",
   "pressureCurveIn": "Selected point horizontal (pressure in)",
   "pressureCurveOut": "Selected point vertical (pressure out)",
   "pressureCurveAdd": "Add point",
@@ -532,14 +532,6 @@
   "colorHue": "Hue",
   "colorSaturation": "Saturation",
   "colorBrightness": "Brightness",
-  "strokeWidthValue": "Thickness {v}",
-  "@strokeWidthValue": {
-    "placeholders": {
-      "v": {
-        "type": "String"
-      }
-    }
-  },
   "customColorSlotLabel": "Custom color {hex}",
   "@customColorSlotLabel": {
     "placeholders": {
@@ -1078,12 +1070,13 @@
       }
     }
   },
+  "brushCurvePressure": "Width pressure curve",
+  "brushCurveSizeTilt": "Width tilt curve",
+  "brushCurveOpacityPressure": "Opacity pressure curve",
+  "brushCurveOpacityTilt": "Opacity tilt curve",
+  "brushCurveDensityPressure": "Density pressure curve",
+  "brushWidth": "Width",
   "brushAdvanced": "Advanced brush settings",
-  "brushPressureOwn": "Own pressure curve",
-  "brushTiltTarget": "Tilt changes",
-  "brushTiltNone": "Nothing",
-  "brushTiltSize": "Width",
-  "brushTiltOpacity": "Opacity",
   "brushOpacity": "Opacity",
   "brushTexture": "Texture",
   "brushTexturePlain": "Plain",
@@ -1091,21 +1084,18 @@
   "brushTextureNone": "None",
   "brushTextureStamp": "Pencil stamp",
   "brushDensity": "Density",
-  "tiltCurveGraph": "Tilt curve graph. Move a point with the arrow keys or drag it",
+  "tiltCurveGraph": "Tilt curve graph. Tap an empty spot to add a point, move a point with the arrow keys or drag it, drag it out of the graph to delete it",
   "tiltCurveIn": "Tilt",
   "tiltCurveOut": "Effect",
-  "tiltCurvePad": "Tilt test pad. Draw with a pen held at different angles",
-  "brushOpacityPressure": "Pressure changes opacity",
-  "opacityCurveGraph": "Pressure to opacity graph. Move a point with the arrow keys or drag it; drag an end point up or down to flip the curve",
+  "opacityCurveGraph": "Opacity curve graph. Tap an empty spot to add a point, move a point with the arrow keys or drag it, drag it out of the graph to delete it; drag an end point up or down to flip the curve",
   "opacityCurveIn": "Pressure",
   "opacityCurveOut": "Opacity",
-  "opacityCurvePad": "Opacity",
   "brushPresets": "Brush presets",
   "brushPresetUse": "Use",
   "brushPresetDelete": "Delete preset",
   "brushPresetName": "Preset name",
   "brushPresetRename": "Rename preset",
-  "brushPresetSave": "Save current pen as preset",
+  "brushPresetSave": "Save preset",
   "settingsCategoryGeneral": "General",
   "settingsCategoryInput": "Input and writing",
   "settingsCategoryTools": "Tools",
