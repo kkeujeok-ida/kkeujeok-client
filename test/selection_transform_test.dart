@@ -1,9 +1,12 @@
 import 'dart:math' as math;
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vector_math/vector_math_64.dart' show Vector3;
 import 'package:kkeujeok/model/kkj_codec.dart';
 import 'package:kkeujeok/model/note.dart';
 import 'package:kkeujeok/ops/ops.dart';
@@ -52,6 +55,71 @@ Note _note() {
 }
 
 void main() {
+  test('selection preview matrix: move, scale anchor, turn pivot', () {
+    Offset ap(Matrix4 m, Offset p) {
+      final v = m.transform3(Vector3(p.dx, p.dy, 0));
+      return Offset(v.x, v.y);
+    }
+
+    expect(
+      ap(selectionMatrix(d: const Offset(5, -3)), const Offset(1, 1)),
+      const Offset(6, -2),
+    );
+    final s = ap(
+      selectionMatrix(sx: 2, sy: 3, anchor: const Offset(10, 10)),
+      const Offset(12, 11),
+    );
+    expect((s - const Offset(14, 13)).distance, lessThan(1e-9));
+    final r = ap(
+      selectionMatrix(turn: math.pi / 2, pivot: const Offset(10, 10)),
+      const Offset(20, 10),
+    );
+    expect((r - const Offset(10, 20)).distance, lessThan(1e-9));
+  });
+
+  testWidgets('selPreview draws only the selected stroke moved', (t) async {
+    Future<Uint8List> render(bool preview) async {
+      final rec = ui.PictureRecorder();
+      PagePainter(
+        page: {
+          'id': 'p',
+          'width': 40,
+          'height': 40,
+          'background': 'plain',
+          'elements': [
+            {
+              'id': 'a',
+              'type': 'stroke',
+              'tool': 'pen',
+              'color': '#000000',
+              'width': 6,
+              'usePressure': false,
+              'points': [
+                [5, 5, 1, 0],
+                [10, 5, 1, 1],
+              ],
+            },
+          ],
+        },
+        cache: StrokePathCache(),
+        invert: false,
+        selPreview: preview
+            ? () => (ids: {'a'}, m: selectionMatrix(d: const Offset(0, 20)))
+            : null,
+      ).paint(Canvas(rec), const Size(40, 40));
+      final img = await rec.endRecording().toImage(40, 40);
+      return (await img.toByteData())!.buffer.asUint8List();
+    }
+
+    bool dark(Uint8List b, int x, int y) => b[(y * 40 + x) * 4] < 100;
+    await t.runAsync(() async {
+      final a = await render(false), b = await render(true);
+      expect(dark(a, 7, 5), isTrue);
+      expect(dark(a, 7, 25), isFalse);
+      expect(dark(b, 7, 5), isFalse);
+      expect(dark(b, 7, 25), isTrue);
+    });
+  });
   late Directory docs;
   late NoteData data;
 

@@ -3648,6 +3648,57 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
     );
   }
 
+  /// The drag in progress as a canvas matrix for the selected elements (page
+  /// coordinates); null when nothing moves or the drag is no move/scale/turn.
+  ({Set<String> ids, Matrix4 m})? _selMatrix() {
+    final ids = _selected;
+    if (_spA >= 0) {
+      final o = _spO - _origin;
+      return (
+        ids: ids,
+        m: selectionMatrix(
+          sx: _spS,
+          sy: _spS,
+          anchor: o,
+          turn: _spTurn,
+          pivot: o,
+        ),
+      );
+    }
+    final x = _xf;
+    if (x == null || x.kind == _XKind.width || x.kind == _XKind.reshape) {
+      return null;
+    }
+    final op = _xfResult(x, x.last)?.op;
+    switch (op?['op']) {
+      case 'move':
+        return (
+          ids: ids,
+          m: selectionMatrix(d: Offset(op!['dx'] as double, op['dy'] as double)),
+        );
+      case 'scale':
+        final a = op!['anchor'] as List;
+        return (
+          ids: ids,
+          m: selectionMatrix(
+            sx: op['sx'] as double,
+            sy: op['sy'] as double,
+            anchor: Offset(a[0] as double, a[1] as double),
+          ),
+        );
+      case 'rotate':
+        final c = (_selectionBox()?.center ?? x.box.center) - _origin;
+        return (
+          ids: ids,
+          m: selectionMatrix(
+            turn: (op!['angle'] as double) * math.pi / 180,
+            pivot: c,
+          ),
+        );
+    }
+    return null;
+  }
+
   /// Both fingers up: one undo step for the scale and the turn together.
   void _commitSelPinch() {
     if (_spA < 0) return;
@@ -4316,6 +4367,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
                     live: () => id == _strokePageId ? _live() : null,
                     erasePreview: () =>
                         id == _strokePageId ? _erasePreview(shown) : null,
+                    selPreview: () => id == _selPage ? _selMatrix() : null,
                     hidden: () => _te?.element?['id'] as String?,
                     draft: () {
                       final te = _te;

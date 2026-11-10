@@ -840,6 +840,7 @@ class PagePainter extends CustomPainter {
     this.pdf,
     this.pdfImage,
     this.erasePreview,
+    this.selPreview,
     this.openTapes = const {},
     this.tapeLabels,
     this.onTapeTap,
@@ -883,6 +884,10 @@ class PagePainter extends CustomPainter {
   /// the stroke ids drawn at [alpha] (the ones the erase would remove).
   final ({List<Object?> elements, Set<String> fade, double alpha})? Function()?
   erasePreview;
+
+  /// While a selection is dragged: the selected elements, drawn through `m`
+  /// (page coordinates) instead of at their place. Display only.
+  final ({Set<String> ids, Matrix4 m})? Function()? selPreview;
 
   /// Ids of the answer tapes that are open (screen state, spec/pen-kinds.md):
   /// drawn as an outline only. Replace the set to change it.
@@ -991,7 +996,7 @@ class PagePainter extends CustomPainter {
         }
       }
     }
-    for (final e in els) {
+    void paintOne(Object? e) {
       if (drawableImage(e)) {
         paintImageElement(
           canvas,
@@ -1000,14 +1005,14 @@ class PagePainter extends CustomPainter {
           vp.scale,
           underlay: inv,
         );
-        continue;
+        return;
       }
       if (drawableText(e)) {
         final t = e as Map<String, dynamic>;
         if (t['id'] != skip) paintTextBox(canvas, t, invert: inv);
-        continue;
+        return;
       }
-      if (!drawableStroke(e)) continue;
+      if (!drawableStroke(e)) return;
       final s = e as Map<String, dynamic>;
       ids.add(s['id'] as String);
       final pcs = pieces[s['id']];
@@ -1062,6 +1067,17 @@ class PagePainter extends CustomPainter {
         );
       }
       if (pcs != null) canvas.restore();
+    }
+    final sp = selPreview?.call();
+    for (final e in els) {
+      final moved = sp != null && e is Map && sp.ids.contains(e['id']);
+      if (moved) {
+        canvas
+          ..save()
+          ..transform(sp.m.storage);
+      }
+      paintOne(e);
+      if (moved) canvas.restore();
     }
     final d = draft?.call();
     if (d != null && drawableText(d)) paintTextBox(canvas, d, invert: inv);
@@ -1217,3 +1233,22 @@ class PagePainter extends CustomPainter {
       old.viewport?.scale != viewport?.scale ||
       old.viewport?.offset != viewport?.offset;
 }
+
+/// The canvas matrix of a selection drag, in page coordinates: scale `sx`,`sy`
+/// about [anchor], then turn by [turn] radians about [pivot], then move by [d]
+/// (the order the ops are made in; only one or two of them occur at a time).
+Matrix4 selectionMatrix({
+  Offset d = Offset.zero,
+  double sx = 1,
+  double sy = 1,
+  Offset anchor = Offset.zero,
+  double turn = 0,
+  Offset pivot = Offset.zero,
+}) => Matrix4.identity()
+  ..translateByDouble(pivot.dx, pivot.dy, 0, 1)
+  ..rotateZ(turn)
+  ..translateByDouble(-pivot.dx, -pivot.dy, 0, 1)
+  ..translateByDouble(anchor.dx, anchor.dy, 0, 1)
+  ..scaleByDouble(sx, sy, 1, 1)
+  ..translateByDouble(-anchor.dx, -anchor.dy, 0, 1)
+  ..translateByDouble(d.dx, d.dy, 0, 1);
