@@ -184,6 +184,124 @@ List<List<List<double>>> piecePolygons(
   ];
 }
 
+/// True when stroke [s] is drawn with an alpha per point: a pen or fountain
+/// stroke (no stamps, no shape) with an opacity pressure or tilt curve
+/// (spec/brush.md "Drawing per-point alpha"). Other strokes keep one layer alpha.
+bool perPointAlpha(Map<String, dynamic> s) {
+  final t = s['tool'];
+  if (t == 'highlighter' || t == 'tape' || t == 'pencil') return false;
+  if (s['brush'] == null || s['shape'] != null || brushDraw(s).grain) {
+    return false;
+  }
+  final b = brushResolve(t, s['brush']);
+  return b.opacityTiltCurve != null ||
+      (!b.curvesOff.contains('opacityPressure') &&
+          opacityPressureCurve(s['brush']) != null);
+}
+
+typedef AlphaPiece = ({Path path, double alpha});
+
+/// The pieces of a [perPointAlpha] stroke: one quad per gap between outline
+/// samples, each starting half a gap early so neighbours overlap, plus the two
+/// round caps. Draw them in order with [fillAlphaPieces]. Arguments as
+/// [piecePolygons].
+List<AlphaPiece> alphaPieces(
+  Map<String, dynamic> s,
+  List points, {
+  bool head = true,
+  bool tail = true,
+  int? cutFrom,
+  int? cutTo,
+}) {
+  final pts = smoothPoints(points, smoothInUse);
+  final dense = smoothInUse > 0 && points.length >= 3 ? 2 : 1;
+  final from = cutFrom == null ? null : cutFrom * dense;
+  final to = cutTo == null ? null : cutTo * dense;
+  final w = (s['width'] as num).toDouble();
+  final tool = s['tool'] as String?, up = s['usePressure'] as bool? ?? true;
+  final b = brushResolve(tool, s['brush']);
+  final tiltCurve = PressureCurve.fromCurve(b.tiltCurve);
+  final curve = b.pressureCurve == null
+      ? null
+      : PressureCurve.fromCurve(b.pressureCurve);
+  final sizeOf = b.tiltTarget == 'size'
+      ? (List p) => tiltSizeFactor(p, tiltCurve)
+      : null;
+  final oc = b.curvesOff.contains('opacityPressure')
+      ? null
+      : opacityPressureCurve(s['brush']);
+  double? at(List p, int i) =>
+      p.length > i && p[i] is num ? (p[i] as num).toDouble() : null;
+  double alphaOf(List p) => brushAlpha(
+    opacity: b.opacity,
+    opacityPressureCurve: oc,
+    opacityTiltCurve: b.opacityTiltCurve,
+    pressure: at(p, 2),
+    tilt: at(p, 4),
+    usePressure: up,
+  );
+  final poly = strokeOutlineFor(tool, w, up, pts, curve, sizeOf, head, tail, from, to);
+  // Same samples as the outline; the size channel carries the alpha instead.
+  final a = strokeSamples(up, pts, curve, alphaOf, from, to).m;
+  if (poly.isEmpty || a.isEmpty) return [];
+  Path ring(Iterable<List<double>> ps) => Path()
+    ..addPolygon([for (final p in ps) Offset(p[0], p[1])], true);
+  if (a.length == 1) return [(path: ring(poly), alpha: a[0])];
+  // polygon = left(N), end cap(7), right reversed(N), start cap(7)
+  final n = a.length;
+  List<double> l(int i) => poly[i];
+  List<double> r(int i) => poly[n + 7 + (n - 1 - i)];
+  List<double> mid(List<double> p, List<double> q) => [
+    (p[0] + q[0]) / 2,
+    (p[1] + q[1]) / 2,
+  ];
+  return [
+    (path: ring([r(0), ...poly.sublist(2 * n + 7), l(0)]), alpha: a.first),
+    for (var i = 0; i < n - 1; i++)
+      (
+        path: ring([
+          i == 0 ? l(0) : mid(l(i - 1), l(i)),
+          l(i + 1),
+          r(i + 1),
+          i == 0 ? r(0) : mid(r(i - 1), r(i)),
+        ]),
+        alpha: (a[i] + a[i + 1]) / 2,
+      ),
+    (path: ring([l(n - 1), ...poly.sublist(n, n + 7), r(n - 1)]), alpha: a.last),
+  ];
+}
+
+/// Draws [pieces] in one layer, each with `BlendMode.src` so a later piece
+/// replaces an earlier one: seams and self-crossings do not get darker.
+void fillAlphaPieces(
+  Canvas c,
+  Iterable<AlphaPiece> pieces,
+  Object? color, {
+  double fade = 1,
+  bool invert = false,
+}) {
+  if (pieces.isEmpty) return;
+  final base = parseColor(invert && color is String ? inkHex(color) : color);
+  var box = pieces.first.path.getBounds();
+  for (final p in pieces) {
+    box = box.expandToInclude(p.path.getBounds());
+  }
+  c.saveLayer(box.inflate(1), Paint());
+  for (final p in pieces) {
+    p.path.fillType = PathFillType.nonZero;
+    c.drawPath(
+      p.path,
+      Paint()
+        ..blendMode = BlendMode.src
+        ..isAntiAlias = true
+        ..color = base.withValues(
+          alpha: (base.a * p.alpha * fade).clamp(0.0, 1.0),
+        ),
+    );
+  }
+  c.restore();
+}
+
 Path polygonsPath(Object? tool, List<List<List<double>>> polys) =>
     tool == 'highlighter' ? highlighterPath(polys) : outlinePath(polys.first);
 
@@ -453,8 +571,15 @@ class LiveCache {
   int _stampKept = 0;
   List<num>? _stampLast;
 
+  /// Per-point alpha stroke ([perPointAlpha]): the closed pieces (their alpha
+  /// is fixed once made) and the open piece of the last [pathOf].
+  final frozenAlpha = <AlphaPiece>[];
+  List<AlphaPiece> openAlpha = [];
+
   void _reset() {
     _frozen = Path();
+    frozenAlpha.clear();
+    openAlpha = [];
     polygons.clear();
     _start = _kept = _stampKept = 0;
     _first = _joint = _stampLast = null;
@@ -523,6 +648,7 @@ class LiveCache {
     _kept = kept.length;
     if (kept.isNotEmpty) _first ??= _xy(kept.first);
     final frozen = math.max(0, kept.length - 3);
+    final pp = perPointAlpha(s);
     // Smoothing and resampling reach [margin] points beyond a piece, so a piece
     // is built from a window around it and cut back to its own points: its
     // ends then match what the whole stroke gives at pen up.
@@ -530,20 +656,42 @@ class LiveCache {
       final e = _start + chunk - 1;
       if (e > frozen - 1 || e + margin > kept.length - 1) break;
       final ws = math.max(0, _start - margin);
-      final polys = piecePolygons(
-        s,
-        kept.sublist(ws, e + margin + 1),
-        head: _start == 0,
-        tail: false,
-        cutFrom: _start - ws,
-        cutTo: e - ws,
-      );
-      polygons.addAll(polys);
-      _frozen.addPath(polygonsPath(s['tool'], polys), Offset.zero);
+      if (pp) {
+        frozenAlpha.addAll(
+          alphaPieces(
+            s,
+            kept.sublist(ws, e + margin + 1),
+            head: _start == 0,
+            tail: false,
+            cutFrom: _start - ws,
+            cutTo: e - ws,
+          ),
+        );
+      } else {
+        final polys = piecePolygons(
+          s,
+          kept.sublist(ws, e + margin + 1),
+          head: _start == 0,
+          tail: false,
+          cutFrom: _start - ws,
+          cutTo: e - ws,
+        );
+        polygons.addAll(polys);
+        _frozen.addPath(polygonsPath(s['tool'], polys), Offset.zero);
+      }
       _start = e;
       _joint = _xy(kept[_start]);
     }
     final ws = math.max(0, _start - margin);
+    if (pp) {
+      openAlpha = alphaPieces(
+        s,
+        kept.sublist(ws),
+        head: _start == 0,
+        cutFrom: _start - ws,
+      );
+      return (frozen: _frozen, open: Path());
+    }
     openPolygons = piecePolygons(
       s,
       kept.sublist(ws),
@@ -614,6 +762,19 @@ class StrokePathCache {
     return path;
   }
 
+  final _alpha = <String, (List<Object?>, List<AlphaPiece>)>{};
+
+  /// Finished per-point alpha stroke ([perPointAlpha]) as its pieces.
+  List<AlphaPiece> alphaOf(Map<String, dynamic> s) {
+    final id = s['id'] as String;
+    final key = _key(s);
+    final hit = _alpha[id];
+    if (hit != null && _same(hit.$1, key)) return hit.$2;
+    final p = alphaPieces(s, s['points'] as List);
+    _alpha[id] = (key, p);
+    return p;
+  }
+
   /// Finished-stroke stamp batch, rebuilt only when the stroke or its look changes.
   StampBatch batchOf(Map<String, dynamic> s, double fade, bool invert) {
     final id = s['id'] as String;
@@ -639,6 +800,7 @@ class StrokePathCache {
   void keepOnly(Set<String> ids) {
     _byId.removeWhere((k, _) => !ids.contains(k));
     _batches.removeWhere((k, _) => !ids.contains(k));
+    _alpha.removeWhere((k, _) => !ids.contains(k));
   }
 }
 
@@ -867,6 +1029,14 @@ class PagePainter extends CustomPainter {
             ..strokeWidth = 1.5 / vp.scale
             ..color = parseColor(s['color']).withValues(alpha: 0.6 * fade),
         );
+      } else if (perPointAlpha(s)) {
+        fillAlphaPieces(
+          canvas,
+          cache.alphaOf(s),
+          s['color'],
+          fade: fade,
+          invert: inv,
+        );
       } else {
         fillStroke(
           canvas,
@@ -901,6 +1071,14 @@ class PagePainter extends CustomPainter {
               : cached
               ? cache.live.batchOf(s, inv)
               : null,
+        );
+      } else if (cached && perPointAlpha(s)) {
+        cache.live.pathOf(s);
+        fillAlphaPieces(
+          canvas,
+          [...cache.live.frozenAlpha, ...cache.live.openAlpha],
+          s['color'],
+          invert: inv,
         );
       } else {
         final lp = cached ? cache.live.pathOf(s) : null;
