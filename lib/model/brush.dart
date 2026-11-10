@@ -134,14 +134,18 @@ double brushAlphaFactor(
   if (brush == null) return 1;
   final b = brushResolve(tool, brush);
   var a = b.opacity / toolOpacity(tool);
-  if (b.tiltTarget == 'opacity' && tool != 'tape') {
+  if (b.tiltTarget == 'opacity' &&
+      tool != 'tape' &&
+      !b.curvesOff.contains('opacityTilt')) {
     final tc = PressureCurve.fromCurve(b.tiltCurve);
     final qs = [for (final p in points) ?tiltQ(p as List, tc)];
     if (qs.isNotEmpty) a *= qs.reduce((x, y) => x + y) / qs.length;
   }
   // Pressure alone drives it; usePressure off counts as 0.5 (spec/brush.md).
   // [pressureOpacity] false: the stamps carry it per stamp.
-  final oc = pressureOpacity && tool != 'tape'
+  final oc = pressureOpacity &&
+          tool != 'tape' &&
+          !b.curvesOff.contains('opacityPressure')
       ? opacityPressureCurve(brush)
       : null;
   if (oc != null && points.isNotEmpty) {

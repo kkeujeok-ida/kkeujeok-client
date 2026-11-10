@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kkeujeok/model/brush.dart' show brushAlphaFactor;
 import 'package:kkeujeok/render/page_painter.dart';
 
 Map<String, dynamic> _stroke(
@@ -139,5 +140,16 @@ void main() {
     c.pathOf(_stroke(pts(60), brush: _rise));
     expect(c.frozenAlpha.length, greaterThan(before.length));
     expect(c.frozenAlpha.sublist(0, before.length), before);
+  });
+
+  test('mean-alpha path ignores curves listed in curvesOff', () {
+    final pts = [
+      for (var i = 0; i < 5; i++) [i * 2.0, 0, 0.2, i, 45, 0],
+    ];
+    double f(Map b) => brushAlphaFactor('pen', b, pts);
+    expect(f({..._rise}), lessThan(1));
+    expect(f({..._rise, 'curvesOff': ['opacityPressure']}), 1);
+    expect(f({'tiltTarget': 'opacity'}), lessThan(1));
+    expect(f({'tiltTarget': 'opacity', 'curvesOff': ['opacityTilt']}), 1);
   });
 }
