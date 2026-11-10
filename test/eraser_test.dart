@@ -320,6 +320,8 @@ void main() {
     Map<String, dynamic> stroke(String id, double y) => {
       'id': id,
       'type': 'stroke',
+      'width': 2,
+      'usePressure': false,
       'points': [
         for (var i = 0; i <= 10; i++) [i * 10.0, y, 0.5, i * 10],
       ],
@@ -343,6 +345,33 @@ void main() {
         'tx',
         'b',
       ]);
+    });
+    test('partial pieces are drawable strokes; only the touched part is cut', () {
+      final t = eraseTargets(els, path, 6, true);
+      final pieces = [
+        for (final e in t.elements)
+          if (e is Map && '${e['id']}'.startsWith('a~')) e,
+      ];
+      expect(pieces.length, 2);
+      expect(pieces.every(drawableStroke), isTrue);
+      // untouched stroke 'b' is not faded; pieces match the saved split.
+      expect(t.fade.contains('b'), isFalse);
+      final kept = splitPieces([
+        for (var i = 0; i <= 10; i++) (i * 10.0, 40.0),
+      ], path, 6);
+      expect([for (final p in pieces) (p['points'] as List).length], [
+        for (final k in kept) k.length,
+      ]);
+    });
+    test('shape piece is a plain drawable stroke', () {
+      final sh = {
+        ...stroke('s', 40),
+        'shape': {'kind': 'rect', 'x': 0, 'y': 40, 'width': 100, 'height': 1, 'rotation': 0},
+      };
+      final t = eraseTargets([sh], path, 6, true);
+      final ps = t.elements.whereType<Map>().where((e) => e['id'] != 's');
+      expect(ps, isNotEmpty);
+      expect(ps.every((e) => drawableStroke(e) && !e.containsKey('shape')), isTrue);
     });
     test('path that touches nothing fades nothing (cancel restores)', () {
       expect(eraseTargets(els, [(150, 100)], 6, true).fade, isEmpty);

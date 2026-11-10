@@ -180,9 +180,10 @@ List<List<int>> splitPieces(List<Pt> pts, List<Pt> path, double r) {
     final entries = denseOf(m) as List;
     var j = 0;
     for (final piece in splitPieces(pts, path, r)) {
-      out.add({
+      // Typed: the painter's drawableStroke needs Map<String, dynamic>.
+      out.add(<String, dynamic>{
         for (final en in m.entries)
-          if (en.key != 'shape') en.key: en.value, // a piece is a plain stroke
+          if (en.key != 'shape') en.key as String: en.value, // a piece is a plain stroke
         'id': '${m['id']}~${j++}',
         'points': [for (final k in piece) entries[k]],
       });
