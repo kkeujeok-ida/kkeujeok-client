@@ -116,6 +116,23 @@ void main() {
     expect(t.getTopLeft(save).dx, greaterThan(bubble.right));
   });
 
+  testWidgets('palette: swatches are 38 dp wide, more than 6 per row', (
+    t,
+  ) async {
+    await _open(t);
+    final wrap = find
+        .ancestor(of: find.bySemanticsLabel('Red'), matching: find.byType(Wrap))
+        .first;
+    final cells = find.descendant(of: wrap, matching: find.byType(InkWell));
+    final tops = <double>[
+      for (var k = 0; k < t.widgetList(cells).length; k++)
+        t.getTopLeft(cells.at(k)).dy,
+    ];
+    final firstRow = tops.where((y) => y == tops.first).length;
+    expect(firstRow, greaterThan(6)); // 48 dp cells fit 6 in 320
+    expect(t.getSize(cells.first).width, 38);
+  });
+
   testWidgets('basic rows: one line, advanced button top right', (t) async {
     await _open(t);
     final name = t.getRect(find.text('Pen').last);

@@ -904,7 +904,6 @@ class _EraserIcon extends StatelessWidget {
 }
 
 const _cell = 48.0;
-const _cols = 6;
 
 /// The pen edit popover (UX-DR18): tool switch, name, palette, recent colors,
 /// thickness, pressure, preview, delete. Reads and writes slot [index]
@@ -1721,20 +1720,11 @@ class _TailPainter extends CustomPainter {
   bool shouldRepaint(_TailPainter old) => true;
 }
 
-/// Rounds only the grid's outer corners: cell [at] of [n] in [_cols] columns.
-BorderRadius _corners(int n, int at) {
-  const r = Radius.circular(KkjTokens.roundedSm);
-  final row = at ~/ _cols, col = at % _cols, rows = (n - 1) ~/ _cols + 1;
-  final last = at == n - 1;
-  return BorderRadius.only(
-    topLeft: row == 0 && col == 0 ? r : Radius.zero,
-    topRight: row == 0 && (col == _cols - 1 || last) ? r : Radius.zero,
-    bottomLeft: row == rows - 1 && col == 0 ? r : Radius.zero,
-    bottomRight: last ? r : Radius.zero,
-  );
-}
+/// Corners of one swatch: they are separate chips, so all four are rounded.
+BorderRadius _corners(int n, int at) =>
+    BorderRadius.circular(KkjTokens.roundedSm);
 
-/// One 48dp palette, recent or custom-color cell. [hex] null is the rainbow
+/// One 38 x 48 dp palette, recent or custom-color cell. [hex] null is the rainbow
 /// custom-color chip.
 class _ColorCell extends StatelessWidget {
   const _ColorCell({
@@ -1761,8 +1751,9 @@ class _ColorCell extends StatelessWidget {
     child: InkWell(
       borderRadius: corners,
       onTap: onTap,
-      child: SizedBox.square(
-        dimension: _cell,
+      child: SizedBox(
+        width: paletteSwatch + 4, // swatch + 4: more per row (hit 38 x 48)
+        height: _cell,
         child: Center(
           child: SizedBox.square(
             dimension: paletteSwatch,
