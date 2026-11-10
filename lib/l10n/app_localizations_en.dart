@@ -1769,6 +1769,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get brushTexturePencil => 'Pencil grain';
 
   @override
+  String get brushTextureNone => 'None';
+
+  @override
+  String get brushTextureStamp => 'Pencil stamp';
+
+  @override
+  String get brushDensity => 'Density';
+
+  @override
   String get tiltCurveGraph =>
       'Tilt curve graph. Move a point with the arrow keys or drag it';
 

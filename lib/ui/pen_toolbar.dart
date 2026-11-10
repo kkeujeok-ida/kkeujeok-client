@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../design_tokens/build/tokens.dart';
 import '../l10n/app_localizations.dart';
+import '../model/brush.dart';
 import '../model/eraser.dart';
 import '../model/pen.dart';
 import '../model/pen_palette.dart';
@@ -1053,6 +1054,11 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
           onPressed: enabled ? () => step(d) : null,
         );
 
+    // Texture + density: pen, fountain, pencil (spec/brush.md); not highlighter/tape.
+    final textured = const ['pen', 'fountain', 'pencil'].contains(pen.tool);
+    final tex = brushResolve(pen.tool, pen.brush);
+    void setBrush(Map<String, Object?> patch) =>
+        notifier.setBrush(i, patchBrush(pen.tool, pen.brush, patch));
     void del() => Navigator.of(context).pop(true);
     return CallbackShortcuts(
       bindings: {
@@ -1177,6 +1183,50 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
                     ),
                   ],
                 ),
+                if (textured) ...[
+                  Text(l10n.brushTexture, style: theme.textTheme.labelMedium),
+                  Semantics(
+                    container: true,
+                    label: l10n.brushTexture,
+                    child: SegmentedButton<String>(
+                      showSelectedIcon: false,
+                      style: const ButtonStyle(
+                        minimumSize: WidgetStatePropertyAll(Size(0, _cell)),
+                      ),
+                      segments: [
+                        ButtonSegment(
+                          value: 'none',
+                          label: Text(l10n.brushTextureNone),
+                        ),
+                        ButtonSegment(
+                          value: 'pencil',
+                          label: Text(l10n.brushTextureStamp),
+                        ),
+                      ],
+                      selected: {tex.texture},
+                      onSelectionChanged: (s) => setBrush({'texture': s.first}),
+                    ),
+                  ),
+                  if (tex.texture == 'pencil')
+                    Row(
+                      children: [
+                        Text(l10n.brushDensity),
+                        Expanded(
+                          child: Slider(
+                            min: 0.05,
+                            max: 1,
+                            divisions: 19,
+                            value: tex.density.clamp(0.05, 1.0),
+                            label: '${(tex.density * 100).round()}%',
+                            semanticFormatterCallback: (x) =>
+                                '${(x * 100).round()}%',
+                            onChanged: (x) =>
+                                setBrush({'density': (x * 100).round() / 100}),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
                 switchRow(l10n.usePressure, on, toggle),
                 switchRow(
                   l10n.lineDraw,

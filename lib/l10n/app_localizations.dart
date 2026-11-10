@@ -3098,6 +3098,24 @@ abstract class AppLocalizations {
   /// **'Pencil grain'**
   String get brushTexturePencil;
 
+  /// No description provided for @brushTextureNone.
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get brushTextureNone;
+
+  /// No description provided for @brushTextureStamp.
+  ///
+  /// In en, this message translates to:
+  /// **'Pencil stamp'**
+  String get brushTextureStamp;
+
+  /// No description provided for @brushDensity.
+  ///
+  /// In en, this message translates to:
+  /// **'Density'**
+  String get brushDensity;
+
   /// No description provided for @tiltCurveGraph.
   ///
   /// In en, this message translates to:

@@ -67,7 +67,7 @@ void main() {
       t.getTopLeft(find.byType(CurveEditor).first).dx,
       greaterThan(bubble.right),
     );
-    expect(find.text('Texture'), findsNothing);
+    expect(find.text('Texture'), findsOneWidget); // basic settings only
     expect(find.text('Pencil grain'), findsNothing);
     final save = find.widgetWithText(ActionChip, 'Save current pen as preset');
     expect(
@@ -92,3 +92,4 @@ void main() {
     expect(c.read(penSlotsProvider), isNotEmpty);
   });
 }
+

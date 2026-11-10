@@ -1682,6 +1682,15 @@ class AppLocalizationsKo extends AppLocalizations {
   String get brushTexturePencil => '연필 결';
 
   @override
+  String get brushTextureNone => '없음';
+
+  @override
+  String get brushTextureStamp => '연필 스탬프';
+
+  @override
+  String get brushDensity => '농도';
+
+  @override
   String get tiltCurveGraph => '기울기 곡선 그래프. 방향키로 점을 옮기거나 끌어서 옮겨요';
 
   @override
