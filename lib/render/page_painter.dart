@@ -145,13 +145,26 @@ List<List<List<double>>> piecePolygons(
   List points, {
   bool head = true,
   bool tail = true,
+  int? cutFrom,
+  int? cutTo,
 }) {
   final pts = smoothPoints(points, smoothInUse);
+  // [cutFrom]/[cutTo] are indices in [points]; smoothing doubles them.
+  final dense = smoothInUse > 0 && points.length >= 3 ? 2 : 1;
+  final from = cutFrom == null ? null : cutFrom * dense;
+  final to = cutTo == null ? null : cutTo * dense;
   final w = (s['width'] as num).toDouble();
-  if (s['tool'] == 'highlighter') return highlighterPolygons(w, pts);
+  if (s['tool'] == 'highlighter') {
+    return highlighterPolygons(
+      w,
+      pts.sublist(from ?? 0, to == null ? null : to + 1),
+    );
+  }
   final tool = s['tool'] as String?, up = s['usePressure'] as bool? ?? true;
   if (s['brush'] == null) {
-    return [strokeOutlineFor(tool, w, up, pts, null, null, head, tail)];
+    return [
+      strokeOutlineFor(tool, w, up, pts, null, null, head, tail, from, to),
+    ];
   }
   final b = brushResolve(tool, s['brush']);
   final tiltCurve = PressureCurve.fromCurve(b.tiltCurve);
@@ -165,6 +178,8 @@ List<List<List<double>>> piecePolygons(
       b.tiltTarget == 'size' ? (p) => tiltSizeFactor(p, tiltCurve) : null,
       head,
       tail,
+      from,
+      to,
     ),
   ];
 }
@@ -206,25 +221,45 @@ void fillStroke(
   bool highlighter = false,
   double alpha = 1,
   bool invert = false,
+  Path? extra,
 }) {
   p.fillType = PathFillType.nonZero;
+  extra?.fillType = PathFillType.nonZero;
   final base = parseColor(
     invert && !highlighter && color is String ? inkHex(color) : color,
   );
+  // [extra] (a live stroke's open piece) joins [p] in one layer when the layer
+  // alpha or the multiply blend would show their overlap twice.
+  final layered = highlighter || (extra != null && alpha != 1);
   final fill = Paint()
-    ..color = alpha == 1 || highlighter
+    ..color = layered || alpha == 1
         ? base
         : base.withValues(alpha: base.a * alpha)
     ..style = PaintingStyle.fill
     ..isAntiAlias = true;
-  if (!highlighter) return c.drawPath(p, fill);
+  if (!layered) {
+    c.drawPath(p, fill);
+    if (extra != null) c.drawPath(extra, fill);
+    return;
+  }
   c.saveLayer(
-    p.getBounds().inflate(1),
+    (extra == null
+            ? p.getBounds()
+            : p.getBounds().expandToInclude(extra.getBounds()))
+        .inflate(1),
     Paint()
-      ..blendMode = invert ? BlendMode.srcOver : BlendMode.multiply
-      ..color = Color.fromRGBO(255, 255, 255, 0.4 * alpha),
+      ..blendMode = highlighter && !invert
+          ? BlendMode.multiply
+          : BlendMode.srcOver
+      ..color = Color.fromRGBO(
+        255,
+        255,
+        255,
+        highlighter ? 0.4 * alpha : alpha,
+      ),
   );
   c.drawPath(p, fill);
+  if (extra != null) c.drawPath(extra, fill);
   c.restore();
 }
 
@@ -403,7 +438,7 @@ double pencilAlpha(Map<String, dynamic> s) => pencilDensity(
 /// piece at the end is built again. Pencil stamps: the live list is
 /// append-only, so each frame adds the new stamps only.
 class LiveCache {
-  static const chunk = 8;
+  static const chunk = 8, margin = 6;
 
   List<Object?>? _key;
   Path _frozen = Path();
@@ -427,6 +462,20 @@ class LiveCache {
     _batch = null;
   }
 
+  // Plain equality, but maps and lists by content (the brush is rebuilt per frame).
+  static bool _sameJson(Object? a, Object? b) {
+    if (a is Map && b is Map) {
+      return a.length == b.length &&
+          a.keys.every((k) => b.containsKey(k) && _sameJson(a[k], b[k]));
+    }
+    if (a is List && b is List) {
+      return a.length == b.length &&
+          [for (var i = 0; i < a.length; i++) _sameJson(a[i], b[i])]
+              .every((e) => e);
+    }
+    return a == b;
+  }
+
   static List<num> _xy(List p) => [p[0] as num, p[1] as num];
 
   static bool _eq(List<num>? a, List p) =>
@@ -438,21 +487,31 @@ class LiveCache {
       s['tool'],
       s['width'],
       s['usePressure'],
-      jsonEncode(s['brush']),
+      s['brush'],
       s['color'],
       extra,
       smoothInUse,
       ...pressureCurveInUse.values,
     ];
-    if (_key == null || !StrokePathCache._same(_key!, key)) {
+    if (_key == null || !_sameJson(_key, key)) {
       _reset();
       _key = key;
     }
   }
 
-  /// The path of the live pen stroke [s].
-  Path pathOf(Map<String, dynamic> s) {
-    _sync(s, null);
+  /// The polygons of the open piece built by the last [pathOf].
+  List<List<List<double>>> openPolygons = [];
+
+  /// Forgets the stroke (pen up or cancel; the next pen down starts clean).
+  void clear() {
+    if (_key == null) return;
+    _reset();
+    _key = null;
+  }
+
+  /// The live pen stroke [s] as its kept [frozen] part and the [open] piece.
+  ({Path frozen, Path open}) pathOf(Map<String, dynamic> s) {
+    _sync(s, 'path');
     final kept = keptPoints(s['points'] as List);
     if (kept.length < _kept ||
         (kept.isNotEmpty && _first != null && !_eq(_first, kept.first)) ||
@@ -464,26 +523,34 @@ class LiveCache {
     _kept = kept.length;
     if (kept.isNotEmpty) _first ??= _xy(kept.first);
     final frozen = math.max(0, kept.length - 3);
-    while (_start + chunk - 1 <= frozen - 1) {
-      final end = _start + chunk;
+    // Smoothing and resampling reach [margin] points beyond a piece, so a piece
+    // is built from a window around it and cut back to its own points: its
+    // ends then match what the whole stroke gives at pen up.
+    while (true) {
+      final e = _start + chunk - 1;
+      if (e > frozen - 1 || e + margin > kept.length - 1) break;
+      final ws = math.max(0, _start - margin);
       final polys = piecePolygons(
         s,
-        kept.sublist(_start, end),
+        kept.sublist(ws, e + margin + 1),
         head: _start == 0,
         tail: false,
+        cutFrom: _start - ws,
+        cutTo: e - ws,
       );
       polygons.addAll(polys);
       _frozen.addPath(polygonsPath(s['tool'], polys), Offset.zero);
-      _start = end - 1;
+      _start = e;
       _joint = _xy(kept[_start]);
     }
-    final open = polygonsPath(
-      s['tool'],
-      piecePolygons(s, kept.sublist(_start), head: _start == 0),
+    final ws = math.max(0, _start - margin);
+    openPolygons = piecePolygons(
+      s,
+      kept.sublist(ws),
+      head: _start == 0,
+      cutFrom: _start - ws,
     );
-    return Path()
-      ..addPath(_frozen, Offset.zero)
-      ..addPath(open, Offset.zero);
+    return (frozen: _frozen, open: polygonsPath(s['tool'], openPolygons));
   }
 
   /// The stamps of the live pencil stroke [s], with the new ones added.
@@ -826,7 +893,7 @@ class PagePainter extends CustomPainter {
           canvas,
           s,
           st,
-          () => cached ? cache.live.pathOf(s) : strokePath(s),
+          () => strokePath(s),
           fade: 1,
           invert: inv,
           batch: st == null
@@ -836,15 +903,19 @@ class PagePainter extends CustomPainter {
               : null,
         );
       } else {
+        final lp = cached ? cache.live.pathOf(s) : null;
         fillStroke(
           canvas,
-          cached ? cache.live.pathOf(s) : strokePath(s),
+          lp?.frozen ?? strokePath(s),
           s['color'],
           highlighter: s['tool'] == 'highlighter',
           alpha: bd.alpha,
           invert: inv && s['tool'] != 'tape',
+          extra: lp?.open,
         );
       }
+    } else {
+      cache.live.clear();
     }
     canvas.restore();
   }

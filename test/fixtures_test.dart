@@ -528,18 +528,19 @@ final Map<String, void Function(Case)> runners = {
       final b = make(i['long'] as Map<String, dynamic>);
       expect(a.length, want['shortCount']);
       expect(b.length, want['longCount']);
-      final prefix = a.length <= b.length;
-      expect(prefix, want['prefix']);
-      for (var k = 0; k < a.length; k++) {
-        near(a[k], {
-          'x': b[k].x,
-          'y': b[k].y,
-          'size': b[k].size,
-          'angle': b[k].angle,
-          'alpha': b[k].alpha,
-          'variant': b[k].variant,
-        }, 'prefix $k');
+      // `prefix`: the short list is the first shortCount stamps of the long one.
+      var prefix = a.length <= b.length;
+      for (var k = 0; prefix && k < a.length; k++) {
+        final x = a[k], y = b[k];
+        prefix =
+            x.variant == y.variant &&
+            (x.x - y.x).abs() <= tol + 1e-9 &&
+            (x.y - y.y).abs() <= tol + 1e-9 &&
+            (x.size - y.size).abs() <= tol + 1e-9 &&
+            (x.angle - y.angle).abs() <= tol + 1e-9 &&
+            (x.alpha - y.alpha).abs() <= tol + 1e-9;
       }
+      expect(prefix, want['prefix']);
       return;
     }
     final got = make(i);

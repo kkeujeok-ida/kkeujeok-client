@@ -29,13 +29,18 @@ strokeSamples(
   List points, [
   PressureCurve? curve,
   double Function(List p)? sizeOf,
+  int? from,
+  int? to,
 ]) {
   final useCurve = usePressure && points.any((p) => p.length > 2 && p[2] != 0.5)
       ? (curve ?? pressureCurveInUse)
       : null;
   // 1. Prepare: dedupe against the last kept point.
   final xs = <double>[], ys = <double>[], qs = <double>[], ms = <double>[];
+  final src = <int>[]; // index in [points] of each kept point
+  var at = -1;
   for (final p in points) {
+    at++;
     final x = (p[0] as num).toDouble(), y = (p[1] as num).toDouble();
     if (xs.isNotEmpty) {
       final dx = x - xs.last, dy = y - ys.last;
@@ -43,6 +48,7 @@ strokeSamples(
     }
     xs.add(x);
     ys.add(y);
+    src.add(at);
     qs.add(_pressure(usePressure, p, useCurve));
     ms.add(sizeOf == null ? 1.0 : sizeOf(p));
   }
@@ -58,6 +64,27 @@ strokeSamples(
             _smoothingFactor * ((old[i - 1] + old[i + 1]) / 2 - old[i]);
       }
     }
+  }
+
+  // A piece of a live stroke: smoothed with its neighbours, then cut to
+  // [from]..[to] (indices in [points]) so its ends match the whole stroke.
+  if (from != null || to != null) {
+    final a = from == null ? 0 : src.indexWhere((i) => i >= from);
+    final b = to == null ? xs.length - 1 : src.lastIndexWhere((i) => i <= to);
+    if (a < 0 || b < a) {
+      return (
+        x: <double>[],
+        y: <double>[],
+        q: <double>[],
+        m: <double>[],
+        length: 0.0,
+      );
+    }
+    for (final l in [xs, ys, qs, ms]) {
+      l.removeRange(b + 1, l.length);
+      l.removeRange(0, a);
+    }
+    if (xs.length < 2) return (x: xs, y: ys, q: qs, m: ms, length: 0.0);
   }
 
   // 4. Resample at equal arc length.
@@ -127,8 +154,10 @@ List<List<double>> strokeOutline(
   double Function(List p)? sizeOf,
   bool taperHead = true,
   bool taperTail = true,
+  int? from,
+  int? to,
 ]) {
-  final smp = strokeSamples(usePressure, points, curve, sizeOf);
+  final smp = strokeSamples(usePressure, points, curve, sizeOf, from, to);
   if (smp.x.isEmpty) return [];
   final sx = smp.x, sy = smp.y, sq = smp.q, sm = smp.m, total = smp.length;
 
@@ -245,6 +274,8 @@ List<List<double>> strokeOutlineFor(
   double Function(List p)? sizeOf,
   bool taperHead = true,
   bool taperTail = true,
+  int? from,
+  int? to,
 ]) => switch (tool) {
   'fountain' => strokeOutline(
     width,
@@ -258,6 +289,8 @@ List<List<double>> strokeOutlineFor(
     sizeOf,
     taperHead,
     taperTail,
+    from,
+    to,
   ),
   'pencil' => strokeOutline(
     width,
@@ -269,6 +302,10 @@ List<List<double>> strokeOutlineFor(
     false,
     false,
     sizeOf,
+    true,
+    true,
+    from,
+    to,
   ),
   'tape' => strokeOutline(
     width,
@@ -279,6 +316,11 @@ List<List<double>> strokeOutlineFor(
     1,
     false,
     true,
+    null,
+    true,
+    true,
+    from,
+    to,
   ),
   _ => strokeOutline(
     width,
@@ -290,6 +332,10 @@ List<List<double>> strokeOutlineFor(
     false,
     false,
     sizeOf,
+    true,
+    true,
+    from,
+    to,
   ),
 };
 

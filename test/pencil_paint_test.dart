@@ -52,7 +52,11 @@ void main() {
         final done = await render(_stroke('p'), live: false);
         final live = await render(_stroke('p'), live: true);
         // The live list has no stamp at the end of the path (stamps v2).
-        expect(live, isNot(done));
+        final all = stampsOf(_stroke('p'));
+        final part = stampsOf(_stroke('p'), live: true);
+        expect(part, isNotEmpty);
+        expect(all.length, greaterThan(part.length));
+        expect(all.sublist(0, part.length), part);
         expect(live.any((b) => b != live.first), isTrue);
         // Stamps give many shades; the plain polygon (texture none) only a few.
         Set<int> shades(List<int> px) => {
