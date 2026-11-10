@@ -26,6 +26,7 @@ import 'package:kkeujeok/model/pdf_rules.dart';
 import 'package:kkeujeok/model/pen.dart';
 import 'package:kkeujeok/model/pen_palette.dart';
 import 'package:kkeujeok/model/brush.dart';
+import 'package:kkeujeok/render/live_stroke.dart';
 import 'package:kkeujeok/model/curve.dart';
 import 'package:kkeujeok/model/pressure_curve.dart';
 import 'package:kkeujeok/ui/pen_toolbar.dart'
@@ -487,6 +488,99 @@ final Map<String, void Function(Case)> runners = {
         reason: '$k alpha',
       );
     }
+  },
+  'stroke.texture.stamps': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final tol = (c['tolerance'] as num).toDouble();
+    List<PencilStampV2> make(Map<String, dynamic> m) => pencilStampsV2(
+      id: m['id'] as String,
+      width: (m['width'] as num).toDouble(),
+      usePressure: m['usePressure'] as bool,
+      points: m['points'] as List,
+      density: ((m['density'] as num?) ?? 1).toDouble(),
+      opacityFactor: ((m['opacityFactor'] as num?) ?? 1).toDouble(),
+      live: m['live'] as bool? ?? false,
+    );
+    void near(PencilStampV2 g, Map w, String why) {
+      for (final e in {
+        'x': g.x,
+        'y': g.y,
+        'size': g.size,
+        'angle': g.angle,
+      }.entries) {
+        expect(
+          (e.value - (w[e.key] as num)).abs() <= tol + 1e-9,
+          isTrue,
+          reason: '$why ${e.key}: ${e.value} vs ${w[e.key]}',
+        );
+      }
+      expect(
+        (g.alpha - (w['alpha'] as num)).abs() <= 1e-3,
+        isTrue,
+        reason: why,
+      );
+      expect(g.variant, w['variant'], reason: '$why variant');
+    }
+
+    final want = c['expected'] as Map<String, dynamic>;
+    if (i['fn'] == 'prefixOf') {
+      final a = make(i['short'] as Map<String, dynamic>);
+      final b = make(i['long'] as Map<String, dynamic>);
+      expect(a.length, want['shortCount']);
+      expect(b.length, want['longCount']);
+      final prefix = a.length <= b.length;
+      expect(prefix, want['prefix']);
+      for (var k = 0; k < a.length; k++) {
+        near(a[k], {
+          'x': b[k].x,
+          'y': b[k].y,
+          'size': b[k].size,
+          'angle': b[k].angle,
+          'alpha': b[k].alpha,
+          'variant': b[k].variant,
+        }, 'prefix $k');
+      }
+      return;
+    }
+    final got = make(i);
+    final stamps = want['stamps'] as List;
+    expect(got.length, stamps.length);
+    for (var k = 0; k < stamps.length; k++) {
+      near(got[k], stamps[k] as Map, 'stamp $k');
+    }
+  },
+  'brush.alpha': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final a = brushAlpha(
+      opacity: (i['opacity'] as num).toDouble(),
+      opacityPressureCurve: i['opacityPressureCurve'],
+      opacityTiltCurve: i['opacityTiltCurve'],
+      pressure: (i['pressure'] as num?)?.toDouble(),
+      tilt: (i['tilt'] as num?)?.toDouble(),
+      usePressure: i['usePressure'] as bool? ?? true,
+    );
+    _near(
+      {'alpha': a},
+      c['expected'],
+      (c['tolerance'] as num? ?? 1e-9).toDouble(),
+    );
+  },
+  'brush.legacyTilt': (c) {
+    final r = brushLegacyTilt((c['input'] as Map)['brush']);
+    _same({
+      'sizeTiltCurve': r.sizeTiltCurve,
+      'opacityTiltCurve': r.opacityTiltCurve,
+      'curvesOff': r.curvesOff,
+    }, c['expected']);
+  },
+  'stroke.liveFreeze': (c) {
+    final i = c['input'] as Map<String, dynamic>;
+    final r = liveFreeze(i['points'] as List, stamps: i['stamps'] as Map?);
+    _same({
+      'keptCount': r.keptCount,
+      'frozenCount': r.frozenCount,
+      if (r.frozenStamps != null) 'frozenStamps': r.frozenStamps,
+    }, c['expected']);
   },
   'stroke.outline.highlighter': (c) {
     final i = c['input'] as Map<String, dynamic>;
@@ -1155,11 +1249,6 @@ void _runOp(Case c) {
 const pendingRules = <String>{
   // Epic 25/26 (Stories 25.1, 26.1): runners arrive with 25.x and 26.x Android stories.
   'note.shape',
-  // Epic 28 (Story 28.1): runners arrive with Stories 28.2-28.7.
-  'stroke.texture.stamps',
-  'brush.alpha',
-  'brush.legacyTilt',
-  'stroke.liveFreeze',
 };
 
 final _sep = Platform.pathSeparator;

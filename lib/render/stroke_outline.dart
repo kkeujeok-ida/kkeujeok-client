@@ -125,6 +125,8 @@ List<List<double>> strokeOutline(
   bool taper = false,
   bool flat = false,
   double Function(List p)? sizeOf,
+  bool taperHead = true,
+  bool taperTail = true,
 ]) {
   final smp = strokeSamples(usePressure, points, curve, sizeOf);
   if (smp.x.isEmpty) return [];
@@ -165,12 +167,19 @@ List<List<double>> strokeOutline(
 
   // Fountain taper: the radius narrows toward both ends (pen-kinds.md).
   final g = List<double>.filled(n + 1, 1);
-  if (taper) {
-    final taperLength = math.min(3 * width, total / 2);
+  // taperHead/taperTail false: a piece of a live stroke (live_stroke.dart)
+  // tapers only the end that is the stroke's own end.
+  if (taper && (taperHead || taperTail)) {
+    final both = taperHead && taperTail;
+    final taperLength = both ? math.min(3 * width, total / 2) : 3 * width;
     if (taperLength >= 1e-9) {
       for (var i = 0; i <= n; i++) {
         final s = total * i / n;
-        final d = math.min(s, total - s);
+        final d = both
+            ? math.min(s, total - s)
+            : taperHead
+            ? s
+            : total - s;
         g[i] = _taperMin + (1 - _taperMin) * math.min(1, d / taperLength);
       }
     }
@@ -234,6 +243,8 @@ List<List<double>> strokeOutlineFor(
   List points, [
   PressureCurve? curve,
   double Function(List p)? sizeOf,
+  bool taperHead = true,
+  bool taperTail = true,
 ]) => switch (tool) {
   'fountain' => strokeOutline(
     width,
@@ -245,6 +256,8 @@ List<List<double>> strokeOutlineFor(
     true,
     false,
     sizeOf,
+    taperHead,
+    taperTail,
   ),
   'pencil' => strokeOutline(
     width,

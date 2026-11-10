@@ -20,9 +20,10 @@ Map<String, dynamic> _stroke(String id, {Object? brush}) => {
 
 void main() {
   testWidgets(
-    'pencil stamps: grainy edge, live equals finished, none is flat',
+    'pencil stamps: grainy edge, live is the finished stroke without its end stamp, none is flat',
     (t) async {
-      final cache = StrokePathCache();
+      // Made inside runAsync: its three image loads need the real event loop.
+      late final StrokePathCache cache;
       Future<List<int>> render(
         Map<String, dynamic> stroke, {
         required bool live,
@@ -45,11 +46,14 @@ void main() {
       }
 
       await t.runAsync(() async {
+        cache = StrokePathCache();
         await cache.textures.settled();
-        expect(cache.textures.image, isNotNull);
+        expect(cache.textures.images, isNotNull);
         final done = await render(_stroke('p'), live: false);
         final live = await render(_stroke('p'), live: true);
-        expect(live, done);
+        // The live list has no stamp at the end of the path (stamps v2).
+        expect(live, isNot(done));
+        expect(live.any((b) => b != live.first), isTrue);
         // Stamps give many shades; the plain polygon (texture none) only a few.
         Set<int> shades(List<int> px) => {
           for (var y = 100; y < 140; y++)

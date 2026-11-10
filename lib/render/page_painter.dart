@@ -1,12 +1,12 @@
 import 'dart:convert' show jsonEncode;
 import 'dart:math' as math;
-import 'dart:typed_data' show Float32List;
 import 'dart:ui' as ui show Image;
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import '../model/brush.dart';
+import '../model/curve.dart' show opacityPressureCurve;
 import '../model/invert.dart';
 import '../model/pressure_curve.dart';
 import '../model/shape.dart' show shapeRings;
@@ -16,6 +16,7 @@ import 'asset_images.dart';
 import 'pdf_pages.dart';
 import '../model/pdf_rules.dart' show isPdfBackground, patternOf;
 import 'page_background.dart';
+import 'live_stroke.dart';
 import 'pencil_texture.dart';
 import 'stroke_outline.dart';
 import 'text_painter.dart';
@@ -133,17 +134,28 @@ Path strokePath(Map<String, dynamic> s) {
     }
     return path;
   }
-  final pts = smoothPoints(s['points'] as List, smoothInUse);
+  return polygonsPath(s['tool'], piecePolygons(s, s['points'] as List));
+}
+
+/// The polygons of [points] of stroke [s] (all its points, or a piece of a
+/// live stroke). [head]/[tail]: the piece starts/ends at the stroke's own
+/// start/end, which only matters for the fountain taper.
+List<List<List<double>>> piecePolygons(
+  Map<String, dynamic> s,
+  List points, {
+  bool head = true,
+  bool tail = true,
+}) {
+  final pts = smoothPoints(points, smoothInUse);
   final w = (s['width'] as num).toDouble();
-  if (s['tool'] == 'highlighter')
-    return highlighterPath(highlighterPolygons(w, pts));
+  if (s['tool'] == 'highlighter') return highlighterPolygons(w, pts);
   final tool = s['tool'] as String?, up = s['usePressure'] as bool? ?? true;
   if (s['brush'] == null) {
-    return outlinePath(strokeOutlineFor(tool, w, up, pts));
+    return [strokeOutlineFor(tool, w, up, pts, null, null, head, tail)];
   }
   final b = brushResolve(tool, s['brush']);
   final tiltCurve = PressureCurve.fromCurve(b.tiltCurve);
-  return outlinePath(
+  return [
     strokeOutlineFor(
       tool,
       w,
@@ -151,9 +163,14 @@ Path strokePath(Map<String, dynamic> s) {
       pts,
       b.pressureCurve == null ? null : PressureCurve.fromCurve(b.pressureCurve),
       b.tiltTarget == 'size' ? (p) => tiltSizeFactor(p, tiltCurve) : null,
+      head,
+      tail,
     ),
-  );
+  ];
 }
+
+Path polygonsPath(Object? tool, List<List<List<double>>> polys) =>
+    tool == 'highlighter' ? highlighterPath(polys) : outlinePath(polys.first);
 
 /// Layer alpha of a stroke from its brush, and whether it is drawn through
 /// the pencil grain (spec/brush.md).
@@ -228,73 +245,106 @@ void fillPencil(
   );
 }
 
-/// The stamps of a stroke ready for one `drawAtlas` call.
+/// The stamps of a stroke ready for `drawAtlas` (one call per image variant).
+/// [add] appends, so a live stroke keeps its earlier stamps.
 class StampBatch {
-  StampBatch(List<PencilStamp> stamps, Color base, double factor)
-    : transforms = Float32List(stamps.length * 4),
-      rects = Float32List(stamps.length * 4),
-      colors = [] {
-    for (var i = 0; i < stamps.length; i++) {
-      final t = stamps[i];
+  StampBatch(this.base, this.factor);
+
+  final Color base;
+  final double factor;
+  static const _stampPx = 128.0;
+  final _layers = [for (var i = 0; i < 3; i++) _Layer()];
+
+  int get length => _layers.fold(0, (n, l) => n + l.colors.length);
+
+  void add(List<PencilStampV2> stamps) {
+    for (final t in stamps) {
+      final l = _layers[t.variant.clamp(0, 2)];
       final sc = t.size / _stampPx;
       final r = t.angle * math.pi / 180;
       // RSTransform.fromComponents with the anchor at the stamp centre.
       final scos = math.cos(r) * sc, ssin = math.sin(r) * sc;
-      transforms[i * 4] = scos;
-      transforms[i * 4 + 1] = ssin;
-      transforms[i * 4 + 2] = t.x - scos * _stampPx / 2 + ssin * _stampPx / 2;
-      transforms[i * 4 + 3] = t.y - ssin * _stampPx / 2 - scos * _stampPx / 2;
-      rects[i * 4 + 2] = _stampPx;
-      rects[i * 4 + 3] = _stampPx;
-      colors.add(
+      l.transforms.add(
+        RSTransform(
+          scos,
+          ssin,
+          t.x - scos * _stampPx / 2 + ssin * _stampPx / 2,
+          t.y - ssin * _stampPx / 2 - scos * _stampPx / 2,
+        ),
+      );
+      l.rects.add(const Rect.fromLTWH(0, 0, _stampPx, _stampPx));
+      l.colors.add(
         base.withValues(alpha: (base.a * t.alpha * factor).clamp(0.0, 1.0)),
       );
     }
   }
 
-  static const _stampPx = 128.0;
-  final Float32List transforms, rects;
-  final List<Color> colors;
-
-  void paint(Canvas c, ui.Image stamp) => c.drawAtlas(
-    stamp,
-    [
-      for (var i = 0; i < colors.length; i++)
-        RSTransform(
-          transforms[i * 4],
-          transforms[i * 4 + 1],
-          transforms[i * 4 + 2],
-          transforms[i * 4 + 3],
-        ),
-    ],
-    [
-      for (var i = 0; i < colors.length; i++)
-        Rect.fromLTWH(0, 0, _stampPx, _stampPx),
-    ],
-    colors,
-    BlendMode.modulate, // the stamp is white: colour x its alpha
-    null,
-    Paint()..filterQuality = FilterQuality.medium,
-  );
+  void paint(Canvas c, List<ui.Image> images) {
+    final paint = Paint()..filterQuality = FilterQuality.medium;
+    for (var v = 0; v < 3; v++) {
+      final l = _layers[v];
+      if (l.colors.isEmpty) continue;
+      c.drawAtlas(
+        images[v],
+        l.transforms,
+        l.rects,
+        l.colors,
+        BlendMode.modulate, // the stamp is white: colour x its alpha
+        null,
+        paint,
+      );
+    }
+  }
 }
 
-/// Stamps of a stroke (spec stroke.texture.pencilStamps) from its id, points
-/// and brush. The device pressure curve applies unless the brush has its own.
-List<PencilStamp> stampsOf(Map<String, dynamic> s) {
+class _Layer {
+  final transforms = <RSTransform>[], rects = <Rect>[], colors = <Color>[];
+}
+
+/// Stamps of a stroke (spec stroke.texture.stamps) from its id, points and
+/// brush. The device pressure curve applies unless the brush has its own.
+/// [live] with a [walk]: only the stamps new since the walk's last call.
+List<PencilStampV2> stampsOf(
+  Map<String, dynamic> s, {
+  bool live = false,
+  PencilWalk? walk,
+}) {
   final b = brushResolve(s['tool'], s['brush']);
-  final oc = s['brush'] is Map
-      ? (s['brush'] as Map)['opacityPressureCurve']
-      : null;
-  return pencilStamps(
+  final up = s['usePressure'] as bool? ?? true;
+  final oc = b.curvesOff.contains('opacityPressure')
+      ? null
+      : opacityPressureCurve(s['brush']);
+  double? at(List p, int i) =>
+      p.length > i && p[i] is num ? (p[i] as num).toDouble() : null;
+  return pencilStampsV2(
     id: s['id'] as String,
     width: (s['width'] as num).toDouble(),
-    usePressure: s['usePressure'] as bool? ?? true,
+    usePressure: up,
     points: s['points'] as List,
-    opacity: b.opacity,
-    curve: b.pressureCurve == null
+    density: b.density,
+    opacityFactor: b.opacity,
+    live: live,
+    walk: walk,
+    curve: !up
+        ? null
+        : b.pressureCurve == null || b.curvesOff.contains('pressure')
         ? pressureCurveInUse
         : PressureCurve.fromCurve(b.pressureCurve),
-    opacityCurve: oc == null ? null : PressureCurve.fromCurve(oc),
+    densityCurve: !up || b.densityPressureCurve == null
+        ? null
+        : PressureCurve.fromCurve(b.densityPressureCurve),
+    // shortcut: with no opacity curve the alpha is the constant brush opacity;
+    // upgrade with a per-point cache if curves make live frames slow.
+    alphaOf: oc == null && b.opacityTiltCurve == null
+        ? null
+        : (p) => brushAlpha(
+            opacity: b.opacity,
+            opacityPressureCurve: oc,
+            opacityTiltCurve: b.opacityTiltCurve,
+            pressure: at(p, 2),
+            tilt: at(p, 4),
+            usePressure: up,
+          ),
   );
 }
 
@@ -304,7 +354,7 @@ List<PencilStamp> stampsOf(Map<String, dynamic> s) {
 void paintPencil(
   Canvas c,
   Map<String, dynamic> s,
-  ui.Image? stamp,
+  List<ui.Image>? stamp,
   Path Function() polygon, {
   required double fade,
   required bool invert,
@@ -330,24 +380,14 @@ void paintPencil(
       invert: invert,
     );
   }
-  (batch ?? buildBatch(s, bd, fade, invert)).paint(c, stamp);
+  (batch ?? buildBatch(s, fade, invert)).paint(c, stamp);
 }
 
-StampBatch buildBatch(
-  Map<String, dynamic> s,
-  ({double alpha, bool grain}) bd,
-  double fade,
-  bool invert,
-) {
+StampBatch buildBatch(Map<String, dynamic> s, double fade, bool invert) {
   final color = s['color'];
   final base = parseColor(invert && color is String ? inkHex(color) : color);
-  // Brush opacity is inside the stamp alpha; tilt opacity multiplies on top.
-  final op = brushResolve(s['tool'], s['brush']).opacity;
-  return StampBatch(
-    stampsOf(s),
-    base,
-    fade * (op > 0 ? bd.alpha / (op / toolOpacity(s['tool'])) : 0),
-  );
+  // The stamps carry the whole brush alpha (opacity, pressure, tilt).
+  return StampBatch(base, fade)..add(stampsOf(s));
 }
 
 /// Mean-pressure density of a pencil stroke: how dark it is overall.
@@ -355,11 +395,127 @@ double pencilAlpha(Map<String, dynamic> s) => pencilDensity(
   meanPressure(s['usePressure'] as bool? ?? true, s['points'] as List),
 ).density;
 
+/// What is kept of the stroke being drawn (spec rule `stroke.liveFreeze`).
+/// Pens: the points are cut into pieces of [chunk] kept points that share
+/// their joint; a piece that ends inside the frozen part (all but the last
+/// three points) is built once and kept. Resampling and smoothing look at the
+/// whole stroke, so one outline of it would shift every frame; only the open
+/// piece at the end is built again. Pencil stamps: the live list is
+/// append-only, so each frame adds the new stamps only.
+class LiveCache {
+  static const chunk = 8;
+
+  List<Object?>? _key;
+  Path _frozen = Path();
+
+  /// The polygons of the closed pieces, in order.
+  final polygons = <List<List<double>>>[];
+  int _start = 0, _kept = 0;
+  List<num>? _first, _joint;
+
+  PencilWalk _walk = PencilWalk();
+  StampBatch? _batch;
+  int _stampKept = 0;
+  List<num>? _stampLast;
+
+  void _reset() {
+    _frozen = Path();
+    polygons.clear();
+    _start = _kept = _stampKept = 0;
+    _first = _joint = _stampLast = null;
+    _walk = PencilWalk();
+    _batch = null;
+  }
+
+  static List<num> _xy(List p) => [p[0] as num, p[1] as num];
+
+  static bool _eq(List<num>? a, List p) =>
+      a != null && a[0] == p[0] && a[1] == p[1];
+
+  void _sync(Map<String, dynamic> s, Object? extra) {
+    final key = [
+      s['id'],
+      s['tool'],
+      s['width'],
+      s['usePressure'],
+      jsonEncode(s['brush']),
+      s['color'],
+      extra,
+      smoothInUse,
+      ...pressureCurveInUse.values,
+    ];
+    if (_key == null || !StrokePathCache._same(_key!, key)) {
+      _reset();
+      _key = key;
+    }
+  }
+
+  /// The path of the live pen stroke [s].
+  Path pathOf(Map<String, dynamic> s) {
+    _sync(s, null);
+    final kept = keptPoints(s['points'] as List);
+    if (kept.length < _kept ||
+        (kept.isNotEmpty && _first != null && !_eq(_first, kept.first)) ||
+        (_joint != null && !_eq(_joint, kept[_start]))) {
+      _reset();
+      _key = null;
+      return pathOf(s);
+    }
+    _kept = kept.length;
+    if (kept.isNotEmpty) _first ??= _xy(kept.first);
+    final frozen = math.max(0, kept.length - 3);
+    while (_start + chunk - 1 <= frozen - 1) {
+      final end = _start + chunk;
+      final polys = piecePolygons(
+        s,
+        kept.sublist(_start, end),
+        head: _start == 0,
+        tail: false,
+      );
+      polygons.addAll(polys);
+      _frozen.addPath(polygonsPath(s['tool'], polys), Offset.zero);
+      _start = end - 1;
+      _joint = _xy(kept[_start]);
+    }
+    final open = polygonsPath(
+      s['tool'],
+      piecePolygons(s, kept.sublist(_start), head: _start == 0),
+    );
+    return Path()
+      ..addPath(_frozen, Offset.zero)
+      ..addPath(open, Offset.zero);
+  }
+
+  /// The stamps of the live pencil stroke [s], with the new ones added.
+  StampBatch batchOf(Map<String, dynamic> s, bool invert) {
+    _sync(s, invert);
+    final kept = keptPoints(s['points'] as List);
+    if (kept.length < _stampKept ||
+        (_stampKept > 0 && !_eq(_stampLast, kept[_stampKept - 1]))) {
+      _reset();
+      _key = null;
+      return batchOf(s, invert);
+    }
+    final color = s['color'];
+    final b = _batch ??= StampBatch(
+      parseColor(invert && color is String ? inkHex(color) : color),
+      1,
+    );
+    b.add(stampsOf(s, live: true, walk: _walk));
+    _stampKept = kept.length;
+    _stampLast = kept.isEmpty ? null : _xy(kept.last);
+    return b;
+  }
+}
+
 /// Finished-stroke outlines by stroke id, so a repaint does not rebuild them.
 /// The key holds what an edit could change: count, ends, width, pressure.
 class StrokePathCache {
   /// The pencil stamp image (spec/pen-kinds.md); notifies the painter when loaded.
   final textures = PencilTextures();
+
+  /// The stroke being drawn: its frozen part is kept between frames.
+  final live = LiveCache();
   final _byId = <String, (List<Object?>, Path)>{};
   final _batches = <String, (List<Object?>, StampBatch)>{};
 
@@ -397,7 +553,7 @@ class StrokePathCache {
     final key = [..._key(s), s['color'], fade, invert];
     final hit = _batches[id];
     if (hit != null && _same(hit.$1, key)) return hit.$2;
-    final b = buildBatch(s, brushDraw(s), fade, invert);
+    final b = buildBatch(s, fade, invert);
     _batches[id] = (key, b);
     return b;
   }
@@ -626,7 +782,7 @@ class PagePainter extends CustomPainter {
       final fade = ep != null && ep.fade.contains(s['id']) ? ep.alpha : 1.0;
       final bd = brushDraw(s);
       if (s['tool'] == 'pencil' || bd.grain) {
-        final st = bd.grain ? cache.textures.image : null;
+        final st = bd.grain ? cache.textures.images : null;
         paintPencil(
           canvas,
           s,
@@ -662,19 +818,27 @@ class PagePainter extends CustomPainter {
     final s = live?.call();
     if (s != null && drawableStroke(s)) {
       final bd = brushDraw(s);
+      // A shape has no pen points to freeze: it is built each frame.
+      final cached = s['shape'] == null;
       if (s['tool'] == 'pencil' || bd.grain) {
+        final st = bd.grain ? cache.textures.images : null;
         paintPencil(
           canvas,
           s,
-          bd.grain ? cache.textures.image : null,
-          () => strokePath(s),
+          st,
+          () => cached ? cache.live.pathOf(s) : strokePath(s),
           fade: 1,
           invert: inv,
+          batch: st == null
+              ? null
+              : cached
+              ? cache.live.batchOf(s, inv)
+              : null,
         );
       } else {
         fillStroke(
           canvas,
-          strokePath(s),
+          cached ? cache.live.pathOf(s) : strokePath(s),
           s['color'],
           highlighter: s['tool'] == 'highlighter',
           alpha: bd.alpha,

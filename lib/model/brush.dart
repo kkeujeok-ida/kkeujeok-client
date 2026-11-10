@@ -16,6 +16,11 @@ typedef BrushParams = ({
   String tiltTarget,
   double opacity,
   String texture,
+  double density,
+  List<String> curvesOff,
+  List? sizeTiltCurve,
+  List? opacityTiltCurve,
+  List? densityPressureCurve,
 });
 
 BrushParams brushResolve(Object? tool, Object? brush) {
@@ -28,6 +33,8 @@ BrushParams brushResolve(Object? tool, Object? brush) {
       : toolOpacity(tool);
   final tx = b['texture'];
   final tt = b['tiltTarget'];
+  final dn = b['density'];
+  final lt = brushLegacyTilt(brush);
   return (
     pressureCurve: validCurve(b['pressureCurve']),
     tiltCurve: validCurve(b['tiltCurve']) ?? _linear,
@@ -38,7 +45,67 @@ BrushParams brushResolve(Object? tool, Object? brush) {
         : tool == 'pencil'
         ? 'pencil'
         : 'none',
+    density: dn is num && dn >= 0.05 && dn <= 1 ? dn.toDouble() : 1.0,
+    curvesOff: lt.curvesOff,
+    sizeTiltCurve: lt.sizeTiltCurve,
+    opacityTiltCurve: lt.opacityTiltCurve,
+    densityPressureCurve: curvesOff(brush).contains('densityPressure')
+        ? null
+        : validCurve(b['densityPressureCurve']),
   );
+}
+
+/// The strings of `brush.curvesOff` (unknown ones kept); `[]` when absent.
+List<String> curvesOff(Object? brush) {
+  final o = brush is Map ? brush['curvesOff'] : null;
+  return o is List ? [for (final s in o) ?(s is String ? s : null)] : [];
+}
+
+/// spec rule `brush.legacyTilt`: the old `tiltTarget`/`tiltCurve` read as the
+/// two tilt curves; the new field wins, a switch in `curvesOff` gives null.
+({List? sizeTiltCurve, List? opacityTiltCurve, List<String> curvesOff})
+brushLegacyTilt(Object? brush) {
+  final b = brush is Map ? brush : const {};
+  final off = curvesOff(brush);
+  List? read(String field, String name, String target) {
+    if (off.contains(name)) return null;
+    return validCurve(b[field]) ??
+        (b['tiltTarget'] == target
+            ? validCurve(b['tiltCurve']) ?? _linear
+            : null);
+  }
+
+  return (
+    sizeTiltCurve: read('sizeTiltCurve', 'sizeTilt', 'size'),
+    opacityTiltCurve: read('opacityTiltCurve', 'opacityTilt', 'opacity'),
+    curvesOff: off,
+  );
+}
+
+/// spec rule `brush.alpha`: the final alpha of one point. A missing curve is
+/// constant 1; a missing [pressure] (or [usePressure] false) counts as 0.5, a
+/// missing [tilt] gives qt 1.
+double brushAlpha({
+  required double opacity,
+  Object? opacityPressureCurve,
+  Object? opacityTiltCurve,
+  double? pressure,
+  double? tilt,
+  bool usePressure = true,
+}) {
+  var a = opacity;
+  final pc = validCurve(opacityPressureCurve);
+  if (pc != null) {
+    final p = usePressure && pressure != null && pressure.isFinite
+        ? pressure.clamp(0.0, 1.0)
+        : 0.5;
+    a *= curveEval(pc, p) ?? 1;
+  }
+  final tc = validCurve(opacityTiltCurve);
+  if (tc != null && tilt != null && tilt.isFinite) {
+    a *= curveEval(tc, tilt.clamp(0.0, 90.0) / 90) ?? 1;
+  }
+  return a.clamp(0.0, 1.0);
 }
 
 /// Curve output q (0..1) of a point's tilt, or null when it has none.
@@ -106,6 +173,7 @@ Map<String, Object?>? patchBrush(
     'tiltTarget': d.tiltTarget,
     'opacity': d.opacity,
     'texture': d.texture,
+    'density': d.density,
   };
   for (final e in patch.entries) {
     final v = e.value;
