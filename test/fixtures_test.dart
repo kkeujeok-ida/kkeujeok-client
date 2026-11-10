@@ -1250,6 +1250,8 @@ void _runOp(Case c) {
 const pendingRules = <String>{
   // Epic 25/26 (Stories 25.1, 26.1): runners arrive with 25.x and 26.x Android stories.
   'note.shape',
+  // Story 29.1: runners arrive with 29.2 (client) and 29.3 (web).
+  'brush.curveEdit',
 };
 
 final _sep = Platform.pathSeparator;
