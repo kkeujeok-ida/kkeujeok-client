@@ -897,6 +897,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           selecting: _selecting,
           selected: _selectedFolders.contains(f.id),
           onToggleSelect: () => _toggleSelectFolder(f.id),
+          noteCount: tree.noteCount(f.id),
           onRename: () => renameFolderDialog(context, ref, f),
           onMove: () => moveFolderDialog(context, ref, f),
           onDelete: () => deleteFolderDialog(context, ref, f),
@@ -1500,50 +1501,6 @@ class _NoteCardState extends ConsumerState<_NoteCard> {
     final picked = Stack(
       children: [
         _DropFrame(highlight: widget.selected, child: thumb),
-        if (widget.selecting)
-          PositionedDirectional(
-            top: KkjTokens.spacing2,
-            start: KkjTokens.spacing2,
-            child: Icon(
-              widget.selected
-                  ? Icons.check_circle
-                  : Icons.radio_button_unchecked,
-              color: widget.selected
-                  ? theme.colorScheme.primary
-                  : Kk.colorInkSecondary,
-            ),
-          ),
-      ],
-    );
-    // The 48dp ⋯ button floats at the top end instead of sizing the title
-    // row, so the title and date stay close; minHeight keeps the whole
-    // button inside the card's hit-test bounds.
-    final text = Stack(
-      children: [
-        ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 48),
-          child: Padding(
-            padding: const EdgeInsetsDirectional.only(end: 48),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  note.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.labelMedium,
-                ),
-                if (date != null)
-                  Text(
-                    date,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall,
-                  ),
-              ],
-            ),
-          ),
-        ),
         PositionedDirectional(
           top: 0,
           end: 0,
@@ -1574,6 +1531,37 @@ class _NoteCardState extends ConsumerState<_NoteCard> {
             ],
           ),
         ),
+        if (widget.selecting)
+          PositionedDirectional(
+            top: KkjTokens.spacing2,
+            start: KkjTokens.spacing2,
+            child: Icon(
+              widget.selected
+                  ? Icons.check_circle
+                  : Icons.radio_button_unchecked,
+              color: widget.selected
+                  ? theme.colorScheme.primary
+                  : Kk.colorInkSecondary,
+            ),
+          ),
+      ],
+    );
+    final text = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          note.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.labelMedium,
+        ),
+        if (date != null)
+          Text(
+            date,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall,
+          ),
       ],
     );
     return Semantics(
@@ -2060,7 +2048,10 @@ class _FolderCard extends ConsumerWidget {
     required this.selecting,
     required this.selected,
     required this.onToggleSelect,
+    required this.noteCount,
   });
+
+  final int noteCount;
 
   /// Selection mode: a long press starts it, a tap toggles (notes and
   /// folders are picked together).
@@ -2157,73 +2148,66 @@ class _FolderCard extends ConsumerWidget {
         PopupMenuItem(value: _FolderAction.delete, child: Text(l.folderDelete)),
       ],
     );
-    // A list row is built like a note row: the folder icon where the
-    // thumbnail is, the name beside it, the ⋯ button at the end.
+    // Built like a note card: the icon in the thumbnail slot with the ⋯
+    // button at its top end, the name and the note count below (or beside, in
+    // a list row) where a note's title and date are.
+    final thumb = AspectRatio(
+      aspectRatio: 3 / 4,
+      child: LayoutBuilder(
+        builder: (context, box) => Stack(
+          children: [
+            _FolderFace(
+              icon: Icons.folder,
+              color: iconColor,
+              label: folder.name,
+              maxLines: 1,
+              showLabel: false,
+            ),
+            PositionedDirectional(
+              top: 0,
+              end: 0,
+              child: menuButton(small: box.maxWidth < 120),
+            ),
+          ],
+        ),
+      ),
+    );
+    final text = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          folder.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelMedium,
+        ),
+        Text(
+          l.trashNotes(noteCount),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
     final Widget body = rows
         ? Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(
                 width: KkjTokens.spacingCoverColumnMin * _rowThumbWidth(ref),
-                child: AspectRatio(
-                  aspectRatio: 3 / 4,
-                  child: _FolderFace(
-                    icon: Icons.folder,
-                    color: iconColor,
-                    label: folder.name,
-                    maxLines: 2,
-                    showLabel: false,
-                  ),
-                ),
+                child: thumb,
               ),
               const SizedBox(width: KkjTokens.spacing3),
-              Expanded(
-                child: Stack(
-                  children: [
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(minHeight: 48),
-                      child: Padding(
-                        padding: const EdgeInsetsDirectional.only(end: 48),
-                        child: Align(
-                          alignment: AlignmentDirectional.centerStart,
-                          child: Text(
-                            folder.name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.labelMedium,
-                          ),
-                        ),
-                      ),
-                    ),
-                    PositionedDirectional(
-                      top: 0,
-                      end: 0,
-                      child: menuButton(small: false),
-                    ),
-                  ],
-                ),
-              ),
+              Expanded(child: text),
             ],
           )
-        : AspectRatio(
-            aspectRatio: 3 / 4,
-            child: LayoutBuilder(
-              builder: (context, box) => Stack(
-                children: [
-                  _FolderFace(
-                    icon: Icons.folder,
-                    color: iconColor,
-                    label: folder.name,
-                    maxLines: 2,
-                  ),
-                  PositionedDirectional(
-                    top: 0,
-                    end: 0,
-                    child: menuButton(small: box.maxWidth < 120),
-                  ),
-                ],
-              ),
-            ),
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              thumb,
+              const SizedBox(height: KkjTokens.spacing2),
+              text,
+            ],
           );
     final face = DragTarget<Object>(
       onWillAcceptWithDetails: (d) => canDrop(d.data),
