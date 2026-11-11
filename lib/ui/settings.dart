@@ -51,10 +51,13 @@ class _LogOutConfirm extends StatelessWidget {
 
 /// A row with a 48dp minimum touch target.
 class _Row extends StatelessWidget {
-  const _Row({required this.child, this.onTap});
+  const _Row({required this.child, this.onTap, this.indent = false});
 
   final Widget child;
   final VoidCallback? onTap;
+
+  /// A control under an item title: one more level in than the title.
+  final bool indent;
 
   @override
   Widget build(BuildContext context) => InkWell(
@@ -64,9 +67,11 @@ class _Row extends StatelessWidget {
         minHeight: KkjTokens.spacingHitMinAndroid,
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: KkjTokens.spacing4,
-          vertical: KkjTokens.spacing2,
+        padding: EdgeInsetsDirectional.only(
+          start: indent ? KkjTokens.spacing4 * 2 : KkjTokens.spacing4,
+          end: KkjTokens.spacing4,
+          top: KkjTokens.spacing2,
+          bottom: KkjTokens.spacing2,
         ),
         child: Align(alignment: AlignmentDirectional.centerStart, child: child),
       ),
@@ -135,6 +140,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _active = 'general';
   final _chipKeys = <String, GlobalKey>{};
   final _search = TextEditingController();
+  bool _searchOpen = false; // the search is one icon until opened
   String _query = '';
   double? _savedOffset; // scroll position from before the search began
 
@@ -184,6 +190,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void _clear() {
     _search.clear();
     _onQuery('');
+    setState(() => _searchOpen = false);
   }
 
   // Keeps the active chip visible in the horizontal row.
@@ -319,6 +326,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             excludeSemantics: true,
             onTap: () => pick(e.key),
             child: _Row(
+              indent: true,
               onTap: () => pick(e.key),
               child: Row(
                 children: [
@@ -678,7 +686,53 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.settings, style: theme.textTheme.titleLarge),
+        title: Row(
+          children: [
+            Flexible(
+              child: Text(
+                l10n.settings,
+                style: theme.textTheme.titleLarge,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (_searchOpen || searching) ...[
+              const SizedBox(width: KkjTokens.spacing3),
+              Expanded(
+                child: TextField(
+                  controller: _search,
+                  autofocus: true,
+                  onChanged: _onQuery,
+                  decoration: InputDecoration(
+                    hintText: l10n.settingsSearchLabel,
+                    isDense: true,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          if (_searchOpen || searching)
+            IconButton(
+              tooltip: l10n.settingsSearchClear,
+              constraints: const BoxConstraints(
+                minWidth: KkjTokens.spacingHitMinAndroid,
+                minHeight: KkjTokens.spacingHitMinAndroid,
+              ),
+              icon: const Icon(Icons.clear),
+              onPressed: _clear,
+            )
+          else
+            IconButton(
+              tooltip: l10n.settingsSearchLabel,
+              constraints: const BoxConstraints(
+                minWidth: KkjTokens.spacingHitMinAndroid,
+                minHeight: KkjTokens.spacingHitMinAndroid,
+              ),
+              icon: const Icon(Icons.search),
+              onPressed: () => setState(() => _searchOpen = true),
+            ),
+        ],
         backgroundColor: theme.colorScheme.surface,
         scrolledUnderElevation: 0,
       ),
@@ -757,7 +811,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   ),
                                 Offstage(
                                   offstage: searching && !shown.contains(id),
-                                  child: items[id]!,
+                                  child: Padding(
+                                    padding: const EdgeInsetsDirectional.only(
+                                      start: KkjTokens.spacing4,
+                                    ),
+                                    child: items[id]!,
+                                  ),
                                 ),
                               ],
                             ],
@@ -771,6 +830,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           );
           final body = wide
               ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SizedBox(width: 200, child: nav),
                     VerticalDivider(
@@ -780,36 +840,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     Expanded(child: main),
                   ],
                 )
-              : Column(
+              : Stack(
                   children: [
-                    nav,
-                    Expanded(child: main),
+                    main,
+                    // No chip row: the current section's title sticks to the top.
+                    if (_ids.isNotEmpty)
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: ExcludeSemantics(
+                          child: IgnorePointer(
+                            child: ColoredBox(
+                              color: theme.colorScheme.surface,
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  KkjTokens.spacing4,
+                                  KkjTokens.spacing4,
+                                  KkjTokens.spacing4,
+                                  KkjTokens.spacing2,
+                                ),
+                                child: Text(
+                                  names[_active] ?? '',
+                                  style: theme.textTheme.titleMedium,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 );
           return Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.all(KkjTokens.spacing2),
-                child: TextField(
-                  controller: _search,
-                  onChanged: _onQuery,
-                  decoration: InputDecoration(
-                    labelText: l10n.settingsSearchLabel,
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: searching
-                        ? IconButton(
-                            tooltip: l10n.settingsSearchClear,
-                            constraints: const BoxConstraints(
-                              minWidth: KkjTokens.spacingHitMinAndroid,
-                              minHeight: KkjTokens.spacingHitMinAndroid,
-                            ),
-                            icon: const Icon(Icons.clear),
-                            onPressed: _clear,
-                          )
-                        : null,
-                  ),
-                ),
-              ),
               if (searching)
                 Semantics(
                   liveRegion: true,
@@ -872,10 +935,7 @@ class _Nav extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.all(wide ? 0 : KkjTokens.spacing1),
           child: Material(
-            color: sel ? Kk.colorAccentSoft : Kk.colorSurfaceRaised,
-            shape: wide
-                ? null
-                : StadiumBorder(side: BorderSide(color: Kk.colorBorderControl)),
+            color: sel ? Kk.colorAccentSoft : Colors.transparent,
             child: InkWell(
               onTap: () => onTap(id),
               child: ConstrainedBox(

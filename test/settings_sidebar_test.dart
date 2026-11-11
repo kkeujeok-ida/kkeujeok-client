@@ -64,14 +64,17 @@ void main() {
     h.dispose();
   });
 
-  testWidgets('narrow: chip row, no sidebar', (t) async {
-    final h = t.ensureSemantics();
+  testWidgets('narrow: no sidebar and no chips; the title sticks', (t) async {
     await pump(t, 400);
     expect(find.byType(VerticalDivider), findsNothing);
-    await t.tap(find.text('Input and writing').first);
+    // The inline heading plus the sticky copy of the current one.
+    expect(find.text('General'), findsNWidgets(2));
+    await t.drag(
+      find.byType(SingleChildScrollView).first,
+      const Offset(0, -5000),
+    );
     await t.pumpAndSettle();
-    expect(selected(t, 'Input and writing'), isTrue);
-    h.dispose();
+    expect(find.text('Help and diagnostics'), findsNWidgets(2));
   });
 
   testWidgets('200% text at 900dp uses the chip row', (t) async {
@@ -80,19 +83,5 @@ void main() {
     await pump(t, 900);
     expect(find.byType(VerticalDivider), findsNothing);
     expect(t.takeException(), isNull);
-  });
-
-  testWidgets('narrow: last chip brings its heading to the viewport top', (
-    t,
-  ) async {
-    await pump(t, 400);
-    final chip = find.text('Help and diagnostics').first;
-    await t.ensureVisible(chip); // off-screen in the horizontal row
-    await t.tap(chip);
-    await t.pumpAndSettle();
-    final scroll = find.byType(SingleChildScrollView).at(1);
-    final top = t.getTopLeft(scroll).dy;
-    final head = t.getTopLeft(find.text('Help and diagnostics').last).dy;
-    expect(head - top, lessThan(24 + 8));
   });
 }

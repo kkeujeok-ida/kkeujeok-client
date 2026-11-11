@@ -28,6 +28,10 @@ void main() {
   }
 
   Future<void> type(WidgetTester t, String q) async {
+    if (find.byType(TextField).evaluate().isEmpty) {
+      await t.tap(find.byTooltip('Search settings')); // one icon until opened
+      await t.pumpAndSettle();
+    }
     await t.enterText(find.byType(TextField), q);
     await t.pumpAndSettle();
   }
