@@ -1244,6 +1244,10 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
             math.atan2(p.dy - o.dy, p.dx - o.dx) -
             math.atan2(x.down.dy - o.dy, x.down.dx - o.dx);
         a = math.atan2(math.sin(a), math.cos(a)); // into (-pi, pi]
+        // Near a multiple of 45 degrees (turned since the pick) it snaps there.
+        const step = math.pi / 4, near = 4 * math.pi / 180;
+        final total = ang + a, snapped = (total / step).roundToDouble() * step;
+        if ((total - snapped).abs() <= near) a = snapped - ang;
         final deg = a * 180 / math.pi;
         if (deg.abs() < 0.01) return null;
         // The op turns the elements about the center of their plain bounds.
