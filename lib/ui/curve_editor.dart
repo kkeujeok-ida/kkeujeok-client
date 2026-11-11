@@ -13,6 +13,8 @@ import 'kk.dart';
 
 const _eps = 0.01; // least gap between neighbouring points
 const _graph = 220.0; // graph side, dp
+const _lineGrab = 14.0; // a tap this close to the curve adds a point
+const _dropAt = 0.08; // dragged this far out of the graph, a point goes
 
 /// Wins the gesture arena at once for [kinds] (all when null), so the list
 /// behind does not scroll while the pointer works on the area.
@@ -84,6 +86,7 @@ class _CurveEditorState extends State<CurveEditor> {
   final _pts = <List<double>>[];
   int _sel = -1; // selected inner point
   int _drag = -1;
+  bool _out = false; // the dragged point is past the edge: it will be deleted
 
   bool get _fixed => widget.fixedCount != null;
 
@@ -143,7 +146,7 @@ class _CurveEditorState extends State<CurveEditor> {
 
   int _hit(List<(double, double)> p, Offset o) {
     var best = -1;
-    var bd = 22.0;
+    var bd = 16.0; // a tap farther than this from every point is not a grab
     for (var i = 0; i < p.length; i++) {
       final d = (Offset(p[i].$1 * _graph, (1 - p[i].$2) * _graph) - o).distance;
       if (d < bd) {
@@ -152,6 +155,31 @@ class _CurveEditorState extends State<CurveEditor> {
       }
     }
     return best;
+  }
+
+  /// True when [o] (graph dp) lies within [_lineGrab] of the drawn curve.
+  bool _onLine(Offset o) {
+    const steps = 64;
+    Offset at(int k) =>
+        Offset(k / steps * _graph, (1 - widget.curve.q(k / steps)) * _graph);
+    var a = at(0);
+    for (var k = 1; k <= steps; k++) {
+      final b = at(k);
+      final ab = b - a;
+      final len2 = ab.dx * ab.dx + ab.dy * ab.dy;
+      final t = len2 == 0
+          ? 0.0
+          : (((o - a).dx * ab.dx + (o - a).dy * ab.dy) / len2).clamp(0.0, 1.0);
+      if ((a + ab * t - o).distance <= _lineGrab) return true;
+      a = b;
+    }
+    return false;
+  }
+
+  /// How far past the graph box [o] is, as a share of its side.
+  double _outside(Offset o) {
+    double over(double v) => math.max(math.max(-v, v - _graph), 0) / _graph;
+    return math.max(over(o.dx), over(o.dy));
   }
 
   void _remove(int i) {
@@ -171,9 +199,10 @@ class _CurveEditorState extends State<CurveEditor> {
     widget.onTouch?.call();
     final p = _pl;
     var i = _hit(p, e.localPosition);
-    if (i < 0 && !_fixed) {
-      final x = e.localPosition.dx / _graph;
-      final y = 1 - e.localPosition.dy / _graph;
+    // A point is added only by a tap on the curve itself, not beside it.
+    if (i < 0 && !_fixed && _onLine(e.localPosition)) {
+      final x = (e.localPosition.dx / _graph).clamp(0.0, 1.0);
+      final y = widget.curve.q(x);
       if (_points) {
         final l = _edit({'kind': 'add', 'x': x, 'y': y});
         if (l.length == p.length) return;
@@ -197,6 +226,8 @@ class _CurveEditorState extends State<CurveEditor> {
     final p = _pl;
     if (_drag < 0 || _drag >= p.length) return;
     final x = e.localPosition.dx / _graph, y = 1 - e.localPosition.dy / _graph;
+    final out = !_fixed && _outside(e.localPosition) > _dropAt;
+    if (out != _out) setState(() => _out = out);
     if (_points) {
       return _setList(_edit({'kind': 'move', 'index': _drag, 'x': x, 'y': y}));
     }
@@ -209,11 +240,10 @@ class _CurveEditorState extends State<CurveEditor> {
   void _up(PointerEvent e) {
     final i = _drag;
     _drag = -1;
+    if (_out) setState(() => _out = false);
     if (i < 0 || _fixed || e is PointerCancelEvent) return;
-    final o = e.localPosition;
-    double over(double v) => math.max(math.max(-v, v - _graph), 0) / _graph;
-    final outside = math.max(over(o.dx), over(o.dy));
-    if (outside <= 0.08) return;
+    final outside = _outside(e.localPosition);
+    if (outside <= _dropAt) return;
     if (_points) {
       final l = _edit({'kind': 'release', 'index': i, 'outside': outside});
       if (l.length == widget.curve.points!.length) return;
@@ -310,7 +340,11 @@ class _CurveEditorState extends State<CurveEditor> {
                           children: [
                             Positioned.fill(
                               child: CustomPaint(
-                                painter: _GraphPainter(curve, sel),
+                                painter: _GraphPainter(
+                                  curve,
+                                  sel,
+                                  _out ? _drag : -1,
+                                ),
                               ),
                             ),
                             for (var i = 0; i < p.length; i++)
@@ -420,10 +454,13 @@ class _CurveEditorState extends State<CurveEditor> {
 }
 
 class _GraphPainter extends CustomPainter {
-  _GraphPainter(this.curve, this.sel);
+  _GraphPainter(this.curve, this.sel, this.fading);
 
   final PressureCurve curve;
   final int sel;
+
+  /// The point that is about to be deleted: drawn faint.
+  final int fading;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -461,20 +498,27 @@ class _GraphPainter extends CustomPainter {
     for (var i = 0; i < p.length; i++) {
       final c = Offset(p[i].$1 * size.width, (1 - p[i].$2) * size.height);
       final rad = i == sel ? 8.0 : 6.0;
-      canvas.drawCircle(c, rad, Paint()..color = Kk.colorSurfaceRaised);
+      final k = i == fading ? 0.35 : 1.0;
+      canvas.drawCircle(
+        c,
+        rad,
+        Paint()..color = Kk.colorSurfaceRaised.withValues(alpha: k),
+      );
       canvas.drawCircle(
         c,
         rad,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2
-          ..color = i == sel ? Kk.colorAccentText : Kk.colorInkPrimary,
+          ..color = (i == sel ? Kk.colorAccentText : Kk.colorInkPrimary)
+              .withValues(alpha: k),
       );
     }
   }
 
   @override
-  bool shouldRepaint(_GraphPainter old) => old.curve != curve || old.sel != sel;
+  bool shouldRepaint(_GraphPainter old) =>
+      old.curve != curve || old.sel != sel || old.fading != fading;
 }
 
 class _PadPainter extends CustomPainter {

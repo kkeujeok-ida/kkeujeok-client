@@ -74,7 +74,7 @@ void main() {
     t,
   ) async {
     final c = await _open(t);
-    expect(t.getSize(_cell('Red')), const Size(38, 48));
+    expect(t.getSize(_cell('Red')), const Size(37, 37));
     await t.tap(_cell('Red'));
     await t.pumpAndSettle();
     expect(c.read(penSlotsProvider).first.color, '#e03131');

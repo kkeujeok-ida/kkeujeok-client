@@ -117,7 +117,7 @@ List<List<double>> curveEdit(List points, Map op) {
       final x = n('x').clamp(0.0, 1.0), y = n('y').clamp(0.0, 1.0);
       final onLine = (y - (curveEval(p, x) ?? y)).abs() <= 0.04;
       final near = p.any((q) => (q[0] - x).abs() < 0.02);
-      if (!onLine && !near && p.length < maxCurvePoints) {
+      if (onLine && !near && p.length < maxCurvePoints) {
         p.insert(p.indexWhere((q) => q[0] > x), [x, y]);
       }
     case 'move':

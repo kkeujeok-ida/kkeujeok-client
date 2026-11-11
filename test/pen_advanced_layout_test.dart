@@ -52,11 +52,15 @@ Future<ProviderContainer> _open(WidgetTester t) async {
 
 Map? _brush(ProviderContainer c) => c.read(penSlotsProvider)[0].brush;
 
-/// The 220 dp graph of the [n]th editor (centered in its column).
-Rect _graph(WidgetTester t, int n) {
-  final r = t.getRect(find.byType(CurveEditor).at(n));
-  return Rect.fromLTWH(r.center.dx - 110, r.top, 220, 220);
-}
+/// The graph box of the [n]th editor (scaled down when the column is narrow).
+Rect _graph(WidgetTester t, int n) => t.getRect(
+  find
+      .descendant(
+        of: find.byType(CurveEditor).at(n),
+        matching: find.byType(CustomPaint),
+      )
+      .first,
+);
 
 Offset _at(Rect g, double x, double y) =>
     Offset(g.left + x * g.width, g.top + (1 - y) * g.height);
@@ -67,8 +71,8 @@ Future<void> _tapGraph(WidgetTester t, int n, double x, double y) async {
 }
 
 void main() {
-  testWidgets('one column below the basic settings, no sideways scroll, '
-      'presets outside, no popup', (t) async {
+  testWidgets('curves beside the bubble, two a row, scrolling up and down, '
+      'presets in one column, no popup', (t) async {
     await _open(t);
     expect(find.byType(CurveEditor), findsNothing);
     final bubble = t.getRect(find.byType(SingleChildScrollView).first);
@@ -76,35 +80,24 @@ void main() {
     await t.pumpAndSettle();
     // pen without texture: width/opacity pressure + both tilts (no density)
     expect(find.byType(CurveEditor), findsNWidgets(4));
-    expect(
-      t.getRect(find.byType(SingleChildScrollView).first).width,
-      bubble.width,
-    );
     final editors = [
       for (var k = 0; k < 4; k++) t.getRect(find.byType(CurveEditor).at(k)),
     ];
-    for (var k = 1; k < 4; k++) {
-      expect(editors[k].left, editors[0].left);
-      expect(editors[k].top, greaterThan(editors[k - 1].bottom - 1));
-    }
-    expect(editors[0].right, lessThanOrEqualTo(bubble.right));
+    expect(editors[0].top, editors[1].top);
+    expect(editors[2].top, editors[3].top);
+    expect(editors[2].top, greaterThan(editors[0].bottom - 1));
+    expect(editors[0].left, greaterThan(bubble.right));
     expect(find.text('Width pressure curve'), findsOneWidget);
     expect(find.text('Density pressure curve'), findsNothing);
     for (final e in t.widgetList<CurveEditor>(find.byType(CurveEditor))) {
       expect(e.pad, false);
     }
-    expect(t.getSize(find.byType(CurveEditor).first).width, greaterThan(160));
     final horizontal = find.byWidgetPredicate(
       (w) => w is SingleChildScrollView && w.scrollDirection == Axis.horizontal,
     );
     expect(horizontal, findsNothing);
-    // below the basic settings (after the switches)
-    expect(
-      editors[0].top,
-      greaterThan(t.getRect(find.text('Draw straight lines')).bottom),
-    );
     // tapping a point shows no slider
-    await _tapGraph(t, 0, 0.5, 0.9);
+    await _tapGraph(t, 0, 0.5, 0.5);
     expect(
       find.descendant(
         of: find.byType(CurveEditor),
@@ -116,7 +109,7 @@ void main() {
     expect(t.getTopLeft(save).dx, greaterThan(bubble.right));
   });
 
-  testWidgets('palette: swatches are 38 dp wide, more than 6 per row', (
+  testWidgets('palette: cells are 37 dp, 8 per row', (
     t,
   ) async {
     await _open(t);
@@ -129,8 +122,8 @@ void main() {
         t.getTopLeft(cells.at(k)).dy,
     ];
     final firstRow = tops.where((y) => y == tops.first).length;
-    expect(firstRow, greaterThan(6)); // 48 dp cells fit 6 in 320
-    expect(t.getSize(cells.first).width, 38);
+    expect(firstRow, 8);
+    expect(t.getSize(cells.first).width, 37);
   });
 
   testWidgets('basic rows: one line, advanced button top right', (t) async {
@@ -154,7 +147,8 @@ void main() {
       );
     }
     expect(rowY('Opacity'), greaterThan(rowY('Width')));
-    expect(rowY('Opacity'), lessThan(t.getRect(find.text('Texture')).top));
+    expect(find.text('Texture'), findsNothing);
+    expect(find.text('Density'), findsNothing);
   });
 
   testWidgets('switch off keeps the points, on brings them back, touching '
@@ -162,19 +156,20 @@ void main() {
     final c = await _open(t);
     await t.tap(find.text('Advanced brush settings'));
     await t.pumpAndSettle();
-    // all curves start off; touching the graph turns it on with the start line
-    await _tapGraph(t, 0, 0.5, 0.5);
+    // all curves start off; touching the graph turns it on with the start
+    // line; a touch beside the line adds no point
+    await _tapGraph(t, 0, 0.5, 0.9);
     expect(_brush(c), {
       'pressureCurve': [
         [0.0, 0.0],
         [1.0, 1.0],
       ],
     });
-    // a tap off the line adds a point
-    await _tapGraph(t, 0, 0.5, 0.9);
+    // a tap on the line adds a point
+    await _tapGraph(t, 0, 0.5, 0.5);
     final pts = _brush(c)!['pressureCurve'] as List;
     expect(pts.length, 3);
-    expect(pts[1][1], closeTo(0.9, 0.02));
+    expect(pts[1][1], closeTo(0.5, 0.02));
     // off: name added, points stay
     await t.tap(find.text('Width pressure curve'));
     await t.pumpAndSettle();
@@ -188,14 +183,14 @@ void main() {
     // off, then a touch on the graph turns it on again and edits
     await t.tap(find.text('Width pressure curve'));
     await t.pumpAndSettle();
-    await _tapGraph(t, 0, 0.8, 0.1);
+    await _tapGraph(t, 0, 0.8, 0.8);
     expect(_brush(c)!.containsKey('curvesOff'), false);
     expect((_brush(c)!['pressureCurve'] as List).length, 4);
     // a tilt curve starts from the constant 1
-    await _tapGraph(t, 1, 0.5, 0.2);
+    await _tapGraph(t, 1, 0.5, 0.97);
     expect(_brush(c)!['sizeTiltCurve'], [
       [0.0, 1.0],
-      closeTo2(0.5, 0.2),
+      closeTo2(0.5, 1.0),
       [1.0, 1.0],
     ]);
   });
@@ -204,12 +199,12 @@ void main() {
     final c = await _open(t);
     await t.tap(find.text('Advanced brush settings'));
     await t.pumpAndSettle();
-    await _tapGraph(t, 0, 0.5, 0.5); // on
-    await _tapGraph(t, 0, 0.5, 0.9); // add
+    await _tapGraph(t, 0, 0.5, 0.9); // on
+    await _tapGraph(t, 0, 0.5, 0.5); // add, on the line
     expect((_brush(c)!['pressureCurve'] as List).length, 3);
     final g = _graph(t, 0);
-    final gest = await t.startGesture(_at(g, 0.5, 0.9));
-    await gest.moveTo(_at(g, 0.5, 0.9) + const Offset(0, -260));
+    final gest = await t.startGesture(_at(g, 0.5, 0.5));
+    await gest.moveTo(_at(g, 0.5, 0.5) + const Offset(0, -400));
     await gest.up();
     await t.pumpAndSettle();
     expect((_brush(c)!['pressureCurve'] as List).length, 2);
@@ -234,8 +229,8 @@ void main() {
     final c = await _open(t);
     await t.tap(find.text('Advanced brush settings'));
     await t.pumpAndSettle();
-    await _tapGraph(t, 0, 0.5, 0.5);
     await _tapGraph(t, 0, 0.5, 0.9);
+    await _tapGraph(t, 0, 0.5, 0.5);
     await t.tap(find.text('Width pressure curve'));
     await t.pumpAndSettle();
     final before = Map.of(_brush(c)!);

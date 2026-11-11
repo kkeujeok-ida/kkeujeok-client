@@ -13,14 +13,16 @@ import 'curve_editor.dart';
 import 'kk.dart';
 import 'providers.dart';
 
-/// Palette swatch edge: about 0.7 x the previous 48 dp; the hit area stays 48
-/// (spec/brush.md "Sizes").
-const paletteSwatch = 34.0;
+/// Palette swatch edge (spec/brush.md "Sizes").
+const paletteSwatch = 33.0;
+
+/// The hit cell of a swatch: the gap to the next one is 4 dp, sideways and down.
+const paletteCell = paletteSwatch + 4;
 
 /// Switch scale: about 0.75 x the Material size; the row stays 48 dp high.
 const switchScale = 0.75;
 
-/// A labelled switch row, the whole 48 dp row taps (spec/brush.md "Sizes").
+/// A labelled switch row, the whole 36 dp row taps (spec/brush.md "Sizes").
 class PenSwitchRow extends StatelessWidget {
   const PenSwitchRow({
     super.key,
@@ -43,7 +45,7 @@ class PenSwitchRow extends StatelessWidget {
     child: InkWell(
       onTap: () => onChanged(!value),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 48),
+        constraints: const BoxConstraints(minHeight: 36),
         child: Row(
           children: [
             Expanded(child: Text(label)),
@@ -238,14 +240,76 @@ class PenAdvancedPanel extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final w in blocks) ...[
-            w,
-            const SizedBox(height: KkjTokens.spacing3),
+          // Two curves a row.
+          for (var k = 0; k < blocks.length; k += 2) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: blocks[k]),
+                const SizedBox(width: KkjTokens.spacing2),
+                Expanded(
+                  child: k + 1 < blocks.length
+                      ? blocks[k + 1]
+                      : const SizedBox(),
+                ),
+              ],
+            ),
+            const SizedBox(height: KkjTokens.spacing2),
           ],
         ],
       ),
     );
   }
+}
+
+/// What opens beside the pen bubble: the advanced curves in a card that
+/// scrolls up and down, two curves a row, and the presets in one column.
+class PenAdvancedSide extends StatelessWidget {
+  const PenAdvancedSide({super.key, required this.index});
+
+  final int index;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, c) {
+      const presets = 132.0, gap = 8.0;
+      final room = c.maxWidth.isFinite ? c.maxWidth : 520.0;
+      final card = (room - presets - gap).clamp(0.0, 360.0);
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: card,
+            child: Material(
+              color: Kk.componentsPopoverBackground,
+              elevation: 6,
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(
+                  KkjLight.componentsPopoverRounded,
+                ),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(
+                  KkjLight.componentsPopoverPadding,
+                ),
+                child: PenAdvancedPanel(index: index),
+              ),
+            ),
+          ),
+          const SizedBox(width: gap),
+          SizedBox(
+            width: presets,
+            child: Material(
+              type: MaterialType.transparency,
+              child: PenPresets(index: index),
+            ),
+          ),
+        ],
+      );
+    },
+  );
 }
 
 /// The "save" label and one label per saved preset, outside the popover
@@ -353,9 +417,9 @@ class _PenPresetsState extends ConsumerState<PenPresets> {
       container: true,
       label: l10n.brushPresets,
       child: SizedBox(
-        width: 180,
-        child: Wrap(
-          spacing: KkjTokens.spacing1,
+        width: 132,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             ActionChip(
               shape: const StadiumBorder(),
@@ -365,7 +429,8 @@ class _PenPresetsState extends ConsumerState<PenPresets> {
               label: Text(l10n.brushPresetSave),
               onPressed: _presets.length >= maxPresets ? null : _save,
             ),
-            for (final p in _presets)
+            for (final p in _presets) ...[
+              const SizedBox(height: KkjTokens.spacing1),
               Semantics(
                 customSemanticsActions: {
                   CustomSemanticsAction(label: l10n.brushPresetRename): () =>
@@ -387,6 +452,7 @@ class _PenPresetsState extends ConsumerState<PenPresets> {
                   ),
                 ),
               ),
+            ],
           ],
         ),
       ),

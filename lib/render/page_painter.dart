@@ -1,6 +1,6 @@
 import 'dart:convert' show jsonEncode;
 import 'dart:math' as math;
-import 'dart:ui' as ui show Image;
+import 'dart:ui' as ui show Gradient, Image;
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
@@ -200,7 +200,19 @@ bool perPointAlpha(Map<String, dynamic> s) {
           opacityPressureCurve(s['brush']) != null);
 }
 
-typedef AlphaPiece = ({Path path, double alpha});
+/// [fromA]..[toA]: a piece's alpha runs along [from]->[to] as a gradient (null:
+/// the flat [alpha]), so a pressure change reads as a ramp, not a step.
+typedef AlphaPiece = ({
+  Path path,
+  double alpha,
+  Offset? from,
+  Offset? to,
+  double fromA,
+  double toA,
+});
+
+AlphaPiece _flat(Path path, double alpha) =>
+    (path: path, alpha: alpha, from: null, to: null, fromA: alpha, toA: alpha);
 
 /// The pieces of a [perPointAlpha] stroke: one quad per gap between outline
 /// samples, each starting half a gap early so neighbours overlap, plus the two
@@ -257,31 +269,37 @@ List<AlphaPiece> alphaPieces(
   if (poly.isEmpty || a.isEmpty) return [];
   Path ring(Iterable<List<double>> ps) =>
       Path()..addPolygon([for (final p in ps) Offset(p[0], p[1])], true);
-  if (a.length == 1) return [(path: ring(poly), alpha: a[0])];
+  if (a.length == 1) return [_flat(ring(poly), a[0])];
   // polygon = left(N), end cap(7), right reversed(N), start cap(7)
   final n = a.length;
   List<double> l(int i) => poly[i];
   List<double> r(int i) => poly[n + 7 + (n - 1 - i)];
-  List<double> mid(List<double> p, List<double> q) => [
-    (p[0] + q[0]) / 2,
-    (p[1] + q[1]) / 2,
-  ];
+  List<double> back(List<double> p, List<double> q) {
+    // A piece starts a pixel early so it overlaps its neighbour: no seam.
+    final d = math.sqrt(math.pow(q[0] - p[0], 2) + math.pow(q[1] - p[1], 2));
+    final f = d <= 1 ? 1.0 : 1 / d;
+    return [p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f];
+  }
+
+  Offset centre(int i) =>
+      Offset((l(i)[0] + r(i)[0]) / 2, (l(i)[1] + r(i)[1]) / 2);
   return [
-    (path: ring([r(0), ...poly.sublist(2 * n + 7), l(0)]), alpha: a.first),
+    _flat(ring([r(0), ...poly.sublist(2 * n + 7), l(0)]), a.first),
     for (var i = 0; i < n - 1; i++)
       (
         path: ring([
-          i == 0 ? l(0) : mid(l(i - 1), l(i)),
+          i == 0 ? l(0) : back(l(i), l(i - 1)),
           l(i + 1),
           r(i + 1),
-          i == 0 ? r(0) : mid(r(i - 1), r(i)),
+          i == 0 ? r(0) : back(r(i), r(i - 1)),
         ]),
         alpha: (a[i] + a[i + 1]) / 2,
+        from: centre(i),
+        to: centre(i + 1),
+        fromA: a[i],
+        toA: a[i + 1],
       ),
-    (
-      path: ring([l(n - 1), ...poly.sublist(n, n + 7), r(n - 1)]),
-      alpha: a.last,
-    ),
+    _flat(ring([l(n - 1), ...poly.sublist(n, n + 7), r(n - 1)]), a.last),
   ];
 }
 
@@ -303,14 +321,20 @@ void fillAlphaPieces(
   c.saveLayer(box.inflate(1), Paint());
   for (final p in pieces) {
     p.path.fillType = PathFillType.nonZero;
+    Color at(double a) =>
+        base.withValues(alpha: (base.a * a * fade).clamp(0.0, 1.0));
+    final from = p.from, to = p.to;
+    final ramp = from != null && to != null && (to - from).distance > 1e-6;
     c.drawPath(
       p.path,
       Paint()
         ..blendMode = BlendMode.src
         ..isAntiAlias = true
-        ..color = base.withValues(
-          alpha: (base.a * p.alpha * fade).clamp(0.0, 1.0),
-        ),
+        // A shader is scaled by the paint alpha, so the paint stays opaque.
+        ..color = ramp ? const Color(0xFF000000) : at(p.alpha)
+        ..shader = ramp
+            ? ui.Gradient.linear(from, to, [at(p.fromA), at(p.toA)])
+            : null,
     );
   }
   c.restore();
@@ -688,7 +712,9 @@ class LiveCache {
           head: _start == 0,
           tail: false,
           cutFrom: _start - ws,
-          cutTo: e - ws,
+          // Two points into the next piece: its flat end corners are rounded
+          // by [outlinePath], and the next piece covers the notch.
+          cutTo: e + 2 - ws,
         );
         polygons.addAll(polys);
         _frozen.addPath(polygonsPath(s['tool'], polys), Offset.zero);
@@ -1068,6 +1094,7 @@ class PagePainter extends CustomPainter {
       }
       if (pcs != null) canvas.restore();
     }
+
     final sp = selPreview?.call();
     for (final e in els) {
       final moved = sp != null && e is Map && sp.ids.contains(e['id']);

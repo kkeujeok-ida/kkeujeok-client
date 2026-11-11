@@ -203,6 +203,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   NoteArrival? _back;
 
   int? _pointer; // the one pointer that is drawing
+  String? _liveId; // id of the stroke being drawn
   // The page the stroke in progress belongs to and that page's top-left in
   // document coordinates (strokes use the touched page's coordinates).
   String? _strokePageId;
@@ -2584,7 +2585,9 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
   Map<String, dynamic> _stroke(List<List<num>> points, [Map? shape, Pen? pen]) {
     pen ??= _pen;
     return {
-      'id': newId(),
+      // One id per stroke: the live frames and the saved stroke share the
+      // pencil stamp seed, so nothing is redrawn differently at pen up.
+      'id': _liveId ??= newId(),
       'type': 'stroke',
       'tool': pen.tool,
       'color': pen.color,
@@ -3454,6 +3457,7 @@ class _NoteEditorState extends ConsumerState<NoteEditor>
       return;
     }
     _t0 = e.timeStamp;
+    _liveId = null;
     _points
       ..clear()
       ..add(_point(e, doc - _origin));

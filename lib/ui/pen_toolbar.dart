@@ -840,7 +840,7 @@ const _eraserPartialD = 'M3 22H7M10 22H14M17 22H21';
 // Triangle, square and circle overlapped, back to front (the circle is a
 // 16-gon: M L H V Z only).
 const _shapesD = [
-  'M8 3L14.5 14H1.5Z',
+  'M10 3L16.5 14H3.5Z',
   'M3 10H12V19H3Z',
   'M21.5 15L21.04 17.3L19.74 19.24L17.8 20.54L15.5 21L13.2 20.54L11.26 19.24'
       'L9.96 17.3L9.5 15L9.96 12.7L11.26 10.76L13.2 9.46L15.5 9L17.8 9.46'
@@ -1129,7 +1129,10 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
     Widget stepper(IconData icon, String tip, bool enabled, VoidCallback f) =>
         IconButton(
           tooltip: tip,
-          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+          // Narrow and short: the slider gets the width (hit area 32 x 40).
+          constraints: const BoxConstraints(minWidth: 32, minHeight: 40),
+          padding: EdgeInsets.zero,
+          iconSize: 22,
           icon: Icon(icon),
           disabledColor: Kk.colorInkDisabled,
           onPressed: enabled ? f : null,
@@ -1160,13 +1163,16 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
         ),
         SizedBox(width: 40, child: Text(valueText, textAlign: TextAlign.end)),
         Expanded(
-          child: Slider(
-            value: value,
-            min: min,
-            max: max,
-            divisions: divisions,
-            semanticFormatterCallback: (_) => valueText,
-            onChanged: onChanged,
+          child: SizedBox(
+            height: 40,
+            child: Slider(
+              value: value,
+              min: min,
+              max: max,
+              divisions: divisions,
+              semanticFormatterCallback: (_) => valueText,
+              onChanged: onChanged,
+            ),
           ),
         ),
         stepper(
@@ -1184,9 +1190,6 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
       ],
     );
 
-    // Texture + density: pen, fountain, pencil (spec/brush.md); not highlighter/tape.
-    final textured =
-        !isShape && const ['pen', 'fountain', 'pencil'].contains(pen.tool);
     final tex = brushResolve(pen.tool, pen.brush);
     void setBrush(Map<String, Object?> patch) {
       final b = patchBrush(pen.tool, pen.brush, patch);
@@ -1203,13 +1206,7 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
         anchor: anchor,
         leftHanded: ref.watch(leftHandedProvider),
         extra: !isShape && _advanced && pen.tool != 'tape'
-            ? Align(
-                alignment: Alignment.topLeft,
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: PenPresets(index: i),
-                ),
-              )
+            ? PenAdvancedSide(index: i)
             : null,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 320),
@@ -1299,72 +1296,22 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
                           100,
                     }),
                   ),
-                if (textured) ...[
-                  Text(l10n.brushTexture, style: theme.textTheme.labelMedium),
-                  Semantics(
-                    container: true,
-                    label: l10n.brushTexture,
-                    child: SegmentedButton<String>(
-                      showSelectedIcon: false,
-                      style: const ButtonStyle(
-                        minimumSize: WidgetStatePropertyAll(Size(0, _cell)),
-                      ),
-                      segments: [
-                        ButtonSegment(
-                          value: 'none',
-                          label: Text(l10n.brushTextureNone),
-                        ),
-                        ButtonSegment(
-                          value: 'pencil',
-                          label: Text(l10n.brushTextureStamp),
-                        ),
-                      ],
-                      selected: {tex.texture},
-                      onSelectionChanged: (s) => setBrush({'texture': s.first}),
-                    ),
-                  ),
-                  if (tex.texture == 'pencil')
-                    sliderRow(
-                      name: l10n.brushDensity,
-                      valueText: '${(tex.density * 100).round()}%',
-                      value: tex.density.clamp(0.05, 1.0),
-                      min: 0.05,
-                      max: 1,
-                      divisions: 19,
-                      onChanged: (x) =>
-                          setBrush({'density': (x * 100).round() / 100}),
-                      onStep: (d) => setBrush({
-                        'density':
-                            ((tex.density.clamp(0.05, 1.0) + d * 0.05) * 100)
-                                .round() /
-                            100,
-                      }),
-                    ),
-                ],
                 const SizedBox(height: KkjTokens.spacing2),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Wrap(children: cells),
-                ),
+                _ColorGrid(cells),
                 if (recent.isNotEmpty) ...[
                   const SizedBox(height: KkjTokens.spacing3),
                   Text(l10n.recentColors, style: theme.textTheme.labelMedium),
                   const SizedBox(height: KkjTokens.spacing1),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Wrap(
-                      children: [
-                        for (var k = 0; k < recent.length; k++)
-                          _ColorCell(
-                            hex: recent[k],
-                            label: label(recent[k]),
-                            selected: pen.color.toLowerCase() == recent[k],
-                            onTap: () => pick(recent[k]),
-                            corners: _corners(recent.length, k),
-                          ),
-                      ],
-                    ),
-                  ),
+                  _ColorGrid([
+                    for (var k = 0; k < recent.length; k++)
+                      _ColorCell(
+                        hex: recent[k],
+                        label: label(recent[k]),
+                        selected: pen.color.toLowerCase() == recent[k],
+                        onTap: () => pick(recent[k]),
+                        corners: _corners(recent.length, k),
+                      ),
+                  ]),
                 ],
                 if (!isShape) ...[
                   switchRow(l10n.usePressure, on, toggle),
@@ -1373,10 +1320,6 @@ class _PenEditDialogState extends ConsumerState<PenEditDialog> {
                     pen.lineMode,
                     (v) => notifier.setLineMode(i, v),
                   ),
-                ],
-                if (!isShape && _advanced && pen.tool != 'tape') ...[
-                  const SizedBox(height: KkjTokens.spacing3),
-                  PenAdvancedPanel(index: i),
                 ],
                 const SizedBox(height: KkjTokens.spacing3),
                 ExcludeSemantics(
@@ -1785,6 +1728,32 @@ class _TailPainter extends CustomPainter {
 }
 
 /// Corners of one swatch: they are separate chips, so all four are rounded.
+/// Colour cells in rows that fill the width: the spare width is shared out
+/// evenly, so the left and right margins match and the gaps stay as small as
+/// the vertical one.
+class _ColorGrid extends StatelessWidget {
+  const _ColorGrid(this.cells);
+  final List<Widget> cells;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, c) {
+      final w = c.maxWidth.isFinite ? c.maxWidth : paletteCell * 8;
+      final per = math.max(1, (w / paletteCell).floor());
+      return Wrap(
+        children: [
+          for (final cell in cells)
+            SizedBox(
+              width: w / per,
+              height: paletteCell,
+              child: Center(child: cell),
+            ),
+        ],
+      );
+    },
+  );
+}
+
 BorderRadius _corners(int n, int at) =>
     BorderRadius.circular(KkjTokens.roundedSm);
 
@@ -1816,8 +1785,8 @@ class _ColorCell extends StatelessWidget {
       borderRadius: corners,
       onTap: onTap,
       child: SizedBox(
-        width: paletteSwatch + 4, // swatch + 4: more per row (hit 38 x 48)
-        height: _cell,
+        width: paletteCell, // swatch + 4: the gap is 4 both ways
+        height: paletteCell,
         child: Center(
           child: SizedBox.square(
             dimension: paletteSwatch,
